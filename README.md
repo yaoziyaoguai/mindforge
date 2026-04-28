@@ -57,10 +57,12 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 
 | Milestone | 主题 | 状态 |
 |---|---|---|
-| **M0** | 项目契约冻结（本阶段） | 🟢 进行中 |
-| M1 | Source Ingestion MVP（不调 LLM） | ⏳ 待启动 |
-| M2 | LLM Processing MVP（5 个 stage） | ⏳ |
-| M3 | Vault 输出与人工确认机制 | ⏳ |
+| M0 | 项目契约冻结 | ✅ 完成 |
+| M1 | Source Ingestion MVP（不调 LLM） | ✅ 完成 |
+| M1.5 | RunLogger preflight | ✅ 完成 |
+| **M2** | LLM Processing MVP（5 个 stage） | ✅ 完成 |
+| **M2.5** | Anthropic-compatible provider 接入 + 加固 | 🟢 当前 |
+| M3 | Vault 输出与人工确认机制 | ⏳ 待启动 |
 | M4 | 回顾、召回与项目记忆（v0.2/v0.3 候选） | ⏳ |
 | M5 | 高级集成（Obsidian 插件 / OCR / RAG ...） | 🚫 v0.1 不做 |
 
@@ -77,11 +79,29 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 
 ---
 
-## 当前状态：M0 不可越界
+## LLM Provider 配置（M2.5 后）
 
-- 不允许在本阶段创建 `src/mindforge/**` 任何业务代码。
-- 不允许在本阶段安装任何运行时依赖。
-- `pyproject.toml` 仅做依赖**声明**，等 M1 才会真正用到。
-- M0 完成 = 五份文档评审通过、契约冻结，且未来一周无改动需求。
+MindForge 支持三类 provider，由 `configs/mindforge.yaml` 中模型的 `type`
+字段派发：
 
-进入 M1 的条件、停止规则与下一步建议，全部写在 `docs/ROADMAP.md`。
+- `fake`：默认安全路径，离线、确定性 schema 输出（用于测试 / CI / 开发）。
+- `openai_compatible`：OpenAI / Ollama / LM Studio / vLLM 等。
+- `anthropic_compatible`：Anthropic Claude / 阿里云 DashScope **Coding Plan**
+  等以 Anthropic Messages API 协议暴露的服务。
+
+**默认 `active_profile` 是 `fake`，绝不会调用真实模型**。切换到真实路径
+（`anthropic_coding_plan` 或 `openai_compatible` profile）需要本人显式改 yaml
+并填好 `.env`。详细配置、安全约束、单文件 smoke test 流程见
+[`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md)。
+
+`.env` 模板见 [`.env.example`](.env.example)；`.env` 已加入 `.gitignore`，
+**不会**被提交。
+
+---
+
+## 当前状态：M2.5 完成（本地）
+
+- M0/M1/M1.5/M2/M2.5 均已本地 commit，**未** push。
+- 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
+- 进入 M3（人工 `human_approved` 反向同步）的条件、停止规则见
+  [`docs/ROADMAP.md`](docs/ROADMAP.md)。
