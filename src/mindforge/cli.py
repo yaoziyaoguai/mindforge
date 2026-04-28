@@ -19,6 +19,14 @@ from rich.table import Table
 from .checkpoint import Checkpoint
 from .config import ConfigError, load_mindforge_config
 from .models import ItemState
+from .run_logger import (
+    EVENT_SOURCE_ERROR,
+    EVENT_SOURCE_SEEN,
+    EVENT_SOURCE_SKIPPED_OR_UNCHANGED,
+    EVENT_STATE_WRITTEN,
+    EVENT_STATUS_REPORTED,
+    RunLogger,
+)
 from .scanner import Scanner
 
 app = typer.Typer(
@@ -74,44 +82,81 @@ def scan(
     table.add_column("status")
     table.add_column("hash", overflow="fold")
 
-    for result in scanner.iter_results():
-        seen += 1
-        if not result.ok:
-            failed += 1
-            table.add_row(result.source_type, str(result.path), "[red]failed[/red]", result.error or "")
-            continue
+    with RunLogger(cfg.state.runs_path, command="scan") as logger:  # type: ignore[attr-defined]
+        for result in scanner.iter_results():
+            seen += 1
+            if not result.ok:
+                failed += 1
+                table.add_row(
+                    result.source_type,
+                    str(result.path),
+                    "[red]failed[/red]",
+                    result.error or "",
+                )
+                logger.emit(
+                    EVENT_SOURCE_ERROR,
+                    source_type=result.source_type,
+                    adapter_name=result.adapter_name,
+                    path=str(result.path),
+                    error_message=result.error or "",
+                )
+                continue
 
-        doc = result.document
-        assert doc is not None
-        candidate = ItemState(
-            source_id=doc.source_id,
-            source_type=doc.source_type,
-            adapter_name=result.adapter_name,
-            source_path=doc.source_path,
-            content_hash=doc.content_hash,
-            first_seen_at=datetime.now(),
+            doc = result.document
+            assert doc is not None
+            candidate = ItemState(
+                source_id=doc.source_id,
+                source_type=doc.source_type,
+                adapter_name=result.adapter_name,
+                source_path=doc.source_path,
+                content_hash=doc.content_hash,
+                first_seen_at=datetime.now(),
+            )
+            existing = cp.get(doc.source_type, doc.source_path)
+            before_hash = existing.content_hash if existing else None
+            merged = cp.upsert_seen(candidate)
+            changed = before_hash != merged.content_hash or existing is None
+            if changed:
+                new_or_changed += 1
+                label = "[green]new/changed[/green]"
+                logger.emit(
+                    EVENT_SOURCE_SEEN,
+                    source_id=merged.source_id,
+                    source_type=merged.source_type,
+                    adapter_name=merged.adapter_name,
+                    source_path=merged.source_path,
+                    content_hash=merged.content_hash,
+                    status=merged.status,
+                )
+            else:
+                label = "unchanged"
+                logger.emit(
+                    EVENT_SOURCE_SKIPPED_OR_UNCHANGED,
+                    source_id=merged.source_id,
+                    source_type=merged.source_type,
+                    adapter_name=merged.adapter_name,
+                    source_path=merged.source_path,
+                    content_hash=merged.content_hash,
+                    status=merged.status,
+                )
+            table.add_row(doc.source_type, doc.source_path, label, doc.content_hash[:18] + "...")
+
+        console.print(table)
+        console.print(
+            f"扫描完成：共 [bold]{seen}[/bold] 个文件，"
+            f"新增/变更 [green]{new_or_changed}[/green]，失败 [red]{failed}[/red]"
         )
-        existing = cp.get(doc.source_type, doc.source_path)
-        before_hash = existing.content_hash if existing else None
-        merged = cp.upsert_seen(candidate)
-        if before_hash != merged.content_hash or existing is None:
-            new_or_changed += 1
-            label = "[green]new/changed[/green]"
+
+        if write_state:
+            cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
+            console.print(f"已写入 state.json → {cfg.state.state_path}")  # type: ignore[attr-defined]
+            logger.emit(
+                EVENT_STATE_WRITTEN,
+                path=str(cfg.state.state_path),  # type: ignore[attr-defined]
+                items_count=len(list(cp.all_items())),
+            )
         else:
-            label = "unchanged"
-        table.add_row(doc.source_type, doc.source_path, label, doc.content_hash[:18] + "...")
-
-    console.print(table)
-    console.print(
-        f"扫描完成：共 [bold]{seen}[/bold] 个文件，"
-        f"新增/变更 [green]{new_or_changed}[/green]，失败 [red]{failed}[/red]"
-    )
-
-    if write_state:
-        cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
-        console.print(f"已写入 state.json → {cfg.state.state_path}")  # type: ignore[attr-defined]
-    else:
-        console.print("[yellow]--no-write-state：state.json 未写入[/yellow]")
+            console.print("[yellow]--no-write-state：state.json 未写入[/yellow]")
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +178,21 @@ def status(
     cp = Checkpoint.load(cfg.state.state_path)  # type: ignore[attr-defined]
 
     items = list(cp.all_items())
+    by_status = cp.count_by_status()
+    by_source = cp.count_by_source_type()
+
+    with RunLogger(cfg.state.runs_path, command="status") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            EVENT_STATUS_REPORTED,
+            path=str(cfg.state.state_path),  # type: ignore[attr-defined]
+            items_count=len(items),
+            counts={"by_status": dict(by_status), "by_source_type": dict(by_source)},
+            active_profile=cp.active_profile or "",
+        )
+
     console.print(f"[bold]MindForge status[/bold] · active_profile={cp.active_profile or '(unset)'}")
     console.print(f"state.json: {cfg.state.state_path}")  # type: ignore[attr-defined]
     console.print(f"items 总数：{len(items)}")
-
-    by_status = cp.count_by_status()
-    by_source = cp.count_by_source_type()
 
     if not items:
         console.print("[yellow]state.json 为空。先运行 `mindforge scan`。[/yellow]")

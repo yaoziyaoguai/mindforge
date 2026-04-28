@@ -23,6 +23,7 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 |---|---|---|---|---|
 | **M0** | 项目契约冻结 | ❌ | ❌ | ✅ |
 | **M1** | Source Ingestion MVP | ❌ | ✅ | ✅ |
+| **M1.5** | M2 Preflight：运行事件日志 | ❌ | ✅ | ✅ |
 | **M2** | LLM Processing MVP | ✅ | ✅ | ✅ |
 | **M3** | Vault 输出与人工确认机制 | ✅ | ✅ | ✅ |
 | **M4** | 回顾、召回与项目记忆 | ✅ | ✅ | ❌（v0.2/v0.3 候选） |
@@ -105,6 +106,49 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 - `SourceDocument` 协议在两种真实 adapter 上稳定；
 - 下游模块只依赖该协议，不出现 `if source_type == "cubox"` 类分支；
 - 用户显式 approve "M1 → M2"。
+
+---
+
+## Milestone 1.5 · M2 Preflight：运行事件日志（不调 LLM）
+
+> **定位**：这是 M1 完成后、M2 正式开工前的"准备工作"，**不是** M2 本身。
+> 目的是先把 observer / event log 的接线和契约固定下来，让 M2 加入 LLM
+> 调用时**只需要 `logger.emit("llm_call", stage=..., model_alias=..., ...)`
+> 即可**，不必再改日志框架。
+
+### 目标
+- 引入"每次 CLI 运行 = 一份 `.mindforge/runs/<run_id>.jsonl`"的事件日志机制。
+- 把 `state.json`（checkpoint / 现状快照）与 `runs/*.jsonl`（observer / 过程回放）的职责彻底分离。
+- 把已有的 `scan` / `status` 命令接入事件日志，跑通最小事件集。
+
+### 交付物
+- `src/mindforge/run_logger.py`：`RunLogger` 类（context manager；append-only jsonl；字段白名单防止"顺手把原文塞进日志"；自动 emit `run_started` / `run_finished` / `run_failed`）。
+- `scan` 命令接入事件：`run_started` / `source_seen` / `source_skipped_or_unchanged` / `source_error` / `state_written` / `run_finished`（异常时 `run_failed`）。
+- `status` 命令接入事件：`run_started` / `status_reported` / `run_finished`。
+- `tests/test_run_logger.py` + `tests/test_scanner_cli.py` 中两条新增 e2e 用例验证 jsonl 落盘与字段。
+
+### 事件结构（v0.1）
+每行一条 JSON：
+```
+{"ts": "...", "run_id": "...", "event": "<name>", ...其他白名单字段}
+```
+字段白名单（v0.1）：`command` / `config_path` / `source_id` / `source_type` /
+`adapter_name` / `source_path` / `path` / `content_hash` / `status` /
+`error_message` / `counts` / `items_count` / `active_profile`。
+M2 起追加（已预登记）：`stage` / `model_alias` / `provider` / `actual_model` /
+`prompt_version` / `input_file_hash` / `tokens_in` / `tokens_out` / `latency_ms`。
+
+### 明确不做什么
+- ❌ 不实现 `llm/`、`LLMClient`、`triager` / `distiller` / `linker`、`process` 命令、Knowledge Card 写出。
+- ❌ 不调用任何云端或本地大模型。
+- ❌ 不在事件中写入 `raw_text` / 文章正文 / 卡片正文（白名单已强制拒绝）。
+
+### 停止规则
+当 `scan` / `status` 都能产出符合事件结构的 jsonl 且测试覆盖到位即停。
+
+### 进入 M2 的条件
+- 事件结构稳定，M2 加入 LLM 调用时只需新增 `llm_call` 事件即可；
+- 用户显式 approve "M1.5 → M2"。
 
 ---
 

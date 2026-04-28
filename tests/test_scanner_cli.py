@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -176,3 +177,64 @@ def test_cli_scan_bad_config(tmp_path: Path) -> None:
     r = runner.invoke(app, ["scan", "--config", str(bad)])
     assert r.exit_code == 2
     assert "配置错误" in r.output
+
+
+def _read_run_jsonl(runs_dir: Path) -> list[dict]:
+    files = sorted(runs_dir.glob("*.jsonl"))
+    assert files, f"no run jsonl found in {runs_dir}"
+    return [json.loads(line) for line in files[-1].read_text("utf-8").splitlines() if line.strip()]
+
+
+def test_cli_scan_writes_run_jsonl(tmp_path: Path) -> None:
+    cfg_path, _ = _build_vault(tmp_path)
+    runs_dir = tmp_path / ".mindforge" / "runs"
+
+    # 第一次：两条 source_seen + 一条 state_written
+    r1 = runner.invoke(app, ["scan", "--config", str(cfg_path)])
+    assert r1.exit_code == 0, r1.output
+    events = _read_run_jsonl(runs_dir)
+    by_event = [e["event"] for e in events]
+    assert by_event[0] == "run_started"
+    assert by_event[-1] == "run_finished"
+    assert by_event.count("source_seen") == 2
+    assert by_event.count("state_written") == 1
+    # 字段白名单：不应出现 raw_text / 文章正文
+    flat = json.dumps(events, ensure_ascii=False)
+    assert "raw_text" not in flat
+    # 第一条带 command
+    assert events[0]["command"] == "scan"
+    # source_seen 携带必要字段
+    seen = next(e for e in events if e["event"] == "source_seen")
+    for f in ("source_id", "source_type", "adapter_name", "source_path", "content_hash", "status"):
+        assert f in seen, f"missing field {f}"
+
+    # 第二次：两条 source_skipped_or_unchanged
+    r2 = runner.invoke(app, ["scan", "--config", str(cfg_path)])
+    assert r2.exit_code == 0, r2.output
+    events2 = _read_run_jsonl(runs_dir)
+    by_event2 = [e["event"] for e in events2]
+    assert by_event2.count("source_skipped_or_unchanged") == 2
+    assert by_event2.count("source_seen") == 0
+
+
+def test_cli_status_writes_run_jsonl(tmp_path: Path) -> None:
+    cfg_path, _ = _build_vault(tmp_path)
+    runs_dir = tmp_path / ".mindforge" / "runs"
+
+    runner.invoke(app, ["scan", "--config", str(cfg_path)])
+    r = runner.invoke(app, ["status", "--config", str(cfg_path)])
+    assert r.exit_code == 0, r.output
+
+    # 找出 command=status 的那份 jsonl（同秒生成时不能依赖排序）
+    status_events: list[dict] | None = None
+    for f in runs_dir.glob("*.jsonl"):
+        events = [json.loads(line) for line in f.read_text("utf-8").splitlines() if line.strip()]
+        if events and events[0].get("command") == "status":
+            status_events = events
+            break
+    assert status_events is not None, "no status run jsonl found"
+    statuses = [e for e in status_events if e["event"] == "status_reported"]
+    assert len(statuses) == 1
+    assert statuses[0]["items_count"] == 2
+    assert "by_status" in statuses[0]["counts"]
+    assert "by_source_type" in statuses[0]["counts"]
