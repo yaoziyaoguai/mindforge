@@ -303,7 +303,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     except yaml.YAMLError as e:
         raise ConfigError(f"YAML 解析失败 {path}: {e}") from e
     if not isinstance(data, dict):
-        raise ConfigError(f"{path} 顶层必须是 mapping，得到 {type(data).__name__}")
+        raise ConfigError(f"{path} 顶层必须是 YAML 对象，得到 {type(data).__name__}")
     return data
 
 
@@ -336,7 +336,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
                 f"已知集合：{sorted(KNOWN_SOURCE_TYPES)}"
             )
         if not isinstance(entry, dict):
-            raise ConfigError(f"sources.registry.{st} 必须是 mapping")
+            raise ConfigError(f"sources.registry.{st} 必须是 YAML 对象")
         registry[st] = SourceRegistryEntry(
             source_type=st,
             adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{st}"),
@@ -395,10 +395,10 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
     # ---- review (M4 — optional block；缺失走全默认) ----
     review_raw = raw.get("review") or {}
     if not isinstance(review_raw, dict):
-        raise ConfigError(f"review 必须是 mapping，得到 {type(review_raw).__name__}")
+        raise ConfigError(f"review 必须是 YAML 对象，得到 {type(review_raw).__name__}")
     intervals_raw = review_raw.get("intervals") or {}
     if not isinstance(intervals_raw, dict):
-        raise ConfigError("review.intervals 必须是 mapping")
+        raise ConfigError("review.intervals 必须是 YAML 对象")
     intervals = ReviewIntervals(
         remembered=int(intervals_raw.get("remembered", 14)),
         partial=int(intervals_raw.get("partial", 7)),
@@ -455,14 +455,14 @@ def _parse_search(raw: Any) -> "SearchConfig":
     - hybrid weights 必须 >=0；全 0 等价于关闭 hybrid（仍允许，调用方给提示）。
     """
     if not isinstance(raw, dict):
-        raise ConfigError(f"search 必须是 mapping，得到 {type(raw).__name__}")
+        raise ConfigError(f"search 必须是 YAML 对象，得到 {type(raw).__name__}")
 
     bm25_raw = raw.get("bm25") or {}
     if not isinstance(bm25_raw, dict):
-        raise ConfigError("search.bm25 必须是 mapping")
+        raise ConfigError("search.bm25 必须是 YAML 对象")
     fields_raw = bm25_raw.get("fields") or {}
     if not isinstance(fields_raw, dict):
-        raise ConfigError("search.bm25.fields 必须是 mapping {field_name: weight}")
+        raise ConfigError("search.bm25.fields 必须是 YAML 对象：{field_name: weight}")
     fields_clean: dict[str, float] = {}
     for k, v in fields_raw.items():
         try:
@@ -496,10 +496,10 @@ def _parse_search(raw: Any) -> "SearchConfig":
 
     hybrid_raw = raw.get("hybrid") or {}
     if not isinstance(hybrid_raw, dict):
-        raise ConfigError("search.hybrid 必须是 mapping")
+        raise ConfigError("search.hybrid 必须是 YAML 对象")
     weights_raw = hybrid_raw.get("weights") or {}
     if not isinstance(weights_raw, dict):
-        raise ConfigError("search.hybrid.weights 必须是 mapping")
+        raise ConfigError("search.hybrid.weights 必须是 YAML 对象")
     weights_clean: dict[str, float] = {}
     for k, v in weights_raw.items():
         try:
@@ -534,7 +534,7 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
     models: dict[str, ModelConfig] = {}
     for alias, mraw in models_raw.items():
         if not isinstance(mraw, dict):
-            raise ConfigError(f"llm.models.{alias} 必须是 mapping")
+            raise ConfigError(f"llm.models.{alias} 必须是 YAML 对象")
         # base_url 与 base_url_env 至少一个必须存在；fake 类型例外
         base_url_env = mraw.get("base_url_env")
         if "base_url" in mraw:
@@ -573,7 +573,7 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
     profiles: dict[str, dict[str, str]] = {}
     for pname, pmap in profiles_raw.items():
         if not isinstance(pmap, dict):
-            raise ConfigError(f"llm.profiles.{pname} 必须是 mapping")
+            raise ConfigError(f"llm.profiles.{pname} 必须是 YAML 对象")
         missing = [s for s in REQUIRED_STAGES if s not in pmap]
         if missing:
             raise ConfigError(
@@ -608,7 +608,7 @@ def load_learning_tracks(path: str | Path) -> LearningTracksConfig:
     seen_ids: set[str] = set()
     for i, t in enumerate(tracks_raw):
         if not isinstance(t, dict):
-            raise ConfigError(f"learning_tracks.tracks[{i}] 必须是 mapping")
+            raise ConfigError(f"learning_tracks.tracks[{i}] 必须是 YAML 对象")
         tid = _require(t, "id", str, ctx=f"tracks[{i}]")
         if tid in seen_ids:
             raise ConfigError(f"learning_tracks 中存在重复 id：{tid!r}")

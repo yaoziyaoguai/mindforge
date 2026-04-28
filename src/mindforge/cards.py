@@ -107,7 +107,7 @@ def read_card_frontmatter(card_path: Path) -> dict[str, Any]:
     except yaml.YAMLError as e:
         raise CardLoadValueError(f"frontmatter YAML 解析失败：{e}") from e
     if not isinstance(data, dict):
-        raise CardLoadValueError("frontmatter 顶层必须是 mapping")
+        raise CardLoadValueError("frontmatter 顶层必须是 YAML 对象")
     return data
 
 
@@ -190,7 +190,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
     except yaml.YAMLError as e:
         raise _CardError(f"frontmatter YAML 解析失败：{e}") from e
     if not isinstance(data, dict):
-        raise _CardError("frontmatter 顶层必须是 mapping")
+        raise _CardError("frontmatter 顶层必须是 YAML 对象")
 
     status = data.get("status")
     if not isinstance(status, str) or not status:

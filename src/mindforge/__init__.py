@@ -13,4 +13,4 @@
 所有契约的权威源是 ``docs/MINDFORGE_PROTOCOL.md``。
 """
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"

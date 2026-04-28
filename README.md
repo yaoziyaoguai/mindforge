@@ -118,7 +118,7 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.4.2（本地，命令发现 + adapter 协议固化 + 示例 vault）
+## 当前状态：v0.4.3（本地，onboarding / doctor / next 产品化收口）
 
 > 入门请先看 [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) +
 > [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)。整体推进进度看
@@ -194,10 +194,15 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **`SourceAdapter` 协议正式化**：[`docs/SOURCE_ADAPTER_PROTOCOL.md`](docs/SOURCE_ADAPTER_PROTOCOL.md)；`SourceDocument` 新增 `adapter_name` 字段（Scanner 自动回填，向下兼容）。新增数据源 = 写 1 个 Adapter + registry 注册 1 行，**不动** scanner / processor / pipeline / cli / recall / index / review / project context。
   - **`examples/demo-vault/`**：1×Cubox + 1×WebClip + 1×ChatExport + 1×ManualNote + 3 张示例 Knowledge Card + 1 个项目 profile，全部虚构、不含敏感信息；可直接用于 smoke：`mindforge --vault examples/demo-vault doctor / next / scan / process / index rebuild / recall / project context`。
   - **仍然不做**：OCR / 远程 adapter / 自动 adapter 发现 / RAG / Obsidian 插件 / LLM / .env 读取 / 联网。
+- v0.4.3 增量（CLI onboarding polish #3，详见 [`docs/V0_4_3_REVIEW.md`](docs/V0_4_3_REVIEW.md)）：
+  - **`mindforge init --interactive`**：交互式选择 vault 路径、本地 telemetry、`active_profile`；复用原 init plan；中断时不写半成品；仍不读 `.env`、不调 LLM、不联网。
+  - **错误信息中文化收口**：配置、adapter、frontmatter 等用户层错误尽量给中文原因与修复方向。
+  - **`doctor` / `next` 产品化**：doctor 分区、状态图标、action priority、Optional installs；`next --format json` 升到 `version=2` 并新增 `priority` 字段，文本输出最多 5 条建议。
+  - **onboarding smoke 测试**：把 demo vault 主路径固化到 `tests/test_onboarding_smoke.py`，运行时产物写入 `tmp_path/.mindforge`，不污染示例 vault。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md) → [`V0_4_1`](docs/V0_4_1_REVIEW.md) → [`V0_4_2`](docs/V0_4_2_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md) → [`V0_4_1`](docs/V0_4_1_REVIEW.md) → [`V0_4_2`](docs/V0_4_2_REVIEW.md) → [`V0_4_3`](docs/V0_4_3_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

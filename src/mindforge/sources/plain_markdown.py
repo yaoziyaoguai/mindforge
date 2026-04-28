@@ -40,7 +40,7 @@ class PlainMarkdownAdapter(SourceAdapter):
     def load(self, path: str) -> SourceDocument:
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"PlainMarkdownAdapter: 文件不存在 {p}")
+            raise FileNotFoundError(f"Markdown 文件不存在：{p}。请检查 inbox 路径。")
 
         post = frontmatter.load(str(p))
         meta: dict = dict(post.metadata or {})

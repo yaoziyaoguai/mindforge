@@ -172,9 +172,9 @@ def test_next_json_format_is_parseable(tmp_path: Path) -> None:
     res = runner.invoke(app, ["next", "--config", str(cfg), "--format", "json"])
     assert res.exit_code == 0
     data = json.loads(res.output)
-    assert data["version"] == 1
+    assert data["version"] == 2
     assert isinstance(data["suggestions"], list)
-    assert all("command" in s and "reason" in s for s in data["suggestions"])
+    assert all("command" in s and "reason" in s and "priority" in s for s in data["suggestions"])
 
 
 def test_next_does_not_read_env_or_call_http(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

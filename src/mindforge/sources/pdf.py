@@ -47,14 +47,15 @@ class PdfAdapter(SourceAdapter):
 
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"PdfAdapter: 文件不存在 {p}")
+            raise FileNotFoundError(f"PDF 文件不存在：{p}。请检查 inbox 路径。")
 
         # 用 pypdf 最小读取；不传 password、不解 encrypted 文件。
         try:
             reader = pypdf.PdfReader(str(p))
         except Exception as e:  # pypdf 自己的异常体系不稳，统一收敛
             raise OptionalDependencyError(
-                f"PdfAdapter: pypdf 解析失败（{type(e).__name__}）：{e}"
+                f"PDF 解析失败（pypdf/{type(e).__name__}）：{e}。"
+                "请确认文件不是加密 PDF，或先用外部工具导出文本。"
             ) from e
 
         pages_text: list[str] = []
@@ -69,7 +70,7 @@ class PdfAdapter(SourceAdapter):
         if not body.strip():
             # 文本层为空 → 很可能是扫描件；不静默成功，避免下游产出空卡片
             raise PdfNoTextError(
-                f"PdfAdapter: 未能从 {p.name} 抽取任何文本（很可能是扫描件）。"
+                f"未能从 PDF {p.name} 抽取任何文本（很可能是扫描件）。"
                 "MindForge v0.x 不做 OCR；请用其他工具先 OCR 后再放回 inbox，"
                 "或直接归档。详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md。"
             )

@@ -83,7 +83,7 @@ def mark_card_review(
     except yaml.YAMLError as e:
         raise ReviewError(f"frontmatter YAML 解析失败：{e}", exit_code=3) from e
     if not isinstance(data, dict):
-        raise ReviewError("frontmatter 顶层必须是 mapping", exit_code=3)
+        raise ReviewError("frontmatter 顶层必须是 YAML 对象", exit_code=3)
     if "status" in data and not isinstance(data["status"], str):
         raise ReviewError(
             f"status 字段类型异常：{type(data['status']).__name__}", exit_code=3

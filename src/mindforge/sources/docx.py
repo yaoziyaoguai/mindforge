@@ -37,13 +37,14 @@ class DocxAdapter(SourceAdapter):
 
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"DocxAdapter: 文件不存在 {p}")
+            raise FileNotFoundError(f"Docx 文件不存在：{p}。请检查 inbox 路径。")
 
         try:
             d = docx.Document(str(p))
         except Exception as e:
             raise OptionalDependencyError(
-                f"DocxAdapter: python-docx 解析失败（{type(e).__name__}）：{e}"
+                f"Docx 解析失败（python-docx/{type(e).__name__}）：{e}。"
+                "请确认文件是有效 .docx，或先用外部工具另存为普通文档。"
             ) from e
 
         paras = [para.text for para in d.paragraphs if (para.text or "").strip()]

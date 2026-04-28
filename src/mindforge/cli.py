@@ -9,6 +9,7 @@ v0.1 当前命令：
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -98,9 +99,10 @@ def _global_options(
 # ---------------------------------------------------------------------------
 
 
-def _load_cfg(config_path: Path) -> MindForgeConfig:
+def _load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
     # 入口处加载 .env（静默，不打印 value，env > dotfile）
-    load_dotenv_silently(Path.cwd())
+    if read_env:
+        load_dotenv_silently(Path.cwd())
     if not config_path.exists():
         console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
         console.print(
@@ -169,7 +171,7 @@ def scan(
     ),
 ) -> None:
     """扫描 inbox 目录，把每个文件解析为 SourceDocument 并登记到 state.json。"""
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scanner = Scanner(cfg)  # type: ignore[arg-type]
     cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)  # type: ignore[attr-defined]
 
@@ -274,7 +276,7 @@ def status(
     ),
 ) -> None:
     """打印 state.json 的当前状态汇总。"""
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     cp = Checkpoint.load(cfg.state.state_path)  # type: ignore[attr-defined]
 
     items = list(cp.all_items())
@@ -2921,22 +2923,72 @@ def init(
         "--dry-run",
         help="只打印 plan，不写文件",
     ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        help="交互式初始化：选择 vault 路径、telemetry、本次 active_profile",
+    ),
 ) -> None:
     """初始化最小可用的 vault 骨架与配置文件。
 
     幂等保证：多次运行不会重复创建已存在的目录或覆盖用户文件；只有 ``--force``
     才允许覆写 MindForge 自带的模板。
     """
-    from .init_cmd import build_plan, execute_plan, next_steps_hint
+    from .init_cmd import VAULT_DIRS, build_plan, execute_plan, next_steps_hint
 
     # repo_root：尽量找到本仓库 configs/ 与 vault_template/
     import mindforge as _pkg
 
     repo_root = Path(_pkg.__file__).resolve().parent.parent.parent
+    project_root = project_root.resolve()
 
-    # vault 路径优先级：CLI --vault > 当前 yaml vault.root > ./vault
-    target_vault: Path
-    if vault is not None:
+    interactive_telemetry_enabled: bool | None = None
+    interactive_active_profile: str | None = None
+
+    if interactive:
+        default_vault = Path("~/MindForgeVault").expanduser()
+        profile_names = _available_profile_names(project_root, repo_root)
+        default_profile = "fake" if "fake" in profile_names else (profile_names[0] if profile_names else "fake")
+        console.print("[bold]MindForge init --interactive[/bold]")
+        console.print("[dim]说明：telemetry 只写本地文件，不上传；init 不读取 .env、不调用 LLM。[/dim]")
+        console.print(
+            f"[dim]已注册 profile：{', '.join(profile_names) if profile_names else '(未能读取，默认 fake)'}[/dim]"
+        )
+        try:
+            vault_text = typer.prompt("vault 路径", default=str(default_vault)).strip()
+            if not vault_text:
+                console.print("[red]✗ vault 路径不能为空。请重新运行 init --interactive。[/red]")
+                raise typer.Exit(code=2)
+            target_vault = Path(vault_text).expanduser().resolve()
+            _validate_interactive_vault_target(target_vault, VAULT_DIRS)
+
+            interactive_telemetry_enabled = typer.confirm(
+                "启用本地 telemetry？（仅写 .mindforge/telemetry.jsonl，不上传）",
+                default=True,
+            )
+            console.print(
+                "[yellow]提示：真实 provider 需要单独配置 .env；MindForge init 不会读取 .env。[/yellow]"
+            )
+            profile_text = typer.prompt(
+                "active_profile",
+                default=default_profile,
+            ).strip()
+            if not profile_text:
+                console.print("[red]✗ active_profile 不能为空。[/red]")
+                raise typer.Exit(code=2)
+            if profile_names and profile_text not in profile_names:
+                console.print(
+                    f"[red]✗ active_profile={profile_text!r} 不在已注册 profile 中：{profile_names}[/red]"
+                )
+                raise typer.Exit(code=2)
+            interactive_active_profile = profile_text
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[yellow]已中断；尚未写入任何文件。[/yellow]")
+            raise typer.Exit(code=130) from None
+        except typer.Abort:
+            console.print("\n[yellow]已中断；尚未写入任何文件。[/yellow]")
+            raise typer.Exit(code=130) from None
+    elif vault is not None:
         target_vault = vault.expanduser().resolve()
     else:
         cfg_path = project_root / "configs" / "mindforge.yaml"
@@ -2950,7 +3002,7 @@ def init(
             target_vault = (project_root / "vault").resolve()
 
     plan = build_plan(
-        target_vault, project_root=project_root.resolve(), repo_root=repo_root, force=force
+        target_vault, project_root=project_root, repo_root=repo_root, force=force
     )
 
     console.print("[bold]MindForge init[/bold]")
@@ -2960,6 +3012,12 @@ def init(
         console.print("- mode        : [yellow]--force (will overwrite templates)[/yellow]")
     if dry_run:
         console.print("- mode        : [yellow]--dry-run (no files written)[/yellow]")
+    if interactive:
+        console.print("- mode        : [cyan]--interactive[/cyan]")
+        console.print(
+            f"- telemetry   : enabled={interactive_telemetry_enabled} (local_only=True)"
+        )
+        console.print(f"- profile     : {interactive_active_profile}")
 
     summary = plan.summary()
     console.print(
@@ -2985,28 +3043,13 @@ def init(
     for line in actions:
         console.print(f"  {line}")
 
-    # ── 关键：把刚拷过来的 mindforge.yaml 里的 vault.root 改成本次 --vault ──
-    # 否则用户 init 完之后跑 doctor 会指向 repo 默认的 vault.root，体验割裂。
     cfg_dst = (project_root / "configs" / "mindforge.yaml").resolve()
-    if cfg_dst.exists():
-        try:
-            import yaml as _yaml
-
-            data = _yaml.safe_load(cfg_dst.read_text(encoding="utf-8")) or {}
-            if isinstance(data, dict):
-                vault_block = data.setdefault("vault", {})
-                if isinstance(vault_block, dict):
-                    if vault_block.get("root") != str(plan.vault_root):
-                        vault_block["root"] = str(plan.vault_root)
-                        cfg_dst.write_text(
-                            _yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-                            encoding="utf-8",
-                        )
-                        console.print(
-                            f"  rewrote {cfg_dst}  vault.root → {plan.vault_root}"
-                        )
-        except Exception as e:  # noqa: BLE001
-            console.print(f"[yellow]提示：未能改写 vault.root（{e}），请手工编辑 yaml。[/yellow]")
+    _rewrite_init_config(
+        cfg_dst,
+        vault_root=plan.vault_root,
+        telemetry_enabled=interactive_telemetry_enabled,
+        active_profile=interactive_active_profile,
+    )
 
     console.print("\n[bold green]✓ MindForge initialized.[/bold green]")
     console.print("[bold]Next steps:[/bold]")
@@ -3015,6 +3058,97 @@ def init(
     console.print(
         "[dim]说明：init 不创建真实 .env、不读取 .env、不调用 LLM、不修改原始资料。[/dim]"
     )
+
+
+def _available_profile_names(project_root: Path, repo_root: Path) -> list[str]:
+    """只读 yaml profile 名，不读取 .env、不解析 provider 环境变量。"""
+    import yaml as _yaml
+
+    for cfg_path in (
+        project_root / "configs" / "mindforge.yaml",
+        repo_root / "configs" / "mindforge.yaml",
+    ):
+        if not cfg_path.exists():
+            continue
+        try:
+            data = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            llm = data.get("llm") if isinstance(data, dict) else None
+            profiles = llm.get("profiles") if isinstance(llm, dict) else None
+            if isinstance(profiles, dict):
+                return sorted(str(k) for k in profiles)
+        except Exception:  # noqa: BLE001
+            continue
+    return ["fake"]
+
+
+def _validate_interactive_vault_target(target_vault: Path, vault_dirs: tuple[str, ...]) -> None:
+    if target_vault.exists() and not target_vault.is_dir():
+        console.print(f"[red]✗ vault 路径不是目录：{target_vault}[/red]")
+        raise typer.Exit(code=2)
+    if not target_vault.exists():
+        return
+    visible = [p for p in target_vault.iterdir() if not p.name.startswith(".")]
+    if not visible:
+        return
+    required = {"00-Inbox", "20-Knowledge-Cards", "30-Projects"}
+    if required <= {p.name for p in target_vault.iterdir()}:
+        return
+    allowed = {Path(d).parts[0] for d in vault_dirs}
+    unknown = [p.name for p in visible if p.name not in allowed]
+    if unknown:
+        console.print(
+            f"[red]✗ 目标目录已存在且不是 MindForge vault：{target_vault}[/red]"
+        )
+        console.print(
+            "[dim]请选择空目录，或指向已有 MindForge vault。检测到的非 vault 内容："
+            f"{', '.join(sorted(unknown)[:5])}[/dim]"
+        )
+        raise typer.Exit(code=2)
+
+
+def _rewrite_init_config(
+    cfg_dst: Path,
+    *,
+    vault_root: Path,
+    telemetry_enabled: bool | None,
+    active_profile: str | None,
+) -> None:
+    # 把刚拷过来的 mindforge.yaml 改成本次 init 选择；否则 doctor 会指向模板路径。
+    if not cfg_dst.exists():
+        return
+    try:
+        import yaml as _yaml
+
+        data = _yaml.safe_load(cfg_dst.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            return
+        changed: list[str] = []
+        vault_block = data.setdefault("vault", {})
+        if isinstance(vault_block, dict) and vault_block.get("root") != str(vault_root):
+            vault_block["root"] = str(vault_root)
+            changed.append(f"vault.root → {vault_root}")
+        if telemetry_enabled is not None:
+            telemetry = data.setdefault("telemetry", {})
+            if isinstance(telemetry, dict):
+                if telemetry.get("enabled") != telemetry_enabled:
+                    telemetry["enabled"] = telemetry_enabled
+                    changed.append(f"telemetry.enabled → {telemetry_enabled}")
+                if telemetry.get("local_only") is not True:
+                    telemetry["local_only"] = True
+                    changed.append("telemetry.local_only → True")
+        if active_profile:
+            llm = data.setdefault("llm", {})
+            if isinstance(llm, dict) and llm.get("active_profile") != active_profile:
+                llm["active_profile"] = active_profile
+                changed.append(f"llm.active_profile → {active_profile}")
+        if changed:
+            cfg_dst.write_text(
+                _yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+            console.print(f"  rewrote {cfg_dst}  " + "；".join(changed))
+    except Exception as e:  # noqa: BLE001
+        console.print(f"[yellow]提示：未能改写 mindforge.yaml（{e}），请手工编辑 yaml。[/yellow]")
 
 
 @app.command()
@@ -3031,41 +3165,61 @@ def doctor(
     from . import __version__
 
     console.print(f"[bold]MindForge doctor[/bold]  v{__version__}")
-    console.print(f"- Python            : {platform.python_version()} ({sys.executable})")
-    console.print(f"- Platform          : {platform.platform()}")
-    console.print(f"- config path       : {config}  ({'exists' if config.exists() else 'MISSING'})")
+    console.print("[dim]" + "─" * 72 + "[/dim]")
+    console.print("[bold]Runtime[/bold]")
+    console.print(f"  {_doctor_icon('ok')} Python            : {platform.python_version()} ({sys.executable})")
+    console.print(f"  {_doctor_icon('info')} Platform          : {platform.platform()}")
+    config_status = "ok" if config.exists() else "error"
+    config_text = "exists" if config.exists() else "MISSING"
+    console.print(f"  {_doctor_icon(config_status)} config path       : {config}  ({config_text})")
 
     if not config.exists():
-        console.print("[yellow]提示：缺少 mindforge.yaml；其它检查跳过。[/yellow]")
+        console.print("[dim]" + "─" * 72 + "[/dim]")
+        console.print("[bold]Action items[/bold]")
+        console.print(
+            "  [critical] 缺少 mindforge.yaml → 运行: mindforge init --interactive",
+            markup=False,
+        )
         return
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     vault_root = cfg.vault.root
     inbox = vault_root / cfg.vault.inbox_root
     cards_dir = vault_root / cfg.vault.cards_dir
     projects_dir = vault_root / cfg.vault.projects_dir
     state_dir = Path(cfg.state.workdir)
 
-    console.print(f"- vault.root        : {vault_root}  ({_ok_dir(vault_root)})")
-    console.print(f"- inbox             : {inbox}  ({_ok_dir(inbox)})")
-    console.print(f"- knowledge cards   : {cards_dir}  ({_ok_dir(cards_dir)})")
-    console.print(f"- projects          : {projects_dir}  ({_ok_dir(projects_dir)})")
-    console.print(f"- state workdir     : {state_dir}  ({_ok_dir(state_dir)})")
-    console.print(f"- active_profile    : {cfg.llm.active_profile}")
+    console.print("[dim]" + "─" * 72 + "[/dim]")
+    console.print("[bold]Vault[/bold]")
+    for label, path in (
+        ("vault.root", vault_root),
+        ("inbox", inbox),
+        ("knowledge cards", cards_dir),
+        ("projects", projects_dir),
+        ("state workdir", state_dir),
+    ):
+        console.print(f"  {_doctor_icon(_dir_state(path))} {label:<17}: {path}  ({_ok_dir(path)})")
+    profile_state = "ok" if cfg.llm.active_profile in cfg.llm.profiles else "error"
+    console.print(f"  {_doctor_icon(profile_state)} active_profile    : {cfg.llm.active_profile}")
     console.print(
-        f"- telemetry.enabled : {cfg.telemetry.enabled} (local_only={cfg.telemetry.local_only})"
+        f"  {_doctor_icon('ok' if cfg.telemetry.local_only else 'warn')} telemetry.enabled : "
+        f"{cfg.telemetry.enabled} (local_only={cfg.telemetry.local_only})"
     )
 
     pdf_ok = _u.find_spec("pypdf") is not None
     docx_ok = _u.find_spec("docx") is not None
-    pdf_msg = "✓" if pdf_ok else r"✗ (pip install mindforge\[pdf])"
-    docx_msg = "✓" if docx_ok else r"✗ (pip install mindforge\[docx])"
-    console.print(f"- optional dep pypdf       : {pdf_msg}")
-    console.print(f"- optional dep python-docx : {docx_msg}")
+    console.print("[dim]" + "─" * 72 + "[/dim]")
+    console.print("[bold]Optional installs[/bold]")
+    pdf_msg = "installed" if pdf_ok else r"missing (pip install mindforge\[pdf])"
+    docx_msg = "installed" if docx_ok else r"missing (pip install mindforge\[docx])"
+    console.print(f"  {_doctor_icon('ok' if pdf_ok else 'info')} pypdf       : {pdf_msg}")
+    console.print(f"  {_doctor_icon('ok' if docx_ok else 'info')} python-docx : {docx_msg}")
 
     cwd = Path.cwd()
     env_file = cwd / ".env"
     gitignore = cwd / ".gitignore"
+    console.print("[dim]" + "─" * 72 + "[/dim]")
+    console.print("[bold]Safety[/bold]")
     if env_file.exists():
         ignored = False
         if gitignore.exists():
@@ -3075,15 +3229,15 @@ def doctor(
                 pass
         if ignored:
             console.print(
-                "- .env             : present, [green]gitignored ✓[/green] (内容未被读取)"
+                f"  {_doctor_icon('ok')} .env             : present, gitignored (内容未被读取)"
             )
         else:
             console.print(
-                "- .env             : [red]present BUT not in .gitignore![/red] "
+                f"  {_doctor_icon('error')} .env             : present BUT not in .gitignore；"
                 "立即把 .env 加入 .gitignore，避免误提交。"
             )
     else:
-        console.print("- .env             : not present")
+        console.print(f"  {_doctor_icon('info')} .env             : not present")
 
     if shutil.which("git"):
         try:
@@ -3103,26 +3257,26 @@ def doctor(
             ]
             if risky:
                 console.print(
-                    "- [yellow]git status: 检测到运行时产物可能被加入暂存（请勿提交）：[/yellow]"
+                    f"  {_doctor_icon('warn')} git status       : 检测到运行时产物可能被加入暂存（请勿提交）："
                 )
                 for r in risky[:5]:
                     console.print(f"    {r}")
             else:
-                console.print("- git status       : 无敏感运行产物风险")
+                console.print(f"  {_doctor_icon('ok')} git status       : 无敏感运行产物风险")
         except Exception:  # noqa: BLE001
-            console.print("- git status       : (跳过)")
+            console.print(f"  {_doctor_icon('info')} git status       : (跳过)")
 
     # ── v0.2.6: actionable hints ──────────────────────────────────────
-    hints: list[str] = []
+    hints: list[tuple[str, str]] = []
     if not cards_dir.exists():
-        hints.append("vault 目录缺失 → 运行: mindforge init --vault <path>")
+        hints.append(("critical", "vault 目录缺失 → 运行: mindforge init --interactive"))
     if cfg.llm.active_profile not in cfg.llm.profiles:
         hints.append(
-            f"active_profile={cfg.llm.active_profile!r} 未在 llm.profiles 中定义 → 检查 mindforge.yaml"
+            ("critical", f"active_profile={cfg.llm.active_profile!r} 未在 llm.profiles 中定义 → 检查 mindforge.yaml")
         )
     elif cfg.llm.active_profile != "fake":
         hints.append(
-            "active_profile 非 fake：真实跑 process 前请先 `mindforge llm ping` 校验环境变量"
+            ("critical", "active_profile 非 fake：真实跑 process 前请先 `mindforge llm ping` 校验环境变量")
         )
     if cards_dir.exists():
         try:
@@ -3133,15 +3287,15 @@ def doctor(
             n_drafts = sum(1 for c in res.cards if c.status == "ai_draft")
             n_approved = sum(1 for c in res.cards if c.status == "human_approved")
             if not res.cards:
-                hints.append("尚无 Knowledge Cards → 运行: mindforge scan && mindforge process")
+                hints.append(("recommended", "尚无 Knowledge Cards → 运行: mindforge scan && mindforge process"))
             elif n_drafts > 0:
                 hints.append(
-                    f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list"
+                    ("recommended", f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list")
                 )
             # v0.3.2: 没有 human_approved 但有 ai_draft → 提示 recall --include-drafts
             if res.cards and n_approved == 0 and n_drafts > 0:
                 hints.append(
-                    "暂无 human_approved 卡片 → 检索时加: mindforge recall --include-drafts"
+                    ("info", "暂无 human_approved 卡片 → 检索时加: mindforge recall --include-drafts")
                 )
             # v0.4.1: 检测 overdue / due 复习并给出建议
             if n_approved > 0:
@@ -3158,17 +3312,17 @@ def doctor(
                         _due_7 += 1
                 if _overdue:
                     hints.append(
-                        f"{_overdue} 张卡片已 overdue → 运行: mindforge review backlog"
+                        ("recommended", f"{_overdue} 张卡片已 overdue → 运行: mindforge review backlog")
                     )
                 elif _due_7:
                     hints.append(
-                        f"{_due_7} 张卡片本周内到期 → 运行: mindforge review schedule --days 7"
+                        ("recommended", f"{_due_7} 张卡片本周内到期 → 运行: mindforge review schedule --days 7")
                     )
             # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
             idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
             if not idx_path.exists():
                 if res.cards:
-                    hints.append("BM25 索引缺失 → 运行: mindforge index rebuild")
+                    hints.append(("recommended", "BM25 索引缺失 → 运行: mindforge index rebuild"))
             else:
                 try:
                     idx = _lx.BM25Index.load(idx_path)
@@ -3177,24 +3331,41 @@ def doctor(
                         field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b,
                     )
                     if idx.config_hash and idx.config_hash != cur_h:
-                        hints.append("BM25 索引与 search 配置不一致 → 运行: mindforge index rebuild")
+                        hints.append(("recommended", "BM25 索引与 search 配置不一致 → 运行: mindforge index rebuild"))
                     else:
                         diff = _lx.diff_index(idx, res.cards)
                         if not diff.fresh:
-                            hints.append("BM25 索引 stale（卡片有变更） → 运行: mindforge index rebuild")
+                            hints.append(("recommended", "BM25 索引 stale（卡片有变更） → 运行: mindforge index rebuild"))
                 except Exception:  # noqa: BLE001
-                    hints.append("BM25 索引读取失败 → 运行: mindforge index rebuild")
+                    hints.append(("recommended", "BM25 索引读取失败 → 运行: mindforge index rebuild"))
         except Exception:  # noqa: BLE001
             pass
 
     if hints:
+        hints.sort(key=lambda item: {"critical": 0, "recommended": 1, "info": 2}.get(item[0], 9))
+        console.print("[dim]" + "─" * 72 + "[/dim]")
         console.print("[bold]Action items:[/bold]")
-        for h in hints:
-            console.print(f"  • {h}")
+        for priority, h in hints:
+            console.print(f"  [{priority}] {h}", markup=False)
 
     console.print(
         "[dim]说明：本命令不读 .env 内容、不发 HTTP、不打印 api_key / token。[/dim]"
     )
+
+
+def _doctor_icon(state: str) -> str:
+    return {
+        "ok": "[green]✓[/green]",
+        "warn": "[yellow]⚠[/yellow]",
+        "error": "[red]✗[/red]",
+        "info": "[dim]·[/dim]",
+    }.get(state, "[dim]·[/dim]")
+
+
+def _dir_state(p: Path) -> str:
+    if not p.exists() or not p.is_dir():
+        return "error"
+    return "ok"
 
 
 def _ok_dir(p: Path) -> str:
@@ -3407,15 +3578,22 @@ def commands_cmd() -> None:
     )
 
 
-def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
+@dataclass(frozen=True)
+class NextSuggestion:
+    command: str
+    reason: str
+    priority: str
+
+
+def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
     """根据 vault / state 当前状态，推断"下一步该做什么"。
 
-    返回 [(动作命令, 中文原因)]。
+    返回带 priority 的建议；JSON 仍保留 v0.4.2 的 command / reason 字段。
 
     判定来源全部是文件系统可观察事实，不做任何 AI 推断；
     每一条都对应一条用户能直接执行的命令。
     """
-    suggestions: list[tuple[str, str]] = []
+    suggestions: list[NextSuggestion] = []
     vault_root = cfg.vault.root
     inbox = cfg.vault.inbox_path
     cards = cfg.vault.cards_path
@@ -3425,12 +3603,20 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
     # 1. vault 是否完整
     if not vault_root.exists():
         suggestions.append(
-            (f"mindforge init --vault {vault_root}", "vault 根目录不存在，先一键铺骨架")
+            NextSuggestion(
+                f"mindforge init --vault {vault_root}",
+                "vault 根目录不存在，先一键铺骨架",
+                "critical",
+            )
         )
         return suggestions
     if not inbox.exists() or not cards.exists():
         suggestions.append(
-            ("mindforge init", "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）")
+            NextSuggestion(
+                "mindforge init",
+                "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）",
+                "critical",
+            )
         )
 
     # 2. inbox 是否有原料（统计文件数即可，**不读内容**）
@@ -3441,9 +3627,10 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
                 inbox_files += 1
     if inbox_files == 0:
         suggestions.append(
-            (
+            NextSuggestion(
                 f"# 把 markdown 放到 {inbox}/ManualNotes/ 或 Cubox/ 等子目录",
                 "inbox 当前为空，没有可加工的原料",
+                "info",
             )
         )
 
@@ -3463,10 +3650,14 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
         except Exception:
             pass
     if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
-        suggestions.append(("mindforge scan", "inbox 有文件但 state.json 还没建立"))
+        suggestions.append(NextSuggestion("mindforge scan", "inbox 有文件但 state.json 还没建立", "critical"))
     elif raw_or_triaged > 0:
         suggestions.append(
-            ("mindforge process --limit 10", f"state 中有 {raw_or_triaged} 条未跑完 pipeline")
+            NextSuggestion(
+                "mindforge process --limit 10",
+                f"state 中有 {raw_or_triaged} 条未跑完 pipeline",
+                "critical",
+            )
         )
 
     # 4. ai_draft 待审核（**只**统计 frontmatter 的 status 字段）
@@ -3495,18 +3686,30 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
     drafts_in_state = draft_count
     if draft_count > 0:
         suggestions.append(
-            (
+            NextSuggestion(
                 "mindforge approve list",
                 f"有 {draft_count} 张 ai_draft 卡片等待审核（不会自动 approve）",
+                "recommended",
             )
         )
 
     # 5. 索引是否存在
     index_path = workdir / "index" / "bm25.json"
-    if cards.exists() and not index_path.exists() and draft_count + 1 > 0:
-        # 即使全部 ai_draft，也给一次 rebuild 提示（recall --include-drafts 仍能用）
+    card_file_count = 0
+    if cards.exists():
+        card_file_count = sum(
+            1
+            for p in cards.rglob("*.md")
+            if p.is_file() and not p.name.startswith("_")
+        )
+    if cards.exists() and not index_path.exists() and card_file_count > 0:
+        # 即使全部 ai_draft，也给一次 rebuild 提示（recall --include-drafts 仍能用）。
         suggestions.append(
-            ("mindforge index rebuild", "BM25 索引尚未建立（recall 需要它）")
+            NextSuggestion(
+                "mindforge index rebuild",
+                "BM25 索引尚未建立（recall 需要它）",
+                "recommended",
+            )
         )
 
     # 6. 复习 backlog
@@ -3548,7 +3751,11 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
             pass
     if overdue > 0:
         suggestions.append(
-            ("mindforge review backlog", f"有 {overdue} 张复习卡片已 overdue")
+            NextSuggestion(
+                "mindforge review backlog",
+                f"有 {overdue} 张复习卡片已 overdue",
+                "recommended",
+            )
         )
 
     # 7. 项目上下文（有 30-Projects 文件即提示）
@@ -3561,16 +3768,36 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
         )
     if project_count > 0 and drafts_in_state >= 0:
         suggestions.append(
-            (
+            NextSuggestion(
                 "mindforge project list",
                 f"vault 中有 {project_count} 个项目笔记，可生成 context pack",
+                "info",
             )
         )
 
     # 8. 兜底：什么都没建议时给一条 doctor
     if not suggestions:
-        suggestions.append(("mindforge doctor", "看起来一切就绪；定期跑 doctor 自检"))
-    return suggestions
+        suggestions.append(NextSuggestion("mindforge doctor", "看起来一切就绪；定期跑 doctor 自检", "info"))
+    return _compact_next_suggestions(suggestions)
+
+
+def _compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSuggestion]:
+    suggestions = sorted(
+        suggestions,
+        key=lambda s: {"critical": 0, "recommended": 1, "info": 2}.get(s.priority, 9),
+    )
+    if len(suggestions) <= 5:
+        return suggestions
+    shown = suggestions[:4]
+    hidden = len(suggestions) - len(shown)
+    shown.append(
+        NextSuggestion(
+            "mindforge doctor",
+            f"还有 {hidden} 条低优先级建议；运行 doctor 查看完整自检",
+            "info",
+        )
+    )
+    return shown
 
 
 @app.command("next")
@@ -3601,15 +3828,23 @@ def next_cmd(
         if output_format == "json":
             import json as _json
 
-            print(_json.dumps({"version": 1, "error": "config_missing", "suggestions": [
-                {"command": "mindforge init", "reason": "configs/mindforge.yaml 不存在"}
-            ]}, ensure_ascii=False))
+            print(_json.dumps({
+                "version": 2,
+                "error": "config_missing",
+                "suggestions": [
+                    {
+                        "command": "mindforge init",
+                        "reason": "configs/mindforge.yaml 不存在",
+                        "priority": "critical",
+                    }
+                ],
+            }, ensure_ascii=False))
         else:
             console.print("[yellow]配置不存在，先跑：[/yellow]")
-            console.print("  [green]mindforge init[/green]")
+            console.print("  [critical] mindforge init --interactive", markup=False)
         return
     try:
-        cfg = _load_cfg(config)
+        cfg = _load_cfg(config, read_env=False)
     except typer.Exit:
         return
 
@@ -3621,10 +3856,15 @@ def next_cmd(
         print(
             _json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "vault_root": str(cfg.vault.root),
                     "suggestions": [
-                        {"command": cmd, "reason": reason} for cmd, reason in suggestions
+                        {
+                            "command": item.command,
+                            "reason": item.reason,
+                            "priority": item.priority,
+                        }
+                        for item in suggestions
                     ],
                 },
                 ensure_ascii=False,
@@ -3633,9 +3873,9 @@ def next_cmd(
         return
 
     console.print(f"[bold]MindForge next[/bold]  — vault: {cfg.vault.root}\n")
-    for cmd, reason in suggestions:
-        console.print(f"  [green]→ {cmd}[/green]")
-        console.print(f"    {reason}")
+    for item in suggestions:
+        console.print(f"  [{item.priority}] → {item.command}", markup=False)
+        console.print(f"    {item.reason}")
     console.print(
         "\n[dim]说明：本命令不读 .env、不调 LLM、不发 HTTP；"
         "建议来自文件系统可观察事实（state.json / 卡片 frontmatter / 索引文件）。[/dim]"

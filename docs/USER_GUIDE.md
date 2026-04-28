@@ -1,4 +1,4 @@
-# MindForge User Guide — v0.4.2
+# MindForge User Guide — v0.4.3
 
 > 这是一份"工作手册"：每条命令、每个产物、每条边界都在这里查得到。
 > 入门请先看 [`GETTING_STARTED.md`](./GETTING_STARTED.md)。
@@ -9,7 +9,7 @@
 
 | 命令 | 用途 | 副作用 |
 |---|---|---|
-| `mindforge init [--vault PATH] [--dry-run] [--force]` | 一键铺 vault 骨架 + configs + `.env.example` | 写文件（仅 vault + configs） |
+| `mindforge init [--vault PATH] [--interactive] [--dry-run] [--force]` | 一键铺 vault 骨架 + configs + `.env.example` | 写文件（仅 vault + configs） |
 | `mindforge commands` | 按场景列出全部命令 + 一句中文用途 | 只读（纯静态） |
 | `mindforge next [--format text\|json]` | 基于 vault 状态推荐下一步 | 只读 |
 | `mindforge doctor` | 健康检查 + 下一步建议 | 只读 |

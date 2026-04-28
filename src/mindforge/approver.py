@@ -134,7 +134,7 @@ def approve_card(
     except yaml.YAMLError as e:
         raise ApprovalError(f"frontmatter YAML 解析失败：{e}", exit_code=3) from e
     if not isinstance(fm_data, dict):
-        raise ApprovalError("frontmatter 必须是 YAML mapping", exit_code=3)
+        raise ApprovalError("frontmatter 必须是 YAML 对象", exit_code=3)
 
     prev_status = fm_data.get("status")
     if prev_status is None:

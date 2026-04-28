@@ -1,4 +1,4 @@
-# Getting Started — MindForge v0.4.2
+# Getting Started — MindForge v0.4.3
 
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。
 > 全程使用 `fake` provider；**不读取 `.env`**。
@@ -32,6 +32,15 @@ pip install -e '.[pdf,docx]'
 ```bash
 mindforge init --vault ~/MindForgeVault
 ```
+
+也可以使用交互式向导：
+
+```bash
+mindforge init --interactive
+```
+
+它会依次询问 vault 路径、本地 telemetry 是否启用、`active_profile`。默认仍是
+`fake`，不会读取 `.env`，不会调用真实 LLM。
 
 这会：
 - 创建 `00-Inbox/{Cubox,ManualNotes,WebClips,ChatExports,PDFs,Docs}/`、

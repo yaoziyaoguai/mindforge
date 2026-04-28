@@ -180,7 +180,7 @@ def test_version_prints_metadata_only(tmp_path: Path) -> None:
     cfg_path = _make_minimal_cfg(tmp_path)
     res = runner.invoke(app, ["version", "--config", str(cfg_path)])
     assert res.exit_code == 0, res.output
-    assert "MindForge v0.4.2" in res.output
+    assert "MindForge v0.4.3" in res.output
     assert "telemetry.enabled" in res.output
     _assert_no_secrets(res.output)
 
@@ -190,7 +190,7 @@ def test_version_with_missing_config_does_not_crash(tmp_path: Path) -> None:
         app, ["version", "--config", str(tmp_path / "nope.yaml")]
     )
     assert res.exit_code == 0
-    assert "MindForge v0.4.2" in res.output
+    assert "MindForge v0.4.3" in res.output
 
 
 def test_help_works() -> None:
