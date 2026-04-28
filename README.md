@@ -118,7 +118,12 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.4.0（本地，review scheduling MVP）
+## 当前状态：v0.4.1（本地，review polish + onboarding）
+
+> 入门请先看 [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) +
+> [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)。整体推进进度看
+> [`docs/ROADMAP_PROGRESS.md`](docs/ROADMAP_PROGRESS.md)。
+
 
 - M0 → M5.5 + M5.6 全部本地 commit；v0.3.1 在 v0.3.0 BM25 之上把字段权重迁到 `mindforge.yaml` 并新增 hybrid 三路本地融合排序，详见 [`docs/V0_3_1_REVIEW.md`](docs/V0_3_1_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md) §12。**未** push。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
@@ -173,10 +178,16 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **`mindforge review stats [--json]`**：聚合统计（result_breakdown / 平均 review 次数）。
   - **`review mark --dry-run --note "..."`**：预览不写文件；可选**单行 ≤200 字符**备注，写入 frontmatter `last_review_note`，**绝不**进 body。
   - **仍然不做**：SM-2 / FSRS / 后台调度 / 系统通知 / LLM。
+- v0.4.1 增量（review polish + onboarding，详见 [`docs/V0_4_1_REVIEW.md`](docs/V0_4_1_REVIEW.md)）：
+  - **`review schedule --format ical [-o file]`**：本地 .ics 导出（RFC 5545 极简 VEVENT；UID 稳定 → 多次导入不重复）；**不**接系统日历、**不**联网。
+  - **`review weekly [--format markdown|json] [-o file]`**：周报（overdue / due-this-week / reviewed / forgotten / suggested focus tracks 纯计数 / project distribution / next-week preview）；**不**调 LLM。
+  - **doctor**：新增 overdue / due-this-week 两条 actionable hint。
+  - **新增文档**：[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)、[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)、[`docs/ROADMAP_PROGRESS.md`](docs/ROADMAP_PROGRESS.md)、[`docs/V0_4_1_REVIEW.md`](docs/V0_4_1_REVIEW.md)。
+  - **仍然不做**：OCR / 系统日历集成 / 后台 daemon / LLM / RAG / 上传。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md) → [`V0_4_1`](docs/V0_4_1_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

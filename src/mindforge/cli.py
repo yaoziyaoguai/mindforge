@@ -9,7 +9,7 @@ v0.1 当前命令：
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import typer
@@ -1195,7 +1195,7 @@ def review_schedule(
         False, "--include-missing-review-after",
         help="把从未 review 过的 human_approved 卡片也纳入计划（按今天）",
     ),
-    output_format: str = typer.Option("markdown", "--format", help="markdown | json"),
+    output_format: str = typer.Option("markdown", "--format", help="markdown | json | ical"),
     output_path: Path | None = typer.Option(None, "--output", "-o"),
 ) -> None:
     """生成未来 N 天的本地复习计划，按日期分组。
@@ -1203,7 +1203,10 @@ def review_schedule(
     设计强约束（请勿放宽）：
     - **本地纯计算**：不调 LLM，不读 .env，不发 HTTP，不修改卡片；
     - **不**是后台任务 / 系统提醒；只是把"哪天该复习哪些卡片"写到 stdout 或 --output；
-    - 默认仅 ``status: human_approved``；过期卡片归到"今天"分桶（避免被忘掉）。
+    - 默认仅 ``status: human_approved``；过期卡片归到"今天"分桶（避免被忘掉）；
+    - ``--format ical`` 只是**生成本地 .ics 文件**，**不**接系统日历、**不**请求权限、
+      **不**联网；用户可手动导入 macOS Calendar / Outlook / Google Calendar，
+      但导入与否完全由用户决定。
     """
     from .cards import filter_cards, iter_cards
 
@@ -1244,6 +1247,17 @@ def review_schedule(
             ),
             output_format=output_format,
         )
+
+    if output_format == "ical":
+        # v0.4.1 — 本地 iCalendar 导出。**纯文本生成**，不接系统日历、不联网。
+        # 每张待复习卡片 = 一个 VEVENT；description 仅含安全摘要 + path。
+        ics = _render_ics(days_sorted, generated_at=now, horizon_days=days)
+        if output_path:
+            output_path.write_text(ics, encoding="utf-8")
+            console.print(f"[green]✓[/green] 已写入 {output_path}")
+        else:
+            print(ics)
+        return
 
     if output_format == "json":
         import json as _json
@@ -1430,6 +1444,204 @@ def review_stats(
         f"  results            : remembered={breakdown['remembered']} "
         f"partial={breakdown['partial']} forgotten={breakdown['forgotten']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# v0.4.1 — review weekly + iCal helpers
+# ---------------------------------------------------------------------------
+
+
+def _ics_escape(s: str) -> str:
+    """RFC 5545 §3.3.11 文本转义：\\ , ; 与换行。"""
+    return (
+        (s or "")
+        .replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+        .replace("\r", "")
+    )
+
+
+def _render_ics(days_sorted: list, *, generated_at: datetime, horizon_days: int) -> str:
+    """生成 RFC 5545 极简 .ics 文本。
+
+    设计契约：
+    - **完全本地纯文本生成**；不调任何系统 API、不联网、不读 .env；
+    - 每张待复习卡片 → 一个 VEVENT（全天事件）；
+    - SUMMARY 仅含 card title（来自 frontmatter，安全字段）；
+    - DESCRIPTION 仅含 ``track / value_score / path``——绝不含 raw_text /
+      Source Excerpt / Human Note / prompt / completion / api_key；
+    - UID 用 ``card.id@mindforge.local`` 保证多次导出去重。
+    """
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//MindForge//Review Schedule//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:MindForge Review (next {horizon_days}d)",
+    ]
+    dtstamp = generated_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for date_str, items in days_sorted:
+        date_compact = date_str.replace("-", "")
+        next_date_compact = (
+            datetime.fromisoformat(date_str) + timedelta(days=1)
+        ).strftime("%Y%m%d")
+        for c in items:
+            uid = f"{c.id or c.path.stem}@mindforge.local"
+            summary = _ics_escape(f"Review: {c.title or '(untitled)'}")
+            desc = _ics_escape(
+                f"track={c.track or '-'}\n"
+                f"value_score={c.value_score if c.value_score is not None else '-'}\n"
+                f"path={c.rel_path}"
+            )
+            lines += [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{dtstamp}",
+                f"DTSTART;VALUE=DATE:{date_compact}",
+                f"DTEND;VALUE=DATE:{next_date_compact}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                "STATUS:CONFIRMED",
+                "TRANSP:TRANSPARENT",
+                "END:VEVENT",
+            ]
+    lines.append("END:VCALENDAR")
+    # RFC 5545 推荐 CRLF
+    return "\r\n".join(lines) + "\r\n"
+
+
+@review_app.command("weekly")
+def review_weekly(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("markdown", "--format", help="markdown | json"),
+    output_path: Path | None = typer.Option(None, "--output", "-o"),
+) -> None:
+    """生成本周复习 / 学习状态周报。
+
+    设计契约（务必守住）：
+    - **不调 LLM**：所有 section 都是 frontmatter 的结构化汇总；
+    - **不**写卡片；
+    - 仅引用 frontmatter 安全字段：title / track / projects / value_score /
+      review_after / review_count / last_review_result；
+    - "suggested_focus_tracks" 只是按 backlog + forgotten 计数排序，
+      **不**做语义推断、**不**预测下周。
+    """
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    base = filter_cards(scan.cards, status="human_approved")
+    now = datetime.now().astimezone()
+    week_start = now - timedelta(days=7)
+    next_week_end = now + timedelta(days=7)
+
+    overdue: list = []
+    due_this_week: list = []
+    next_week_preview: list = []
+    forgotten_or_partial: list = []
+    reviewed_this_week: list = []
+    track_counts: dict[str, int] = {}
+    project_counts: dict[str, int] = {}
+
+    for c in base:
+        if c.review_after is not None:
+            ra = c.review_after if c.review_after.tzinfo else c.review_after.replace(tzinfo=now.tzinfo)
+            if ra <= now:
+                overdue.append(c)
+            elif ra <= now + timedelta(days=7):
+                due_this_week.append(c)
+            elif ra <= next_week_end + timedelta(days=7):
+                next_week_preview.append(c)
+        if c.reviewed_at is not None:
+            ra2 = c.reviewed_at if c.reviewed_at.tzinfo else c.reviewed_at.replace(tzinfo=now.tzinfo)
+            if ra2 >= week_start:
+                reviewed_this_week.append(c)
+        if c.last_review_result in ("partial", "forgotten"):
+            forgotten_or_partial.append(c)
+        if c.track:
+            track_counts[c.track] = track_counts.get(c.track, 0) + 1
+        for p in c.projects:
+            project_counts[p] = project_counts.get(p, 0) + 1
+
+    # suggested focus = backlog × forgotten 加权排序（纯计数，非 LLM）
+    focus_score: dict[str, int] = {}
+    for c in overdue + due_this_week:
+        if c.track:
+            focus_score[c.track] = focus_score.get(c.track, 0) + 1
+    for c in forgotten_or_partial:
+        if c.track:
+            focus_score[c.track] = focus_score.get(c.track, 0) + 2
+    suggested_focus = sorted(focus_score.items(), key=lambda kv: -kv[1])[:5]
+
+    with RunLogger(cfg.state.runs_path, command="review-weekly") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "review_due_listed",
+            count=len(overdue) + len(due_this_week),
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+        payload = _json.dumps({
+            "version": 1,
+            "generated_at": now.isoformat(timespec="seconds"),
+            "window": {"week_start": week_start.date().isoformat(),
+                       "week_end": now.date().isoformat()},
+            "overdue": [_card_to_safe_dict(c) for c in overdue],
+            "due_this_week": [_card_to_safe_dict(c) for c in due_this_week],
+            "reviewed_this_week_count": len(reviewed_this_week),
+            "forgotten_or_partial": [_card_to_safe_dict(c) for c in forgotten_or_partial],
+            "suggested_focus_tracks": [{"track": t, "score": s} for t, s in suggested_focus],
+            "project_distribution": [
+                {"project": p, "card_count": n}
+                for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])
+            ],
+            "next_week_preview": [_card_to_safe_dict(c) for c in next_week_preview],
+        }, ensure_ascii=False, indent=2)
+        if output_path:
+            output_path.write_text(payload + "\n", encoding="utf-8")
+            console.print(f"[green]✓[/green] 已写入 {output_path}")
+        else:
+            print(payload)
+        return
+
+    def _list(items: list) -> str:
+        if not items:
+            return "_(none)_\n"
+        return "\n".join(
+            f"- [{c.id or c.path.stem}] {c.title or '(untitled)'}  "
+            f"`track={c.track or '-'}` `last={c.last_review_result or '-'}` "
+            f"`path={c.rel_path}`"
+            for c in items
+        ) + "\n"
+
+    md = [
+        f"# Weekly Review · {now.date().isoformat()}\n",
+        f"_window: {week_start.date().isoformat()} → {now.date().isoformat()}_\n",
+        f"\n## Overdue · {len(overdue)} 项\n",
+        _list(overdue),
+        f"\n## Due this week · {len(due_this_week)} 项\n",
+        _list(due_this_week),
+        f"\n## Reviewed this week · {len(reviewed_this_week)} 项\n",
+        f"\n## Forgotten / partial · {len(forgotten_or_partial)} 项\n",
+        _list(forgotten_or_partial),
+        "\n## Suggested focus tracks\n",
+        ("\n".join(f"- {t} (score={s})" for t, s in suggested_focus) + "\n") if suggested_focus else "_(none)_\n",
+        "\n## Project distribution\n",
+        ("\n".join(f"- {p}: {n}" for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])) + "\n") if project_counts else "_(none)_\n",
+        f"\n## Next week preview · {len(next_week_preview)} 项\n",
+        _list(next_week_preview),
+        "\n_说明：本周报由 frontmatter 结构化汇总生成，**不**调用 LLM。_\n",
+    ]
+    out = "".join(md)
+    if output_path:
+        output_path.write_text(out, encoding="utf-8")
+        console.print(f"[green]✓[/green] 已写入 {output_path}")
+    else:
+        print(out)
 
 
 # ---------------------------------------------------------------------------
@@ -2931,6 +3143,27 @@ def doctor(
                 hints.append(
                     "暂无 human_approved 卡片 → 检索时加: mindforge recall --include-drafts"
                 )
+            # v0.4.1: 检测 overdue / due 复习并给出建议
+            if n_approved > 0:
+                _now_doc = datetime.now().astimezone()
+                _overdue = 0
+                _due_7 = 0
+                for _c in res.cards:
+                    if _c.status != "human_approved" or _c.review_after is None:
+                        continue
+                    _ra = _c.review_after if _c.review_after.tzinfo else _c.review_after.replace(tzinfo=_now_doc.tzinfo)
+                    if _ra <= _now_doc:
+                        _overdue += 1
+                    elif _ra <= _now_doc + timedelta(days=7):
+                        _due_7 += 1
+                if _overdue:
+                    hints.append(
+                        f"{_overdue} 张卡片已 overdue → 运行: mindforge review backlog"
+                    )
+                elif _due_7:
+                    hints.append(
+                        f"{_due_7} 张卡片本周内到期 → 运行: mindforge review schedule --days 7"
+                    )
             # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
             idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
             if not idx_path.exists():
