@@ -118,7 +118,7 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.3.1（本地，BM25 配置化 + hybrid 排序）
+## 当前状态：v0.4.0（本地，review scheduling MVP）
 
 - M0 → M5.5 + M5.6 全部本地 commit；v0.3.1 在 v0.3.0 BM25 之上把字段权重迁到 `mindforge.yaml` 并新增 hybrid 三路本地融合排序，详见 [`docs/V0_3_1_REVIEW.md`](docs/V0_3_1_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md) §12。**未** push。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
@@ -162,10 +162,21 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **`mindforge recall --ranking hybrid [--explain]`**：BM25 + value_score + review_due 三路本地融合；`--explain` 打印每条命中的三路分量与 `final_score`。
   - **`config_hash`**：索引内嵌配置指纹；`mindforge index status` / `mindforge doctor` 自动检测"配置漂移"并提示 `mindforge index rebuild`。recall 路径若发现漂移，自动用当前配置内存重建（绝不静默用旧权重打分）。
   - **仍然不做**：RAG / embedding / LLM 调用 / 远程上传。hybrid 是纯本地规则。
+- v0.3.2 增量（recall UX polish + index info JSON，详见 [`docs/V0_3_2_REVIEW.md`](docs/V0_3_2_REVIEW.md)）：
+  - **`recall --weight-bm25/--weight-value-score/--weight-review-due`**：本次运行覆盖 hybrid 权重，**不**写回 yaml；非法权重（负数 / 全 0）fail-fast。
+  - **`recall --explain --format json`**：新增 `weight_source` / `active_weights` / `index_stale` / per-item `why_this_matched` / `matched_terms` / `matched_fields` / `ranking_mode`，便于脚本与回归。
+  - **`mindforge index info [--json]`** + **`mindforge index status --json`**：稳定 schema (version=1)，给 doctor/外部脚本消费。
+  - **doctor 增强**：仅有 ai_draft 时提示 `recall --include-drafts`。
+- v0.4.0 增量（review scheduling MVP，详见 [`docs/V0_4_0_REVIEW.md`](docs/V0_4_0_REVIEW.md) / [`docs/V0_4_REVIEW_SCHEDULING_PROTOCOL.md`](docs/V0_4_REVIEW_SCHEDULING_PROTOCOL.md)）：
+  - **`mindforge review schedule`**：未来 N 天复习计划，按日期分组，markdown / json；过期归"今天"；`--include-missing-review-after` 可纳入新卡。
+  - **`mindforge review backlog`**：overdue / today / upcoming / missing 四桶。
+  - **`mindforge review stats [--json]`**：聚合统计（result_breakdown / 平均 review 次数）。
+  - **`review mark --dry-run --note "..."`**：预览不写文件；可选**单行 ≤200 字符**备注，写入 frontmatter `last_review_note`，**绝不**进 body。
+  - **仍然不做**：SM-2 / FSRS / 后台调度 / 系统通知 / LLM。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。
