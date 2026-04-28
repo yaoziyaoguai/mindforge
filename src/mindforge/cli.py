@@ -3286,5 +3286,361 @@ def version(
     )
 
 
+# ---------------------------------------------------------------------------
+# v0.4.2: 产品体验闭环 — `mindforge commands` 与 `mindforge next`
+# ---------------------------------------------------------------------------
+# 设计意图（学习要点）
+# --------------------
+# 1. CLI 变多以后，`mindforge --help` 会按字母序铺平展示，新用户根本不知道
+#    "下一步该敲哪一条"。这两条命令解决"命令发现"和"工作流引导"两个问题：
+#    - `commands` 按"任务场景"分组，给每条命令一句中文"什么时候用"。
+#    - `next` 读取当前 vault / state 的健康指标，给出"现在最该做的下一步"。
+# 2. 这两条命令必须遵守 v0.x 安全核心：
+#    - **不读 .env 内容**（仅检查文件是否存在）；
+#    - **不调 LLM**（纯字符串模板 + 文件系统统计）；
+#    - **不联网**；
+#    - **不输出 raw_text / 卡片正文 / prompt / completion / api_key**。
+# 3. `next` 的判定基于"显式可观察事实"：vault 是否存在、inbox 是否有文件、
+#    state.json 是否有 raw / triaged 残留、卡片目录是否有 ai_draft、
+#    .mindforge/index/ 是否存在、review backlog 是否非空 …… 都是文件系统能
+#    答的问题，不需要任何 AI 推断。
+# ---------------------------------------------------------------------------
+
+# `commands` 的固定脚本：(group, command, "什么时候用")
+_COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "初始化",
+        [
+            ("mindforge init --vault PATH", "首次创建 vault 骨架与 configs"),
+            ("mindforge doctor", "健康检查 + 下一步行动建议（不读 .env）"),
+            ("mindforge version", "版本与运行配置摘要（不含 secret）"),
+        ],
+    ),
+    (
+        "数据输入",
+        [
+            ("mindforge scan", "扫 inbox，建 SourceDocument，刷 state.json"),
+            ("mindforge process [--limit N]", "跑 LLM pipeline（默认 fake provider）"),
+            ("mindforge status", "查看 state.json 中的处理进度"),
+        ],
+    ),
+    (
+        "审核",
+        [
+            ("mindforge approve list", "列出 ai_draft 卡片（仅安全字段）"),
+            ("mindforge approve --card PATH", "把单张卡片晋升为 human_approved"),
+            ("mindforge approve --all --confirm", "批量晋升（先 --dry-run 预览）"),
+        ],
+    ),
+    (
+        "搜索",
+        [
+            ("mindforge index rebuild", "本地 BM25 索引重建（不联网）"),
+            ("mindforge index info --json", "索引健康 / 配置漂移检查"),
+            ("mindforge recall --query \"...\"", "本地词法检索"),
+            ("mindforge recall --ranking hybrid --explain", "三路融合 + 评分解释"),
+        ],
+    ),
+    (
+        "复习",
+        [
+            ("mindforge review backlog", "overdue / today / upcoming / missing 四桶"),
+            ("mindforge review schedule --days 7", "未来 N 天复习计划"),
+            ("mindforge review schedule --format ical -o file.ics", "本地 .ics 导出（不接系统日历）"),
+            ("mindforge review weekly", "周报（不调 LLM）"),
+            ("mindforge review mark --card PATH --result remembered", "标记复习结果"),
+        ],
+    ),
+    (
+        "项目上下文",
+        [
+            ("mindforge project list", "列出已知项目"),
+            ("mindforge project context <name> --target claude-code", "为编程助手拼装上下文包"),
+            ("mindforge project update-evidence <name> --dry-run", "幂等写入受控 evidence 区块"),
+        ],
+    ),
+    (
+        "Vault 友好度",
+        [
+            ("mindforge vault index", "维护 _index.md 导航文件"),
+            ("mindforge vault links", "维护 _link_candidates.md 双链建议"),
+        ],
+    ),
+    (
+        "可观测",
+        [
+            ("mindforge telemetry status", "查看本地 telemetry 开关与文件路径"),
+            ("mindforge telemetry summary", "本地命令使用统计（不上传 / 字段白名单）"),
+        ],
+    ),
+    (
+        "引导",
+        [
+            ("mindforge commands", "本命令本身：按场景列出全部命令"),
+            ("mindforge next", "根据 vault 状态推荐下一步行动"),
+        ],
+    ),
+]
+
+
+@app.command("commands")
+def commands_cmd() -> None:
+    """按"任务场景"列出 MindForge 所有命令 + 一句话用途说明。
+
+    设计原则：
+    - 仅从静态脚本生成，不读 vault、不读 .env、不发 HTTP；
+    - 不调 LLM；
+    - 不输出任何卡片正文 / raw_text / prompt / completion / api_key。
+    """
+    from . import __version__
+
+    console.print(f"[bold]MindForge[/bold] v{__version__} — 命令地图（按场景）\n")
+    for group, items in _COMMAND_GROUPS:
+        console.print(f"[bold cyan]{group}[/bold cyan]")
+        for cmd, desc in items:
+            console.print(f"  [green]{cmd}[/green]")
+            console.print(f"    {desc}")
+        console.print("")
+    console.print(
+        "[dim]说明：完整使用手册见 docs/USER_GUIDE.md，新手上路见 docs/GETTING_STARTED.md。"
+        "本命令不读 .env、不发 HTTP、不调用 LLM。[/dim]"
+    )
+
+
+def _next_suggestions(cfg: MindForgeConfig) -> list[tuple[str, str]]:
+    """根据 vault / state 当前状态，推断"下一步该做什么"。
+
+    返回 [(动作命令, 中文原因)]。
+
+    判定来源全部是文件系统可观察事实，不做任何 AI 推断；
+    每一条都对应一条用户能直接执行的命令。
+    """
+    suggestions: list[tuple[str, str]] = []
+    vault_root = cfg.vault.root
+    inbox = cfg.vault.inbox_path
+    cards = cfg.vault.cards_path
+    projects_dir = cfg.vault.projects_path
+    workdir = cfg.state.workdir
+
+    # 1. vault 是否完整
+    if not vault_root.exists():
+        suggestions.append(
+            (f"mindforge init --vault {vault_root}", "vault 根目录不存在，先一键铺骨架")
+        )
+        return suggestions
+    if not inbox.exists() or not cards.exists():
+        suggestions.append(
+            ("mindforge init", "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）")
+        )
+
+    # 2. inbox 是否有原料（统计文件数即可，**不读内容**）
+    inbox_files = 0
+    if inbox.exists():
+        for p in inbox.rglob("*"):
+            if p.is_file() and not p.name.startswith("."):
+                inbox_files += 1
+    if inbox_files == 0:
+        suggestions.append(
+            (
+                f"# 把 markdown 放到 {inbox}/ManualNotes/ 或 Cubox/ 等子目录",
+                "inbox 当前为空，没有可加工的原料",
+            )
+        )
+
+    # 3. state.json 是否有未处理（raw/triaged）
+    state_path = workdir / "state.json"
+    raw_or_triaged = 0
+    drafts_in_state = 0
+    if state_path.exists():
+        try:
+            import json as _json
+
+            data = _json.loads(state_path.read_text(encoding="utf-8"))
+            for entry in data.get("documents", {}).values():
+                st = entry.get("status", "")
+                if st in {"raw", "triaged"}:
+                    raw_or_triaged += 1
+        except Exception:
+            pass
+    if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
+        suggestions.append(("mindforge scan", "inbox 有文件但 state.json 还没建立"))
+    elif raw_or_triaged > 0:
+        suggestions.append(
+            ("mindforge process --limit 10", f"state 中有 {raw_or_triaged} 条未跑完 pipeline")
+        )
+
+    # 4. ai_draft 待审核（**只**统计 frontmatter 的 status 字段）
+    draft_count = 0
+    if cards.exists():
+        try:
+            import yaml as _yaml
+
+            for p in cards.rglob("*.md"):
+                if p.name.startswith("_"):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                    if not text.startswith("---"):
+                        continue
+                    end = text.find("\n---", 3)
+                    if end < 0:
+                        continue
+                    fm = _yaml.safe_load(text[3:end]) or {}
+                    if fm.get("status") == "ai_draft":
+                        draft_count += 1
+                except Exception:
+                    continue
+        except Exception:
+            pass
+    drafts_in_state = draft_count
+    if draft_count > 0:
+        suggestions.append(
+            (
+                "mindforge approve list",
+                f"有 {draft_count} 张 ai_draft 卡片等待审核（不会自动 approve）",
+            )
+        )
+
+    # 5. 索引是否存在
+    index_path = workdir / "index" / "bm25.json"
+    if cards.exists() and not index_path.exists() and draft_count + 1 > 0:
+        # 即使全部 ai_draft，也给一次 rebuild 提示（recall --include-drafts 仍能用）
+        suggestions.append(
+            ("mindforge index rebuild", "BM25 索引尚未建立（recall 需要它）")
+        )
+
+    # 6. 复习 backlog
+    overdue = 0
+    if cards.exists():
+        try:
+            from datetime import datetime as _dt
+            import yaml as _yaml
+
+            now = _dt.now().astimezone()
+            for p in cards.rglob("*.md"):
+                if p.name.startswith("_"):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                    if not text.startswith("---"):
+                        continue
+                    end = text.find("\n---", 3)
+                    if end < 0:
+                        continue
+                    fm = _yaml.safe_load(text[3:end]) or {}
+                    if fm.get("status") != "human_approved":
+                        continue
+                    ra = fm.get("review_after")
+                    if not ra:
+                        continue
+                    if isinstance(ra, str):
+                        try:
+                            ra = _dt.fromisoformat(ra.replace("Z", "+00:00"))
+                        except Exception:
+                            continue
+                    if hasattr(ra, "tzinfo") and ra.tzinfo is None:
+                        ra = ra.replace(tzinfo=now.tzinfo)
+                    if ra <= now:
+                        overdue += 1
+                except Exception:
+                    continue
+        except Exception:
+            pass
+    if overdue > 0:
+        suggestions.append(
+            ("mindforge review backlog", f"有 {overdue} 张复习卡片已 overdue")
+        )
+
+    # 7. 项目上下文（有 30-Projects 文件即提示）
+    project_count = 0
+    if projects_dir.exists():
+        project_count = sum(
+            1
+            for p in projects_dir.glob("*.md")
+            if not p.name.startswith("_") and p.is_file()
+        )
+    if project_count > 0 and drafts_in_state >= 0:
+        suggestions.append(
+            (
+                "mindforge project list",
+                f"vault 中有 {project_count} 个项目笔记，可生成 context pack",
+            )
+        )
+
+    # 8. 兜底：什么都没建议时给一条 doctor
+    if not suggestions:
+        suggestions.append(("mindforge doctor", "看起来一切就绪；定期跑 doctor 自检"))
+    return suggestions
+
+
+@app.command("next")
+def next_cmd(
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        "-f",
+        help="text | json",
+    ),
+) -> None:
+    """根据 vault 当前状态，推荐"下一步该做什么"。
+
+    安全契约（与 doctor 一致）：
+    - 不读 .env 内容；
+    - 不调 LLM；
+    - 不发 HTTP；
+    - 不输出卡片正文 / raw_text / prompt / completion；
+    - 输出仅含命令字符串与中文原因，不含 secret。
+    """
+    if not config.exists():
+        if output_format == "json":
+            import json as _json
+
+            print(_json.dumps({"version": 1, "error": "config_missing", "suggestions": [
+                {"command": "mindforge init", "reason": "configs/mindforge.yaml 不存在"}
+            ]}, ensure_ascii=False))
+        else:
+            console.print("[yellow]配置不存在，先跑：[/yellow]")
+            console.print("  [green]mindforge init[/green]")
+        return
+    try:
+        cfg = _load_cfg(config)
+    except typer.Exit:
+        return
+
+    suggestions = _next_suggestions(cfg)
+
+    if output_format == "json":
+        import json as _json
+
+        print(
+            _json.dumps(
+                {
+                    "version": 1,
+                    "vault_root": str(cfg.vault.root),
+                    "suggestions": [
+                        {"command": cmd, "reason": reason} for cmd, reason in suggestions
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    console.print(f"[bold]MindForge next[/bold]  — vault: {cfg.vault.root}\n")
+    for cmd, reason in suggestions:
+        console.print(f"  [green]→ {cmd}[/green]")
+        console.print(f"    {reason}")
+    console.print(
+        "\n[dim]说明：本命令不读 .env、不调 LLM、不发 HTTP；"
+        "建议来自文件系统可观察事实（state.json / 卡片 frontmatter / 索引文件）。[/dim]"
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()

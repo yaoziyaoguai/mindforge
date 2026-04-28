@@ -109,6 +109,11 @@ class SourceDocument:
     content_hash : str
         ``sha256(raw_text + 关键 metadata)``。用于 checkpoint 判断"内容是否
         变化"——没变就跳过 LLM 加工，省钱省时间。
+    adapter_name : str
+        v0.4.2 显式回填：解析出本文档的 adapter 类名（如 ``"PlainMarkdownAdapter"``）。
+        用于追溯"这条记录是哪个 adapter 解析出来的"，与 ``state.json`` 中
+        的 ``adapter_name`` 字段对齐。adapter 自身可不填；Scanner 会在派发后
+        统一回填，避免每个 adapter 重复 boilerplate。
     """
 
     source_id: str
@@ -124,6 +129,7 @@ class SourceDocument:
     raw_text: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     content_hash: str = ""
+    adapter_name: str = ""
 
     def __post_init__(self) -> None:
         # 强契约：source_id / source_type / source_path / content_hash 必填。

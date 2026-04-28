@@ -77,6 +77,13 @@ class Scanner:
     ) -> ScanResult:
         try:
             doc = adapter.load(str(path))
+            # v0.4.2：统一回填 adapter_name，让 SourceDocument 自带可追溯性，
+            # 而不是只在 ScanResult / state.json 旁路记录。adapter 自身仍可
+            # 显式填充（如未来插件 adapter 想覆盖类名），这里仅在为空时补默认。
+            if not doc.adapter_name:
+                from dataclasses import replace as _replace
+
+                doc = _replace(doc, adapter_name=adapter.name or adapter.__class__.__name__)
             return ScanResult(
                 source_type=source_type,
                 adapter_name=adapter.name,

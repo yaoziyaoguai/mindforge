@@ -118,11 +118,15 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.4.1（本地，review polish + onboarding）
+## 当前状态：v0.4.2（本地，命令发现 + adapter 协议固化 + 示例 vault）
 
 > 入门请先看 [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) +
 > [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)。整体推进进度看
 > [`docs/ROADMAP_PROGRESS.md`](docs/ROADMAP_PROGRESS.md)。
+> 第一次跑可以直接用 [`examples/demo-vault/`](examples/demo-vault/)。
+> 命令地图：`mindforge commands`；下一步建议：`mindforge next`。
+> 数据源插件协议：[`docs/SOURCE_ADAPTER_PROTOCOL.md`](docs/SOURCE_ADAPTER_PROTOCOL.md)。
+
 
 
 - M0 → M5.5 + M5.6 全部本地 commit；v0.3.1 在 v0.3.0 BM25 之上把字段权重迁到 `mindforge.yaml` 并新增 hybrid 三路本地融合排序，详见 [`docs/V0_3_1_REVIEW.md`](docs/V0_3_1_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md) §12。**未** push。
@@ -184,10 +188,16 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **doctor**：新增 overdue / due-this-week 两条 actionable hint。
   - **新增文档**：[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)、[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)、[`docs/ROADMAP_PROGRESS.md`](docs/ROADMAP_PROGRESS.md)、[`docs/V0_4_1_REVIEW.md`](docs/V0_4_1_REVIEW.md)。
   - **仍然不做**：OCR / 系统日历集成 / 后台 daemon / LLM / RAG / 上传。
+- v0.4.2 增量（产品体验闭环 + SourceAdapter 协议固化 + demo vault，详见 [`docs/V0_4_2_REVIEW.md`](docs/V0_4_2_REVIEW.md)）：
+  - **`mindforge commands`**：按"任务场景"列出全部命令 + 一句中文用途说明；纯静态，**不**读 vault / .env / LLM / HTTP。
+  - **`mindforge next [--format text|json]`**：根据 vault 当前状态推断"下一步该做什么"（init / scan / process / approve list / index rebuild / review backlog / project list 等），全部基于文件系统可观察事实。
+  - **`SourceAdapter` 协议正式化**：[`docs/SOURCE_ADAPTER_PROTOCOL.md`](docs/SOURCE_ADAPTER_PROTOCOL.md)；`SourceDocument` 新增 `adapter_name` 字段（Scanner 自动回填，向下兼容）。新增数据源 = 写 1 个 Adapter + registry 注册 1 行，**不动** scanner / processor / pipeline / cli / recall / index / review / project context。
+  - **`examples/demo-vault/`**：1×Cubox + 1×WebClip + 1×ChatExport + 1×ManualNote + 3 张示例 Knowledge Card + 1 个项目 profile，全部虚构、不含敏感信息；可直接用于 smoke：`mindforge --vault examples/demo-vault doctor / next / scan / process / index rebuild / recall / project context`。
+  - **仍然不做**：OCR / 远程 adapter / 自动 adapter 发现 / RAG / Obsidian 插件 / LLM / .env 读取 / 联网。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md) → [`V0_4_1`](docs/V0_4_1_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md) → [`V0_3_2`](docs/V0_3_2_REVIEW.md) → [`V0_4_0`](docs/V0_4_0_REVIEW.md) → [`V0_4_1`](docs/V0_4_1_REVIEW.md) → [`V0_4_2`](docs/V0_4_2_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

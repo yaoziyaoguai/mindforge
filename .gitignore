@@ -52,3 +52,6 @@ local/
 # Obsidian Vault 占位（vault_template/ 仅做模板，本仓库不放真实笔记）
 vault_template/00-Inbox/**/!(.gitkeep|README.md)
 vault_template/20-Knowledge-Cards/**/!(.gitkeep|README.md)
+
+# v0.4.2: demo vault 跑 smoke 时会产生的本地状态（不入仓库）
+examples/demo-vault/.mindforge/

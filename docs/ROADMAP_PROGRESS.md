@@ -1,13 +1,13 @@
-# MindForge — Roadmap Progress（v0.4.1 视角）
+# MindForge — Roadmap Progress（v0.4.2 视角）
 
 > 与 `docs/ROADMAP.md` 互补：本文档关注**完成度盘点**与**下一阶段建议**，
 > 不重复列里程碑明细。
 
-## 1. 当前最新版本：**v0.4.1**
+## 1. 当前最新版本：**v0.4.2**
 
-- tag: `v0.4.1`
+- tag: `v0.4.2`
 - HEAD branch: `main`
-- 总测试：约 327 项（pytest 全绿，ruff clean，无 push）
+- 总测试：**339 passed, 2 skipped**（pytest 全绿，ruff clean，无 push）
 
 ## 2. 已完成模块
 
@@ -46,6 +46,9 @@
 - ✅ `mindforge llm ping/inspect`，`--profile` 临时覆盖
 - ✅ 全局 `--vault PATH`、`--debug`、`mindforge version`
 - ✅ Local-only telemetry（v0.2.3 / M5.7），`.gitignore` 已防泄漏
+- ✅ **`mindforge commands`**（场景化命令地图，v0.4.2）
+- ✅ **`mindforge next [--format json]`**（基于 vault 状态的下一步建议，v0.4.2）
+- ✅ **`examples/demo-vault/`** + **`docs/SOURCE_ADAPTER_PROTOCOL.md`**（v0.4.2）
 
 ## 3. 部分完成模块
 
@@ -53,7 +56,7 @@
 |---|---|---|
 | PDF/Docx adapter | 文本型 PDF / 普通 docx 段落抽取，`OptionalDependencyError` 友好提示 | 不做 OCR；不解析复杂版式；尚无大文件性能基线 |
 | Obsidian 友好度 | `vault index/links` 自动维护 `_index.md` / `_link_candidates.md` | 没有 Obsidian 插件；没有批量双链重写 |
-| 产品化 onboarding | `init` + `doctor` + `GETTING_STARTED.md` | 还没有"首次运行向导"、错误信息中文化未全覆盖 |
+| 产品化 onboarding | `init` + `doctor` + `commands` + `next` + `GETTING_STARTED.md` + demo vault | 错误信息中文化未全覆盖；没有交互式 `init --interactive` |
 | Telemetry summary | `telemetry status / summary` 命令，10 字段白名单 | 无远端，未来也不打算上传 |
 
 ## 4. 未开始 / 仅 spike 的模块

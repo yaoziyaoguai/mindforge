@@ -46,6 +46,7 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M5.4.2 Recall/Search UX polish** | `recall --weight-bm25/--weight-value-score/--weight-review-due` 临时覆盖 · `recall --explain` 增强（why_this_matched / weight_source）· `index info [--json]` / `index status --json` · doctor 搜索 hint 增强（[复盘](./V0_3_2_REVIEW.md)） | ✅ | ✅ | ✅ v0.3.2 |
 | **M5.8 Review Scheduling MVP** | `review schedule [--days N]` 按日分组 · `review backlog`（overdue/today/upcoming/missing）· `review stats [--json]` · `review mark --dry-run/--note` · 仍为本地计划，**不**做后台调度 / 系统提醒（[协议](./V0_4_REVIEW_SCHEDULING_PROTOCOL.md) · [复盘](./V0_4_0_REVIEW.md)） | ✅ | ✅ | ✅ v0.4.0 |
 | **M5.8.1 Review polish + Onboarding** | `review schedule --format ical` 本地 .ics 导出 · `review weekly` 周报（无 LLM）· doctor overdue/due-this-week hint · `GETTING_STARTED.md` / `USER_GUIDE.md` / `ROADMAP_PROGRESS.md`（[复盘](./V0_4_1_REVIEW.md)） | ✅ | ✅ | ✅ v0.4.1 |
+| **M5.9 命令发现 + Adapter 协议固化 + Demo Vault** | `mindforge commands`（场景化命令地图）· `mindforge next [--format json]`（基于文件系统事实推荐下一步）· `SourceDocument.adapter_name` + `docs/SOURCE_ADAPTER_PROTOCOL.md` 协议固化 · `examples/demo-vault/` 完整虚构示例（[复盘](./V0_4_2_REVIEW.md) · [adapter 协议](./SOURCE_ADAPTER_PROTOCOL.md)） | ✅ | ✅ | ✅ v0.4.2 |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---

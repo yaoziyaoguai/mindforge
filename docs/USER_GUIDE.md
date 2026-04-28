@@ -1,13 +1,17 @@
-# MindForge User Guide — v0.4.1
+# MindForge User Guide — v0.4.2
 
 > 这是一份"工作手册"：每条命令、每个产物、每条边界都在这里查得到。
 > 入门请先看 [`GETTING_STARTED.md`](./GETTING_STARTED.md)。
+> 找不到命令？运行 **`mindforge commands`**（按场景分组）。
+> 不知道下一步？运行 **`mindforge next`**（基于 vault 状态推荐）。
 
 ## 1. 命令地图
 
 | 命令 | 用途 | 副作用 |
 |---|---|---|
 | `mindforge init [--vault PATH] [--dry-run] [--force]` | 一键铺 vault 骨架 + configs + `.env.example` | 写文件（仅 vault + configs） |
+| `mindforge commands` | 按场景列出全部命令 + 一句中文用途 | 只读（纯静态） |
+| `mindforge next [--format text\|json]` | 基于 vault 状态推荐下一步 | 只读 |
 | `mindforge doctor` | 健康检查 + 下一步建议 | 只读 |
 | `mindforge version` | 元数据 | 只读 |
 | `mindforge scan` | 扫 inbox，建 SourceDocument，刷 state.json | 只读 source；写 state |
