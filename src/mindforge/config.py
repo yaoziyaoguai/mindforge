@@ -197,6 +197,18 @@ class LoggingConfig:
 
 
 @dataclass(frozen=True)
+class TelemetryConfig:
+    """M5.7 — 本地 telemetry 子配置（详见 docs/M5_7_TELEMETRY_PROTOCOL.md）。
+
+    - ``enabled``：False 时模块完全静默，不写盘；
+    - ``local_only``：v0.2.3 固定 True；任何远程 sink 都需要先扩协议。
+    """
+
+    enabled: bool = True
+    local_only: bool = True
+
+
+@dataclass(frozen=True)
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -209,6 +221,7 @@ class MindForgeConfig:
     prompts: PromptVersions
     logging: LoggingConfig
     review: ReviewConfig = field(default_factory=ReviewConfig)
+    telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -359,6 +372,17 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         default_include_drafts=bool(review_raw.get("default_include_drafts", False)),
     )
 
+    # ---- telemetry (M5.7 — optional block；缺失走全默认) ----
+    telemetry_raw = raw.get("telemetry") or {}
+    if not isinstance(telemetry_raw, dict):
+        raise ConfigError(
+            f"telemetry 必须是 mapping，得到 {type(telemetry_raw).__name__}"
+        )
+    telemetry_cfg = TelemetryConfig(
+        enabled=bool(telemetry_raw.get("enabled", True)),
+        local_only=bool(telemetry_raw.get("local_only", True)),
+    )
+
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
         vault=vault,
@@ -369,6 +393,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         prompts=prompts,
         logging=logging_cfg,
         review=review_cfg,
+        telemetry=telemetry_cfg,
         raw=raw,
     )
 
@@ -504,6 +529,7 @@ __all__ = [
     "TriageConfig",
     "ReviewConfig",
     "ReviewIntervals",
+    "TelemetryConfig",
     "ModelConfig",
     "LLMConfig",
     "PromptVersions",

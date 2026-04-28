@@ -118,9 +118,9 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.2.2（本地）
+## 当前状态：v0.2.3（本地）
 
-- M0 → M5.3 全部已本地 commit，**未** push。
+- M0 → M5.3 收尾 + M5.7 全部已本地 commit，**未** push。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
   `ai_draft` Knowledge Card → state.json + runs/*.jsonl 证据链。
 - v0.2.0（M4）新增：`mindforge review due` / `mindforge recall` / `mindforge project context`，全部**只读卡片 frontmatter 白名单**，不调 LLM、不读 .env、不索引。
@@ -134,10 +134,14 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - JSON 输出升到 `version: 2`（旧字段不变，新字段 forward-compatible）。
   - markdown 始终输出 `## Excluded Content (safety guarantee)` 段，明示安全边界。
   - 项目 profile 示例见 [`vault_template/30-Projects/my-first-agent.md`](vault_template/30-Projects/my-first-agent.md)。
+- v0.2.3 增量（M5.3 收尾 + M5.7，详见 [`docs/V0_2_3_REVIEW.md`](docs/V0_2_3_REVIEW.md)）：
+  - **多 project 联合上下文**：`mindforge project context a b [c ...]`，输出 11 段固定结构（profiles / cross-project tracks / 不自动裁决的 cross-project principles & risks / 去重的 project-specific cards / shared actions / review due / multi-project suggested prompt / excluded content）；JSON 输出 `mode: "multi_project"`；缺 profile 的项目独立降级。
+  - **30-Projects evidence block 幂等追加**：`mindforge project update-evidence <name> [--dry-run] [--include-drafts]`，把已确认卡片的安全摘要写入 `30-Projects/<name>.md` 的 `<!-- MINDFORGE:EVIDENCE:START/END -->` 受控区块；多次运行幂等；不写 raw_text / prompt / completion / secret；不修改 Knowledge Cards；profile 不存在时拒绝执行（不自动创建）。
+  - **本地 only telemetry**（[`docs/M5_7_TELEMETRY_PROTOCOL.md`](docs/M5_7_TELEMETRY_PROTOCOL.md)）：默认开、永久 `local_only`，写入 `<state.workdir>/telemetry.jsonl`（已加入 `.gitignore`），字段白名单 10 项（event_name / command / success / duration_ms / result_count / project_count / card_count / error_code / timestamp / mindforge_version），**严禁** raw / card body / prompt / completion / api_key / 项目名 / 关键词；新增 `mindforge telemetry status` / `telemetry summary`；`enabled: false` 零开销。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md) → [`docs/V0_2_0_REVIEW.md`](docs/V0_2_0_REVIEW.md) → [`docs/V0_2_1_REVIEW.md`](docs/V0_2_1_REVIEW.md) → [`docs/V0_2_2_REVIEW.md`](docs/V0_2_2_REVIEW.md)。
+- 复盘：[`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md) → [`docs/V0_2_0_REVIEW.md`](docs/V0_2_0_REVIEW.md) → [`docs/V0_2_1_REVIEW.md`](docs/V0_2_1_REVIEW.md) → [`docs/V0_2_2_REVIEW.md`](docs/V0_2_2_REVIEW.md) → [`docs/V0_2_3_REVIEW.md`](docs/V0_2_3_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

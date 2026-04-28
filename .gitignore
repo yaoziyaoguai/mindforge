@@ -4,10 +4,12 @@
 # .mindforge/ 整目录默认不入库：
 #   - .mindforge/state.json     是本地 checkpoint，含个人知识库的扫描状态
 #   - .mindforge/runs/*.jsonl   是本地 observer / event log，含路径与时间戳
+#   - .mindforge/telemetry.jsonl 是本地使用 telemetry（M5.7 / v0.2.3，**不上传**）
 #   - .mindforge/*.bak          是 state.json 的原子写备份
 # 这些都是 per-machine 的运行痕迹，不应进 git。
 .mindforge/
 .mindforge/runs/
+.mindforge/telemetry.jsonl
 *.log
 
 # Python

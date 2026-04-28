@@ -51,12 +51,17 @@
     混合数据源；profile 优先、cards 补充、缺失自动降级；
   - markdown / json（`version: 2`）双输出；suggested prompt 按 target 拼装；
   - excluded_content 段始终输出，明示安全边界。
-- **仍未做（→ 后续 v0.2.x）**：
-  - 多 project 联合上下文（一次传多个 project_name）；
-  - 自动维护 `30-Projects/<name>.md` 的追加块（幂等 + magic marker）。
+- **v0.2.3 已交付（M5.3 收尾）**：
+  - ✅ 多 project 联合上下文：`mindforge project context a b [c ...]`，
+    11 段固定输出 / path 级 dedup / 缺 profile 仅该 project 降级 /
+    cross-project principles 不自动裁决冲突，按 source 并列展示。
+  - ✅ 30-Projects evidence block 幂等追加：
+    `mindforge project update-evidence <name> [--dry-run] [--include-drafts]`，
+    `<!-- MINDFORGE:EVIDENCE:START/END -->` 受控区块，多次运行幂等，
+    profile 不存在时拒绝（不自动创建）。
 - **不做**：自动写 ai_inference 进项目笔记、自动生成新 prompt、调 LLM。
-- **风险**：追加块的幂等性是测试重点；切勿把人手写笔记吃掉。
-- **优先级**：⭐⭐⭐（v0.2.2 用满 1 周后再决定是否做"多 project 联合"）
+- **风险**：追加块的幂等性已是测试重点；切勿把人手写笔记吃掉。
+- **优先级**：⭐⭐⭐ → ✅ 已落地 v0.2.3，详见 [`V0_2_3_REVIEW.md`](./V0_2_3_REVIEW.md)。
 
 ---
 
@@ -107,17 +112,19 @@
 
 ## M5.7 · Real usage telemetry without content leakage
 
-- **目标**：让我自己能回答"我到底用了哪些命令、哪些卡片被多次召回、
-  哪个 track 信息密度最高"，**严禁**把任何卡片正文 / source 原文 /
-  prompt / completion 写进 telemetry。
-- **不做**：上传到任何远程服务；持久化任何 LLM 输入输出；keyword 原文。
-- **验收**：
-  - 新增 `mindforge stats` 命令，仅读 `.mindforge/runs/*.jsonl`；
-  - 所有 telemetry 字段在 `run_logger._ALLOWED_FIELDS` 白名单内；
-  - 测试断言：telemetry 输出与 runs jsonl 都不含正则
-    `sk-...` / `Bearer ...` / 关键词原文 / 卡片 body。
-- **风险**：开发途中可能为了"调试方便"打太多正文进 logs；测试要严格。
-- **优先级**：⭐⭐（实用性高、风险可控）
+> ✅ **已落地于 v0.2.3**（[复盘](./V0_2_3_REVIEW.md) · [协议](./M5_7_TELEMETRY_PROTOCOL.md)）
+
+- **v0.2.3 已交付**：
+  - 独立模块 `src/mindforge/telemetry.py`（**不**与 RunLogger 复用），
+    白名单 10 字段 + `record_event` 二次过滤兜底；
+  - 写入 `<state.workdir>/telemetry.jsonl`，`.gitignore` 已加；
+  - 默认开、永久 `local_only`；`enabled: false` 零开销；
+  - `mindforge telemetry status` / `telemetry summary` 命令；
+  - 6 条正则审计 telemetry.jsonl，多用例断言不含 `sk-...` / `Bearer ...` /
+    关键词原文 / 卡片 body / `.env` / 项目名 / 卡片标题；
+  - 写盘失败 swallow，不影响业务命令。
+- **不做**（继续）：上传到任何远程服务；持久化任何 LLM 输入输出；
+  keyword 原文 / 项目名 / 卡片标题。
 
 ---
 
@@ -125,9 +132,9 @@
 
 | 子项 | 优先级 | 何时考虑 |
 |---|---|---|
-| **M5.3** Better project context | ⭐⭐⭐ | v0.2.x 用满 1 周后即可启动 |
+| **M5.3** Better project context | ✅ v0.2.2 + ✅ v0.2.3 收尾 | — |
+| **M5.7** Telemetry | ✅ v0.2.3 | — |
 | **M5.1** PDF/Docx adapter | ⭐⭐⭐ | 当真实有 PDF/docx 输入需求时 |
-| **M5.7** Telemetry | ⭐⭐ | 想看真实使用频次时 |
 | **M5.6** Review scheduling | ⭐⭐ | 复习节奏跑通 1 个季度后 |
 | **M5.2** WebClip/ChatExport adapter | ⭐⭐ | 当 web 存档堆积时 |
 | **M5.4** RAG spike | ⭐ | **不要急**；先把 keyword 用满 |

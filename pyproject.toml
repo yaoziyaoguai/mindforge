@@ -6,7 +6,7 @@
 
 [project]
 name = "mindforge"
-version = "0.1.0.dev0"
+version = "0.2.3"
 description = "个人 AI 学习记忆库：多源接入的 AI 知识加工管线（Source Ingestion → Triage → Distill → Link → Apply → Review → Memory）。"
 readme = "README.md"
 requires-python = ">=3.11"

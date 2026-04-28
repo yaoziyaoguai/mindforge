@@ -1071,7 +1071,13 @@ def project_list(
 
 @project_app.command("context")
 def project_context(
-    project_name: str = typer.Argument(..., help="项目名（与卡片 frontmatter projects[] 比对，并匹配 30-Projects/<name>.md）"),
+    project_names: list[str] = typer.Argument(
+        ...,
+        help=(
+            "一个或多个项目名（与卡片 frontmatter projects[] 比对，并匹配 "
+            "30-Projects/<name>.md）。多于一个 → 启用多 project 联合模式。"
+        ),
+    ),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
     limit: int = typer.Option(20, "--limit"),
     no_prompts: bool = typer.Option(False, "--no-prompts", help="不输出 Reusable Prompts 段"),
@@ -1096,13 +1102,19 @@ def project_context(
     ),
     output_format: str = typer.Option("markdown", "--format"),
 ) -> None:
-    """渲染一个 project 的只读上下文包（markdown / json）。
+    """渲染一个或多个 project 的只读上下文包（markdown / json）。
 
-    M5.3：新增 --target；项目级 30-Projects/<name>.md frontmatter 优先，
-    Knowledge Cards 作为补充；任何阶段都**不**调 LLM、**不**读 .env、
-    **不**含 AI Inference / Human Note 段。
+    - 单 project：保持 v0.2.2 的固定 9 段结构（向后兼容）；
+    - 多 project：使用 ``multi_project_context`` 渲染器；卡片去重、原则
+      并列（不自动裁决）、suggested prompt 明确"multi-project context pack"。
+
+    任何模式都**不**调 LLM、**不**读 .env、**不**读 raw source。
     """
     from .cards import filter_cards, iter_cards
+    from .multi_project_context import (
+        render_multi_project_context_json,
+        render_multi_project_context_markdown,
+    )
     from .project_context import (
         ProjectContextOptions,
         render_project_context_json,
@@ -1110,29 +1122,49 @@ def project_context(
         resolve_target,
     )
     from .project_profile import (
+        ProjectProfile,
         ProjectProfileError,
         load_project_profile,
     )
+    from .telemetry import measure
 
     cfg = _load_cfg(config)
+
+    # 去重并保持用户顺序（"a a b" → ["a", "b"]）
+    seen: set[str] = set()
+    project_names = [n for n in project_names if not (n in seen or seen.add(n))]
+    if not project_names:
+        console.print("[red]至少需要一个 project_name[/red]")
+        raise typer.Exit(code=2)
+
+    is_multi = len(project_names) > 1
+
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    cards = filter_cards(
-        scan.cards,
-        project=project_name,
-        status="human_approved",
-        include_drafts=include_drafts,
-    )
 
-    try:
-        profile = load_project_profile(
-            cfg.vault.root, cfg.vault.projects_dir, project_name
+    profiles: dict[str, ProjectProfile] = {}
+    cards_by_project: dict[str, list] = {}
+    for name in project_names:
+        try:
+            profiles[name] = load_project_profile(
+                cfg.vault.root, cfg.vault.projects_dir, name
+            )
+        except ProjectProfileError as e:
+            console.print(f"[red]project_name 非法：{e}[/red]")
+            raise typer.Exit(code=2) from e
+        cards_by_project[name] = filter_cards(
+            scan.cards,
+            project=name,
+            status="human_approved",
+            include_drafts=include_drafts,
         )
-    except ProjectProfileError as e:
-        console.print(f"[red]project_name 非法：{e}[/red]")
-        raise typer.Exit(code=2) from e
 
+    # 多项目模式下，target 解析仅看第一个 found=true 的 profile.default_target
+    primary_profile = next(
+        (profiles[n] for n in project_names if profiles[n].found),
+        profiles[project_names[0]],
+    )
     try:
-        resolved_target = resolve_target(target, profile)
+        resolved_target = resolve_target(target, primary_profile)
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=2) from e
@@ -1146,39 +1178,246 @@ def project_context(
         limit=limit,
         target=resolved_target,
     )
-    if output_format == "json":
-        out = render_project_context_json(
-            project_name, cards, options=opts, profile=profile
-        )
-    elif output_format == "markdown":
-        out = render_project_context_markdown(
-            project_name, cards, options=opts, profile=profile
-        )
-    else:
+
+    if output_format not in {"markdown", "json"}:
         console.print(f"[red]--format 必须是 markdown 或 json，收到 {output_format!r}[/red]")
         raise typer.Exit(code=2)
 
-    with RunLogger(cfg.state.runs_path, command="project-context") as logger:  # type: ignore[attr-defined]
-        logger.emit(
-            "project_context_emitted",
-            project_name=project_name,
-            count=min(len(cards), limit),
-            output_format=output_format,
-            target=resolved_target,
-            project_profile_found=profile.found,
+    with measure(
+        cfg.state.workdir, cfg.telemetry, "project-context",
+        project_count=len(project_names),
+    ) as th:
+        if is_multi:
+            if output_format == "json":
+                out = render_multi_project_context_json(
+                    project_names, cards_by_project, profiles, options=opts
+                )
+            else:
+                out = render_multi_project_context_markdown(
+                    project_names, cards_by_project, profiles, options=opts
+                )
+            total_cards = sum(min(len(c), limit) for c in cards_by_project.values())
+        else:
+            single_name = project_names[0]
+            if output_format == "json":
+                out = render_project_context_json(
+                    single_name, cards_by_project[single_name],
+                    options=opts, profile=profiles[single_name],
+                )
+            else:
+                out = render_project_context_markdown(
+                    single_name, cards_by_project[single_name],
+                    options=opts, profile=profiles[single_name],
+                )
+            total_cards = min(len(cards_by_project[single_name]), limit)
+
+        th.set_counts(card_count=total_cards, result_count=total_cards)
+
+        with RunLogger(cfg.state.runs_path, command="project-context") as logger:  # type: ignore[attr-defined]
+            # 多项目模式：runs jsonl 仅记 project_count + 第一个 project_name；
+            # 不展开各项目名，避免日志结构每次随用户输入暴增。
+            logger.emit(
+                "project_context_emitted",
+                project_name=project_names[0] if not is_multi else f"<{len(project_names)} projects>",
+                count=total_cards,
+                output_format=output_format,
+                target=resolved_target,
+                project_profile_found=primary_profile.found,
+            )
+
+        if output is not None:
+            if not output.parent.exists():
+                console.print(
+                    f"[red]--output 父目录不存在：{output.parent}（请先 mkdir）[/red]"
+                )
+                raise typer.Exit(code=2)
+            output.write_text(out, encoding="utf-8")
+            console.print(f"[green]✔ project context 已写入[/green] {output}")
+            return
+
+        print(out)
+
+
+# ---------------------------------------------------------------------------
+# project update-evidence — 幂等写入 30-Projects/<name>.md 受控区块
+# ---------------------------------------------------------------------------
+
+
+@project_app.command("update-evidence")
+def project_update_evidence(
+    project_name: str = typer.Argument(..., help="项目名；必须已存在 30-Projects/<name>.md"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    include_drafts: bool = typer.Option(
+        False, "--include-drafts", help="同时纳入 ai_draft 卡片（默认仅 human_approved）"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="只打印将要写入的内容，不落盘"
+    ),
+) -> None:
+    """把当前项目已审核卡片的安全摘要，幂等写入项目笔记的受控区块。
+
+    - 区块由 ``<!-- MINDFORGE:EVIDENCE:START -->`` 与 ``END`` 包围；
+    - 多次运行同一参数时除时间戳外保持稳定，**不会重复追加**；
+    - 不创建项目 profile；profile 文件不存在 → 退出 2 + 友好提示；
+    - **永不**写 ai_summary / source_excerpt / 卡片正文 / prompt / completion。
+    """
+    from .cards import filter_cards, iter_cards
+    from .evidence import EvidenceError, update_evidence_block, write_evidence_update
+    from .project_profile import ProjectProfileError, _validate_project_name
+    from .telemetry import measure
+
+    cfg = _load_cfg(config)
+
+    try:
+        _validate_project_name(project_name)
+    except ProjectProfileError as e:
+        console.print(f"[red]project_name 非法：{e}[/red]")
+        raise typer.Exit(code=2) from e
+
+    profile_path = cfg.vault.projects_path / f"{project_name}.md"
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cards = filter_cards(
+        scan.cards,
+        project=project_name,
+        status="human_approved",
+        include_drafts=include_drafts,
+    )
+
+    with measure(
+        cfg.state.workdir, cfg.telemetry, "project-update-evidence",
+        project_count=1,
+    ) as th:
+        try:
+            update = update_evidence_block(
+                profile_path, project_name, cards,
+                cards_dir_rel=cfg.vault.cards_dir,
+            )
+        except EvidenceError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=2) from e
+
+        th.set_counts(card_count=update.card_count, result_count=update.card_count)
+
+        with RunLogger(cfg.state.runs_path, command="project-update-evidence") as logger:  # type: ignore[attr-defined]
+            logger.emit(
+                "project_context_emitted",  # 复用 M5.3 事件类型，仅 metadata
+                project_name=project_name,
+                count=update.card_count,
+                output_format="evidence-block",
+                target="-",
+                project_profile_found=True,
+            )
+
+        if dry_run:
+            console.print(
+                f"[bold]dry-run[/bold] · {profile_path} · "
+                f"will_change={update.will_change} · existed={update.block_existed_before} · "
+                f"cards={update.card_count}"
+            )
+            print(update.new_text)
+            return
+
+        if not update.will_change:
+            console.print(
+                f"[green]✔ evidence block 已是最新（{update.card_count} cards），未写盘[/green]"
+            )
+            return
+
+        write_evidence_update(update)
+        console.print(
+            f"[green]✔ evidence block 已更新[/green] {profile_path} "
+            f"· cards={update.card_count} · existed={update.block_existed_before}"
         )
 
-    if output is not None:
-        if not output.parent.exists():
-            console.print(
-                f"[red]--output 父目录不存在：{output.parent}（请先 mkdir）[/red]"
-            )
-            raise typer.Exit(code=2)
-        output.write_text(out, encoding="utf-8")
-        console.print(f"[green]✔ project context 已写入[/green] {output}")
+
+# ---------------------------------------------------------------------------
+# telemetry status / summary — 本地使用观察日志
+# ---------------------------------------------------------------------------
+
+
+telemetry_app = typer.Typer(
+    add_completion=False,
+    help="本地 telemetry（M5.7 / v0.2.3）— 仅元数据，永不上传",
+)
+app.add_typer(telemetry_app, name="telemetry")
+
+
+@telemetry_app.command("status")
+def telemetry_status(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """打印 telemetry 配置与本地文件位置（不读取事件内容）。"""
+    from .telemetry import telemetry_path
+
+    cfg = _load_cfg(config)
+    p = telemetry_path(cfg.state.workdir)
+    console.print("[bold]Telemetry status[/bold]")
+    console.print(f"- enabled: {cfg.telemetry.enabled}")
+    console.print(f"- local_only: {cfg.telemetry.local_only}")
+    console.print(f"- file: {p}")
+    console.print(f"- exists: {p.exists()}")
+    if p.exists():
+        try:
+            line_count = sum(1 for _ in p.open("r", encoding="utf-8"))
+        except OSError:
+            line_count = 0
+        console.print(f"- event_count: {line_count}")
+
+
+@telemetry_app.command("summary")
+def telemetry_summary_cmd(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("markdown", "--format"),
+    recent_errors: int = typer.Option(5, "--recent-errors"),
+) -> None:
+    """聚合统计：总数 / 成功率 / 最常用命令 / 平均耗时 / 最近错误。
+
+    所有数据仅来自本地 ``.mindforge/telemetry.jsonl``；不读取卡片正文。
+    """
+    from .telemetry import read_events, summarize
+
+    cfg = _load_cfg(config)
+    if output_format not in {"markdown", "json"}:
+        console.print(f"[red]--format 必须是 markdown 或 json，收到 {output_format!r}[/red]")
+        raise typer.Exit(code=2)
+
+    events = read_events(cfg.state.workdir)
+    summary = summarize(events, recent_errors=recent_errors)
+
+    if output_format == "json":
+        import json as _json
+
+        print(_json.dumps(
+            {
+                "total": summary.total,
+                "success": summary.success,
+                "failure": summary.failure,
+                "by_command": summary.by_command,
+                "avg_duration_ms_by_command": summary.avg_duration_ms_by_command,
+                "recent_errors": summary.recent_errors,
+            },
+            ensure_ascii=False, indent=2,
+        ))
         return
 
-    print(out)
+    console.print("[bold]Telemetry summary[/bold]")
+    console.print(f"- total: {summary.total}")
+    console.print(f"- success: {summary.success}")
+    console.print(f"- failure: {summary.failure}")
+    if summary.by_command:
+        console.print("[bold]Most used commands:[/bold]")
+        for cmd, n in sorted(summary.by_command.items(), key=lambda kv: (-kv[1], kv[0])):
+            avg = summary.avg_duration_ms_by_command.get(cmd)
+            avg_part = f" · avg {avg}ms" if avg is not None else ""
+            console.print(f"- {cmd}: {n}{avg_part}")
+    if summary.recent_errors:
+        console.print("[bold]Recent errors:[/bold]")
+        for e in summary.recent_errors:
+            console.print(
+                f"- {e.get('timestamp')} · {e.get('command')} · "
+                f"{e.get('error_code')} · {e.get('duration_ms')}ms"
+            )
 
 
 # ---------------------------------------------------------------------------

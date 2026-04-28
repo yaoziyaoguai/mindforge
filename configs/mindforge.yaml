@@ -248,3 +248,16 @@ logging:
   file: ".mindforge/mindforge.log"
   record_prompts: true              # 是否在 runs/*.jsonl 里写 prompt 文本
   record_outputs: true              # 是否在 runs/*.jsonl 里写 LLM 原始输出
+
+# -----------------------------------------------------------------------------
+# Telemetry（M5.7 / v0.2.3）— 本地使用观察日志，**永不上传**。
+#
+# - enabled: false 时整个 telemetry 模块静默；
+# - local_only: v0.2.3 固定 true；任何远程 sink 都需要先扩协议；
+# - 写入位置：<state.workdir>/telemetry.jsonl（默认 .mindforge/telemetry.jsonl）；
+# - 字段白名单：见 docs/M5_7_TELEMETRY_PROTOCOL.md，绝不写卡片正文 / prompt /
+#   completion / api_key / .env / 全绝对私有路径。
+# -----------------------------------------------------------------------------
+telemetry:
+  enabled: true
+  local_only: true
