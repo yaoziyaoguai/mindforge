@@ -1176,16 +1176,42 @@ def recall(
         "compact", "--format",
         help="compact (默认) | table | markdown | json",
     ),
+    query: str | None = typer.Option(
+        None, "--query", "-q",
+        help="BM25 词法检索（v0.3）。给定时走 BM25 路径，忽略 --keyword 与 --sort。",
+    ),
+    explain: bool = typer.Option(
+        False, "--explain",
+        help="仅 --query 路径生效：打印每条命中的字段贡献分。",
+    ),
 ) -> None:
-    """规则检索 Knowledge Cards（仅查 frontmatter 白名单字段）。
+    """检索 Knowledge Cards。
 
-    M4.1 增量：
-    - --keyword 多 token AND（空白分割），ci-contains；
-    - --sort 控制排序键；
-    - --format 增加 table / markdown，markdown 适合直接粘到 Claude/Copilot；
-    - 仍**不**搜 body / source 原文 / human_note；
-    - 仍默认仅 human_approved；--include-drafts 显式打开。
+    两条互斥路径：
+    - **不带 --query**：M4.1 规则检索（含 --keyword AND 过滤）；
+    - **带 --query**：v0.3 BM25 词法检索，按相关度排序，可 --explain。
+
+    无论哪条路径，都**只**读 frontmatter 白名单字段 + 卡片内 AI 已生成的安全
+    section（``## AI Summary`` / ``## Action Items`` / ``## Principles`` /
+    ``## Known Risks``）；**绝不**碰 source 原文、Source Excerpt、Human Note。
     """
+    if query is not None:
+        return _do_bm25_recall(
+            config=config,
+            query=query,
+            track=track,
+            project=project,
+            tags=list(tag),
+            source_type=source_type,
+            status=status,
+            include_drafts=include_drafts,
+            since=since,
+            until=until,
+            limit=limit,
+            output_format=output_format,
+            explain=explain,
+        )
+
     from .cards import filter_cards, iter_cards, sort_cards
 
     cfg = _load_cfg(config)
@@ -1303,6 +1329,299 @@ def recall(
             f"status={c.status} · track={c.track or '-'} · "
             f"value_score={c.value_score if c.value_score is not None else '-'}"
         )
+
+
+
+
+# ---------------------------------------------------------------------------
+# v0.3 — BM25 lexical recall + index 子命令
+# ---------------------------------------------------------------------------
+# 设计契约（详见 docs/M5_4_LEXICAL_RECALL_PROTOCOL.md）：
+# 1. BM25 是**纯本地词法检索**，不调用 LLM、不读 .env、不联网。
+# 2. 索引只构建在 Knowledge Card 的安全字段上（frontmatter + 白名单 body
+#    section），永远不索引 source 原文 / Source Excerpt / Human Note。
+# 3. 索引产物落在 `.mindforge/index/bm25.json`，由 .gitignore 挡住。
+# 4. recall 默认仍只查 human_approved；--include-drafts 显式打开。
+
+
+index_app = typer.Typer(
+    add_completion=False,
+    help="BM25 本地索引子命令（v0.3，纯词法、不联网、不调 LLM）",
+    no_args_is_help=True,
+)
+app.add_typer(index_app, name="index")
+
+
+def _do_bm25_recall(
+    *,
+    config: Path,
+    query: str,
+    track: str | None,
+    project: str | None,
+    tags: list[str],
+    source_type: str | None,
+    status: str,
+    include_drafts: bool,
+    since: str | None,
+    until: str | None,
+    limit: int,
+    output_format: str,
+    explain: bool,
+) -> None:
+    """BM25 路径。如果磁盘上没有索引文件，回退为内存即时构建（提示一次）。"""
+    from . import lexical_index as lx
+    from .cards import iter_cards
+
+    cfg = _load_cfg(config)
+    workdir = cfg.state.workdir  # type: ignore[attr-defined]
+    idx_path = lx.default_index_path(workdir)
+
+    index: lx.BM25Index
+    used_disk = False
+    if idx_path.exists():
+        try:
+            index = lx.BM25Index.load(idx_path)
+            used_disk = True
+        except (lx.IndexFormatError, OSError, ValueError) as e:
+            console.print(f"[yellow]索引文件不可用（{e}）；改为内存即时构建。[/yellow]")
+            scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+            index = lx.build_index(scan.cards)
+    else:
+        if output_format not in ("json",):
+            console.print(
+                "[yellow]提示：尚无索引文件，本次内存即时构建。"
+                "建议运行 `mindforge index rebuild` 以加速后续查询。[/yellow]"
+            )
+        scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+        index = lx.build_index(scan.cards)
+
+    hits = lx.search(
+        index,
+        query,
+        status_filter=status,
+        include_drafts=include_drafts,
+        track=track,
+        project=project,
+        tags=tags,
+        source_type=source_type,
+        since=_parse_date(since),
+        until=_parse_date(until),
+        limit=limit,
+    )
+
+    # 不把 query 原文写入 telemetry/runs；只记录是否提供 + hash 化指纹。
+    # 复用 keyword_* 白名单字段（query 与 keyword 在隐私语义上一致）。
+    kw_provided, kw_hash = _hash_keyword(query)
+    with RunLogger(cfg.state.runs_path, command="recall_bm25") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "recall_bm25_executed",
+            count=len(hits),
+            filters=_filters_dict(
+                track=track,
+                project=project,
+                tags=list(tags),
+                source_type=source_type,
+                status=status,
+                include_drafts=include_drafts,
+                since=since,
+                until=until,
+                limit=limit,
+                explain=explain,
+                used_disk_index=used_disk,
+            ),
+            keyword_provided=kw_provided,
+            keyword_hash=kw_hash,
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+
+        payload = {
+            "version": 1,
+            "engine": "bm25",
+            "query": {
+                "track": track,
+                "project": project,
+                "tags": list(tags),
+                "query_provided": kw_provided,
+                "query_hash": kw_hash,
+                "status_filter": status,
+                "include_drafts": include_drafts,
+                "since": since,
+                "until": until,
+                "limit": limit,
+            },
+            "count": len(hits),
+            "items": [_hit_to_safe_dict(h, explain=explain) for h in hits],
+        }
+        console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    if output_format == "markdown":
+        print(f"# Recall · {len(hits)} 项 (engine=bm25)\n")
+        if not hits:
+            print("_(no cards matched)_")
+            return
+        for h in hits:
+            d = h.doc
+            print(
+                f"- **[{d.id or Path(d.rel_path).stem}]** {d.title or '(untitled)'}  "
+                f"`score={h.score:.3f}` `status={d.status}` `track={d.track or '-'}` "
+                f"`path={d.rel_path}`"
+            )
+            if explain:
+                for fh in h.field_hits:
+                    terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
+                    print(f"    - {fh.field} (w={fh.weight}, +{fh.contribution:.3f}): {terms}")
+        return
+
+    if output_format == "table":
+        if not hits:
+            console.print("[yellow]没有匹配的卡片。[/yellow]")
+            return
+        table = Table(title=f"Recall · {len(hits)} 项 (engine=bm25)")
+        table.add_column("score", justify="right")
+        table.add_column("id")
+        table.add_column("title")
+        table.add_column("status")
+        table.add_column("track")
+        table.add_column("path")
+        for h in hits:
+            d = h.doc
+            table.add_row(
+                f"{h.score:.3f}",
+                d.id or Path(d.rel_path).stem,
+                d.title or "(untitled)",
+                d.status,
+                d.track or "-",
+                d.rel_path,
+            )
+        console.print(table)
+        return
+
+    # compact（默认）
+    if not hits:
+        console.print("[yellow]没有匹配的卡片。[/yellow]")
+        return
+    console.print(f"[bold]Recall[/bold] · {len(hits)} 项 (engine=bm25)")
+    for h in hits:
+        d = h.doc
+        console.print(
+            f"- score={h.score:.3f} · {d.id or Path(d.rel_path).stem} · "
+            f"{d.title or '(untitled)'} · status={d.status} · track={d.track or '-'}"
+        )
+        if explain:
+            for fh in h.field_hits:
+                terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
+                console.print(
+                    f"    [dim]{fh.field}[/dim] w={fh.weight} +{fh.contribution:.3f}: {terms}"
+                )
+
+
+def _hit_to_safe_dict(h, *, explain: bool) -> dict:
+    """SearchHit → JSON 安全 dict；只暴露白名单字段。"""
+    d = h.doc
+    out: dict = {
+        "score": round(h.score, 6),
+        "id": d.id,
+        "title": d.title,
+        "rel_path": d.rel_path,
+        "status": d.status,
+        "track": d.track,
+        "projects": list(d.projects),
+        "tags": list(d.tags),
+        "source_type": d.source_type,
+        "created_at": d.created_at,
+    }
+    if explain:
+        out["explain"] = [
+            {
+                "field": fh.field,
+                "weight": fh.weight,
+                "contribution": round(fh.contribution, 6),
+                "terms": dict(fh.term_counts),
+            }
+            for fh in h.field_hits
+        ]
+    return out
+
+
+@index_app.command("rebuild")
+def index_rebuild(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """全量重建 BM25 本地索引到 ``<workdir>/index/bm25.json``。
+
+    幂等：永远写整文件（先写 .tmp 再原子 rename）。索引内容只来自当前
+    Knowledge Card 的安全字段；无网络、无 LLM。
+    """
+    from . import lexical_index as lx
+    from .cards import iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    if scan.errors:
+        console.print(f"[yellow]跳过 {len(scan.errors)} 张损坏卡片[/yellow]")
+    index = lx.build_index(scan.cards)
+    idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
+    index.save(idx_path)
+    console.print(
+        f"[green]✓ 索引已写入[/green] {idx_path} · "
+        f"卡片={len(index.docs)} · avgdl={index.avgdl:.1f} · 时间={index.built_at}"
+    )
+
+
+@index_app.command("status")
+def index_status(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """打印索引存在性、字段权重、staleness 摘要。不读 query、不打印卡片正文。"""
+    from . import lexical_index as lx
+    from .cards import iter_cards
+
+    cfg = _load_cfg(config)
+    idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+
+    if not idx_path.exists():
+        console.print("[yellow]索引文件不存在[/yellow]")
+        console.print(f"  路径：{idx_path}")
+        console.print(f"  当前 vault 卡片数：{len(scan.cards)}")
+        console.print("  建议：[bold]mindforge index rebuild[/bold]")
+        return
+
+    try:
+        index = lx.BM25Index.load(idx_path)
+    except (lx.IndexFormatError, ValueError, OSError) as e:
+        console.print(f"[red]索引读取失败：{e}[/red]")
+        console.print("  建议：[bold]mindforge index rebuild[/bold]")
+        raise typer.Exit(code=1) from e
+
+    diff = lx.diff_index(index, scan.cards)
+    state_label = "[green]fresh[/green]" if diff.fresh else "[yellow]stale[/yellow]"
+    console.print(f"[bold]Index status[/bold] · {state_label}")
+    console.print(f"  路径：{idx_path}")
+    console.print(f"  built_at：{index.built_at}")
+    console.print(f"  schema_version：{index.schema_version}")
+    console.print(f"  tokenizer：{index.tokenizer_name}")
+    console.print(f"  k1={index.k1} b={index.b} avgdl={index.avgdl:.1f}")
+    console.print(f"  字段权重：{index.field_weights}")
+    console.print(f"  索引卡片数：{diff.indexed_count}  当前卡片数：{diff.current_count}")
+    if diff.added:
+        console.print(f"  [yellow]新增未索引[/yellow]：{len(diff.added)}（前 {min(5,len(diff.added))} 项）")
+        for rp in diff.added[:5]:
+            console.print(f"    + {rp}")
+    if diff.removed:
+        console.print(f"  [yellow]索引内已删除[/yellow]：{len(diff.removed)}")
+        for rp in diff.removed[:5]:
+            console.print(f"    - {rp}")
+    if diff.changed:
+        console.print(f"  [yellow]mtime 漂移[/yellow]：{len(diff.changed)}")
+        for rp in diff.changed[:5]:
+            console.print(f"    ~ {rp}")
+    if not diff.fresh:
+        console.print("  建议：[bold]mindforge index rebuild[/bold]")
 
 
 # ---------------------------------------------------------------------------

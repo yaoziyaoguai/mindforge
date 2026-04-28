@@ -41,6 +41,7 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M5.5** | Vault 友好度（`vault index/links/refresh`，**不**改卡片正文）（[复盘](./V0_2_FINAL_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.5 |
 | **CLI polish #2** | 全局 `--vault` 覆盖 / `mindforge doctor` / completion 文档（[复盘](./V0_2_FINAL_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.5 |
 | **v0.2.6 日用化** | `mindforge init` / approve workflow polish (`approve list` / `--source-id` / `--all`) / doctor action items / onboarding smoke（[复盘](./V0_2_6_REVIEW.md) · [smoke](./ONBOARDING_SMOKE.md)） | ✅ | ✅ | ✅ v0.2.6 |
+| **M5.4 Lexical Recall (BM25)** | `mindforge recall --query [--explain]` / `mindforge index rebuild|status` / 仅索引安全字段 / 不引入 RAG / embedding（[协议](./M5_4_LEXICAL_RECALL_PROTOCOL.md) · [复盘](./V0_3_0_REVIEW.md)） | ✅ | ✅ | ✅ v0.3.0 |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---
