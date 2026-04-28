@@ -161,6 +161,11 @@ def test_cli_scan_then_status(tmp_path: Path) -> None:
     assert "raw" in r3.output
     assert "cubox_markdown" in r3.output
     assert "plain_markdown" in r3.output
+    # M1.5 新增：runs dir 与最近一次 run 摘要必须出现
+    assert "runs dir" in r3.output
+    assert "最近一次 run" in r3.output
+    assert "run_id=" in r3.output
+    assert "events=" in r3.output
 
 
 def test_cli_scan_no_write_state(tmp_path: Path) -> None:

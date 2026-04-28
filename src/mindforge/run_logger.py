@@ -182,4 +182,54 @@ __all__ = [
     "EVENT_SOURCE_ERROR",
     "EVENT_STATE_WRITTEN",
     "EVENT_STATUS_REPORTED",
+    "summarize_latest_run",
 ]
+
+
+@dataclass(frozen=True)
+class RunSummary:
+    """对最近一次 run jsonl 的轻量摘要。仅暴露非敏感信息。"""
+
+    path: Path
+    run_id: str
+    command: str | None
+    started_at: str | None
+    last_event_at: str | None
+    last_event: str | None
+    event_count: int
+    failed: bool
+
+
+def summarize_latest_run(runs_dir: Path) -> RunSummary | None:
+    """扫描 ``runs_dir`` 下 jsonl，按 mtime 选最新一份，给出非敏感摘要。
+
+    若目录不存在或无 jsonl，返回 None。读取失败时也返回 None（不抛）。
+    """
+    if not runs_dir.is_dir():
+        return None
+    candidates = list(runs_dir.glob("*.jsonl"))
+    if not candidates:
+        return None
+    latest = max(candidates, key=lambda p: p.stat().st_mtime)
+    try:
+        lines = [
+            json.loads(line)
+            for line in latest.read_text("utf-8").splitlines()
+            if line.strip()
+        ]
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not lines:
+        return None
+    first = lines[0]
+    last = lines[-1]
+    return RunSummary(
+        path=latest,
+        run_id=first.get("run_id", latest.stem),
+        command=first.get("command"),
+        started_at=first.get("ts"),
+        last_event_at=last.get("ts"),
+        last_event=last.get("event"),
+        event_count=len(lines),
+        failed=any(e.get("event") == EVENT_RUN_FAILED for e in lines),
+    )

@@ -259,14 +259,31 @@ human_approved ← 人工把卡片 status 改成 human_approved（由 reconciler
 
 ## 7. 可观察性契约
 
-每次 `mindforge process` 都生成一个 run id，并写入：
-- `.mindforge/runs/<run_id>.jsonl` — 事件流（含每条 `llm_call`）
-- `.mindforge/state.json` — 当前累计状态（按 `source_id` 索引，含 `stages.<stage>` 子结构）
+### 7.1 两份产物的职责边界
+
+| 产物 | 角色 | 写入时机 | 读取者 | 是否入库 |
+|---|---|---|---|---|
+| `.mindforge/state.json` | **checkpoint / 现状快照** | 每条 source 处理完后增量更新；原子写 + `.bak` | `scan` / `status` / `process` / 反向同步 | ❌（per-machine，已 .gitignore） |
+| `.mindforge/runs/<run_id>.jsonl` | **observer / event log** | 每次 CLI 运行 = 一份；append-only | 人工事后回放 / 复盘 / prompt A/B | ❌（per-machine，已 .gitignore） |
+| `.mindforge/state.json.bak` | state 备份 | 每次原子写后保留上一份 | 灾难恢复 | ❌ |
+
+**反模式**（任何阶段都不允许）：
+- 把 `state.json` 当成事件流（不要 append！它是覆盖式快照）。
+- 把 `runs/*.jsonl` 当成 checkpoint（它是事件流，不能被回头修改）。
+- 把任一产物提交进 git（它们是个人知识库的扫描痕迹，含路径、tag、时间）。
+- 在 `runs/*.jsonl` 中写入 `raw_text` / 文章正文 / 卡片正文（白名单已强制拒绝）。
+
+### 7.2 每次 `mindforge` 命令运行都生成
+
+- `.mindforge/runs/<run_id>.jsonl` — 事件流（M2 起含每条 `llm_call`）
+- `.mindforge/state.json` — 当前累计状态（按 `source_id` 索引，M2 起含 `stages.<stage>` 子结构）
 
 `llm_call` 事件**必须**包含：
 `stage` / `model_alias` / `provider` / `actual_model` / `prompt_version` / `input_file_hash` / `tokens_in` / `tokens_out` / `latency_ms` / `status` / `error_message` / `processed_at`
 
 → 这是 MindForge 的"黑匣子"。任何卡片质量问题，都能凭 run jsonl + 当时的 prompt 版本回放。
+
+`mindforge status` 会读取最新一份 jsonl（按 mtime）并打印 `command / run_id / event_count / started / last_event` 等非敏感摘要，便于人工排查"上一次到底跑了什么"。
 
 ---
 

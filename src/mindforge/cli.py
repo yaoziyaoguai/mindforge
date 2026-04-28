@@ -26,6 +26,7 @@ from .run_logger import (
     EVENT_STATE_WRITTEN,
     EVENT_STATUS_REPORTED,
     RunLogger,
+    summarize_latest_run,
 )
 from .scanner import Scanner
 
@@ -192,7 +193,21 @@ def status(
 
     console.print(f"[bold]MindForge status[/bold] · active_profile={cp.active_profile or '(unset)'}")
     console.print(f"state.json: {cfg.state.state_path}")  # type: ignore[attr-defined]
+    console.print(f"runs dir : {cfg.state.runs_path}")  # type: ignore[attr-defined]
     console.print(f"items 总数：{len(items)}")
+
+    # 最近一次 run 摘要（非敏感字段）
+    summary = summarize_latest_run(cfg.state.runs_path)  # type: ignore[attr-defined]
+    if summary is None:
+        console.print("[yellow]最近一次 run：(无)[/yellow]")
+    else:
+        flag = "[red]failed[/red]" if summary.failed else "[green]ok[/green]"
+        console.print(
+            f"最近一次 run · {flag} · cmd=[bold]{summary.command or '?'}[/bold] · "
+            f"run_id={summary.run_id} · events={summary.event_count} · "
+            f"started={summary.started_at} · last={summary.last_event}@{summary.last_event_at}"
+        )
+        console.print(f"  log: {summary.path}")
 
     if not items:
         console.print("[yellow]state.json 为空。先运行 `mindforge scan`。[/yellow]")
