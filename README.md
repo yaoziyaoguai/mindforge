@@ -63,7 +63,8 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 | **M2** | LLM Processing MVP（5 个 stage） | ✅ 完成 |
 | **M2.5** | Anthropic-compatible provider 接入 + 加固 | ✅ 完成 |
 | **M2.7** | `.env` 自动加载 + `--profile` / `--dry-run` / `llm ping` | ✅ 完成 |
-| **M2.8** | 真实 provider smoke 收口（lazy provider build + 单文件落卡验证） | 🟢 当前 |
+| **M2.8** | 真实 provider smoke 收口（lazy provider build + 单文件落卡验证） | ✅ 完成 |
+| **M2.9** | v0.1 收口（卡片模板清理 + 安全 E2E 测试 + rc1 复盘） | 🟢 当前 / rc1 |
 | M3 | Vault 输出与人工确认机制 | ⏳ 待启动 |
 | M4 | 回顾、召回与项目记忆（v0.2/v0.3 候选） | ⏳ |
 | M5 | 高级集成（Obsidian 插件 / OCR / RAG ...） | 🚫 v0.1 不做 |
@@ -115,14 +116,15 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：M2.8 完成（本地）
+## 当前状态：v0.1.0-rc1（本地）
 
-- M0/M1/M1.5/M2/M2.5/M2.7/M2.8 均已本地 commit，**未** push。
+- M0 → M2.9 全部已本地 commit，**未** push。
+- v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
+  `ai_draft` Knowledge Card → state.json + runs/*.jsonl 证据链。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
-- `.env` 自动加载，`--profile` 临时覆盖 active_profile，`--dry-run` 跑 pipeline 不落地，
-  `mindforge llm ping` 校验 env 齐备性（不发 HTTP）。
-- M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱 vault 中完成一次单文件
-  端到端 smoke（ping → dry-run → 正式落卡），verified 无敏感字段泄漏；详见
-  [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 进入 M3（人工 `human_approved` 反向同步）的条件、停止规则见
-  [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+- `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
+  的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
+- M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
+  smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
+- v0.1 收口复盘见 [`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md)。
+- 进入 M3（人工 `human_approved` 反向同步）需用户**显式**确认；先设计协议再写代码。

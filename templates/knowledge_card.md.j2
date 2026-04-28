@@ -1,18 +1,4 @@
 ---
-# =============================================================================
-# Knowledge Card 模板（草案 / Milestone 0）
-#
-# 用途：MindForge Writer 在 Milestone 3 用 jinja2 渲染本模板，把 distill /
-#       link_suggestion / review_questions / action_extraction 的输出合并为
-#       一张 Knowledge Card，写入 <vault>/20-Knowledge-Cards/<track>/<file>.md
-#
-# 本模板严格对应 docs/MINDFORGE_PROTOCOL.md §5「Knowledge Card 数据契约」。
-#
-# Frontmatter 字段是 v0.1 的硬契约：
-#   - status 默认 ai_draft，需人工改为 human_approved 才进入长期记忆
-#   - source_* / adapter_name 来自 SourceDocument
-#   - prompt_version / profile / stage_models 来自本次 run，用于回放与归因
-# =============================================================================
 id: {{ card.id }}
 title: "{{ card.title }}"
 status: ai_draft               # ai_draft | human_approved | archived
@@ -35,10 +21,8 @@ created_at: {{ run.created_at }}
 prompt_version: "distill@{{ run.prompts.distill_version }}"
 profile: "{{ run.profile }}"
 stage_models:
-{% for stage, info in run.stage_models.items() -%}
-  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
-{% endfor -%}
-run_id: "{{ run.run_id }}"
+{% for stage, info in run.stage_models.items() %}  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
+{% endfor %}run_id: "{{ run.run_id }}"
 ---
 
 ## Source Excerpt
