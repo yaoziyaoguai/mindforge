@@ -1,0 +1,40 @@
+# MindForge .gitignore
+
+# 运行时产物（M1+ 才会出现，但提前纳入忽略）
+.mindforge/
+*.log
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# uv / pip-tools
+.uv-cache/
+pip-wheel-metadata/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local user scratch
+scratch/
+local/
+*.local.*
+
+# Obsidian Vault 占位（vault_template/ 仅做模板，本仓库不放真实笔记）
+vault_template/00-Inbox/**/!(.gitkeep|README.md)
+vault_template/20-Knowledge-Cards/**/!(.gitkeep|README.md)

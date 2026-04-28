@@ -1,0 +1,195 @@
+# =============================================================================
+# MindForge 主配置（草案 / Milestone 0）
+#
+# ⚠️ 本文件在 M0 阶段是"契约样例"，M1 才会被真正加载。
+# 所有路径示例都以 macOS 个人路径为例，使用前请按需修改。
+#
+# 顶层结构：
+#   vault    — Obsidian Vault 的位置与子目录约定
+#   sources  — 多源接入：哪些 source_type 启用，每个对应哪个 inbox 子目录与 adapter
+#   state    — MindForge 运行时产物存放位置（state.json / runs / index）
+#   triage   — 分流参数（阈值、默认 track）
+#   llm      — LLM Provider/Profile/Model（核心：profile + stage routing）
+#   prompts  — 每个 stage 的 prompt 版本绑定
+#   logging  — 日志开关与位置
+# =============================================================================
+
+version: 0.1
+
+# -----------------------------------------------------------------------------
+# Vault：Obsidian Vault 根 + inbox 子目录的统一根
+# 注意：MindForge 对 inbox_root 下所有文件**只读**，永不改写、删除、重命名。
+# -----------------------------------------------------------------------------
+vault:
+  root: "/Users/jinkun.wang/Obsidian/MyVault"
+  inbox_root: "00-Inbox"            # 多源根目录；具体子目录由下面的 sources.registry 决定
+  cards_dir: "20-Knowledge-Cards"   # MindForge Writer 唯一写入区
+  archive_dir: "90-Archive/Skipped" # value_score 不达标的源仅记录链接到这里
+
+# -----------------------------------------------------------------------------
+# Sources：多源接入（核心抽象）
+#
+# - enabled    — 白名单。只有列出的 source_type 才会被 Scanner 发现并处理。
+# - registry   — 每个 source_type 对应的 adapter 类、inbox 子目录、文件 glob。
+#
+# 学习提示：v0.1 默认只启用 cubox_markdown 与 plain_markdown。
+# 其余 adapter 在 registry 里以 enabled: false 占位，仅做类型与目录约定，
+# 防止以后乱放文件 / 给未来实现留住"标准位置"。
+# -----------------------------------------------------------------------------
+sources:
+  enabled:
+    - cubox_markdown
+    - plain_markdown
+
+  registry:
+    cubox_markdown:
+      adapter: CuboxMarkdownAdapter
+      inbox_subdir: "Cubox"
+      file_glob: "*.md"
+      enabled: true
+
+    plain_markdown:
+      adapter: PlainMarkdownAdapter
+      inbox_subdir: "ManualNotes"
+      file_glob: "*.md"
+      enabled: true
+
+    webclip_markdown:
+      adapter: WebClipMarkdownAdapter
+      inbox_subdir: "WebClips"
+      file_glob: "*.md"
+      enabled: false                # v0.1 仅 stub
+
+    pdf:
+      adapter: PdfAdapter
+      inbox_subdir: "PDFs"
+      file_glob: "*.pdf"
+      enabled: false                # v0.1 仅 stub，不做 OCR / 表格抽取
+
+    docx:
+      adapter: DocxAdapter
+      inbox_subdir: "Docs"
+      file_glob: "*.docx"
+      enabled: false                # v0.1 仅 stub
+
+    chat_export:
+      adapter: ChatExportAdapter
+      inbox_subdir: "ChatExports"
+      file_glob: "*.{md,json}"
+      enabled: false                # v0.1 仅 stub
+
+# -----------------------------------------------------------------------------
+# 状态与日志
+# -----------------------------------------------------------------------------
+state:
+  workdir: ".mindforge"             # 相对 MindForge 项目根（不在 vault 内）
+  state_file: "state.json"
+  runs_dir: "runs"
+  index_file: "index.jsonl"
+  backup_state: true                # 每次写入前生成 state.json.bak
+
+# -----------------------------------------------------------------------------
+# Triage 参数
+# -----------------------------------------------------------------------------
+triage:
+  value_score_threshold: 5          # < 5 直接 skipped
+  default_track: "unrouted"
+
+# -----------------------------------------------------------------------------
+# LLM 配置（核心）
+#
+# 三层：
+#   active_profile  — 选择当前生效的 profile
+#   profiles        — 每个 profile = "stage → model_alias" 映射
+#   models          — 每个 model_alias 的具体 provider 配置
+#
+# 设计原则：
+#   - 配置层面开放：你可以列任意多个 profile / model；
+#   - 执行层面克制：只做 active_profile 里声明的静态 stage→alias 映射；
+#   - 不做 fallback / 投票 / 动态路由 / token-aware routing。
+#
+# 同一 provider 下允许多个 model（如 cheap_cloud / strong_cloud）。
+# -----------------------------------------------------------------------------
+llm:
+  active_profile: default
+
+  profiles:
+    default:
+      triage: cheap_cloud
+      distill: strong_cloud
+      link_suggestion: cheap_cloud
+      review_questions: strong_cloud
+      action_extraction: strong_cloud
+
+    local_first:
+      triage: local_fast
+      distill: strong_cloud
+      link_suggestion: local_fast
+      review_questions: strong_cloud
+      action_extraction: strong_cloud
+
+    all_local:
+      triage: local_fast
+      distill: local_strong
+      link_suggestion: local_fast
+      review_questions: local_strong
+      action_extraction: local_strong
+
+  models:
+    cheap_cloud:
+      provider: cloud_openai_compatible
+      type: openai_compatible
+      base_url: "https://api.example.com/v1"
+      api_key_env: "MINDFORGE_API_KEY"
+      model: "cheap-model"
+      timeout_seconds: 90
+      max_retries: 2
+
+    strong_cloud:
+      provider: cloud_openai_compatible
+      type: openai_compatible
+      base_url: "https://api.example.com/v1"
+      api_key_env: "MINDFORGE_API_KEY"
+      model: "strong-model"
+      timeout_seconds: 180
+      max_retries: 2
+
+    local_fast:
+      provider: local_ollama
+      type: openai_compatible
+      base_url: "http://localhost:11434/v1"
+      api_key_optional: true
+      model: "qwen2.5:7b"
+      timeout_seconds: 120
+      max_retries: 1
+
+    local_strong:
+      provider: local_ollama
+      type: openai_compatible
+      base_url: "http://localhost:11434/v1"
+      api_key_optional: true
+      model: "qwen2.5:14b"
+      timeout_seconds: 240
+      max_retries: 1
+
+# -----------------------------------------------------------------------------
+# Prompts：每个 stage 当前使用哪个版本
+# 文件路径：prompts/<stage>/<version>.md
+# manifest:  prompts/<stage>/manifest.yaml
+# 改 prompt 必须新增 vN+1，**不可覆盖** vN，以保证回放一致性。
+# -----------------------------------------------------------------------------
+prompts:
+  triage_version: "v1"
+  distill_version: "v1"
+  link_suggestion_version: "v1"
+  review_questions_version: "v1"
+  action_extraction_version: "v1"
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  file: ".mindforge/mindforge.log"
+  record_prompts: true              # 是否在 runs/*.jsonl 里写 prompt 文本
+  record_outputs: true              # 是否在 runs/*.jsonl 里写 LLM 原始输出

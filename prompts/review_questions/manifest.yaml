@@ -1,0 +1,36 @@
+stage: review_questions
+version: v1
+description: |
+  为已 distill 的 Card 生成 3 道复习题（principle / application / reflection 各一道）。
+expected_output_schema:
+  type: object
+  required: [review_questions]
+  properties:
+    review_questions:
+      type: array
+      minItems: 3
+      maxItems: 3
+      items:
+        type: object
+        required: [angle, question, expected_points]
+        properties:
+          angle:
+            type: string
+            enum: [principle, application, reflection]
+          question: { type: string }
+          expected_points:
+            type: array
+            items: { type: string }
+            minItems: 2
+            maxItems: 4
+input_variables:
+  - card_title
+  - track
+  - ai_summary_bullets
+  - ai_inference_bullets
+  - reusable_prompts_or_principles
+  - source_excerpt
+notes: |
+  - 本 prompt 不可变；改动请新建 v2 并更新本 manifest。
+  - 期望由 strong 模型胜任（profile.default 映射到 strong_cloud）。
+  - v0.1 不做调度（不算 due date / 间隔），仅生成静态题目存入 Card。
