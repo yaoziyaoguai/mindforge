@@ -6,7 +6,7 @@
 
 [project]
 name = "mindforge"
-version = "0.2.4"
+version = "0.2.5"
 description = "个人 AI 学习记忆库：多源接入的 AI 知识加工管线（Source Ingestion → Triage → Distill → Link → Apply → Review → Memory）。"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,6 +30,11 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
 ]
+# M5.1 / v0.2.5：PDF/Docx adapter 的可选依赖。未安装时 adapter 调用 load() 给
+# 出友好错误（``OptionalDependencyError``）。
+pdf = ["pypdf>=4.0"]
+docx = ["python-docx>=1.0"]
+docs = ["pypdf>=4.0", "python-docx>=1.0"]
 
 [project.scripts]
 # M1 才会实现；M0 阶段仅做名字预定

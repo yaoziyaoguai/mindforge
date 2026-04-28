@@ -136,7 +136,9 @@
 | **M5.7** Telemetry | ✅ v0.2.3 | — |
 | **M5.2** WebClip/ChatExport adapter | ✅ v0.2.4（[复盘](./V0_2_4_REVIEW.md) · [协议](./M5_2_WEBCLIP_CHATEXPORT_PROTOCOL.md)） | — |
 | **CLI polish #1** (`version` / `--debug` / 友好错误) | ✅ v0.2.4 | — |
-| **M5.1** PDF/Docx adapter | 🟡 协议占位 v0.2.4 ([协议](./M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md))；实装仍 ⭐⭐⭐ | 当真实有 PDF/docx 输入需求时 |
+| **M5.1** PDF/Docx adapter | ✅ v0.2.5 最小真实实装（lazy import；无 OCR；无表格抽取） | 增强（保留段落结构 / 基本表格） — 等真实需求出现再做 |
+| **M5.5** Vault 友好度 | ✅ v0.2.5（`vault index/links/refresh`） | — |
+| **CLI polish #2** (`--vault` / `doctor` / completion 文档) | ✅ v0.2.5 | — |
 | **M5.6** Review scheduling | ⭐⭐ | 复习节奏跑通 1 个季度后 |
 | **M5.4** RAG spike | ⭐ | **不要急**；先把 keyword 用满 |
 | **M5.5** Obsidian plugin spike | ⭐ | **不要急**；CLI 用够了再考虑 |

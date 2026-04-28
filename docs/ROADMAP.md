@@ -37,7 +37,9 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M5.7** | 本地 only telemetry（白名单字段 / status / summary）（[协议](./M5_7_TELEMETRY_PROTOCOL.md) → [复盘](./V0_2_3_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.3 |
 | **M5.2** | WebClip / ChatExport adapter 实装（[协议](./M5_2_WEBCLIP_CHATEXPORT_PROTOCOL.md) → [复盘](./V0_2_4_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.4 |
 | **CLI polish #1** | `mindforge version` / 全局 `--debug` / 友好错误（[复盘](./V0_2_4_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.4 |
-| **M5.1（占位）** | PDF / Docx adapter 协议冻结（[协议](./M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md)） | ✅ | 🟡 仅 stub | 🟡 协议落地 v0.2.4 |
+| **M5.1** | PDF / Docx adapter 最小真实实装（lazy import + 友好错误，**不**做 OCR）（[协议](./M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md) → [复盘](./V0_2_FINAL_REVIEW.md)） | ✅ | ✅ 最小 | ✅ v0.2.5 |
+| **M5.5** | Vault 友好度（`vault index/links/refresh`，**不**改卡片正文）（[复盘](./V0_2_FINAL_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.5 |
+| **CLI polish #2** | 全局 `--vault` 覆盖 / `mindforge doctor` / completion 文档（[复盘](./V0_2_FINAL_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.5 |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---

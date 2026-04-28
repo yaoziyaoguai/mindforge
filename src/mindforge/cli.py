@@ -68,11 +68,23 @@ def _global_options(
         "--debug",
         help="出错时打印完整 traceback；默认仅打印简短错误信息。",
     ),
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help="临时覆盖配置中的 vault.root（不修改 yaml）。优先级：CLI > config > 默认。",
+    ),
 ) -> None:
+    """全局选项。
+
+    --debug 与 --vault 都通过 env 透传，避免与子命令的 typer.Context 耦合。
+    """
     import os
 
     if debug:
         os.environ["MINDFORGE_DEBUG"] = "1"
+    if vault is not None:
+        # 写绝对路径，避免 cwd 漂移
+        os.environ["MINDFORGE_VAULT_OVERRIDE"] = str(vault.expanduser().resolve())
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +103,7 @@ def _load_cfg(config_path: Path) -> MindForgeConfig:
         )
         raise typer.Exit(code=2)
     try:
-        return load_mindforge_config(config_path)
+        cfg = load_mindforge_config(config_path)
     except ConfigError as e:
         console.print(f"[red]✗ 配置错误：{e}[/red]")
         console.print(
@@ -99,6 +111,18 @@ def _load_cfg(config_path: Path) -> MindForgeConfig:
             "三个字段是否合法。[/dim]"
         )
         raise typer.Exit(code=2) from e
+
+    # ── --vault override（CLI > config）─────────────────────────────────
+    # 仅替换 vault.root，其他子字段（inbox_root / cards_dir / projects_dir）保留。
+    # 这样用户可以"同一份 yaml + 不同 vault"复用，无需复制配置。
+    import os as _os
+    from dataclasses import replace as _replace
+
+    override = _os.environ.get("MINDFORGE_VAULT_OVERRIDE")
+    if override:
+        new_vault = _replace(cfg.vault, root=Path(override))
+        cfg = _replace(cfg, vault=new_vault)
+    return cfg
 
 
 def _override_active_profile(cfg: MindForgeConfig, profile: str | None) -> MindForgeConfig:
@@ -1492,6 +1516,205 @@ def _safe_date(dt) -> str:  # type: ignore[no-untyped-def]
     return dt.date().isoformat()
 
 
+# ---------------------------------------------------------------------------
+# vault subcommand — Obsidian 友好度（M5.5 / v0.2.5）
+# 设计原则：只生成 _index.md / _link_candidates.md 两类**新文件**，
+# 绝不改写已有 Knowledge Card 正文。如果同名文件已存在但缺 marker，
+# 就写到 sibling 文件（_index.mindforge.md）避免覆盖人手内容。
+# ---------------------------------------------------------------------------
+
+
+vault_app = typer.Typer(
+    add_completion=False,
+    help="Obsidian 友好度（M5.5 / v0.2.5）：导航索引与双链候选，仅写新文件。",
+)
+app.add_typer(vault_app, name="vault")
+
+
+@vault_app.command("index")
+def vault_index(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    reviews_dir: str = typer.Option(
+        "80-Reviews",
+        "--reviews-dir",
+        help="复习索引落盘的目录（相对 vault.root）；不存在则跳过。",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """生成或更新 cards / projects / reviews 三处的 _index.md。
+
+    幂等：``_index.md`` 由 MindForge 维护，每次重写整个文件；首行的
+    ``MINDFORGE:VAULT_INDEX`` marker 保证可识别 / 可覆盖。
+    """
+    from .vault import refresh_indexes
+
+    cfg = _load_cfg(config)
+    res = refresh_indexes(
+        cfg.vault.root,
+        cfg.vault.cards_dir,
+        cfg.vault.projects_dir,
+        reviews_dir,
+        dry_run=dry_run,
+    )
+    if dry_run:
+        console.print("[yellow]dry-run（未写文件）[/yellow]")
+    for p in res.written:
+        console.print(f"  → {p}")
+    console.print(f"[green]✓ 完成：写入 {len(res.written)} 个 index 文件[/green]")
+
+
+@vault_app.command("links")
+def vault_links(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    top_k: int = typer.Option(5, "--top-k", min=1, max=20),
+    min_score: int = typer.Option(3, "--min-score", min=1),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """基于安全字段（learning_track / projects / tags / source_type / title token）
+    生成 ``_link_candidates.md``。**不**调 LLM、**不**做 embedding、**不**改卡片正文。
+    """
+    from .cards import iter_cards
+    from .vault import build_link_candidates, write_link_candidates
+
+    cfg = _load_cfg(config)
+    res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cands = build_link_candidates(res.cards, top_k=top_k, min_score=min_score)
+    p, _ = write_link_candidates(
+        cfg.vault.root / cfg.vault.cards_dir, cands, dry_run=dry_run
+    )
+    if dry_run:
+        console.print(f"[yellow]dry-run；预览路径 {p}[/yellow]")
+    else:
+        console.print(f"[green]✓ 写入 {p}[/green]")
+    console.print(
+        f"  cards={len(cands)}  with_candidates={sum(1 for c in cands if c.candidates)}"
+    )
+
+
+@vault_app.command("refresh")
+def vault_refresh(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    reviews_dir: str = typer.Option("80-Reviews", "--reviews-dir"),
+) -> None:
+    """vault index + vault links 的组合糖；幂等。"""
+    vault_index(config=config, reviews_dir=reviews_dir, dry_run=False)
+    vault_links(config=config, top_k=5, min_score=3, dry_run=False)
+
+
+# ---------------------------------------------------------------------------
+# doctor — 只读诊断
+# 设计：永远不读取 .env 内容、不打印 secret，只检查"风险面"和"可操作建议"。
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def doctor(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """打印环境 + 配置 + 可选依赖 + .gitignore 风险快照。"""
+    import importlib.util as _u
+    import platform
+    import shutil
+    import subprocess
+    import sys
+
+    from . import __version__
+
+    console.print(f"[bold]MindForge doctor[/bold]  v{__version__}")
+    console.print(f"- Python            : {platform.python_version()} ({sys.executable})")
+    console.print(f"- Platform          : {platform.platform()}")
+    console.print(f"- config path       : {config}  ({'exists' if config.exists() else 'MISSING'})")
+
+    if not config.exists():
+        console.print("[yellow]提示：缺少 mindforge.yaml；其它检查跳过。[/yellow]")
+        return
+
+    cfg = _load_cfg(config)
+    vault_root = cfg.vault.root
+    inbox = vault_root / cfg.vault.inbox_root
+    cards_dir = vault_root / cfg.vault.cards_dir
+    projects_dir = vault_root / cfg.vault.projects_dir
+    state_dir = Path(cfg.state.workdir)
+
+    console.print(f"- vault.root        : {vault_root}  ({_ok_dir(vault_root)})")
+    console.print(f"- inbox             : {inbox}  ({_ok_dir(inbox)})")
+    console.print(f"- knowledge cards   : {cards_dir}  ({_ok_dir(cards_dir)})")
+    console.print(f"- projects          : {projects_dir}  ({_ok_dir(projects_dir)})")
+    console.print(f"- state workdir     : {state_dir}  ({_ok_dir(state_dir)})")
+    console.print(f"- active_profile    : {cfg.llm.active_profile}")
+    console.print(
+        f"- telemetry.enabled : {cfg.telemetry.enabled} (local_only={cfg.telemetry.local_only})"
+    )
+
+    pdf_ok = _u.find_spec("pypdf") is not None
+    docx_ok = _u.find_spec("docx") is not None
+    pdf_msg = "✓" if pdf_ok else r"✗ (pip install mindforge\[pdf])"
+    docx_msg = "✓" if docx_ok else r"✗ (pip install mindforge\[docx])"
+    console.print(f"- optional dep pypdf       : {pdf_msg}")
+    console.print(f"- optional dep python-docx : {docx_msg}")
+
+    cwd = Path.cwd()
+    env_file = cwd / ".env"
+    gitignore = cwd / ".gitignore"
+    if env_file.exists():
+        ignored = False
+        if gitignore.exists():
+            try:
+                ignored = ".env" in gitignore.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                pass
+        if ignored:
+            console.print(
+                "- .env             : present, [green]gitignored ✓[/green] (内容未被读取)"
+            )
+        else:
+            console.print(
+                "- .env             : [red]present BUT not in .gitignore![/red] "
+                "立即把 .env 加入 .gitignore，避免误提交。"
+            )
+    else:
+        console.print("- .env             : not present")
+
+    if shutil.which("git"):
+        try:
+            out = subprocess.check_output(
+                ["git", "status", "--porcelain"],
+                cwd=cwd,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            ).decode("utf-8", "replace")
+            risky = [
+                line
+                for line in out.splitlines()
+                if any(
+                    k in line
+                    for k in (".mindforge", "telemetry.jsonl", "runs/", "state.json", ".env")
+                )
+            ]
+            if risky:
+                console.print(
+                    "- [yellow]git status: 检测到运行时产物可能被加入暂存（请勿提交）：[/yellow]"
+                )
+                for r in risky[:5]:
+                    console.print(f"    {r}")
+            else:
+                console.print("- git status       : 无敏感运行产物风险")
+        except Exception:  # noqa: BLE001
+            console.print("- git status       : (跳过)")
+
+    console.print(
+        "[dim]说明：本命令不读 .env 内容、不发 HTTP、不打印 api_key / token。[/dim]"
+    )
+
+
+def _ok_dir(p: Path) -> str:
+    if not p.exists():
+        return "[red]missing[/red]"
+    if not p.is_dir():
+        return "[red]not a dir[/red]"
+    return "[green]ok[/green]"
+
+
 def main() -> None:
     """CLI 入口。``--debug`` 不传时静默 traceback，仅打印简短错误。
 
@@ -1546,6 +1769,14 @@ def version(
     except ConfigError as e:
         console.print(f"  [red]config 解析失败：{e}[/red]")
         raise typer.Exit(code=2) from e
+
+    # 兼容全局 --vault override（与 _load_cfg 行为一致）
+    import os as _os
+    from dataclasses import replace as _replace
+
+    _ov = _os.environ.get("MINDFORGE_VAULT_OVERRIDE")
+    if _ov:
+        cfg = _replace(cfg, vault=_replace(cfg.vault, root=Path(_ov)))
 
     console.print(f"- vault.root        : {cfg.vault.root}")
     console.print(f"- vault.inbox_root  : {cfg.vault.inbox_root}")

@@ -111,9 +111,9 @@ def test_cubox_markdown_hash_changes_when_url_changes(tmp_path: Path) -> None:
         (DocxAdapter, "docx"),
     ],
 )
-def test_stub_load_raises_not_implemented(cls, expected_type) -> None:
+def test_pdf_docx_adapter_basic_attrs(cls, expected_type) -> None:
+    """v0.2.5 起 PDF/Docx 是真实 adapter；can_handle 按扩展名判断。"""
     a = cls()
     assert a.source_type == expected_type
-    assert a.can_handle("x") is False
-    with pytest.raises(NotImplementedError, match="占位"):
-        a.load("/tmp/whatever")
+    assert a.can_handle(f"x.{expected_type}")
+    assert not a.can_handle("x.md")

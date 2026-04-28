@@ -143,14 +143,19 @@ def test_chat_export_hash_changes_with_turn_count(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stubs (PDF/Docx) — error 信息引用 M5_1 协议
+# Stubs (PDF/Docx) — v0.2.4 stub 行为；v0.2.5 已升级为真实 adapter，
+# 这里改为校验"未安装可选依赖时给出友好错误"。
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("cls", [PdfAdapter, DocxAdapter])
-def test_pdf_docx_stub_message_points_to_protocol(cls) -> None:
-    with pytest.raises(NotImplementedError, match="M5_1_PDF_DOCX_ADAPTER_PROTOCOL"):
-        cls().load("/tmp/x")
+def test_pdf_docx_can_handle_by_extension(cls) -> None:
+    a = cls()
+    if a.source_type == "pdf":
+        assert a.can_handle("x.pdf")
+    else:
+        assert a.can_handle("x.docx")
+    assert not a.can_handle("x.md")
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +180,7 @@ def test_version_prints_metadata_only(tmp_path: Path) -> None:
     cfg_path = _make_minimal_cfg(tmp_path)
     res = runner.invoke(app, ["version", "--config", str(cfg_path)])
     assert res.exit_code == 0, res.output
-    assert "MindForge v0.2.4" in res.output
+    assert "MindForge v0.2.5" in res.output
     assert "telemetry.enabled" in res.output
     _assert_no_secrets(res.output)
 
@@ -185,7 +190,7 @@ def test_version_with_missing_config_does_not_crash(tmp_path: Path) -> None:
         app, ["version", "--config", str(tmp_path / "nope.yaml")]
     )
     assert res.exit_code == 0
-    assert "MindForge v0.2.4" in res.output
+    assert "MindForge v0.2.5" in res.output
 
 
 def test_help_works() -> None:
