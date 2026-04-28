@@ -4,11 +4,11 @@
 
 MindForge is a CLI pipeline for personal knowledge processing. It scans local inbox files, normalizes them through SourceAdapters, runs a staged LLM pipeline, writes Knowledge Cards into a vault, and keeps state, run logs, recall indexes, review plans, and telemetry local.
 
-The next architecture step is v0.5 Obsidian Binding / Bridge: treat an Obsidian
-vault as read-only personal knowledge context first, design staging/review output
-second, and keep machine runtime state out of formal notes.
+v0.5 adds a read-only Obsidian Binding / Bridge: an Obsidian vault can be
+scanned as personal knowledge context, while generated candidates go only to
+staging/review and machine runtime state stays outside formal notes.
 
-Current version: **v0.4.3** (`init --interactive`, doctor/next polish, Chinese-localized user errors, onboarding smoke).
+Current version: **v0.5.0** (read-only Obsidian scan, links, doctor, and staging bridge).
 
 ## Quick Start
 
@@ -32,13 +32,17 @@ mindforge --vault examples/demo-vault scan
 mindforge --vault examples/demo-vault index rebuild
 mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
 mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
+mindforge obsidian doctor --vault examples/demo-vault
+mindforge obsidian scan --vault examples/demo-vault --limit 5
+mindforge obsidian links --vault examples/demo-vault
+mindforge obsidian stage --vault examples/demo-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
 ```
 
 The demo vault is fictional and safe to inspect. See [examples/demo-vault/README.md](examples/demo-vault/README.md).
 
 ## What It Does
 
-- Ingests local sources through adapters: Cubox markdown, plain markdown, web clips, chat exports, text PDFs, and docx files.
+- Ingests local sources through adapters: Cubox markdown, plain markdown, web clips, chat exports, text PDFs, docx files, and read-only Obsidian notes.
 - Converts every source to a frozen `SourceDocument` contract before downstream processing.
 - Runs a five-stage pipeline: triage, distill, link suggestion, review questions, action extraction.
 - Writes Knowledge Cards under `20-Knowledge-Cards/`, defaulting to `status: ai_draft`.
@@ -51,7 +55,7 @@ The demo vault is fictional and safe to inspect. See [examples/demo-vault/README
 - No remote telemetry or cloud sync.
 - No complex RAG, embedding, vector database, or graph database implementation in v0.5.
 - No OCR for scanned PDFs.
-- No Obsidian plugin yet; v0.5 starts with a minimal read-only binding design.
+- No Obsidian plugin; v0.5 is CLI/adapter-level binding only.
 - No automatic edits, file moves, or wikilink rewrites in a real Obsidian vault.
 - No background daemon, system calendar integration, email, or desktop notifications.
 
@@ -85,10 +89,9 @@ Start here:
 
 ## Development Status
 
-- Latest local commit: `14cc121`
-- Tag: `v0.4.3`
-- Quality gate at tag: `344 passed, 2 skipped`; `ruff` clean; `git diff --check` clean
-- No remote push was performed in this local repository state.
+- Latest local commit before v0.5 work: `3141dac`
+- Target tag for this work: `v0.5.0`
+- Latest quality gate during v0.5 implementation: `357 passed, 2 skipped`; `ruff` clean.
 
-Recommended next step: design and test the minimal v0.5 Obsidian Binding / Bridge
-on non-sensitive sample material before starting full real-vault dogfooding.
+Recommended next step after v0.5: run read-only dry-run validation on a small,
+non-sensitive Obsidian vault sample before any broader real-vault dogfooding.

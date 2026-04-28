@@ -11,10 +11,10 @@ git diff --check
 git status --short
 ```
 
-At tag `v0.4.3`, the full test suite was:
+At tag `v0.5.0`, the full test suite was:
 
 ```text
-344 passed, 2 skipped
+357 passed, 2 skipped
 ```
 
 ## Onboarding Smoke
@@ -48,7 +48,13 @@ mindforge --vault examples/demo-vault scan
 mindforge --vault examples/demo-vault index rebuild
 mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
 mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
+mindforge obsidian doctor --vault examples/demo-vault
+mindforge obsidian scan --vault examples/demo-vault --limit 5
+mindforge obsidian links --vault examples/demo-vault
+mindforge obsidian stage --vault examples/demo-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
 ```
+
+Obsidian-specific regression coverage lives in `tests/test_v0_5_obsidian.py`.
 
 ## Interactive Init Smoke
 
@@ -69,6 +75,8 @@ mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format jso
 - `process` must not produce `human_approved`.
 - Telemetry must use the whitelist only.
 - Recall must not index raw sources or secret-bearing artifacts.
+- Obsidian binding must not edit formal notes, move files, rewrite wikilinks, or
+  write runtime state into the vault.
 
 ## Troubleshooting
 

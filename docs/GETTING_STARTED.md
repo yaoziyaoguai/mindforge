@@ -1,4 +1,4 @@
-# Getting Started — MindForge v0.4.3
+# Getting Started — MindForge v0.5.0
 
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。
 > 全程使用 `fake` provider；**不读取 `.env`**。
@@ -11,6 +11,11 @@
 > mindforge --vault examples/demo-vault index rebuild
 > mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
 > mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
+> mindforge obsidian doctor --vault examples/demo-vault
+> mindforge obsidian scan --vault examples/demo-vault --limit 5
+> mindforge obsidian links --vault examples/demo-vault
+> mindforge obsidian stage --vault examples/demo-vault \
+>   --source 02-Knowledge/agent-runtime-observer.md --dry-run
 > ```
 > （demo vault 完全虚构，详见 [`examples/demo-vault/README.md`](../examples/demo-vault/README.md)）
 >
@@ -132,6 +137,7 @@ mindforge project update-evidence my-first-agent --dry-run
 - **绝不**修改 raw source；
 - **绝不**自动 approve；
 - telemetry **本地 only**，10 字段白名单，`.gitignore` 已防泄漏。
+- Obsidian binding 默认只读；staging 写入必须显式 `--write --confirm`，且不改正式 notes。
 
 详见 [`USER_GUIDE.md`](./USER_GUIDE.md)、[`SECURITY.md`](./SECURITY.md)、
 [`M5_7_TELEMETRY_PROTOCOL.md`](./M5_7_TELEMETRY_PROTOCOL.md)。

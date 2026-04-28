@@ -17,6 +17,8 @@ examples/demo-vault/
 │   ├── WebClips/      · 1 篇虚构的 Web Clipper markdown
 │   ├── ChatExports/   · 1 篇虚构的 ChatGPT 导出
 │   └── ManualNotes/   · 1 篇虚构的手写笔记
+├── 02-Knowledge/      · Obsidian-style 虚构 note（frontmatter/tags/wikilinks/headings）
+├── 03-Projects/       · Obsidian-style 虚构项目 note
 ├── 20-Knowledge-Cards/
 │   └── agent-runtime/ · 3 张已加工的示例卡片（含 ai_draft + human_approved）
 ├── 30-Projects/
@@ -44,6 +46,14 @@ mindforge --vault "$DEMO" recall --query "checkpoint runtime" \
 mindforge --vault "$DEMO" review weekly --config configs/mindforge.yaml
 mindforge --vault "$DEMO" project context my-first-agent \
   --target claude-code --config configs/mindforge.yaml
+
+# Obsidian Binding v0.5：只读扫描，不改正式 notes
+mindforge obsidian doctor --vault "$DEMO" --config configs/mindforge.yaml
+mindforge obsidian scan --vault "$DEMO" --limit 5 --config configs/mindforge.yaml
+mindforge obsidian links --vault "$DEMO" --config configs/mindforge.yaml
+mindforge obsidian stage --vault "$DEMO" \
+  --source 02-Knowledge/agent-runtime-observer.md \
+  --dry-run --config configs/mindforge.yaml
 ```
 
 ## 安全契约
@@ -52,4 +62,6 @@ mindforge --vault "$DEMO" project context my-first-agent \
   绝不读取 `.env` 内容；
 - **fake provider**：默认 `active_profile=fake`，`process` 不会真的调 LLM；
 - **只读 inbox**：所有输入文件只读，pipeline 写产物到 `20-Knowledge-Cards/`；
+- **只读 Obsidian notes**：`obsidian scan/links/doctor` 不修改正式笔记；
+- **staging/review 隔离**：`obsidian stage` 默认 dry-run，写入需 `--write --confirm`；
 - **只跑本地**：BM25/hybrid 索引、weekly、ical、project context 全部本地。

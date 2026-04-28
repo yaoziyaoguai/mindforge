@@ -4,7 +4,7 @@ This roadmap tracks product direction and explicit non-goals. Completed release 
 
 ## Current Position
 
-Current version: **v0.4.3**.
+Current version: **v0.5.0**.
 
 MindForge v0.x is a local-first CLI for personal learning memory:
 
@@ -16,6 +16,7 @@ MindForge v0.x is a local-first CLI for personal learning memory:
 - project context packs;
 - local-only telemetry;
 - CLI onboarding and demo vault.
+- read-only Obsidian Binding / Bridge.
 
 ## Completed v0.4.3 Follow-Up
 
@@ -23,35 +24,32 @@ The docs cleanup after v0.4.3 is complete: active docs were consolidated into
 user, developer, roadmap, changelog, and archive layers. Historical milestone
 reviews and superseded design notes now live under `docs/archive/`.
 
-## Near-Term Priority
+## v0.5 Completed
 
-The next phase is **v0.5 Obsidian Binding / Bridge**, not direct full
-dogfooding and not complex RAG/graph work.
-
-Why: Obsidian is a primary personal knowledge context for the target user. A
-dogfooding run that ignores the real Obsidian boundary would validate the wrong
-workflow.
-
-v0.5 should define and implement the minimal safe Obsidian bridge:
+v0.5 implements the minimal safe Obsidian bridge:
 
 - configure an Obsidian vault path;
 - scan Markdown read-only;
 - parse frontmatter, tags, `[[wikilinks]]`, and directory structure;
-- introduce an `ObsidianVaultSource` concept in the SourceAdapter system;
-- design an Obsidian staging/review output area;
+- introduce `ObsidianVaultSourceAdapter` in the SourceAdapter system;
+- add `mindforge obsidian doctor|scan|links|stage`;
+- write candidate output only to Obsidian staging/review;
 - never modify real vault source notes in the first phase;
 - keep machine indexes, caches, runtime logs, and intermediate state in derived
   layers such as `.mindforge/`, SQLite, vector stores, or graph stores rather
   than formal Obsidian notes.
 
-Full dogfooding should wait until this read-only Obsidian binding boundary is
-clear and tested on non-sensitive sample material.
+## Near-Term Priority
+
+Next: validate v0.5 on a small, non-sensitive Obsidian sample with dry-run first.
+Do not start broad real-vault dogfooding until include/exclude rules,
+staging/review location, and source-note preservation have been checked.
 
 ## Future Candidate Work
 
 See [M5_BACKLOG.md](./M5_BACKLOG.md) for current spike candidates. The active future set is intentionally small:
 
-- Obsidian Binding / Bridge design and minimal read-only implementation.
+- Obsidian Binding polish from dry-run feedback.
 - PDF/docx performance baselines.
 - More onboarding and cross-platform terminal polish.
 - RAG / embedding only as a later design spike if lexical recall proves

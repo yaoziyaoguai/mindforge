@@ -1,19 +1,20 @@
 # MindForge Future Backlog
 
-This file tracks future candidates only. Completed v0.2-v0.4 work is summarized in [CHANGELOG.md](./CHANGELOG.md) and detailed in `docs/archive/`.
+This file tracks future candidates only. Completed work is summarized in
+[CHANGELOG.md](./CHANGELOG.md) and detailed in release reviews.
 
-## Candidate 1: Obsidian Binding / Bridge
+## Completed: Obsidian Binding / Bridge
 
-Goal: connect MindForge to Obsidian as personal knowledge context before full
-dogfooding.
+v0.5.0 connected MindForge to Obsidian as read-only personal knowledge context.
+See [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md) and
+[V0_5_OBSIDIAN_BINDING_REVIEW.md](./V0_5_OBSIDIAN_BINDING_REVIEW.md).
 
-Deliverable:
+Delivered:
 
-- `docs/OBSIDIAN_BINDING.md` as the active design boundary.
-- Minimal read-only Markdown scan design.
-- Frontmatter, tags, `[[wikilinks]]`, and directory structure parsing plan.
-- `ObsidianVaultSource` adapter placement in the SourceAdapter system.
-- Staging/review output boundary.
+- read-only Markdown scan;
+- frontmatter, tags, aliases, `[[wikilinks]]`, headings, and directory parsing;
+- `ObsidianVaultSourceAdapter` in the SourceAdapter system;
+- staging/review output boundary;
 - Clear rule that machine indexes, caches, logs, and intermediate state stay out
   of formal notes.
 
@@ -26,7 +27,7 @@ Non-goals:
 - no plugin implementation in this step;
 - no large-scale real-vault dogfooding before the read-only boundary is tested.
 
-## Candidate 2: Real Dogfooding Notes
+## Candidate 1: Real Dogfooding Notes
 
 Goal: collect real usage data after the Obsidian read-only binding boundary is
 clear.
@@ -38,7 +39,7 @@ Deliverable:
   review, and project context.
 - No private source content in the repository.
 
-## Candidate 3: RAG / Embedding Spike Design
+## Candidate 2: RAG / Embedding Spike Design
 
 Goal: decide whether lexical BM25/hybrid is insufficient after Obsidian binding
 and real usage produce concrete recall gaps.
@@ -51,7 +52,7 @@ Design-only deliverable:
 - Explicit reason why local lexical search is not enough.
 - No vector database or graph database implementation in this backlog item.
 
-## Candidate 4: PDF / Docx Baselines
+## Candidate 3: PDF / Docx Baselines
 
 Goal: make current lightweight document adapters more predictable without expanding scope.
 
@@ -62,7 +63,7 @@ Possible work:
 - Better error messages for encrypted or malformed files.
 - Still no OCR, table reconstruction, or layout restoration.
 
-## Candidate 5: CLI Polish From Dogfooding
+## Candidate 4: CLI Polish From Dogfooding
 
 Goal: patch real friction rather than imagined features.
 

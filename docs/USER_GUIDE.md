@@ -1,4 +1,4 @@
-# MindForge User Guide — v0.4.3
+# MindForge User Guide — v0.5.0
 
 > 这是一份"工作手册"：每条命令、每个产物、每条边界都在这里查得到。
 > 入门请先看 [`GETTING_STARTED.md`](./GETTING_STARTED.md)。
@@ -23,12 +23,17 @@
 | `mindforge review due/mark/schedule/backlog/stats/weekly` | 复习计划与执行 | 仅 `mark` 写 4-5 字段 |
 | `mindforge project list/context/update-evidence` | 项目上下文 + evidence 区块 | `update-evidence` 写 30-Projects 受控区块 |
 | `mindforge vault index/links/refresh` | 当前 MindForge vault 友好度（自动 _index/_link_candidates） | 仅写 _index.md 系列 |
+| `mindforge obsidian doctor --vault PATH` | 检查 Obsidian 只读绑定边界 | 只读 |
+| `mindforge obsidian scan --vault PATH [--limit N] [--json]` | 只读扫描 Obsidian notes 安全摘要 | 只读 |
+| `mindforge obsidian links --vault PATH [--json]` | 只读解析 `[[wikilinks]]` | 只读 |
+| `mindforge obsidian stage --source NOTE --dry-run` | 生成 staging 候选预览 | 默认只读；`--write --confirm` 才写 staging/review |
 | `mindforge llm ping/inspect [--profile]` | 真实 provider 体检 | 实际网络（仅 ping） |
 | `mindforge telemetry status/summary` | 本地 telemetry 摘要 | 只读 |
 
 全局 flag：
 - `--config PATH` / `-c`：指定 mindforge.yaml；
 - `--vault PATH`：临时覆盖 `vault.root`，**不**改 yaml；
+- `--obsidian-vault PATH`：临时覆盖 `obsidian.vault_path`，仅 Obsidian 子命令使用；
 - `--debug`：打开完整 traceback（默认压制）。
 
 Shell completion:
@@ -55,8 +60,7 @@ Completion 只影响 shell 命令补全，不改变 `--vault` / `--debug` / `--c
 | `40-Reviews/*.md` 或 `/tmp/*.ics` | 周报 / iCal 导出 | review weekly / schedule | 用户手动消费 |
 
 Obsidian v0.5 绑定另见 [`OBSIDIAN_BINDING.md`](./OBSIDIAN_BINDING.md)：真实
-Obsidian vault 第一阶段只读扫描，生成内容只能进入 staging/review，机器状态不写入
-正式笔记。
+Obsidian vault 默认只读扫描，生成内容只能进入 staging/review，机器状态不写入正式笔记。
 
 ## 3. 安全契约（不可放宽）
 
@@ -109,6 +113,24 @@ mindforge project context <project> --target claude-code -o /tmp/context.md
 mindforge recall --query "agent runtime checkpoint" --ranking hybrid --explain
 mindforge project context my-first-agent --target claude-code
 ```
+
+### 5.4 Obsidian 只读绑定
+```
+mindforge obsidian doctor --vault examples/demo-vault
+mindforge obsidian scan --vault examples/demo-vault --limit 5
+mindforge obsidian scan --vault examples/demo-vault --json
+mindforge obsidian links --vault examples/demo-vault
+mindforge obsidian stage --vault examples/demo-vault \
+  --source 02-Knowledge/agent-runtime-observer.md --dry-run
+```
+
+真正写入 staging 需要显式：
+
+```
+mindforge obsidian stage --vault <vault> --source <note.md> --write --confirm
+```
+
+写入路径只允许在 `obsidian.staging_dir` / `obsidian.review_dir` 内。
 
 ## 6. 不支持（明示边界，避免误用）
 

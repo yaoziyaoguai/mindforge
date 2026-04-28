@@ -17,6 +17,7 @@ from .base import SourceAdapter
 from .chat_export import ChatExportAdapter
 from .cubox_markdown import CuboxMarkdownAdapter
 from .docx import DocxAdapter
+from .obsidian_vault import ObsidianVaultSourceAdapter
 from .pdf import PdfAdapter
 from .plain_markdown import PlainMarkdownAdapter
 from .webclip_markdown import WebClipMarkdownAdapter
@@ -29,6 +30,7 @@ _BUILTIN_ADAPTERS: dict[str, Type[SourceAdapter]] = {
     "PdfAdapter": PdfAdapter,
     "DocxAdapter": DocxAdapter,
     "ChatExportAdapter": ChatExportAdapter,
+    "ObsidianVaultSourceAdapter": ObsidianVaultSourceAdapter,
 }
 
 

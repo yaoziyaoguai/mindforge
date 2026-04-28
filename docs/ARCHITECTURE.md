@@ -3,10 +3,9 @@
 MindForge is a local-first CLI pipeline. It keeps raw inputs, generated cards, state, run logs, indexes, and telemetry separated so the system can be audited without leaking private content.
 
 Obsidian is treated as personal knowledge context, not as a machine runtime
-store. The v0.5 direction is a minimal read-only Obsidian binding that can
-ingest vault notes through the same source adapter contract while keeping
-generated output in staging/review areas and keeping runtime state outside
-formal notes.
+store. v0.5 implements a minimal read-only Obsidian binding that ingests vault
+notes through the same source adapter contract while keeping generated output in
+staging/review areas and keeping runtime state outside formal notes.
 
 ## Data Flow
 
@@ -19,7 +18,7 @@ formal notes.
   -> approve / recall / review / project context / vault helpers
 ```
 
-v0.5 adds the design target below without changing the downstream contract:
+v0.5 adds the path below without changing the downstream contract:
 
 ```text
 Obsidian vault Markdown (read-only)
@@ -41,9 +40,9 @@ Active adapter contract:
 - `src/mindforge/sources/base.py`
 - `src/mindforge/sources/registry.py`
 
-For Obsidian, the intended source adapter is `ObsidianVaultSource`: it should
-read Markdown notes, frontmatter, tags, `[[wikilinks]]`, and directory context
-without modifying the vault.
+For Obsidian, `ObsidianVaultSourceAdapter` reads Markdown notes, frontmatter,
+tags, aliases, `[[wikilinks]]`, headings, and directory context without
+modifying the vault.
 
 ### SourceDocument Contract
 
@@ -92,6 +91,8 @@ Obsidian has three roles in the target architecture:
 
 MindForge must not auto-organize the vault, move files, rewrite wikilinks, or
 edit formal notes without a separate explicit review workflow.
+
+CLI surface: `mindforge obsidian doctor|scan|links|stage`.
 
 Detailed v0.5 boundary: [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md).
 

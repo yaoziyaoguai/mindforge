@@ -26,7 +26,7 @@ elif source_type == "pdf":
 ```
 source_id        # 稳定主键（state.json 索引）
 source_type      # 枚举：cubox_markdown / plain_markdown / webclip_markdown
-                 #       / pdf / docx / chat_export / manual_note
+                 #       / pdf / docx / chat_export / manual_note / obsidian_note
 source_path      # 路径
 title            # 可选元信息
 author
@@ -85,19 +85,22 @@ _BUILTIN_ADAPTERS = {
 
 ## 3. ObsidianVaultSource 定位
 
-`ObsidianVaultSource` 是 v0.5 的目标 source adapter 概念，而不是一个 output
-目录别名。
+`ObsidianVaultSourceAdapter` 是 v0.5 的 source adapter，而不是一个 output
+目录别名。它的稳定 adapter_name 是 `obsidian_vault`，source_type 是
+`obsidian_note`。
 
 它应该把 Obsidian vault 作为个人知识语境读取：
 
 - Markdown 正文；
 - frontmatter；
 - tags；
+- aliases / created / updated；
 - `[[wikilinks]]`；
+- Markdown headings；
 - 目录结构；
 - 项目记录、每日笔记、学习主线、历史知识卡片等用户维护内容。
 
-第一阶段边界：
+MVP 边界：
 
 - 只读扫描真实 vault；
 - 输出仍然是 `SourceDocument`；

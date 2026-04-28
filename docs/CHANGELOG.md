@@ -2,6 +2,14 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.5.0
+
+- Added read-only `ObsidianVaultSourceAdapter` with `source_type: obsidian_note`.
+- Added `mindforge obsidian doctor`, `scan`, `links`, and `stage`.
+- Added Obsidian config for vault path, staging/review dirs, include/exclude dirs, and `read_only`.
+- Added staging bridge with dry-run default and `--write --confirm` guard.
+- Kept Obsidian runtime/state/cache/index/log boundaries explicit: no formal-note edits, file moves, wikilink rewrites, RAG, vector DB, graph DB, or plugin.
+
 ## v0.4.3
 
 - Added `mindforge init --interactive`.

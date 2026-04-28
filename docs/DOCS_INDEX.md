@@ -41,6 +41,7 @@ Milestone reviews, superseded design notes, and narrow smoke/completion notes we
 - [Roadmap Progress](./ROADMAP_PROGRESS.md) - current completion snapshot.
 - [M5 Backlog](./M5_BACKLOG.md) - future spike candidates.
 - [Changelog](./CHANGELOG.md) - release history summary.
+- [v0.5 Obsidian Binding Review](./V0_5_OBSIDIAN_BINDING_REVIEW.md) - latest binding release review.
 - `docs/archive/` - detailed historical reviews and superseded design notes.
 
 ## Specialist Protocols

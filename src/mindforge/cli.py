@@ -74,6 +74,11 @@ def _global_options(
         "--vault",
         help="临时覆盖配置中的 vault.root（不修改 yaml）。优先级：CLI > config > 默认。",
     ),
+    obsidian_vault: Path | None = typer.Option(
+        None,
+        "--obsidian-vault",
+        help="临时覆盖 obsidian.vault_path（仅 obsidian 子命令使用，不修改 yaml）。",
+    ),
 ) -> None:
     """全局选项。
 
@@ -92,6 +97,12 @@ def _global_options(
         # 重要：每次 CLI 调用未传 --vault 时必须清空，避免跨调用污染
         # （测试套尤其敏感；一次性 CLI 用户感知不到）
         os.environ.pop("MINDFORGE_VAULT_OVERRIDE", None)
+    if obsidian_vault is not None:
+        os.environ["MINDFORGE_OBSIDIAN_VAULT_OVERRIDE"] = str(
+            obsidian_vault.expanduser().resolve()
+        )
+    else:
+        os.environ.pop("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE", None)
 
 
 # ---------------------------------------------------------------------------
@@ -2823,6 +2834,12 @@ vault_app = typer.Typer(
 )
 app.add_typer(vault_app, name="vault")
 
+obsidian_app = typer.Typer(
+    add_completion=False,
+    help="v0.5 Obsidian Binding：只读扫描真实 Obsidian vault，候选输出只进 staging/review。",
+)
+app.add_typer(obsidian_app, name="obsidian")
+
 
 @vault_app.command("index")
 def vault_index(
@@ -2892,6 +2909,219 @@ def vault_refresh(
     """vault index + vault links 的组合糖；幂等。"""
     vault_index(config=config, reviews_dir=reviews_dir, dry_run=False)
     vault_links(config=config, top_k=5, min_score=3, dry_run=False)
+
+
+# ---------------------------------------------------------------------------
+# obsidian — v0.5 read-only binding / staging bridge
+# ---------------------------------------------------------------------------
+
+
+def _obsidian_vault_override(arg: Path | None) -> Path | None:
+    import os
+
+    if arg is not None:
+        return arg.expanduser().resolve()
+    env = os.environ.get("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE")
+    return Path(env).expanduser().resolve() if env else None
+
+
+def _obsidian_options(
+    cfg: MindForgeConfig,
+    vault_override: Path | None,
+) -> tuple[Path, object]:
+    from .obsidian import ObsidianScanOptions, resolve_obsidian_vault
+
+    vault_root = resolve_obsidian_vault(
+        cfg.obsidian,
+        cfg.vault.root,
+        override=_obsidian_vault_override(vault_override),
+    )
+    return vault_root, ObsidianScanOptions(
+        vault_root=vault_root,
+        include_dirs=cfg.obsidian.include_dirs,
+        exclude_dirs=cfg.obsidian.exclude_dirs,
+    )
+
+
+@obsidian_app.command("scan")
+def obsidian_scan(
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        "--obsidian-vault",
+        help="Obsidian vault 路径；覆盖 obsidian.vault_path。",
+    ),
+    limit: int = typer.Option(0, "--limit", min=0, help="最多展示多少条（0=全部）"),
+    json_output: bool = typer.Option(False, "--json", help="输出 JSON 安全摘要"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """只读扫描 Obsidian Markdown note，输出安全摘要，不输出正文。"""
+    from .obsidian import load_obsidian_documents, summarize_doc
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root, options = _obsidian_options(cfg, vault)
+    try:
+        docs = load_obsidian_documents(options, limit=limit)
+    except (FileNotFoundError, NotADirectoryError) as e:
+        console.print(f"[red]✗ {e}[/red]")
+        console.print("[dim]提示：传 --vault <ObsidianVault>，或配置 obsidian.vault_path。[/dim]")
+        raise typer.Exit(code=2) from e
+
+    rows = [summarize_doc(doc) for doc in docs]
+    if json_output:
+        import json as _json
+
+        print(_json.dumps({"version": 1, "vault": str(vault_root), "notes": rows}, ensure_ascii=False))
+        return
+
+    table = Table(title=f"Obsidian scan · {vault_root}", show_lines=False)
+    for col in ("title", "relative_path", "tags", "wikilinks", "headings", "hash"):
+        table.add_column(col, overflow="fold")
+    for row in rows:
+        table.add_row(
+            str(row["title"] or ""),
+            str(row["relative_path"]),
+            ", ".join(row["tags"]) or "-",
+            str(row["wikilink_count"]),
+            str(row["heading_count"]),
+            str(row["content_hash"])[:18] + "...",
+        )
+    console.print(table)
+    console.print(
+        f"[green]✓ scanned {len(rows)} Obsidian notes[/green] "
+        "[dim](只读；未输出 note 全文；未写正式 notes)[/dim]"
+    )
+    if (vault_root / ".obsidian").is_dir():
+        console.print("[dim]检测到 .obsidian/；仅确认存在，未读取其配置内容。[/dim]")
+
+
+@obsidian_app.command("links")
+def obsidian_links(
+    vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    json_output: bool = typer.Option(False, "--json", help="输出 JSON"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """只读解析 Obsidian [[wikilinks]]，不建 graph DB、不改 note。"""
+    from .obsidian import build_link_entries, load_obsidian_documents
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root, options = _obsidian_options(cfg, vault)
+    try:
+        docs = load_obsidian_documents(options)
+    except (FileNotFoundError, NotADirectoryError) as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=2) from e
+    entries = build_link_entries(docs)
+    if json_output:
+        import json as _json
+
+        print(_json.dumps({"version": 1, "vault": str(vault_root), "links": entries}, ensure_ascii=False))
+        return
+
+    table = Table(title=f"Obsidian links · {vault_root}", show_lines=False)
+    table.add_column("note", overflow="fold")
+    table.add_column("outgoing_links", overflow="fold")
+    table.add_column("incoming", justify="right")
+    for item in entries:
+        table.add_row(
+            item["note"],
+            ", ".join(item["outgoing_links"]) or "-",
+            str(item["incoming_count"]),
+        )
+    console.print(table)
+    console.print("说明：只读解析 [[wikilinks]]；不做 graph DB / RAG / embedding。", markup=False)
+
+
+@obsidian_app.command("stage")
+def obsidian_stage(
+    source: Path = typer.Option(..., "--source", help="要生成 staging 候选的 Obsidian note"),
+    vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        help="staging/review 内的输出目录，默认 obsidian.staging_dir。",
+    ),
+    dry_run: bool = typer.Option(
+        True,
+        "--dry-run/--write",
+        help="默认 dry-run；真正写入需 --write --confirm。",
+    ),
+    confirm: bool = typer.Option(False, "--confirm", help="搭配 --write 才允许落盘"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """把 Obsidian note 的候选加工结果写入 staging/review，而不是修改原 note。"""
+    from .obsidian import build_stage_markdown, stage_output_path
+    from .sources.obsidian_vault import ObsidianVaultSourceAdapter
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root, _options = _obsidian_options(cfg, vault)
+    source_path = source.expanduser()
+    if not source_path.is_absolute():
+        source_path = vault_root / source_path
+    source_path = source_path.resolve()
+    try:
+        source_path.relative_to(vault_root)
+    except ValueError:
+        console.print("[red]✗ --source 必须位于 Obsidian vault 内，避免误处理真实外部资料。[/red]")
+        raise typer.Exit(code=2) from None
+    if not source_path.exists():
+        console.print(f"[red]✗ source note 不存在：{source_path}[/red]")
+        raise typer.Exit(code=2)
+
+    adapter = ObsidianVaultSourceAdapter(vault_root)
+    doc = adapter.load(str(source_path))
+    try:
+        target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=2) from e
+    content = build_stage_markdown(doc)
+
+    if dry_run:
+        console.print("[yellow]dry-run：未写任何文件[/yellow]")
+        console.print(f"target: {target}")
+        console.print(f"source: {doc.source_path}")
+        console.print(f"status: ai_draft  hash={doc.content_hash}")
+        return
+    if not confirm:
+        console.print("[red]✗ 写入 staging 需要显式 --write --confirm。[/red]")
+        raise typer.Exit(code=2)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    console.print(f"[green]✓ staged[/green] {target}")
+    console.print("[dim]说明：未修改 source note、未移动文件、未重写 wikilinks、未 auto approve。[/dim]")
+
+
+@obsidian_app.command("doctor")
+def obsidian_doctor(
+    vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """检查 Obsidian binding 安全边界。"""
+    from .obsidian import obsidian_doctor_rows, resolve_obsidian_vault
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root = resolve_obsidian_vault(
+        cfg.obsidian,
+        cfg.vault.root,
+        override=_obsidian_vault_override(vault),
+    )
+    rows = obsidian_doctor_rows(vault_root, cfg.obsidian)
+    console.print(f"[bold]MindForge Obsidian doctor[/bold] · {vault_root}")
+    for state, label, detail in rows:
+        console.print(f"  {_doctor_icon(state)} {label:<20}: {detail}")
+    if not vault_root.exists():
+        console.print("[critical] 设置 Obsidian vault：mindforge obsidian doctor --vault <path>", markup=False)
+        raise typer.Exit(code=2)
+    console.print("[bold]Next steps[/bold]")
+    console.print("  [recommended] mindforge obsidian scan --vault <path> --limit 20", markup=False)
+    console.print("  [recommended] mindforge obsidian links --vault <path>", markup=False)
+    console.print(
+        "  [info] mindforge obsidian stage --vault <path> --source <note.md> --dry-run",
+        markup=False,
+    )
+    console.print("[dim]不建议、也不会直接修改正式 Obsidian notes。[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -3154,6 +3384,11 @@ def _rewrite_init_config(
 @app.command()
 def doctor(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help="临时覆盖配置中的 vault.root（兼容 `mindforge doctor --vault PATH`）。",
+    ),
 ) -> None:
     """打印环境 + 配置 + 可选依赖 + .gitignore 风险快照。"""
     import importlib.util as _u
@@ -3183,6 +3418,10 @@ def doctor(
         return
 
     cfg = _load_cfg(config, read_env=False)
+    if vault is not None:
+        from dataclasses import replace as _replace
+
+        cfg = _replace(cfg, vault=_replace(cfg.vault, root=vault.expanduser().resolve()))
     vault_root = cfg.vault.root
     inbox = vault_root / cfg.vault.inbox_root
     cards_dir = vault_root / cfg.vault.cards_dir
@@ -3535,6 +3774,15 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("mindforge vault index", "维护 _index.md 导航文件"),
             ("mindforge vault links", "维护 _link_candidates.md 双链建议"),
+        ],
+    ),
+    (
+        "Obsidian Binding",
+        [
+            ("mindforge obsidian doctor --vault PATH", "检查只读 Obsidian 绑定边界"),
+            ("mindforge obsidian scan --vault PATH", "只读扫描 Markdown note 安全摘要"),
+            ("mindforge obsidian links --vault PATH", "只读解析 [[wikilinks]]"),
+            ("mindforge obsidian stage --source NOTE --dry-run", "生成 staging 候选预览"),
         ],
     ),
     (

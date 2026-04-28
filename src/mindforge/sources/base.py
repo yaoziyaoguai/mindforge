@@ -54,6 +54,7 @@ SourceType = Literal[
     "docx",
     "chat_export",
     "manual_note",
+    "obsidian_note",
 ]
 
 

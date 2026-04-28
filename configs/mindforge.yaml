@@ -68,6 +68,12 @@ sources:
       file_glob: "*.md"
       enabled: true                  # v0.2.4 起：真实 adapter，可吃 ChatGPT/Claude/Copilot 导出
 
+    obsidian_note:
+      adapter: ObsidianVaultSourceAdapter
+      inbox_subdir: "."
+      file_glob: "*.md"
+      enabled: false                 # v0.5：由 mindforge obsidian scan 只读扫描真实 vault，不走 00-Inbox 派发
+
     pdf:
       adapter: PdfAdapter
       inbox_subdir: "PDFs"
@@ -89,6 +95,28 @@ state:
   runs_dir: "runs"
   index_file: "index.jsonl"
   backup_state: true                # 每次写入前生成 state.json.bak
+
+# -----------------------------------------------------------------------------
+# Obsidian Binding（v0.5）— 把真实 Obsidian vault 当作只读 Source。
+#
+# 这不是 Obsidian plugin，也不是 RAG/vector/graph。MindForge 第一阶段只扫描
+# Markdown 语境，不改正式 notes，不移动文件，不重写双链。生成候选内容只能写入
+# staging/review；机器 state/cache/index/logs 继续留在 .mindforge 或派生层。
+# -----------------------------------------------------------------------------
+obsidian:
+  vault_path: ""
+  staging_dir: "90-System/MindForge/Staging"
+  review_dir: "90-System/MindForge/Review"
+  include_dirs:
+    - "00-Inbox"
+    - "02-Knowledge"
+    - "03-Projects"
+  exclude_dirs:
+    - ".obsidian"
+    - ".git"
+    - ".mindforge"
+    - "90-System/MindForge/Runtime"
+  read_only: true
 
 # -----------------------------------------------------------------------------
 # Triage 参数

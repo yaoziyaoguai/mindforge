@@ -44,6 +44,7 @@ KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
         "docx",
         "chat_export",
         "manual_note",
+        "obsidian_note",
     }
 )
 
@@ -209,6 +210,27 @@ class TelemetryConfig:
 
 
 @dataclass(frozen=True)
+class ObsidianConfig:
+    """v0.5 — Obsidian binding 配置。
+
+    Obsidian vault 是个人知识语境 source，不是 MindForge runtime state 目录。
+    因此默认只读，且 staging/review 与 runtime 目录在配置层面分开。
+    """
+
+    vault_path: Path | None = None
+    staging_dir: str = "90-System/MindForge/Staging"
+    review_dir: str = "90-System/MindForge/Review"
+    include_dirs: tuple[str, ...] = ("00-Inbox", "02-Knowledge", "03-Projects")
+    exclude_dirs: tuple[str, ...] = (
+        ".obsidian",
+        ".git",
+        ".mindforge",
+        "90-System/MindForge/Runtime",
+    )
+    read_only: bool = True
+
+
+@dataclass(frozen=True)
 class BM25SearchConfig:
     """v0.3.1 — BM25 字段权重 + 超参的可配置子结构。
 
@@ -265,6 +287,7 @@ class MindForgeConfig:
     logging: LoggingConfig
     review: ReviewConfig = field(default_factory=ReviewConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
+    obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
@@ -427,6 +450,9 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         local_only=bool(telemetry_raw.get("local_only", True)),
     )
 
+    # ---- obsidian (v0.5 — optional；缺失走安全默认) ----
+    obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
+
     # ---- search (v0.3.1 — optional；缺失走全默认) ----
     search_cfg = _parse_search(raw.get("search") or {})
 
@@ -441,8 +467,38 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         logging=logging_cfg,
         review=review_cfg,
         telemetry=telemetry_cfg,
+        obsidian=obsidian_cfg,
         search=search_cfg,
         raw=raw,
+    )
+
+
+def _parse_obsidian(raw: Any) -> "ObsidianConfig":
+    if not isinstance(raw, dict):
+        raise ConfigError(f"obsidian 必须是 YAML 对象，得到 {type(raw).__name__}")
+    vault_text = str(raw.get("vault_path") or "").strip()
+    include_dirs = raw.get("include_dirs") or ["00-Inbox", "02-Knowledge", "03-Projects"]
+    exclude_dirs = raw.get("exclude_dirs") or [
+        ".obsidian",
+        ".git",
+        ".mindforge",
+        "90-System/MindForge/Runtime",
+    ]
+    if not isinstance(include_dirs, list):
+        raise ConfigError("obsidian.include_dirs 必须是列表")
+    if not isinstance(exclude_dirs, list):
+        raise ConfigError("obsidian.exclude_dirs 必须是列表")
+    staging_dir = str(raw.get("staging_dir") or "90-System/MindForge/Staging").strip()
+    review_dir = str(raw.get("review_dir") or "90-System/MindForge/Review").strip()
+    if not staging_dir or not review_dir:
+        raise ConfigError("obsidian.staging_dir / review_dir 不能为空")
+    return ObsidianConfig(
+        vault_path=Path(vault_text).expanduser() if vault_text else None,
+        staging_dir=staging_dir,
+        review_dir=review_dir,
+        include_dirs=tuple(str(x).strip().strip("/") for x in include_dirs if str(x).strip()),
+        exclude_dirs=tuple(str(x).strip().strip("/") for x in exclude_dirs if str(x).strip()),
+        read_only=bool(raw.get("read_only", True)),
     )
 
 

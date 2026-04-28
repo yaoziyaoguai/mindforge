@@ -57,7 +57,7 @@ class Highlight:
 class SourceDocument:
     source_id: str          # 稳定主键。建议: sha1(source_type + ":" + source_path)
     source_type: str        # cubox_markdown | plain_markdown | webclip_markdown
-                            # | pdf | docx | chat_export | manual_note
+                            # | pdf | docx | chat_export | manual_note | obsidian_note
     adapter_name: str       # CuboxMarkdownAdapter / PlainMarkdownAdapter / ...
     source_path: str        # 相对 vault root 的路径
     title: str | None
