@@ -253,6 +253,30 @@ mindforge process \
 - 检查生成的卡片 frontmatter 字段齐全；
 - 决定是否把 `status` 改为 `human_approved`（v0.1 不做自动晋升）。
 
+### 6.4 M2.8 真实 smoke 已验证（执行记录）
+
+第一次以 `anthropic_coding_plan` profile 跑通了一份**非敏感**测试材料
+（人工撰写、内容关于 ReAct loop checkpoint 设计），完整记录如下：
+
+- **沙箱目录**：`/tmp/mindforge-smoke-m28/`（vault + `.mindforge/` 都在 /tmp，**绝不**碰真实 vault；本仓库 `.gitignore` 也保证 `.mindforge/` 不会被误提交）
+- **配置**：临时 `mindforge.smoke.yaml`（基于 repo 内 `configs/mindforge.yaml`，仅改 `vault.root` 与 `state.workdir` 指到 `/tmp`），**不**入库
+- **三步链路**：
+  1. `mindforge llm ping --profile anthropic_coding_plan` → 所需 env 全部 set，**不发 HTTP**
+  2. `mindforge process --profile anthropic_coding_plan --dry-run --limit 1 -c <smoke.yaml>` → 5 stage 全部走真实 endpoint，**不**写卡片，**不**写 state，仅 runs jsonl 留痕
+  3. `mindforge process --profile anthropic_coding_plan --limit 1 -c <smoke.yaml>` → 写出 1 张 `status: ai_draft` 卡片到 `vault/20-Knowledge-Cards/agent-runtime/`
+- **审计结果**：
+  - source 文件 md5 前后不变（**只读**约束生效）
+  - state.json 仅含路由元数据；`stages` 子结构含全部 5 个 stage
+  - runs `*.jsonl` 仅 10 行，每条 `llm_call` 仅含白名单字段；grep `api_key` / `Authorization` / `x-api-key` / `Bearer` / `sk-` / `prompt_text` / `completion` / `raw_text` **全部为 0**
+  - 卡片 frontmatter 完整：`source_id` / `source_type` / `adapter_name` / `prompt_version` / `profile` / `stage_models` / `run_id` / `value_score` / `confidence` 齐全
+
+**安全边界**（M2.8 仅做单文件 smoke，不批量、不进真实 vault）：
+- ✅ 测试材料是手工撰写的非敏感公开内容；
+- ✅ vault 与 state 都在 `/tmp`，与个人 Obsidian vault 隔离；
+- ✅ `.env` 全程未被 cat / 打印 / commit；
+- ✅ 真实 endpoint 调用次数 ≤ 5（一次完整 pipeline）；
+- ❌ **不要**用此流程批量处理真实 Cubox 收藏 / 工作文档 — 那是 M3+ 的事。
+
 ---
 
 ## 7. 常见错误与对策
