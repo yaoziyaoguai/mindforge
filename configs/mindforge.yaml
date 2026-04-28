@@ -263,3 +263,36 @@ logging:
 telemetry:
   enabled: true
   local_only: true
+
+# -----------------------------------------------------------------------------
+# Search（v0.3.1）— BM25 词法检索 + hybrid 排序。**纯本地规则**，不是 RAG。
+#
+# bm25.fields 用"用户友好别名 → 权重"配置；解析为内部 field 名见 USER_FIELD_ALIASES。
+#   - learning_tracks → 内部 track；summary → body_summary；action_items → body_actions
+#   - 权重 == 0 表示该字段不参与 BM25 打分
+#   - 不在 fields 中显式声明的字段，使用 DEFAULT_FIELD_WEIGHTS
+#
+# hybrid 在 BM25 基础上叠加两路本地信号：
+#   - value_score：卡片 frontmatter 中的 0~10 分，归一到 [0,1]
+#   - review_due ：基于 review_after 的 30 天衰减窗口
+# weights 三路相加之和不强制为 1，权重大小决定影响占比。
+# -----------------------------------------------------------------------------
+search:
+  bm25:
+    enabled: true
+    k1: 1.5
+    b: 0.75
+    default_limit: 10
+    fields:
+      title: 5.0
+      learning_tracks: 4.0
+      projects: 4.0
+      tags: 3.0
+      summary: 1.0
+      action_items: 1.0
+  hybrid:
+    enabled: true
+    weights:
+      bm25: 0.75
+      value_score: 0.15
+      review_due: 0.10

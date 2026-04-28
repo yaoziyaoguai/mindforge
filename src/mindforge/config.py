@@ -209,6 +209,49 @@ class TelemetryConfig:
 
 
 @dataclass(frozen=True)
+class BM25SearchConfig:
+    """v0.3.1 — BM25 字段权重 + 超参的可配置子结构。
+
+    设计：**配置层面开放、执行层面克制**。
+    - 字段权重缺失或为 0 → 该字段不索引；
+    - 非数值 / 负数 → ConfigError，给出可操作信息；
+    - 完全缺失 → 走 ``DEFAULT_FIELD_WEIGHTS``，新用户零配置即可用。
+
+    字段名采用"用户友好别名"，与 `lexical_index.DEFAULT_FIELD_WEIGHTS`
+    的内部 field 名一一映射；映射表见 `_FIELD_ALIAS_TO_INTERNAL`。
+    """
+
+    enabled: bool = True
+    k1: float = 1.5
+    b: float = 0.75
+    default_limit: int = 10
+    fields: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class HybridSearchConfig:
+    """v0.3.1 — hybrid ranking 权重配置。
+
+    hybrid 仍然是**纯本地规则排序**，不是 RAG / embedding：
+    final = w_bm25 * bm25_norm + w_value * value_norm + w_review * review_due
+    各分量缺失时按 0 处理（不失败）。
+    """
+
+    enabled: bool = True
+    weights: dict[str, float] = field(default_factory=lambda: {
+        "bm25": 0.75, "value_score": 0.15, "review_due": 0.10,
+    })
+
+
+@dataclass(frozen=True)
+class SearchConfig:
+    """v0.3.1 — search 顶层配置（覆盖 BM25 与 hybrid 两块）。"""
+
+    bm25: BM25SearchConfig = field(default_factory=BM25SearchConfig)
+    hybrid: HybridSearchConfig = field(default_factory=HybridSearchConfig)
+
+
+@dataclass(frozen=True)
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -222,6 +265,7 @@ class MindForgeConfig:
     logging: LoggingConfig
     review: ReviewConfig = field(default_factory=ReviewConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
+    search: SearchConfig = field(default_factory=SearchConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -383,6 +427,9 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         local_only=bool(telemetry_raw.get("local_only", True)),
     )
 
+    # ---- search (v0.3.1 — optional；缺失走全默认) ----
+    search_cfg = _parse_search(raw.get("search") or {})
+
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
         vault=vault,
@@ -394,8 +441,83 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         logging=logging_cfg,
         review=review_cfg,
         telemetry=telemetry_cfg,
+        search=search_cfg,
         raw=raw,
     )
+
+
+def _parse_search(raw: Any) -> "SearchConfig":
+    """解析可选 search 块；缺失或空走默认。
+
+    设计契约（v0.3.1）：
+    - 字段权重必须 >=0；负数 / 非数值 → ConfigError；
+    - k1 / b 必须 >0；
+    - hybrid weights 必须 >=0；全 0 等价于关闭 hybrid（仍允许，调用方给提示）。
+    """
+    if not isinstance(raw, dict):
+        raise ConfigError(f"search 必须是 mapping，得到 {type(raw).__name__}")
+
+    bm25_raw = raw.get("bm25") or {}
+    if not isinstance(bm25_raw, dict):
+        raise ConfigError("search.bm25 必须是 mapping")
+    fields_raw = bm25_raw.get("fields") or {}
+    if not isinstance(fields_raw, dict):
+        raise ConfigError("search.bm25.fields 必须是 mapping {field_name: weight}")
+    fields_clean: dict[str, float] = {}
+    for k, v in fields_raw.items():
+        try:
+            fv = float(v)
+        except (TypeError, ValueError) as e:
+            raise ConfigError(
+                f"search.bm25.fields.{k}={v!r} 必须是数值（建议 0.0~10.0）"
+            ) from e
+        if fv < 0:
+            raise ConfigError(
+                f"search.bm25.fields.{k}={fv} 必须 >=0；权重 0 表示该字段不索引"
+            )
+        fields_clean[str(k)] = fv
+
+    k1 = float(bm25_raw.get("k1", 1.5))
+    b = float(bm25_raw.get("b", 0.75))
+    if k1 <= 0:
+        raise ConfigError(f"search.bm25.k1={k1} 必须 >0（业内常用 1.2~2.0）")
+    if not (0 <= b <= 1):
+        raise ConfigError(f"search.bm25.b={b} 必须在 [0,1]（业内常用 0.75）")
+    default_limit = int(bm25_raw.get("default_limit", 10))
+    if default_limit <= 0:
+        raise ConfigError(f"search.bm25.default_limit={default_limit} 必须 >0")
+    bm25_cfg = BM25SearchConfig(
+        enabled=bool(bm25_raw.get("enabled", True)),
+        k1=k1,
+        b=b,
+        default_limit=default_limit,
+        fields=fields_clean,
+    )
+
+    hybrid_raw = raw.get("hybrid") or {}
+    if not isinstance(hybrid_raw, dict):
+        raise ConfigError("search.hybrid 必须是 mapping")
+    weights_raw = hybrid_raw.get("weights") or {}
+    if not isinstance(weights_raw, dict):
+        raise ConfigError("search.hybrid.weights 必须是 mapping")
+    weights_clean: dict[str, float] = {}
+    for k, v in weights_raw.items():
+        try:
+            fv = float(v)
+        except (TypeError, ValueError) as e:
+            raise ConfigError(
+                f"search.hybrid.weights.{k}={v!r} 必须是数值"
+            ) from e
+        if fv < 0:
+            raise ConfigError(f"search.hybrid.weights.{k}={fv} 必须 >=0")
+        weights_clean[str(k)] = fv
+    if not weights_clean:
+        weights_clean = {"bm25": 0.75, "value_score": 0.15, "review_due": 0.10}
+    hybrid_cfg = HybridSearchConfig(
+        enabled=bool(hybrid_raw.get("enabled", True)),
+        weights=weights_clean,
+    )
+    return SearchConfig(bm25=bm25_cfg, hybrid=hybrid_cfg)
 
 
 def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
@@ -530,6 +652,9 @@ __all__ = [
     "ReviewConfig",
     "ReviewIntervals",
     "TelemetryConfig",
+    "BM25SearchConfig",
+    "HybridSearchConfig",
+    "SearchConfig",
     "ModelConfig",
     "LLMConfig",
     "PromptVersions",

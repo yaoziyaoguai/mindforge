@@ -118,9 +118,9 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.3.0（本地，BM25 lexical recall）
+## 当前状态：v0.3.1（本地，BM25 配置化 + hybrid 排序）
 
-- M0 → M5.5 + M5.6 全部本地 commit；v0.3.0 在 v0.2 全部能力之上加了 **BM25 本地词法检索**，详见 [`docs/V0_3_0_REVIEW.md`](docs/V0_3_0_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md)。**未** push。
+- M0 → M5.5 + M5.6 全部本地 commit；v0.3.1 在 v0.3.0 BM25 之上把字段权重迁到 `mindforge.yaml` 并新增 hybrid 三路本地融合排序，详见 [`docs/V0_3_1_REVIEW.md`](docs/V0_3_1_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md) §12。**未** push。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
   `ai_draft` Knowledge Card → state.json + runs/*.jsonl 证据链。
 - v0.2.0（M4）新增：`mindforge review due` / `mindforge recall` / `mindforge project context`，全部**只读卡片 frontmatter 白名单**，不调 LLM、不读 .env、不索引。
@@ -157,10 +157,15 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **`mindforge index rebuild` / `mindforge index status`**：本地索引落 `.mindforge/index/bm25.json`（被 .gitignore 挡），原子写，含 fresh / stale 检测。
   - **安全核心**：**只**索引 Knowledge Card 的 frontmatter 安全字段 + 白名单 body section（`## AI Summary` / `## Action Items` / `## Principles` / `## Known Risks`）；**绝不**索引 `## Source Excerpt` / `## Human Note` / raw source / prompts / completions / runs / state.json / .env / API key。
   - **仍然不做**：RAG / embedding / 向量库 / 远程调用 / LLM 调用。BM25 是纯本地词法检索。
+- v0.3.1 增量（BM25 配置化 + hybrid 排序，详见 [`docs/V0_3_1_REVIEW.md`](docs/V0_3_1_REVIEW.md) / [`docs/M5_4_LEXICAL_RECALL_PROTOCOL.md`](docs/M5_4_LEXICAL_RECALL_PROTOCOL.md) §12）：
+  - **`configs/mindforge.yaml.search`**：BM25 字段权重 / `k1` / `b` / hybrid 三路权重全可调，校验严格（负数 / b∉[0,1] 直接 fail-fast）。
+  - **`mindforge recall --ranking hybrid [--explain]`**：BM25 + value_score + review_due 三路本地融合；`--explain` 打印每条命中的三路分量与 `final_score`。
+  - **`config_hash`**：索引内嵌配置指纹；`mindforge index status` / `mindforge doctor` 自动检测"配置漂移"并提示 `mindforge index rebuild`。recall 路径若发现漂移，自动用当前配置内存重建（绝不静默用旧权重打分）。
+  - **仍然不做**：RAG / embedding / LLM 调用 / 远程上传。hybrid 是纯本地规则。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md) → [`V0_3_0`](docs/V0_3_0_REVIEW.md) → [`V0_3_1`](docs/V0_3_1_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

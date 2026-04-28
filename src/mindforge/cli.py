@@ -1184,6 +1184,10 @@ def recall(
         False, "--explain",
         help="仅 --query 路径生效：打印每条命中的字段贡献分。",
     ),
+    ranking: str = typer.Option(
+        "bm25", "--ranking",
+        help="仅 --query 路径生效：bm25 (默认) | hybrid（bm25+value_score+review_due）",
+    ),
 ) -> None:
     """检索 Knowledge Cards。
 
@@ -1210,6 +1214,7 @@ def recall(
             limit=limit,
             output_format=output_format,
             explain=explain,
+            ranking=ranking,
         )
 
     from .cards import filter_cards, iter_cards, sort_cards
@@ -1367,25 +1372,53 @@ def _do_bm25_recall(
     limit: int,
     output_format: str,
     explain: bool,
+    ranking: str = "bm25",
 ) -> None:
-    """BM25 路径。如果磁盘上没有索引文件，回退为内存即时构建（提示一次）。"""
+    """BM25 / hybrid 路径。
+
+    - BM25 字段权重 / k1 / b 全部走 ``cfg.search.bm25``；
+    - hybrid 路径在 BM25 之上叠加 value_score + review_due 两路本地信号；
+    - 索引文件记录 ``config_hash``，与当前配置不一致 → 自动用内存重建（提示一次）。
+    """
     from . import lexical_index as lx
     from .cards import iter_cards
+
+    if ranking not in ("bm25", "hybrid"):
+        console.print(f"[red]--ranking 仅支持 bm25 | hybrid，收到 {ranking!r}[/red]")
+        raise typer.Exit(code=2)
 
     cfg = _load_cfg(config)
     workdir = cfg.state.workdir  # type: ignore[attr-defined]
     idx_path = lx.default_index_path(workdir)
 
+    # 当前配置的字段权重（解析用户别名）+ k1 / b + config_hash
+    fw = lx.resolve_field_weights(cfg.search.bm25.fields)
+    cur_k1 = cfg.search.bm25.k1
+    cur_b = cfg.search.bm25.b
+    cur_hash = lx.compute_config_hash(field_weights=fw, k1=cur_k1, b=cur_b)
+
     index: lx.BM25Index
     used_disk = False
+    index_stale = False
     if idx_path.exists():
         try:
             index = lx.BM25Index.load(idx_path)
-            used_disk = True
+            if index.config_hash and index.config_hash != cur_hash:
+                # 配置漂移 → 旧索引按旧权重打分，结果不能信
+                index_stale = True
+                if output_format not in ("json",):
+                    console.print(
+                        "[yellow]提示：磁盘索引的 config_hash 与当前配置不一致；"
+                        "本次内存即时重建。建议运行 `mindforge index rebuild`。[/yellow]"
+                    )
+                scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+                index = lx.build_index(scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
+            else:
+                used_disk = True
         except (lx.IndexFormatError, OSError, ValueError) as e:
             console.print(f"[yellow]索引文件不可用（{e}）；改为内存即时构建。[/yellow]")
             scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-            index = lx.build_index(scan.cards)
+            index = lx.build_index(scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
     else:
         if output_format not in ("json",):
             console.print(
@@ -1393,24 +1426,38 @@ def _do_bm25_recall(
                 "建议运行 `mindforge index rebuild` 以加速后续查询。[/yellow]"
             )
         scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-        index = lx.build_index(scan.cards)
+        index = lx.build_index(scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
 
-    hits = lx.search(
-        index,
-        query,
-        status_filter=status,
-        include_drafts=include_drafts,
-        track=track,
-        project=project,
-        tags=tags,
-        source_type=source_type,
-        since=_parse_date(since),
-        until=_parse_date(until),
-        limit=limit,
-    )
+    # hybrid 需要 CardSummary 旁路获取 value_score / review_after
+    cards_for_hybrid = None
+    if ranking == "hybrid":
+        scan2 = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+        cards_for_hybrid = scan2.cards
+
+    if ranking == "hybrid":
+        hybrid_hits = lx.hybrid_search(
+            index, query,
+            weights=cfg.search.hybrid.weights,
+            cards=cards_for_hybrid,
+            status_filter=status,
+            include_drafts=include_drafts,
+            track=track, project=project, tags=tags, source_type=source_type,
+            since=_parse_date(since), until=_parse_date(until),
+            limit=limit,
+        )
+        hits = [hh.base for hh in hybrid_hits]
+    else:
+        hybrid_hits = None
+        hits = lx.search(
+            index, query,
+            status_filter=status,
+            include_drafts=include_drafts,
+            track=track, project=project, tags=tags, source_type=source_type,
+            since=_parse_date(since), until=_parse_date(until),
+            limit=limit,
+        )
 
     # 不把 query 原文写入 telemetry/runs；只记录是否提供 + hash 化指纹。
-    # 复用 keyword_* 白名单字段（query 与 keyword 在隐私语义上一致）。
     kw_provided, kw_hash = _hash_keyword(query)
     with RunLogger(cfg.state.runs_path, command="recall_bm25") as logger:  # type: ignore[attr-defined]
         logger.emit(
@@ -1428,6 +1475,8 @@ def _do_bm25_recall(
                 limit=limit,
                 explain=explain,
                 used_disk_index=used_disk,
+                ranking_mode=ranking,
+                index_stale=index_stale,
             ),
             keyword_provided=kw_provided,
             keyword_hash=kw_hash,
@@ -1437,9 +1486,15 @@ def _do_bm25_recall(
     if output_format == "json":
         import json as _json
 
+        items: list[dict]
+        if hybrid_hits is not None:
+            items = [_hybrid_hit_to_safe_dict(hh, explain=explain) for hh in hybrid_hits]
+        else:
+            items = [_hit_to_safe_dict(h, explain=explain) for h in hits]
         payload = {
             "version": 1,
             "engine": "bm25",
+            "ranking": ranking,
             "query": {
                 "track": track,
                 "project": project,
@@ -1453,23 +1508,38 @@ def _do_bm25_recall(
                 "limit": limit,
             },
             "count": len(hits),
-            "items": [_hit_to_safe_dict(h, explain=explain) for h in hits],
+            "items": items,
         }
         console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
+    # —— 非 JSON 路径：把 hybrid 的 final_score 与三路分量加到 explain 输出 ——
+    hybrid_by_path: dict[str, "lx.HybridHit"] = {}
+    if hybrid_hits is not None:
+        hybrid_by_path = {hh.base.doc.rel_path: hh for hh in hybrid_hits}
+
+    label = "engine=bm25" + (f" ranking={ranking}" if ranking != "bm25" else "")
+
     if output_format == "markdown":
-        print(f"# Recall · {len(hits)} 项 (engine=bm25)\n")
+        print(f"# Recall · {len(hits)} 项 ({label})\n")
         if not hits:
             print("_(no cards matched)_")
             return
         for h in hits:
             d = h.doc
+            hh = hybrid_by_path.get(d.rel_path)
+            score_str = f"score={(hh.final_score if hh else h.score):.3f}"
             print(
                 f"- **[{d.id or Path(d.rel_path).stem}]** {d.title or '(untitled)'}  "
-                f"`score={h.score:.3f}` `status={d.status}` `track={d.track or '-'}` "
+                f"`{score_str}` `status={d.status}` `track={d.track or '-'}` "
                 f"`path={d.rel_path}`"
             )
+            if explain and hh is not None:
+                print(
+                    f"    - hybrid: bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f}, "
+                    f"value={hh.value_norm:.3f}, review_due={hh.review_due_norm:.3f} "
+                    f"→ final={hh.final_score:.3f}"
+                )
             if explain:
                 for fh in h.field_hits:
                     terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
@@ -1480,7 +1550,7 @@ def _do_bm25_recall(
         if not hits:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
             return
-        table = Table(title=f"Recall · {len(hits)} 项 (engine=bm25)")
+        table = Table(title=f"Recall · {len(hits)} 项 ({label})")
         table.add_column("score", justify="right")
         table.add_column("id")
         table.add_column("title")
@@ -1489,8 +1559,10 @@ def _do_bm25_recall(
         table.add_column("path")
         for h in hits:
             d = h.doc
+            hh = hybrid_by_path.get(d.rel_path)
+            score_val = hh.final_score if hh else h.score
             table.add_row(
-                f"{h.score:.3f}",
+                f"{score_val:.3f}",
                 d.id or Path(d.rel_path).stem,
                 d.title or "(untitled)",
                 d.status,
@@ -1504,19 +1576,39 @@ def _do_bm25_recall(
     if not hits:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
         return
-    console.print(f"[bold]Recall[/bold] · {len(hits)} 项 (engine=bm25)")
+    console.print(f"[bold]Recall[/bold] · {len(hits)} 项 ({label})")
     for h in hits:
         d = h.doc
+        hh = hybrid_by_path.get(d.rel_path)
+        score_val = hh.final_score if hh else h.score
         console.print(
-            f"- score={h.score:.3f} · {d.id or Path(d.rel_path).stem} · "
+            f"- score={score_val:.3f} · {d.id or Path(d.rel_path).stem} · "
             f"{d.title or '(untitled)'} · status={d.status} · track={d.track or '-'}"
         )
+        if explain and hh is not None:
+            console.print(
+                f"    [dim]hybrid[/dim] bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f} "
+                f"value={hh.value_norm:.3f} review_due={hh.review_due_norm:.3f} "
+                f"→ final={hh.final_score:.3f}"
+            )
         if explain:
             for fh in h.field_hits:
                 terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
                 console.print(
                     f"    [dim]{fh.field}[/dim] w={fh.weight} +{fh.contribution:.3f}: {terms}"
                 )
+
+
+def _hybrid_hit_to_safe_dict(hh, *, explain: bool) -> dict:
+    """HybridHit → JSON 安全 dict；包含 final_score 与三路分量。"""
+    base = _hit_to_safe_dict(hh.base, explain=explain)
+    base["bm25_score"] = round(hh.bm25_score, 6)
+    base["bm25_norm"] = round(hh.bm25_norm, 6)
+    base["value_norm"] = round(hh.value_norm, 6)
+    base["review_due_norm"] = round(hh.review_due_norm, 6)
+    base["final_score"] = round(hh.final_score, 6)
+    base["score"] = base["final_score"]
+    return base
 
 
 def _hit_to_safe_dict(h, *, explain: bool) -> dict:
@@ -1563,12 +1655,21 @@ def index_rebuild(
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     if scan.errors:
         console.print(f"[yellow]跳过 {len(scan.errors)} 张损坏卡片[/yellow]")
-    index = lx.build_index(scan.cards)
+    fw = lx.resolve_field_weights(cfg.search.bm25.fields)
+    cur_hash = lx.compute_config_hash(field_weights=fw, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b)
+    index = lx.build_index(
+        scan.cards,
+        field_weights=fw,
+        k1=cfg.search.bm25.k1,
+        b=cfg.search.bm25.b,
+        config_hash=cur_hash,
+    )
     idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
     index.save(idx_path)
     console.print(
         f"[green]✓ 索引已写入[/green] {idx_path} · "
-        f"卡片={len(index.docs)} · avgdl={index.avgdl:.1f} · 时间={index.built_at}"
+        f"卡片={len(index.docs)} · avgdl={index.avgdl:.1f} · "
+        f"config_hash={cur_hash} · 时间={index.built_at}"
     )
 
 
@@ -1599,7 +1700,11 @@ def index_status(
         raise typer.Exit(code=1) from e
 
     diff = lx.diff_index(index, scan.cards)
-    state_label = "[green]fresh[/green]" if diff.fresh else "[yellow]stale[/yellow]"
+    fw_cur = lx.resolve_field_weights(cfg.search.bm25.fields)
+    cur_hash = lx.compute_config_hash(field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b)
+    config_drift = bool(index.config_hash) and index.config_hash != cur_hash
+    fresh = diff.fresh and not config_drift
+    state_label = "[green]fresh[/green]" if fresh else "[yellow]stale[/yellow]"
     console.print(f"[bold]Index status[/bold] · {state_label}")
     console.print(f"  路径：{idx_path}")
     console.print(f"  built_at：{index.built_at}")
@@ -1607,6 +1712,10 @@ def index_status(
     console.print(f"  tokenizer：{index.tokenizer_name}")
     console.print(f"  k1={index.k1} b={index.b} avgdl={index.avgdl:.1f}")
     console.print(f"  字段权重：{index.field_weights}")
+    console.print(f"  config_hash（索引）：{index.config_hash or '(未记录)'}")
+    console.print(f"  config_hash（当前）：{cur_hash}")
+    if config_drift:
+        console.print("  [yellow]⚠ 配置漂移[/yellow]：索引按旧 search 配置打分，结果不可信")
     console.print(f"  索引卡片数：{diff.indexed_count}  当前卡片数：{diff.current_count}")
     if diff.added:
         console.print(f"  [yellow]新增未索引[/yellow]：{len(diff.added)}（前 {min(5,len(diff.added))} 项）")
@@ -1620,7 +1729,7 @@ def index_status(
         console.print(f"  [yellow]mtime 漂移[/yellow]：{len(diff.changed)}")
         for rp in diff.changed[:5]:
             console.print(f"    ~ {rp}")
-    if not diff.fresh:
+    if not fresh:
         console.print("  建议：[bold]mindforge index rebuild[/bold]")
 
 
@@ -2370,6 +2479,7 @@ def doctor(
     if cards_dir.exists():
         try:
             from .cards import iter_cards as _iter
+            from . import lexical_index as _lx
 
             res = _iter(cfg.vault.root, cfg.vault.cards_dir)
             n_drafts = sum(1 for c in res.cards if c.status == "ai_draft")
@@ -2379,6 +2489,26 @@ def doctor(
                 hints.append(
                     f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list"
                 )
+            # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
+            idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
+            if not idx_path.exists():
+                if res.cards:
+                    hints.append("BM25 索引缺失 → 运行: mindforge index rebuild")
+            else:
+                try:
+                    idx = _lx.BM25Index.load(idx_path)
+                    fw_cur = _lx.resolve_field_weights(cfg.search.bm25.fields)
+                    cur_h = _lx.compute_config_hash(
+                        field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b,
+                    )
+                    if idx.config_hash and idx.config_hash != cur_h:
+                        hints.append("BM25 索引与 search 配置不一致 → 运行: mindforge index rebuild")
+                    else:
+                        diff = _lx.diff_index(idx, res.cards)
+                        if not diff.fresh:
+                            hints.append("BM25 索引 stale（卡片有变更） → 运行: mindforge index rebuild")
+                except Exception:  # noqa: BLE001
+                    hints.append("BM25 索引读取失败 → 运行: mindforge index rebuild")
         except Exception:  # noqa: BLE001
             pass
 

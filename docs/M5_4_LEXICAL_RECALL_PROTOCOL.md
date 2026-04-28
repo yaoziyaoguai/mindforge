@@ -147,3 +147,68 @@ mindforge recall --query "checkpoint" --format json
 - 多语言分词器（中文分词器 jieba 等）
 - 索引按 track / project 分片
 - 实时增量更新（v0.3 只支持全量 rebuild；个人库规模无需增量）
+
+## 12. v0.3.1 — 配置化字段权重 + hybrid 排序
+
+> v0.3.1 在不破坏 v0.3.0 安全契约的前提下，把 BM25 从"硬编码权重"升级为"用户可配 + 多信号融合"。**仍然是纯本地规则，不是 RAG / embedding。**
+
+### 12.1 `configs/mindforge.yaml`
+
+```yaml
+search:
+  bm25:
+    enabled: true
+    k1: 1.5
+    b: 0.75
+    default_limit: 10
+    fields:
+      title: 5.0
+      learning_tracks: 4.0   # 别名 → 内部 track
+      projects: 4.0
+      tags: 3.0
+      summary: 1.0           # 别名 → body_summary
+      action_items: 1.0      # 别名 → body_actions
+  hybrid:
+    enabled: true
+    weights:
+      bm25: 0.75
+      value_score: 0.15
+      review_due: 0.10
+```
+
+- `bm25.fields` 用"用户友好别名 → 权重"，由 `lexical_index.USER_FIELD_ALIASES` 解析。
+- 权重 `0` = **从该字段移除索引**（白名单语义）。
+- 未声明的字段使用 `DEFAULT_FIELD_WEIGHTS`。
+- `b` 必须在 `[0, 1]`；`k1` > 0；任何字段权重 < 0 都会 fail-fast `ConfigError`。
+
+### 12.2 `config_hash` 与 stale 检测
+
+- `BM25Index.config_hash` = sha256 前 16 位，覆盖：`schema_version` / tokenizer 名 / 排序后的字段权重 / `k1` / `b` / 索引 body sections 列表。
+- `mindforge index status`、`mindforge doctor` 都会比对索引内 `config_hash` 与当前 `mindforge.yaml` 的 hash；不一致 → **stale**，提示 `mindforge index rebuild`。
+- recall 路径若发现 `config_hash` 漂移，自动用内存按当前配置重建（一次性提示），结果总是用"当前配置"打分，**绝不**用旧权重静默返回结果。
+
+### 12.3 hybrid 排序
+
+- 三路信号都先归一到 `[0, 1]`，再按 `weights` 加权求和：
+  - `bm25_norm` = `(bm25 - min) / (max - min)`，对当前命中集做 min-max 归一；
+  - `value_norm` = `clamp(value_score / 10, 0, 1)`；
+  - `review_due_norm` = `1.0`（已到期）/ `1 - days_remaining/30`（30 天内）/ `0`（缺失或 >30 天）。
+- 缺失 `value_score` / `review_after` → 对应分量按 `0`，**不报错**。
+- `--ranking hybrid --explain` 会打印每条命中的三路分量与 `final_score`。
+
+### 12.4 telemetry 新增字段
+
+仍然在 `filters` 子 dict 内（已在白名单），新增两个**元数据** key：
+- `ranking_mode`：`"bm25"` / `"hybrid"`；
+- `index_stale`：`bool`，是否触发了配置漂移导致的内存重建。
+
+**绝不**记录 query 原文 / hybrid 三路具体分量 / 卡片正文。
+
+### 12.5 测试硬保证（`tests/test_v0_3_1.py`）
+
+- `test_search_config_rejects_negative_weight` / `test_search_config_rejects_bad_b`：配置校验
+- `test_index_status_shows_stale_on_config_drift`：漂移检测
+- `test_recall_hybrid_promotes_high_value_card`：hybrid 排序行为
+- `test_recall_hybrid_safe_when_value_score_missing`：缺字段不崩
+- `test_recall_telemetry_no_query_plaintext`：query 永不入 telemetry
+- `test_no_source_excerpt_in_hybrid_results`：hybrid 路径仍满足 v0.3 安全契约
