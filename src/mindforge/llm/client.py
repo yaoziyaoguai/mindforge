@@ -41,11 +41,19 @@ class LLMClient:
     def resolve_model_for_stage(self, stage: str) -> ResolvedModel:
         mc = self._cfg.resolve_stage(stage)
         alias = self._cfg.profiles[self._cfg.active_profile][stage]
+        # model_env：允许从环境变量覆盖模型名（同 endpoint 切换 fast / strong / deep）
+        actual_model = mc.model
+        model_env = getattr(mc, "model_env", None)
+        if model_env:
+            import os
+            override = os.environ.get(model_env)
+            if override:
+                actual_model = override
         return ResolvedModel(
             stage=stage,
             model_alias=alias,
             provider=mc.provider,
-            actual_model=mc.model,
+            actual_model=actual_model,
             type=mc.type,
         )
 

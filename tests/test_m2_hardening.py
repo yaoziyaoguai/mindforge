@@ -115,6 +115,7 @@ def test_llm_client_unknown_stage(monkeypatch: pytest.MonkeyPatch) -> None:
                     "api_key_optional": True,
                     "base_url_env": None,
                     "version_env": None,
+                    "model_env": None,
                 },
             )(),
         }

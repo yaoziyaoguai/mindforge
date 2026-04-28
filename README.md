@@ -61,7 +61,8 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 | M1 | Source Ingestion MVP（不调 LLM） | ✅ 完成 |
 | M1.5 | RunLogger preflight | ✅ 完成 |
 | **M2** | LLM Processing MVP（5 个 stage） | ✅ 完成 |
-| **M2.5** | Anthropic-compatible provider 接入 + 加固 | 🟢 当前 |
+| **M2.5** | Anthropic-compatible provider 接入 + 加固 | ✅ 完成 |
+| **M2.7** | `.env` 自动加载 + `--profile` / `--dry-run` / `llm ping` | 🟢 当前 |
 | M3 | Vault 输出与人工确认机制 | ⏳ 待启动 |
 | M4 | 回顾、召回与项目记忆（v0.2/v0.3 候选） | ⏳ |
 | M5 | 高级集成（Obsidian 插件 / OCR / RAG ...） | 🚫 v0.1 不做 |
@@ -79,7 +80,7 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 
 ---
 
-## LLM Provider 配置（M2.5 后）
+## LLM Provider 配置
 
 MindForge 支持三类 provider，由 `configs/mindforge.yaml` 中模型的 `type`
 字段派发：
@@ -89,19 +90,35 @@ MindForge 支持三类 provider，由 `configs/mindforge.yaml` 中模型的 `typ
 - `anthropic_compatible`：Anthropic Claude / 阿里云 DashScope **Coding Plan**
   等以 Anthropic Messages API 协议暴露的服务。
 
-**默认 `active_profile` 是 `fake`，绝不会调用真实模型**。切换到真实路径
-（`anthropic_coding_plan` 或 `openai_compatible` profile）需要本人显式改 yaml
-并填好 `.env`。详细配置、安全约束、单文件 smoke test 流程见
+**默认 `active_profile` 是 `fake`，绝不会调用真实模型**。切换到真实路径无需改 yaml：
+
+```bash
+# 1. 把 .env.example 复制为 .env，填入 base_url / api_key
+cp .env.example .env
+
+# 2. 校验 env 是否齐备（不发 HTTP，不消耗配额）
+mindforge llm ping --profile anthropic_coding_plan
+
+# 3. dry-run 跑 5 stage 但不写卡片、不写 state
+mindforge process --profile anthropic_coding_plan --limit 1 --dry-run
+
+# 4. 正式落地一张卡片
+mindforge process --profile anthropic_coding_plan --limit 1
+```
+
+`.env` 由 `src/mindforge/env_loader.py` 在 CLI 入口处**静默**加载（永不打印 value）；
+shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、smoke test 流程见
 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md)。
 
-`.env` 模板见 [`.env.example`](.env.example)；`.env` 已加入 `.gitignore`，
-**不会**被提交。
+`.env` 已加入 `.gitignore`，**不会**被提交。
 
 ---
 
-## 当前状态：M2.5 完成（本地）
+## 当前状态：M2.7 完成（本地）
 
-- M0/M1/M1.5/M2/M2.5 均已本地 commit，**未** push。
+- M0/M1/M1.5/M2/M2.5/M2.7 均已本地 commit，**未** push。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
+- `.env` 自动加载，`--profile` 临时覆盖 active_profile，`--dry-run` 跑 pipeline 不落地，
+  `mindforge llm ping` 校验 env 齐备性（不发 HTTP）。
 - 进入 M3（人工 `human_approved` 反向同步）的条件、停止规则见
   [`docs/ROADMAP.md`](docs/ROADMAP.md)。

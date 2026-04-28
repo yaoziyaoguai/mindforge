@@ -51,9 +51,9 @@ def test_real_mindforge_yaml_loads() -> None:
     # 真实路径模型一律不允许把 secret 写进 yaml
     qcs = cfg.llm.models["qwen_coder_strong"]
     assert qcs.type == "anthropic_compatible"
-    assert qcs.base_url_env == "MINDFORGE_ANTHROPIC_BASE_URL"
-    assert qcs.api_key_env == "MINDFORGE_ANTHROPIC_API_KEY"
-    assert qcs.version_env == "MINDFORGE_ANTHROPIC_VERSION"
+    assert qcs.base_url_env == "MINDFORGE_LLM_BASE_URL"
+    assert qcs.api_key_env == "MINDFORGE_LLM_API_KEY"
+    assert qcs.version_env == "MINDFORGE_LLM_VERSION"
     assert qcs.base_url == ""  # yaml 里不能写真实 base_url
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"

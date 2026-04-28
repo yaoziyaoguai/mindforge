@@ -7,7 +7,7 @@
 - 不做 streaming、不做 tool_use（v0.1 仅文本 in / 文本 out）。
 - 不做 fallback / 多模型投票（路由由 LLMClient + active_profile 决定）。
 - ``base_url`` 与 ``api_key`` 优先从 **环境变量** 读取
-  （``MINDFORGE_ANTHROPIC_BASE_URL`` / ``MINDFORGE_ANTHROPIC_API_KEY`` 等），
+  （``MINDFORGE_LLM_BASE_URL`` / ``MINDFORGE_LLM_API_KEY`` 等），
   避免写进 yaml 被误提交。
 - 网络错误 / 4xx / 5xx 统一抛 :class:`ProviderError`，由 LLMClient 处理重试。
 - 任何异常都不能把 api_key、Authorization header、env value 等敏感信息

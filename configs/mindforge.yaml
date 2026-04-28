@@ -161,13 +161,15 @@ llm:
       type: fake
       model: fake-strong
 
-    # —— Anthropic-compatible：模型名仅作示例，可按平台支持改 ——
+    # —— Anthropic-compatible：通过 .env 注入 base_url / api_key；
+    # 模型名内置稳妥默认，并允许通过 model_env 覆盖（同 endpoint 切 fast/strong）。
     qwen_coder_fast:
       provider: dashscope_coding_plan
       type: anthropic_compatible
-      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
-      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-      version_env: MINDFORGE_ANTHROPIC_VERSION
+      base_url_env: MINDFORGE_LLM_BASE_URL
+      api_key_env: MINDFORGE_LLM_API_KEY
+      version_env: MINDFORGE_LLM_VERSION
+      model_env: MINDFORGE_LLM_MODEL_FAST    # 可选：覆盖默认 fast 模型
       model: "qwen3-coder-next"
       timeout_seconds: 180
       max_retries: 2
@@ -175,9 +177,10 @@ llm:
     qwen_coder_strong:
       provider: dashscope_coding_plan
       type: anthropic_compatible
-      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
-      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-      version_env: MINDFORGE_ANTHROPIC_VERSION
+      base_url_env: MINDFORGE_LLM_BASE_URL
+      api_key_env: MINDFORGE_LLM_API_KEY
+      version_env: MINDFORGE_LLM_VERSION
+      model_env: MINDFORGE_LLM_MODEL_STRONG  # 可选：覆盖默认 strong 模型
       model: "qwen3-coder-plus"
       timeout_seconds: 240
       max_retries: 2
@@ -201,12 +204,14 @@ llm:
       timeout_seconds: 240
       max_retries: 2
 
-    # —— 本地 Ollama（不需要 api_key）——
+    # —— 本地 Ollama / LM Studio（OpenAI-compatible 协议；api_key 可选）——
     local_fast:
       provider: local_ollama
       type: openai_compatible
-      base_url: "http://localhost:11434/v1"
+      base_url_env: MINDFORGE_LOCAL_LLM_BASE_URL
+      api_key_env: MINDFORGE_LOCAL_LLM_API_KEY
       api_key_optional: true
+      base_url: "http://localhost:11434/v1"   # base_url_env 缺失时的兜底
       model: "qwen2.5:7b"
       timeout_seconds: 120
       max_retries: 1
@@ -214,8 +219,10 @@ llm:
     local_strong:
       provider: local_ollama
       type: openai_compatible
-      base_url: "http://localhost:11434/v1"
+      base_url_env: MINDFORGE_LOCAL_LLM_BASE_URL
+      api_key_env: MINDFORGE_LOCAL_LLM_API_KEY
       api_key_optional: true
+      base_url: "http://localhost:11434/v1"
       model: "qwen2.5:14b"
       timeout_seconds: 240
       max_retries: 1

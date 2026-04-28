@@ -136,6 +136,7 @@ class ModelConfig:
     api_key_optional: bool = False
     base_url_env: str | None = None     # 优先级高于 base_url；运行时由 provider 解析
     version_env: str | None = None      # 仅 anthropic_compatible 使用（anthropic-version 头）
+    model_env: str | None = None        # 模型名也允许从 env 覆盖（场景：同 endpoint 切换不同模型）
 
 
 @dataclass(frozen=True)
@@ -348,18 +349,26 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             raise ConfigError(
                 f"llm.models.{alias} 必须提供 base_url 或 base_url_env 之一"
             )
+        # model 与 model_env 至少一个有效（model_env 仅在运行时由 provider 解析）
+        model_env = mraw.get("model_env")
+        model_str = mraw.get("model")
+        if not model_str and not model_env:
+            raise ConfigError(
+                f"llm.models.{alias} 必须提供 model 或 model_env 之一"
+            )
         models[alias] = ModelConfig(
             alias=alias,
             provider=_require(mraw, "provider", str, ctx=f"llm.models.{alias}"),
             type=_require(mraw, "type", str, ctx=f"llm.models.{alias}"),
             base_url=base_url,
-            model=_require(mraw, "model", str, ctx=f"llm.models.{alias}"),
+            model=str(model_str or ""),
             timeout_seconds=int(mraw.get("timeout_seconds", 120)),
             max_retries=int(mraw.get("max_retries", 1)),
             api_key_env=mraw.get("api_key_env"),
             api_key_optional=bool(mraw.get("api_key_optional", False)),
             base_url_env=base_url_env,
             version_env=mraw.get("version_env"),
+            model_env=model_env,
         )
 
     # 校验每个 profile：必须覆盖全部 5 个 stage，且 alias 必须存在

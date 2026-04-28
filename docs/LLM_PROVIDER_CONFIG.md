@@ -53,9 +53,9 @@ Messages API 协议，而**不是** OpenAI chat/completions。所以 MindForge v
 
 ```bash
 # ── Anthropic-compatible（v0.1 主路径）──
-MINDFORGE_ANTHROPIC_BASE_URL=""      # 不含末尾斜杠；provider 内部拼 /v1/messages
-MINDFORGE_ANTHROPIC_API_KEY=""       # 写到 x-api-key 头
-MINDFORGE_ANTHROPIC_VERSION="2023-06-01"  # 写到 anthropic-version 头
+MINDFORGE_LLM_BASE_URL=""      # 不含末尾斜杠；provider 内部拼 /v1/messages
+MINDFORGE_LLM_API_KEY=""       # 写到 x-api-key 头
+MINDFORGE_LLM_VERSION="2023-06-01"  # 写到 anthropic-version 头
 
 # ── OpenAI-compatible（备选）──
 MINDFORGE_OPENAI_BASE_URL=""
@@ -77,6 +77,35 @@ cp .env.example .env
 # 编辑 .env，填入真实 base_url / api_key
 # 不要 git add .env
 ```
+
+### 3.4 自动加载（无需手动 `source .env`）
+
+`src/mindforge/env_loader.py` 在每个 CLI 命令入口处自动加载 `.env`，
+关键约束：
+
+- **静默**：不打印任何 key/value 到 stdout/stderr；
+- **`env > dotfile`**：已通过 `export` 设置的环境变量优先于 `.env`；
+- **once-only**：进程内只加载一次；
+- **零依赖**：不引入 `python-dotenv`，仅支持最简单的 `KEY=VALUE` 与 `KEY="quoted"` 语法；
+- **路径**：从当前 cwd 向上查找最近的 `.env`，永不读 `~/.env`。
+
+测试覆盖：`tests/test_env_loader.py` 验证不打印值、不覆盖已设 env、注释 / 空行容错。
+
+### 3.5 模型名也可从 env 覆盖（`model_env`）
+
+`mindforge.yaml` 中每个 model 支持可选 `model_env`：
+
+```yaml
+qwen_coder_strong:
+  type: anthropic_compatible
+  base_url_env: MINDFORGE_LLM_BASE_URL
+  api_key_env: MINDFORGE_LLM_API_KEY
+  model_env: MINDFORGE_LLM_MODEL_STRONG   # 优先级高于 model
+  model: "qwen3-coder-plus"               # 兜底默认
+```
+
+用途：同一 endpoint 在 `qwen3-coder-plus` / `glm-5` / `kimi-k2.5` 等多模型间快速切，
+无需改 yaml、无需 commit。
 
 ---
 
@@ -110,7 +139,7 @@ llm:
 ```
 
 切换前确认：
-1. `.env` 已填写 `MINDFORGE_ANTHROPIC_BASE_URL` 与 `MINDFORGE_ANTHROPIC_API_KEY`；
+1. `.env` 已填写 `MINDFORGE_LLM_BASE_URL` 与 `MINDFORGE_LLM_API_KEY`；
 2. 你已经 source `.env`（或用 `direnv` / `dotenv` 之类工具自动加载）；
 3. 第一次执行建议加 `--file <某个测试笔记>` + `--limit 1` 做单文件 smoke test，
    而不是直接全库扫描。
@@ -130,9 +159,9 @@ models:
   qwen_coder_strong:
     provider: dashscope_coding_plan
     type: anthropic_compatible
-    base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
-    api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-    version_env: MINDFORGE_ANTHROPIC_VERSION
+    base_url_env: MINDFORGE_LLM_BASE_URL
+    api_key_env: MINDFORGE_LLM_API_KEY
+    version_env: MINDFORGE_LLM_VERSION
     model: qwen3-coder-plus
     timeout_seconds: 240
     max_retries: 2
@@ -184,29 +213,40 @@ prompt_version / status / processed_at / error_message / tokens_*`，
 
 ---
 
-## 6. 单文件真实 smoke test 计划（**本轮不执行**）
+## 6. 单文件真实 smoke test 计划
 
-等本人确认下面三件事后再执行：
+### 6.1 第一步：`mindforge llm ping`（不发 HTTP，只校验 env）
 
-1. `.env` 已填好且加载到 shell 环境（`echo $MINDFORGE_ANTHROPIC_BASE_URL` 非空，
-   且不会通过 shell history / screen recorder 泄漏到任何记录中）；
-2. `configs/mindforge.yaml` 中 `active_profile` 已切到 `anthropic_coding_plan`；
-3. 选定一个**非敏感**的测试笔记作为唯一输入（建议自己手写一段公开内容），
-   以避免私人笔记意外被发送。
+```bash
+mindforge llm ping --profile anthropic_coding_plan
+```
 
-执行命令（**本轮不执行**）：
+该命令枚举 `active_profile` 涉及的所有 model alias，列出每个模型的：
+- `provider` / `type` / `model (resolved)`（含 `model_env` 覆盖后的实际值）
+- 每个所需 env 是否已 set（仅显示 `set` / `MISSING` / `unset (optional)`，**绝不**打印 value）
+
+退出码：必填 env 全齐 → `0`；缺任一必填 → `1`。
+**不发任何 HTTP 请求**，不消耗配额。`tests/test_cli_extras.py` 用 `httpx.Client.post` mock 验证。
+
+### 6.2 第二步：`--dry-run` 跑通 pipeline 但不写卡片
 
 ```bash
 mindforge process \
+  --profile anthropic_coding_plan \
   --file vault/00-Inbox/ManualNotes/<test-note>.md \
-  --limit 1
+  --limit 1 \
+  --dry-run
 ```
+
+预期：5 stage 全部调用真实 endpoint；卡片**不**写出；`state.json` **不**写入；
+`runs/<run_id>.jsonl` 仍记录全部事件供审计。
+
+### 6.3 第三步：去掉 `--dry-run`，正式落地一张卡片
 
 预期产物：
 - `vault/20-Knowledge-Cards/<track>/<date>--<slug>.md`（默认 `status: ai_draft`）
 - `.mindforge/state.json`：该 item.status=processed，5 个 stage 全 ok
-- `.mindforge/runs/<run_id>.jsonl`：5 条 `llm_call`，每条 `provider_type:
-  anthropic_compatible`，**不**含 prompt/completion/key/raw_text
+- `.mindforge/runs/<run_id>.jsonl`：5 条 `llm_call`，每条 `provider_type: anthropic_compatible`，**不**含 prompt/completion/key/raw_text
 
 执行完后必须人工：
 - 检查 `.mindforge/runs/<run_id>.jsonl` 没有任何敏感字段；
@@ -219,8 +259,8 @@ mindforge process \
 
 | 现象 | 可能原因 | 对策 |
 |---|---|---|
-| `模型 X 必须声明 api_key_env` | yaml 写了 anthropic_compatible 但缺 `api_key_env` | 改 yaml，加 `api_key_env: MINDFORGE_ANTHROPIC_API_KEY` |
-| `模型 X 要求环境变量 ... 提供 api_key，但未设置或为空` | `.env` 没加载 | `source .env` 或 `direnv allow` |
+| `模型 X 必须声明 api_key_env` | yaml 写了 anthropic_compatible 但缺 `api_key_env` | 改 yaml，加 `api_key_env: MINDFORGE_LLM_API_KEY` |
+| `模型 X 要求环境变量 ... 提供 api_key，但未设置或为空` | `.env` 没加载 / 变量名拼错 | 跑 `mindforge llm ping`，看哪个 env `MISSING` |
 | `HTTP 401` / `HTTP 403` | api_key 错 / 过期 | 不要把 key 发给我；自己回 DashScope 后台核对 |
 | `响应缺少 content[].text 文本块` | 模型返回了 tool_use 但没有 text block | v0.1 不做 tool use；换模型或在 prompt 里禁掉 tool_use |
 | ruff/pytest 失败 | 环境未装好 | `pip install -e . --no-deps` 后再跑 |

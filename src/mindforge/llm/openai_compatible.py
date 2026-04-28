@@ -40,6 +40,18 @@ class OpenAICompatibleProvider(LLMProvider):
 
     @classmethod
     def from_model_config(cls, mc: Any) -> OpenAICompatibleProvider:
+        # base_url：优先 env，再回落 yaml；与 anthropic provider 对齐
+        base_url = ""
+        if getattr(mc, "base_url_env", None):
+            base_url = os.environ.get(mc.base_url_env, "") or ""
+        if not base_url:
+            base_url = mc.base_url or ""
+        if not base_url:
+            raise ProviderError(
+                f"模型 {mc.alias} 未提供 base_url：请设置环境变量 "
+                f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
+            )
+
         api_key: str | None = None
         if mc.api_key_env:
             api_key = os.environ.get(mc.api_key_env)
@@ -49,7 +61,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 )
         return cls(
             name=mc.provider,
-            base_url=mc.base_url,
+            base_url=base_url,
             api_key=api_key,
             timeout_seconds=mc.timeout_seconds,
         )

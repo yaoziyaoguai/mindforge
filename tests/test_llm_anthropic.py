@@ -26,11 +26,12 @@ class _ModelStub:
     provider: str = "dashscope_coding_plan"
     type: str = "anthropic_compatible"
     base_url: str = ""
-    base_url_env: str | None = "MINDFORGE_ANTHROPIC_BASE_URL"
-    api_key_env: str | None = "MINDFORGE_ANTHROPIC_API_KEY"
+    base_url_env: str | None = "MINDFORGE_LLM_BASE_URL"
+    api_key_env: str | None = "MINDFORGE_LLM_API_KEY"
     api_key_optional: bool = False
     extra_headers_env: dict[str, str] | None = None
     version_env: str | None = None
+    model_env: str | None = None
     model: str = "qwen3-coder-plus"
     timeout_seconds: int = 30
     max_retries: int = 0
@@ -42,8 +43,8 @@ class _ModelStub:
 
 
 def test_missing_base_url_env_raises_safe_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MINDFORGE_ANTHROPIC_BASE_URL", raising=False)
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_API_KEY", "test-key-DO-NOT-LEAK")
+    monkeypatch.delenv("MINDFORGE_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "test-key-DO-NOT-LEAK")
     mc = _ModelStub()
     with pytest.raises(ProviderError) as exc:
         AnthropicCompatibleProvider.from_model_config(mc)
@@ -54,20 +55,20 @@ def test_missing_base_url_env_raises_safe_error(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_missing_api_key_raises_safe_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_BASE_URL", "https://fake.example.com")
-    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
+    monkeypatch.delenv("MINDFORGE_LLM_API_KEY", raising=False)
     mc = _ModelStub()
     with pytest.raises(ProviderError) as exc:
         AnthropicCompatibleProvider.from_model_config(mc)
     msg = str(exc.value)
     assert "api_key" in msg
     # 不应回显环境变量值（这里 base_url 不算 secret 但也不主动 echo）
-    assert "MINDFORGE_ANTHROPIC_API_KEY" in msg  # 提示用户应设置哪个 env，可以出现 env name
+    assert "MINDFORGE_LLM_API_KEY" in msg  # 提示用户应设置哪个 env，可以出现 env name
 
 
 def test_yaml_must_not_carry_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """anthropic_compatible 强制要求 api_key_env；yaml 不允许直接配 api_key。"""
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_BASE_URL", "https://fake.example.com")
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
     mc = _ModelStub(api_key_env=None)
     with pytest.raises(ProviderError, match="api_key_env"):
         AnthropicCompatibleProvider.from_model_config(mc)
@@ -102,8 +103,8 @@ def test_extract_text_returns_none_when_no_text() -> None:
 
 def _make_provider(monkeypatch: pytest.MonkeyPatch, transport: httpx.BaseTransport):
     """构造一个 provider，并劫持 httpx.Client 让它用 mock transport。"""
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_BASE_URL", "https://fake.example.com")
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_API_KEY", "test-key-DO-NOT-LEAK")
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "test-key-DO-NOT-LEAK")
     mc = _ModelStub()
     p = AnthropicCompatibleProvider.from_model_config(mc)
 
@@ -201,8 +202,8 @@ def test_generate_missing_text_block(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_factory_builds_anthropic_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_BASE_URL", "https://fake.example.com")
-    monkeypatch.setenv("MINDFORGE_ANTHROPIC_API_KEY", "test-key-DO-NOT-LEAK")
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "test-key-DO-NOT-LEAK")
 
     @dataclass
     class _LLMCfg:

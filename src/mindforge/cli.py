@@ -1,10 +1,10 @@
 """mindforge — 命令行入口（typer）。
 
-v0.1 / M1 阶段实现的命令：
+v0.1 当前命令：
 - ``mindforge scan``    — 扫描 inbox，派发到 adapter，更新 state.json；不调 LLM。
+- ``mindforge process`` — 跑 5 stage pipeline，写入 Knowledge Card。
 - ``mindforge status``  — 打印 state.json 的状态汇总（按 status / source_type）。
-
-M2 才会加入 ``process``。
+- ``mindforge llm ping``— 只校验 active_profile 涉及的模型 env 是否齐全，不发 HTTP。
 """
 
 from __future__ import annotations
@@ -17,7 +17,8 @@ from rich.console import Console
 from rich.table import Table
 
 from .checkpoint import Checkpoint
-from .config import ConfigError, load_mindforge_config
+from .config import ConfigError, MindForgeConfig, load_mindforge_config
+from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .processors import Pipeline
@@ -37,6 +38,8 @@ app = typer.Typer(
     add_completion=False,
     help="MindForge — 多源接入的本地 AI 知识加工管线（v0.1）",
 )
+llm_app = typer.Typer(add_completion=False, help="LLM provider 工具子命令（不触发业务 pipeline）")
+app.add_typer(llm_app, name="llm")
 console = Console()
 
 
@@ -45,12 +48,32 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
-def _load_cfg(config_path: Path) -> object:
+def _load_cfg(config_path: Path) -> MindForgeConfig:
+    # 入口处加载 .env（静默，不打印 value，env > dotfile）
+    load_dotenv_silently(Path.cwd())
     try:
         return load_mindforge_config(config_path)
     except ConfigError as e:
         console.print(f"[red]配置错误：{e}[/red]")
         raise typer.Exit(code=2) from e
+
+
+def _override_active_profile(cfg: MindForgeConfig, profile: str | None) -> MindForgeConfig:
+    """如果 CLI 传了 --profile，就基于现有 cfg 派生一份临时 LLMConfig。
+
+    不修改 yaml；只影响本次进程。失败时友好报错。
+    """
+    if not profile:
+        return cfg
+    if profile not in cfg.llm.profiles:
+        console.print(
+            f"[red]--profile {profile!r} 不在 llm.profiles 中；"
+            f"已知：{sorted(cfg.llm.profiles)}[/red]"
+        )
+        raise typer.Exit(code=2)
+    from dataclasses import replace
+    new_llm = replace(cfg.llm, active_profile=profile)
+    return replace(cfg, llm=new_llm)
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +287,17 @@ def process(
         "-n",
         help="本次最多处理多少条",
     ),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="临时覆盖 llm.active_profile（仅本次进程，不改 yaml）",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="跑完整 pipeline 但不写卡片、不写 state.json；仅 runs/*.jsonl 留痕",
+    ),
     prompts_dir: Path = typer.Option(
         Path("prompts"),
         "--prompts-dir",
@@ -286,33 +320,37 @@ def process(
     必须人工修改 frontmatter 才晋升 ``human_approved``。
     """
     cfg = _load_cfg(config)
-    scanner = Scanner(cfg)  # type: ignore[arg-type]
-    cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)  # type: ignore[attr-defined]
+    cfg = _override_active_profile(cfg, profile)
+    if dry_run:
+        console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
+    console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
 
-    providers = build_providers(cfg.llm)  # type: ignore[attr-defined]
-    client = LLMClient(llm_config=cfg.llm, providers=providers)  # type: ignore[attr-defined]
+    scanner = Scanner(cfg)
+    cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)
 
-    # 模板路径
+    providers = build_providers(cfg.llm)
+    client = LLMClient(llm_config=cfg.llm, providers=providers)
+
     template_path = template
     writer = CardWriter(
-        vault_root=cfg.vault.root,  # type: ignore[attr-defined]
-        cards_dir=cfg.vault.cards_dir,  # type: ignore[attr-defined]
+        vault_root=cfg.vault.root,
+        cards_dir=cfg.vault.cards_dir,
         template_path=template_path,
     )
 
     tracks_text = tracks.read_text("utf-8") if tracks.exists() else ""
     pipeline = Pipeline(
         client=client,
-        logger=None,  # type: ignore[arg-type]  # 暂占；下面 with 块内重设
+        logger=None,  # type: ignore[arg-type]
         prompts_dir=prompts_dir,
-        prompt_versions=cfg.prompts,  # type: ignore[attr-defined]
-        triage_threshold=cfg.triage.value_score_threshold,  # type: ignore[attr-defined]
+        prompt_versions=cfg.prompts,
+        triage_threshold=cfg.triage.value_score_threshold,
         learning_tracks_text=tracks_text,
     )
 
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
 
-    with RunLogger(cfg.state.runs_path, command="process") as logger:  # type: ignore[attr-defined]
+    with RunLogger(cfg.state.runs_path, command="process") as logger:
         pipeline.logger = logger
         for result in scanner.iter_results():
             if file is not None and Path(result.path).resolve() != file.resolve():
@@ -422,46 +460,156 @@ def process(
                     },
                     "run_id": logger.run_id,
                 }
-                wr = writer.write(card_payload=outcome.card_payload or {}, source=source_dict, run=run_dict)
-                item.card_path = str(wr.path.relative_to(cfg.vault.root))  # type: ignore[attr-defined]
-                logger.emit(
-                    "card_written",
-                    output_file=str(wr.path),
-                    source_id=doc.source_id,
-                    source_type=doc.source_type,
-                    track=item.track or "",
-                    value_score=item.value_score or 0,
-                    card_conflict="true" if wr.conflict else "false",
-                )
-                logger.emit(
-                    "source_processed",
-                    source_id=doc.source_id,
-                    source_type=doc.source_type,
-                    adapter_name=result.adapter_name,
-                    source_path=doc.source_path,
-                    content_hash=doc.content_hash,
-                    status="processed",
-                    track=item.track or "",
-                    value_score=item.value_score or 0,
-                    output_file=str(wr.path),
-                )
-                tag = "[yellow]conflict[/yellow]" if wr.conflict else "[green]processed[/green]"
-                console.print(f"{tag} {doc.source_path} → {wr.path}")
+                if dry_run:
+                    console.print(
+                        f"[cyan]dry-run[/cyan] would-write {doc.source_path}"
+                        f" → {cfg.vault.cards_path / (item.track or 'unrouted')}"
+                    )
+                    logger.emit(
+                        "source_processed",
+                        source_id=doc.source_id,
+                        source_type=doc.source_type,
+                        adapter_name=result.adapter_name,
+                        source_path=doc.source_path,
+                        content_hash=doc.content_hash,
+                        status="processed",
+                        track=item.track or "",
+                        value_score=item.value_score or 0,
+                    )
+                else:
+                    wr = writer.write(card_payload=outcome.card_payload or {}, source=source_dict, run=run_dict)
+                    item.card_path = str(wr.path.relative_to(cfg.vault.root))
+                    logger.emit(
+                        "card_written",
+                        output_file=str(wr.path),
+                        source_id=doc.source_id,
+                        source_type=doc.source_type,
+                        track=item.track or "",
+                        value_score=item.value_score or 0,
+                        card_conflict="true" if wr.conflict else "false",
+                    )
+                    logger.emit(
+                        "source_processed",
+                        source_id=doc.source_id,
+                        source_type=doc.source_type,
+                        adapter_name=result.adapter_name,
+                        source_path=doc.source_path,
+                        content_hash=doc.content_hash,
+                        status="processed",
+                        track=item.track or "",
+                        value_score=item.value_score or 0,
+                        output_file=str(wr.path),
+                    )
+                    tag = "[yellow]conflict[/yellow]" if wr.conflict else "[green]processed[/green]"
+                    console.print(f"{tag} {doc.source_path} → {wr.path}")
 
             if limit is not None and counts["seen"] >= limit:
                 break
 
-        cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
-        logger.emit(
-            EVENT_STATE_WRITTEN,
-            path=str(cfg.state.state_path),  # type: ignore[attr-defined]
-            items_count=len(list(cp.all_items())),
-        )
+        if not dry_run:
+            cp.save(active_profile=cfg.llm.active_profile)
+            logger.emit(
+                EVENT_STATE_WRITTEN,
+                path=str(cfg.state.state_path),
+                items_count=len(list(cp.all_items())),
+            )
 
     console.print(
         f"\n[bold]process 完成[/bold]：seen={counts['seen']} "
         f"processed={counts['processed']} skipped={counts['skipped']} failed={counts['failed']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# llm ping — 只校验 active_profile 涉及的 env，不发 HTTP
+# ---------------------------------------------------------------------------
+
+
+@llm_app.command("ping")
+def llm_ping(
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="临时覆盖 active_profile",
+    ),
+) -> None:
+    """校验当前 active_profile 涉及的所有模型 env 是否齐全。
+
+    本命令**不发任何 HTTP 请求**，不消耗配额。它只回答：
+    - active_profile 涉及哪些 alias / provider / type / 真实 model 名
+    - 每个模型需要哪些 env，是否已 set（不打印 value！只报告 set / unset）
+    """
+    import os
+    cfg = _load_cfg(config)
+    cfg = _override_active_profile(cfg, profile)
+
+    profile_map = cfg.llm.profiles[cfg.llm.active_profile]
+    aliases_used = sorted(set(profile_map.values()))
+
+    console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
+    table = Table(title="LLM Provider 校验（不发 HTTP）", show_lines=True)
+    table.add_column("alias")
+    table.add_column("provider")
+    table.add_column("type")
+    table.add_column("model (resolved)")
+    table.add_column("env required")
+    table.add_column("env status")
+
+    all_ok = True
+    for alias in aliases_used:
+        mc = cfg.llm.models[alias]
+        actual_model = mc.model
+        if mc.model_env and os.environ.get(mc.model_env):
+            actual_model = os.environ[mc.model_env]
+
+        env_reqs: list[tuple[str, str, bool]] = []
+        if mc.base_url_env:
+            env_reqs.append(("base_url", mc.base_url_env, not bool(mc.base_url)))
+        if mc.api_key_env:
+            env_reqs.append(("api_key", mc.api_key_env, not mc.api_key_optional))
+        if mc.version_env:
+            env_reqs.append(("version", mc.version_env, False))
+        if mc.model_env:
+            env_reqs.append(("model", mc.model_env, False))
+
+        status_lines: list[str] = []
+        for label, var, required in env_reqs:
+            present = bool(os.environ.get(var))
+            mark = "[green]set[/green]" if present else (
+                "[red]MISSING[/red]" if required else "[yellow]unset (optional)[/yellow]"
+            )
+            status_lines.append(f"{label}={var} {mark}")
+            if required and not present:
+                all_ok = False
+
+        env_required_summary = "\n".join(
+            f"{lbl} ← {var}{' (required)' if req else ' (optional)'}"
+            for lbl, var, req in env_reqs
+        ) or "(none)"
+        env_status_summary = "\n".join(status_lines) or "(none)"
+
+        table.add_row(
+            alias,
+            mc.provider,
+            mc.type,
+            actual_model or "(empty)",
+            env_required_summary,
+            env_status_summary,
+        )
+
+    console.print(table)
+    if all_ok:
+        console.print("[green]✓ 所需 env 全部齐备；可以进行 smoke test。[/green]")
+    else:
+        console.print("[red]✗ 有必填 env 未设置。请在 .env 或 shell export 后重试。[/red]")
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
