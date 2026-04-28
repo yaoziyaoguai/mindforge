@@ -263,6 +263,80 @@ def status(
 
 
 # ---------------------------------------------------------------------------
+# approve — M3 反 AI 污染闸门：显式人工把 ai_draft 卡片晋升为 human_approved
+# 详见 docs/M3_HUMAN_APPROVAL_PROTOCOL.md
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def approve(
+    card: Path = typer.Option(
+        ...,
+        "--card",
+        help="要晋升的 Knowledge Card 文件路径（必须是 ai_draft 状态）",
+    ),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+) -> None:
+    """显式人工把一张 Knowledge Card 从 ai_draft 晋升为 human_approved。
+
+    硬约束：
+    - 不调用 LLM、不需要 .env、不读 active_profile；
+    - 不修改卡片正文，不改写源文件；
+    - 仅 ai_draft 可晋升；human_approved 幂等；其他状态拒绝。
+    """
+    from .approver import (  # 局部导入：approver 不应被 process 路径间接 import
+        ApprovalError,
+        approve_card,
+    )
+
+    cfg = _load_cfg(config)
+    with RunLogger(cfg.state.runs_path, command="approve") as logger:  # type: ignore[attr-defined]
+        logger.emit("approval_started", card_path=str(card))
+        try:
+            outcome = approve_card(card, cfg=cfg)
+        except ApprovalError as e:
+            logger.emit(
+                "approval_failed",
+                card_path=str(card),
+                error_message=str(e),
+                prev_status=e.prev_status or "",
+            )
+            console.print(f"[red]approve 失败：{e}[/red]")
+            raise typer.Exit(code=e.exit_code) from e
+
+        completed_fields: dict[str, object] = {
+            "card_path": str(outcome.card_path),
+            "status": outcome.new_status,
+            "prev_status": outcome.prev_status,
+            "approval_method": outcome.approval_method,
+            "idempotent": outcome.kind == "already_approved",
+        }
+        if outcome.approved_at is not None:
+            completed_fields["approved_at"] = outcome.approved_at.isoformat()
+        if outcome.state_missing:
+            completed_fields["state_missing"] = True
+        logger.emit("approval_completed", **completed_fields)
+
+    if outcome.kind == "already_approved":
+        console.print(f"[yellow]已是 human_approved（幂等）：{outcome.card_path}[/yellow]")
+    else:
+        console.print(
+            f"[green]✔ approved[/green] {outcome.card_path}  "
+            f"(prev={outcome.prev_status} → {outcome.new_status}, "
+            f"method={outcome.approval_method})"
+        )
+        if outcome.state_missing:
+            console.print(
+                "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
+            )
+
+
+# ---------------------------------------------------------------------------
 # process — M2 主入口：跑五 stage + 写 Card
 # ---------------------------------------------------------------------------
 

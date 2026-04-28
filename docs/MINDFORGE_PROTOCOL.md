@@ -240,6 +240,8 @@ Card body 必须按以下顺序排列，分层不可合并：
 
 强制 `ai_draft → human_approved` 的人工晋升关，是 MindForge 的**反 AI 污染机制**。它要求你在确认前至少看一眼，并在 `Human Note` 里写一两句自己的理解。这个动作很轻，但效果是巨大的——它把 AI 重新变回"草稿手"，把你重新变回"主人"。
 
+> 该闸门的命令契约、状态转移、审计字段、反向断言由 [`docs/M3_HUMAN_APPROVAL_PROTOCOL.md`](./M3_HUMAN_APPROVAL_PROTOCOL.md) 统一约束。`mindforge approve` 是 v0.1 阶段**唯一**允许触发该转移的入口。
+
 ---
 
 ## 6. 处理状态机

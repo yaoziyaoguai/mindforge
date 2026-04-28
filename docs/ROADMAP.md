@@ -29,7 +29,7 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M2.7** | `.env` 自动加载 + `--profile` / `--dry-run` / `llm ping` | ❌（仅校验） | ✅ | ✅ |
 | **M2.8** | 真实 provider smoke 收口（lazy provider build） | ✅（一次性 smoke） | ✅ | ✅ |
 | **M2.9** | 卡片模板清理 + v0.1 收口测试 + rc1 tag | ❌ | ✅ | ✅ |
-| **M3** | Vault 输出与人工确认机制（human_approved 反向同步） | ✅ | ✅ | ✅ |
+| **M3** | 显式 `mindforge approve` 反 AI 污染闸门（[协议](./M3_HUMAN_APPROVAL_PROTOCOL.md)） | ✅ | ✅ | ✅ |
 | **M4** | 回顾、召回与项目记忆 | ✅ | ✅ | ❌（v0.2/v0.3 候选） |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度） | ✅ | ✅ | ❌（明确推迟） |
 

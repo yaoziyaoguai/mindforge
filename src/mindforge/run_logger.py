@@ -45,6 +45,10 @@ EVENT_SOURCE_SKIPPED_OR_UNCHANGED = "source_skipped_or_unchanged"
 EVENT_SOURCE_ERROR = "source_error"
 EVENT_STATE_WRITTEN = "state_written"
 EVENT_STATUS_REPORTED = "status_reported"
+# M3 human approval 事件（mindforge approve）
+EVENT_APPROVAL_STARTED = "approval_started"
+EVENT_APPROVAL_COMPLETED = "approval_completed"
+EVENT_APPROVAL_FAILED = "approval_failed"
 
 # 字段白名单 — 任何 emit 调用传入的字段都必须在此（除 event/ts/run_id 内置外）。
 # 用白名单显式抵御"顺手把 raw_text 塞进日志"的反模式。
@@ -81,6 +85,13 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "card_conflict",
         "skip_reason",
         "stage_failed",
+        # M3 approve 命令新增字段（仅审计元数据，不含任何卡片正文）
+        "card_path",
+        "approval_method",
+        "approved_at",
+        "prev_status",
+        "state_missing",
+        "idempotent",
     }
 )
 

@@ -89,20 +89,22 @@
 
 ## 4. 进入 M3 的条件（**必须**显式确认）
 
-M3 的核心是 **`human_approved` 反向同步**：人工把 Card frontmatter 的
-`status` 改成 `human_approved`，下一次 `mindforge scan` / `status` 应能
-识别并把该状态回写到 `state.json`。
+> **状态：M3 已完成（2026-04-29 本地）。** 见
+> [`docs/M3_HUMAN_APPROVAL_PROTOCOL.md`](./M3_HUMAN_APPROVAL_PROTOCOL.md)。
+> 实际方案与原计划"反向同步"略有不同：v0.1 不再依赖人工编辑 frontmatter
+> + 下一次 `scan` 自动识别这种**隐式**路径，而是用**显式** `mindforge
+> approve --card <path>` 命令唯一触发 `ai_draft → human_approved`，理由
+> 是反 AI 污染闸门必须有清晰的 CLI 审计入口（jsonl 留痕 + state.json
+> 同步），而不是依赖文件系统监听。隐式反向同步留待 v0.2 再评估。
 
-进入 M3 之前必须满足：
+M3 实际验收清单：
 
 1. ✅ v0.1.0-rc1 tag 已打、本文档已存在；
-2. ⏳ **用户显式确认**进入 M3（"approve M2.9 → M3"）；
-3. ⏳ **先设计 approve 协议，再实现**——先在 `docs/MINDFORGE_PROTOCOL.md` 写
-   `human_approved` 的状态转移、字段约束、冲突处理（卡片被改名 / 被删除 /
-   `status` 写错），再开 src 改动；
-4. ⏳ **`human_approved` 必须是显式人工动作**——绝不允许 AI 自动批准、
-   绝不允许 prompt 注入"建议晋升"导致默认晋升、绝不允许阈值自动晋升；
-5. ⏳ M3 单测必须包含"AI 不可自动晋升"的反向断言。
+2. ✅ 用户显式确认进入 M3；
+3. ✅ 先设计协议（`docs/M3_HUMAN_APPROVAL_PROTOCOL.md`）再实现；
+4. ✅ `human_approved` 仅由 `mindforge approve` 触发，approval_method 字段在
+   v0.1 硬编码为 `"explicit_cli"`，无 AI 路径可写；
+5. ✅ 反向断言测试 `test_process_pipeline_never_writes_human_approved` 已通过。
 
 ---
 

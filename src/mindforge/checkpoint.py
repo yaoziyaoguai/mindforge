@@ -241,6 +241,8 @@ def _item_from_dict(data: dict[str, Any]) -> ItemState:
         processed_at=_parse_iso(data.get("processed_at")),
         error_message=data.get("error_message"),
         stages=stages,
+        approved_at=_parse_iso(data.get("approved_at")),
+        approval_method=data.get("approval_method"),
     )
 
 

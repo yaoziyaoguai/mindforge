@@ -86,6 +86,10 @@ class ItemState:
     processed_at: datetime | None = None
     error_message: str | None = None
     stages: dict[str, StageRecord] = field(default_factory=dict)
+    # M3 反 AI 污染闸门：仅 `mindforge approve` CLI 写入，pipeline 永远不写。
+    # 详见 docs/M3_HUMAN_APPROVAL_PROTOCOL.md。
+    approved_at: datetime | None = None
+    approval_method: str | None = None  # v0.1 仅 "explicit_cli"
 
     @property
     def state_key(self) -> str:
