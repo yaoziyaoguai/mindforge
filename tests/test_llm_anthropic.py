@@ -208,10 +208,66 @@ def test_factory_builds_anthropic_provider(monkeypatch: pytest.MonkeyPatch) -> N
     @dataclass
     class _LLMCfg:
         models: dict
+        active_profile: str = "p"
+        profiles: dict = None  # type: ignore[assignment]
 
     mc = _ModelStub()
-    cfg = _LLMCfg(models={"qwen_coder_strong": mc})
+    cfg = _LLMCfg(
+        models={"qwen_coder_strong": mc},
+        profiles={"p": {"distill": "qwen_coder_strong"}},
+    )
     from mindforge.llm.factory import build_providers
 
     providers = build_providers(cfg)
     assert isinstance(providers["qwen_coder_strong"], AnthropicCompatibleProvider)
+
+
+def test_factory_skips_models_unused_by_active_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """声明在 ``llm.models`` 但当前 profile 不引用的 alias 不应被实例化。
+
+    动机：M2.8 真实 smoke 暴露的问题——eager 构建会强迫用户为备选 provider
+    （如 OpenAI 路径）也准备 env / api_key，否则启动失败。
+    """
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "test-key-DO-NOT-LEAK")
+    monkeypatch.delenv("MINDFORGE_OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("MINDFORGE_OPENAI_API_KEY", raising=False)
+
+    @dataclass
+    class _UnusedModel:
+        alias: str = "openai_alt"
+        type: str = "openai_compatible"
+        provider: str = "openai_alt"
+        base_url_env: str = "MINDFORGE_OPENAI_BASE_URL"
+        api_key_env: str = "MINDFORGE_OPENAI_API_KEY"
+        base_url: str | None = None
+        api_key_optional: bool = False
+        version_env: str | None = None
+        model: str = "alt-model"
+        model_env: str | None = None
+        timeout_seconds: int = 60
+        max_retries: int = 0
+        supports_json_mode: bool = False
+
+    @dataclass
+    class _LLMCfg:
+        models: dict
+        active_profile: str = "p"
+        profiles: dict = None  # type: ignore[assignment]
+
+    cfg = _LLMCfg(
+        models={
+            "qwen_coder_strong": _ModelStub(),
+            "openai_alt": _UnusedModel(),  # ← 故意没有 env，用上必崩
+        },
+        profiles={"p": {"distill": "qwen_coder_strong"}},
+    )
+    from mindforge.llm.factory import build_providers
+
+    providers = build_providers(cfg)
+    assert "qwen_coder_strong" in providers
+    assert "openai_alt" not in providers, (
+        "未被 active_profile 引用的 alias 不应被实例化"
+    )

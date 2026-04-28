@@ -17,8 +17,24 @@ _BUILDERS = {
 
 
 def build_providers(llm_config: Any) -> dict[str, LLMProvider]:
+    """构建当前 ``active_profile`` 实际会用到的 alias 对应的 Provider。
+
+    设计要点：**lazy by profile**。声明在 ``llm.models`` 但当前 profile 不引用的
+    alias 不会被实例化，避免逼迫用户为未使用的备选 provider 准备 env / api_key。
+    profile 切换后下一次构建会自然包含新 alias。
+    """
+    active = llm_config.active_profile
+    profile = llm_config.profiles.get(active, {})
+    needed_aliases = set(profile.values())
+
     providers: dict[str, LLMProvider] = {}
-    for alias, mc in llm_config.models.items():
+    for alias in needed_aliases:
+        mc = llm_config.models.get(alias)
+        if mc is None:
+            raise ProviderError(
+                f"profile {active!r} 引用了未声明的 model alias={alias!r}；"
+                f"请在 llm.models 下补充该 alias"
+            )
         builder = _BUILDERS.get(mc.type)
         if builder is None:
             raise ProviderError(
