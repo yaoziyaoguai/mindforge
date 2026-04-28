@@ -30,6 +30,7 @@ class _ModelStub:
     api_key_env: str | None = "MINDFORGE_ANTHROPIC_API_KEY"
     api_key_optional: bool = False
     extra_headers_env: dict[str, str] | None = None
+    version_env: str | None = None
     model: str = "qwen3-coder-plus"
     timeout_seconds: int = 30
     max_retries: int = 0

@@ -40,16 +40,21 @@ def test_real_mindforge_yaml_loads() -> None:
     active = {e.source_type for e in cfg.sources.active_entries()}
     assert active == {"cubox_markdown", "plain_markdown"}
     # llm
-    assert cfg.llm.active_profile == "anthropic_coding_plan"
-    assert "default" in cfg.llm.profiles  # 备选保留
+    # 真实 mindforge.yaml 默认走 fake，避免误调用真实模型；切换到 anthropic_coding_plan / openai_compatible 需用户显式改。
+    assert cfg.llm.active_profile == "fake"
+    assert "anthropic_coding_plan" in cfg.llm.profiles
+    assert "openai_compatible" in cfg.llm.profiles
     for stage in REQUIRED_STAGES:
         m = cfg.llm.resolve_stage(stage)
         assert m.alias in cfg.llm.models
-        # 主路径模型必须是 anthropic_compatible
-        assert m.type == "anthropic_compatible"
-        # secret 不写在 yaml：base_url 与 api_key 都来自 env
-        assert m.base_url_env == "MINDFORGE_ANTHROPIC_BASE_URL"
-        assert m.api_key_env == "MINDFORGE_ANTHROPIC_API_KEY"
+        assert m.type == "fake"
+    # 真实路径模型一律不允许把 secret 写进 yaml
+    qcs = cfg.llm.models["qwen_coder_strong"]
+    assert qcs.type == "anthropic_compatible"
+    assert qcs.base_url_env == "MINDFORGE_ANTHROPIC_BASE_URL"
+    assert qcs.api_key_env == "MINDFORGE_ANTHROPIC_API_KEY"
+    assert qcs.version_env == "MINDFORGE_ANTHROPIC_VERSION"
+    assert qcs.base_url == ""  # yaml 里不能写真实 base_url
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"

@@ -111,12 +111,21 @@ triage:
 # 同一 provider 下允许多个 model（如 cheap_cloud / strong_cloud）。
 # -----------------------------------------------------------------------------
 llm:
-  # 当前真实主路径：阿里云 DashScope Coding Plan（Anthropic-compatible 协议）。
-  # base_url 与 api_key 一律从 .env 读取，**不要**写进本 yaml。
-  active_profile: anthropic_coding_plan
+  # 默认走 fake，**不会**调用真实模型；切换到真实路径必须显式改 active_profile。
+  # 这样保护：clone 仓库后误执行 `mindforge process` 不会消耗真实配额、不会泄漏 prompt。
+  active_profile: fake
 
   profiles:
-    # —— 主路径：Anthropic-compatible Coding Plan（v0.1 默认）——
+    # —— 安全默认：fake provider，离线、确定性 schema 输出 ——
+    fake:
+      triage: fake_fast
+      distill: fake_strong
+      link_suggestion: fake_fast
+      review_questions: fake_strong
+      action_extraction: fake_strong
+
+    # —— 真实主路径：阿里云 DashScope Coding Plan（Anthropic-compatible 协议）——
+    # 显式切换后才会生效；base_url / api_key 一律从 .env 读取。
     anthropic_coding_plan:
       triage: qwen_coder_fast
       distill: qwen_coder_strong
@@ -124,21 +133,15 @@ llm:
       review_questions: qwen_coder_strong
       action_extraction: qwen_coder_strong
 
-    # —— 备选：OpenAI-compatible 云端（保留兼容）——
-    default:
-      triage: cheap_cloud
-      distill: strong_cloud
-      link_suggestion: cheap_cloud
-      review_questions: strong_cloud
-      action_extraction: strong_cloud
+    # —— 备选：OpenAI-compatible 云端 ——
+    openai_compatible:
+      triage: openai_fast
+      distill: openai_strong
+      link_suggestion: openai_fast
+      review_questions: openai_strong
+      action_extraction: openai_strong
 
-    local_first:
-      triage: local_fast
-      distill: strong_cloud
-      link_suggestion: local_fast
-      review_questions: strong_cloud
-      action_extraction: strong_cloud
-
+    # —— 备选：本地 Ollama / LM Studio 完全离线（仍走 OpenAI-compatible 协议）——
     all_local:
       triage: local_fast
       distill: local_strong
@@ -147,14 +150,24 @@ llm:
       action_extraction: local_strong
 
   models:
+    # —— fake：离线测试 ——
+    fake_fast:
+      provider: fake
+      type: fake
+      model: fake-fast
+
+    fake_strong:
+      provider: fake
+      type: fake
+      model: fake-strong
+
     # —— Anthropic-compatible：模型名仅作示例，可按平台支持改 ——
     qwen_coder_fast:
       provider: dashscope_coding_plan
       type: anthropic_compatible
       base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
       api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-      extra_headers_env:
-        anthropic-version: MINDFORGE_ANTHROPIC_VERSION
+      version_env: MINDFORGE_ANTHROPIC_VERSION
       model: "qwen3-coder-next"
       timeout_seconds: 180
       max_retries: 2
@@ -164,31 +177,31 @@ llm:
       type: anthropic_compatible
       base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
       api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-      extra_headers_env:
-        anthropic-version: MINDFORGE_ANTHROPIC_VERSION
+      version_env: MINDFORGE_ANTHROPIC_VERSION
       model: "qwen3-coder-plus"
       timeout_seconds: 240
       max_retries: 2
 
-    # —— OpenAI-compatible：备选示例 ——
-    cheap_cloud:
-      provider: cloud_openai_compatible
+    # —— OpenAI-compatible 云端 ——
+    openai_fast:
+      provider: openai_compatible
       type: openai_compatible
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       api_key_env: MINDFORGE_OPENAI_API_KEY
       model: "cheap-model"
-      timeout_seconds: 90
+      timeout_seconds: 120
       max_retries: 2
 
-    strong_cloud:
-      provider: cloud_openai_compatible
+    openai_strong:
+      provider: openai_compatible
       type: openai_compatible
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       api_key_env: MINDFORGE_OPENAI_API_KEY
       model: "strong-model"
-      timeout_seconds: 180
+      timeout_seconds: 240
       max_retries: 2
 
+    # —— 本地 Ollama（不需要 api_key）——
     local_fast:
       provider: local_ollama
       type: openai_compatible

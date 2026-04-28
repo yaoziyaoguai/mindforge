@@ -112,10 +112,10 @@ class AnthropicCompatibleProvider(LLMProvider):
                 f"模型 {mc.alias} 要求环境变量 {mc.api_key_env} 提供 api_key，但未设置或为空。"
             )
 
-        # anthropic-version：可选，默认 2023-06-01；可由 extra_headers_env["anthropic-version"] 覆盖
+        # anthropic-version：可选，默认 2023-06-01
         version = _DEFAULT_VERSION
-        if mc.extra_headers_env and "anthropic-version" in mc.extra_headers_env:
-            version = os.environ.get(mc.extra_headers_env["anthropic-version"], "") or _DEFAULT_VERSION
+        if mc.version_env:
+            version = os.environ.get(mc.version_env, "") or _DEFAULT_VERSION
 
         return cls(
             name=mc.provider,

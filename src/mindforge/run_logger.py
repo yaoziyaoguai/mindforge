@@ -67,6 +67,7 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "stage",
         "model_alias",
         "provider",
+        "provider_type",
         "actual_model",
         "prompt_version",
         "input_file_hash",
