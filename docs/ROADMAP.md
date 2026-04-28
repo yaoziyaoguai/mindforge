@@ -43,6 +43,8 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **v0.2.6 日用化** | `mindforge init` / approve workflow polish (`approve list` / `--source-id` / `--all`) / doctor action items / onboarding smoke（[复盘](./V0_2_6_REVIEW.md) · [smoke](./ONBOARDING_SMOKE.md)） | ✅ | ✅ | ✅ v0.2.6 |
 | **M5.4 Lexical Recall (BM25)** | `mindforge recall --query [--explain]` / `mindforge index rebuild|status` / 仅索引安全字段 / 不引入 RAG / embedding（[协议](./M5_4_LEXICAL_RECALL_PROTOCOL.md) · [复盘](./V0_3_0_REVIEW.md)） | ✅ | ✅ | ✅ v0.3.0 |
 | **M5.4.1 BM25 配置化 + Hybrid 排序** | `search:` 块（字段权重 / k1 / b / hybrid 权重） · `recall --ranking hybrid` · `config_hash` + `index status` 漂移检测 · `doctor` 索引 hint（[复盘](./V0_3_1_REVIEW.md)） | ✅ | ✅ | ✅ v0.3.1 |
+| **M5.4.2 Recall/Search UX polish** | `recall --weight-bm25/--weight-value-score/--weight-review-due` 临时覆盖 · `recall --explain` 增强（why_this_matched / weight_source）· `index info [--json]` / `index status --json` · doctor 搜索 hint 增强（[复盘](./V0_3_2_REVIEW.md)） | ✅ | ✅ | ✅ v0.3.2 |
+| **M5.8 Review Scheduling MVP** | `review schedule [--days N]` 按日分组 · `review backlog`（overdue/today/upcoming/missing）· `review stats [--json]` · `review mark --dry-run/--note` · 仍为本地计划，**不**做后台调度 / 系统提醒（[协议](./V0_4_REVIEW_SCHEDULING_PROTOCOL.md) · [复盘](./V0_4_0_REVIEW.md)） | ✅ | ✅ | ✅ v0.4.0 |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---

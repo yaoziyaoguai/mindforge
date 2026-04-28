@@ -50,8 +50,15 @@ def mark_card_review(
     result: str,
     *,
     cfg: MindForgeConfig,
+    dry_run: bool = False,
+    note: str | None = None,
 ) -> ReviewOutcome:
     """把一次 review 结果写入卡片 frontmatter，返回 ReviewOutcome。
+
+    v0.4 增量：
+    - ``dry_run=True``：仅计算 outcome，不写文件；
+    - ``note``：可选简短 note；写入 frontmatter ``last_review_note`` 字段。
+      为防止污染，note 必须**单行 ≤ 200 字符**，否则抛 ReviewError。
 
     失败抛 ReviewError（含 exit_code）。
     """
@@ -60,6 +67,11 @@ def mark_card_review(
             f"--result 必须是 {_VALID_RESULTS} 之一，得到 {result!r}",
             exit_code=3,
         )
+    if note is not None:
+        if "\n" in note or "\r" in note:
+            raise ReviewError("--note 必须是单行（不含换行）", exit_code=3)
+        if len(note) > 200:
+            raise ReviewError("--note 长度必须 ≤ 200 字符", exit_code=3)
     if not card_path.exists() or not card_path.is_file():
         raise ReviewError(f"卡片文件不存在：{card_path}", exit_code=2)
 
@@ -72,28 +84,29 @@ def mark_card_review(
         raise ReviewError(f"frontmatter YAML 解析失败：{e}", exit_code=3) from e
     if not isinstance(data, dict):
         raise ReviewError("frontmatter 顶层必须是 mapping", exit_code=3)
-    # 即便不严格要求 status，但若字段非法（不是字符串）也归类为损坏
     if "status" in data and not isinstance(data["status"], str):
         raise ReviewError(
             f"status 字段类型异常：{type(data['status']).__name__}", exit_code=3
         )
 
-    # 计算新值
     interval_days = _interval_for(cfg, result)
     now = datetime.now(timezone.utc).astimezone()
     review_after = now + timedelta(days=interval_days)
     prev_count = _safe_int(data.get("review_count")) or 0
     new_count = prev_count + 1
 
-    data["reviewed_at"] = now.isoformat(timespec="seconds")
-    data["review_count"] = new_count
-    data["last_review_result"] = result
-    data["review_after"] = review_after.isoformat(timespec="seconds")
+    if not dry_run:
+        data["reviewed_at"] = now.isoformat(timespec="seconds")
+        data["review_count"] = new_count
+        data["last_review_result"] = result
+        data["review_after"] = review_after.isoformat(timespec="seconds")
+        if note is not None:
+            data["last_review_note"] = note
 
-    new_fm_text = yaml.safe_dump(
-        data, allow_unicode=True, sort_keys=False, default_flow_style=False
-    )
-    _atomic_write(card_path, _join_frontmatter(new_fm_text, body))
+        new_fm_text = yaml.safe_dump(
+            data, allow_unicode=True, sort_keys=False, default_flow_style=False
+        )
+        _atomic_write(card_path, _join_frontmatter(new_fm_text, body))
 
     return ReviewOutcome(
         card_path=card_path,

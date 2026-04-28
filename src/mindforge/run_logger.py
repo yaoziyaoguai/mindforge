@@ -115,6 +115,10 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         # M5.3 字段（project context target + profile 来源）
         "target",
         "project_profile_found",
+        # v0.4 review scheduling MVP
+        "schedule_days",
+        "include_missing_review_after",
+        "dry_run",
     }
 )
 

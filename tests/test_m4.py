@@ -178,6 +178,8 @@ def test_recall_json_schema_contains_only_safe_fields(
         "id", "title", "path", "status", "track", "projects", "tags",
         "source_type", "source_url", "created_at", "reviewed_at",
         "review_after", "value_score",
+        # v0.4 — review 元数据是安全字段（来自 frontmatter，非 body）
+        "review_count", "last_review_result",
     }
     item_keys = set(data["items"][0].keys())
     assert item_keys <= safe, f"出现非白名单字段: {item_keys - safe}"

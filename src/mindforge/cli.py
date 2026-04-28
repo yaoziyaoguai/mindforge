@@ -9,7 +9,7 @@ v0.1 当前命令：
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
@@ -1079,7 +1079,7 @@ def review_due(
     if output_format == "json":
         import json as _json
 
-        console.print(_json.dumps(
+        print(_json.dumps(
             {
                 "version": 1,
                 "count": len(due),
@@ -1112,15 +1112,26 @@ def review_mark(
     card: Path = typer.Option(..., "--card"),
     result: str = typer.Option(..., "--result", help="remembered | partial | forgotten"),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只打印将写入的字段，不修改卡片"),
+    note: str | None = typer.Option(None, "--note", help="可选 review note；仅写入 frontmatter 的 last_review_note 字段，绝不写入 body"),
 ) -> None:
-    """记录一次 review 结果到卡片 frontmatter（4 字段写入）。"""
+    """记录一次 review 结果到卡片 frontmatter（4-5 字段写入）。
+
+    v0.4 增量：
+    - ``--dry-run``：只打印将写入字段，**不**修改文件；
+    - ``--note``：可选简短 note，写入 frontmatter ``last_review_note``，
+      **绝不**插入卡片 body（避免污染 AI/Human 写作区）。
+    """
     from .reviewer import ReviewError, mark_card_review
 
     cfg = _load_cfg(config)
     with RunLogger(cfg.state.runs_path, command="review-mark") as logger:  # type: ignore[attr-defined]
-        logger.emit("review_mark_started", card_path=str(card), result=result)
+        logger.emit(
+            "review_mark_started", card_path=str(card), result=result,
+            filters=_filters_dict(dry_run=dry_run, note_provided=note is not None),
+        )
         try:
-            outcome = mark_card_review(card, result, cfg=cfg)
+            outcome = mark_card_review(card, result, cfg=cfg, dry_run=dry_run, note=note)
         except ReviewError as e:
             logger.emit(
                 "review_mark_failed",
@@ -1137,11 +1148,287 @@ def review_mark(
             prev_review_count=outcome.prev_review_count,
             new_review_count=outcome.new_review_count,
             review_after=outcome.review_after.isoformat(),
+            filters=_filters_dict(dry_run=dry_run, note_provided=note is not None),
         )
+    prefix = "[yellow]DRY-RUN[/yellow] would mark" if dry_run else "[green]✔ reviewed[/green]"
     console.print(
-        f"[green]✔ reviewed[/green] {outcome.card_path}  "
+        f"{prefix} {outcome.card_path}  "
         f"(result={outcome.result}, count: {outcome.prev_review_count} → "
         f"{outcome.new_review_count}, next_review_after={_safe_date(outcome.review_after)})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# v0.4 review scheduling MVP — 本地复习计划，不是后台调度
+# ---------------------------------------------------------------------------
+
+
+def _bucket_review(c, *, now: datetime) -> str:
+    """v0.4：把卡片按 review_after 分到 overdue / today / upcoming / missing。
+
+    - 没有 review_after → ``missing``
+    - review_after <= now            → ``overdue``
+    - review_after 在今天（同一日历日）→ ``today``
+    - 否则 → ``upcoming``
+
+    时区处理：CardSummary.review_after 可能 naive；统一对齐到 ``now`` 的 tzinfo。
+    """
+    if c.review_after is None:
+        return "missing"
+    ra = c.review_after
+    if ra.tzinfo is None:
+        ra = ra.replace(tzinfo=now.tzinfo)
+    if ra <= now:
+        return "overdue"
+    if ra.date() == now.date():
+        return "today"
+    return "upcoming"
+
+
+@review_app.command("schedule")
+def review_schedule(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    days: int = typer.Option(7, "--days", min=1, max=365, help="未来 N 天计划（默认 7）"),
+    track: str | None = typer.Option(None, "--track"),
+    project: str | None = typer.Option(None, "--project"),
+    include_missing_review_after: bool = typer.Option(
+        False, "--include-missing-review-after",
+        help="把从未 review 过的 human_approved 卡片也纳入计划（按今天）",
+    ),
+    output_format: str = typer.Option("markdown", "--format", help="markdown | json"),
+    output_path: Path | None = typer.Option(None, "--output", "-o"),
+) -> None:
+    """生成未来 N 天的本地复习计划，按日期分组。
+
+    设计强约束（请勿放宽）：
+    - **本地纯计算**：不调 LLM，不读 .env，不发 HTTP，不修改卡片；
+    - **不**是后台任务 / 系统提醒；只是把"哪天该复习哪些卡片"写到 stdout 或 --output；
+    - 默认仅 ``status: human_approved``；过期卡片归到"今天"分桶（避免被忘掉）。
+    """
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    base = filter_cards(scan.cards, track=track, project=project, status="human_approved")
+    now = datetime.now().astimezone()
+    horizon = now + timedelta(days=days)
+
+    # 按日期分组：date -> list[card]
+    by_day: dict[str, list] = {}
+    for c in base:
+        if c.review_after is None:
+            if include_missing_review_after:
+                by_day.setdefault(now.date().isoformat(), []).append(c)
+            continue
+        ra = c.review_after
+        if ra.tzinfo is None:
+            ra = ra.replace(tzinfo=now.tzinfo)
+        # overdue → 归到今天（必须复习）
+        if ra <= now:
+            by_day.setdefault(now.date().isoformat(), []).append(c)
+            continue
+        if ra > horizon:
+            continue
+        by_day.setdefault(ra.date().isoformat(), []).append(c)
+
+    days_sorted = sorted(by_day.items())
+    total = sum(len(v) for v in by_day.values())
+
+    with RunLogger(cfg.state.runs_path, command="review-schedule") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "review_due_listed",
+            count=total,
+            filters=_filters_dict(
+                track=track, project=project, schedule_days=days,
+                include_missing_review_after=include_missing_review_after,
+            ),
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+        payload = _json.dumps({
+            "version": 1,
+            "horizon_days": days,
+            "generated_at": now.isoformat(timespec="seconds"),
+            "total": total,
+            "days": [
+                {"date": d, "count": len(items), "items": [_card_to_safe_dict(c) for c in items]}
+                for d, items in days_sorted
+            ],
+        }, ensure_ascii=False, indent=2)
+        if output_path:
+            output_path.write_text(payload + "\n", encoding="utf-8")
+            console.print(f"[green]✓[/green] 已写入 {output_path}")
+        else:
+            print(payload)
+        return
+
+    # markdown
+    lines = [f"# Review Schedule · 未来 {days} 天 · {total} 项\n",
+             f"_generated_at: {now.isoformat(timespec='seconds')}_\n"]
+    if not days_sorted:
+        lines.append("\n_(没有需要复习的卡片)_\n")
+    for d, items in days_sorted:
+        lines.append(f"\n## {d} · {len(items)} 项\n")
+        for c in items:
+            lines.append(
+                f"- [{c.id or c.path.stem}] {c.title or '(untitled)'}  "
+                f"`track={c.track or '-'}` `value_score={c.value_score if c.value_score is not None else '-'}`  "
+                f"`path={c.rel_path}`"
+            )
+    out = "\n".join(lines) + "\n"
+    if output_path:
+        output_path.write_text(out, encoding="utf-8")
+        console.print(f"[green]✓[/green] 已写入 {output_path}")
+    else:
+        print(out)
+
+
+@review_app.command("backlog")
+def review_backlog(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    track: str | None = typer.Option(None, "--track"),
+    project: str | None = typer.Option(None, "--project"),
+    limit: int = typer.Option(50, "--limit"),
+    output_format: str = typer.Option("markdown", "--format", help="markdown | json"),
+) -> None:
+    """展示复习 backlog：overdue / today / upcoming / missing 四桶。
+
+    与 ``review schedule`` 的差异：
+    - schedule 关注"未来 N 天的计划"；
+    - backlog 关注"当前积压"，把 overdue / missing 当成第一公民。
+    """
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    base = filter_cards(scan.cards, track=track, project=project, status="human_approved")
+    now = datetime.now().astimezone()
+
+    buckets: dict[str, list] = {"overdue": [], "today": [], "upcoming": [], "missing": []}
+    for c in base:
+        buckets[_bucket_review(c, now=now)].append(c)
+    # 限流并稳定排序
+    for k, lst in buckets.items():
+        lst.sort(key=lambda c: (
+            c.review_after or datetime.max.replace(tzinfo=now.tzinfo),
+            -(c.value_score or 0),
+            c.id or c.path.name,
+        ))
+        buckets[k] = lst[:limit]
+
+    total = sum(len(v) for v in buckets.values())
+
+    with RunLogger(cfg.state.runs_path, command="review-backlog") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "review_due_listed",
+            count=total,
+            filters=_filters_dict(track=track, project=project, limit=limit),
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+        print(_json.dumps({
+            "version": 1,
+            "generated_at": now.isoformat(timespec="seconds"),
+            "total": total,
+            "buckets": {
+                k: {"count": len(items), "items": [_card_to_safe_dict(c) for c in items]}
+                for k, items in buckets.items()
+            },
+        }, ensure_ascii=False, indent=2))
+        return
+
+    print(f"# Review Backlog · {total} 项")
+    for label, key in (("⚠ Overdue", "overdue"), ("Today", "today"),
+                       ("Upcoming", "upcoming"), ("Missing review_after", "missing")):
+        items = buckets[key]
+        print(f"\n## {label} · {len(items)} 项")
+        if not items:
+            print("_(none)_")
+            continue
+        for c in items:
+            print(
+                f"- [{c.id or c.path.stem}] {c.title or '(untitled)'}  "
+                f"`review_after={_safe_date(c.review_after)}` "
+                f"`reviews={c.review_count}` "
+                f"`last={c.last_review_result or '-'}`  "
+                f"`track={c.track or '-'}` `path={c.rel_path}`"
+            )
+
+
+@review_app.command("stats")
+def review_stats(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    as_json: bool = typer.Option(False, "--json", help="机器可读输出"),
+) -> None:
+    """复习统计：总数 / overdue / today / upcoming(7d) / missing / 已 review 数 /
+    平均 review 次数 / 结果分布（remembered/partial/forgotten）。
+
+    全程纯统计，**不**修改卡片，**不**触发 LLM。
+    """
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    base = filter_cards(scan.cards, status="human_approved")
+    now = datetime.now().astimezone()
+    horizon = now + timedelta(days=7)
+
+    overdue = today = upcoming_7 = missing = reviewed = 0
+    counts_sum = 0
+    breakdown: dict[str, int] = {"remembered": 0, "partial": 0, "forgotten": 0}
+    for c in base:
+        b = _bucket_review(c, now=now)
+        if b == "overdue":
+            overdue += 1
+        elif b == "today":
+            today += 1
+        elif b == "missing":
+            missing += 1
+        else:
+            ra = c.review_after.replace(tzinfo=now.tzinfo) if c.review_after and c.review_after.tzinfo is None else c.review_after
+            if ra and ra <= horizon:
+                upcoming_7 += 1
+        if c.review_count > 0:
+            reviewed += 1
+            counts_sum += c.review_count
+        if c.last_review_result in breakdown:
+            breakdown[c.last_review_result] += 1
+
+    avg = round(counts_sum / reviewed, 2) if reviewed else 0.0
+
+    with RunLogger(cfg.state.runs_path, command="review-stats") as logger:  # type: ignore[attr-defined]
+        logger.emit("review_due_listed", count=len(base), output_format="json" if as_json else "compact")
+
+    payload = {
+        "version": 1,
+        "generated_at": now.isoformat(timespec="seconds"),
+        "total_human_approved": len(base),
+        "due_today": today,
+        "overdue": overdue,
+        "upcoming_7_days": upcoming_7,
+        "missing_review_after": missing,
+        "reviewed_count": reviewed,
+        "average_review_count": avg,
+        "result_breakdown": breakdown,
+    }
+    if as_json:
+        import json as _json
+        print(_json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    console.print(f"[bold]Review Stats[/bold] · human_approved={len(base)}")
+    console.print(f"  overdue            : {overdue}")
+    console.print(f"  due_today          : {today}")
+    console.print(f"  upcoming_7_days    : {upcoming_7}")
+    console.print(f"  missing_review_after: {missing}")
+    console.print(f"  reviewed_count     : {reviewed}")
+    console.print(f"  average_reviews    : {avg}")
+    console.print(
+        f"  results            : remembered={breakdown['remembered']} "
+        f"partial={breakdown['partial']} forgotten={breakdown['forgotten']}"
     )
 
 
@@ -1188,6 +1475,18 @@ def recall(
         "bm25", "--ranking",
         help="仅 --query 路径生效：bm25 (默认) | hybrid（bm25+value_score+review_due）",
     ),
+    weight_bm25: float | None = typer.Option(
+        None, "--weight-bm25",
+        help="仅 --ranking hybrid：临时覆盖 bm25 权重（不改 yaml）",
+    ),
+    weight_value_score: float | None = typer.Option(
+        None, "--weight-value-score",
+        help="仅 --ranking hybrid：临时覆盖 value_score 权重（不改 yaml）",
+    ),
+    weight_review_due: float | None = typer.Option(
+        None, "--weight-review-due",
+        help="仅 --ranking hybrid：临时覆盖 review_due 权重（不改 yaml）",
+    ),
 ) -> None:
     """检索 Knowledge Cards。
 
@@ -1215,6 +1514,9 @@ def recall(
             output_format=output_format,
             explain=explain,
             ranking=ranking,
+            weight_bm25=weight_bm25,
+            weight_value_score=weight_value_score,
+            weight_review_due=weight_review_due,
         )
 
     from .cards import filter_cards, iter_cards, sort_cards
@@ -1282,7 +1584,7 @@ def recall(
             "count": len(cards),
             "items": [_card_to_safe_dict(c) for c in cards],
         }
-        console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
+        print(_json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
     if output_format == "markdown":
@@ -1373,6 +1675,9 @@ def _do_bm25_recall(
     output_format: str,
     explain: bool,
     ranking: str = "bm25",
+    weight_bm25: float | None = None,
+    weight_value_score: float | None = None,
+    weight_review_due: float | None = None,
 ) -> None:
     """BM25 / hybrid 路径。
 
@@ -1428,16 +1733,33 @@ def _do_bm25_recall(
         scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
         index = lx.build_index(scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
 
-    # hybrid 需要 CardSummary 旁路获取 value_score / review_after
-    cards_for_hybrid = None
     if ranking == "hybrid":
+        # v0.3.2 临时权重覆盖：仅作用于本次查询，绝不写回 yaml。
+        # 任意一个 --weight-* 给出 → 进入 override 模式；其它分量回退到配置默认。
+        cfg_w = dict(cfg.search.hybrid.weights)
+        overrides_given = [w is not None for w in (weight_bm25, weight_value_score, weight_review_due)]
+        weight_source = "cli_override" if any(overrides_given) else "config"
+        if weight_bm25 is not None:
+            cfg_w["bm25"] = weight_bm25
+        if weight_value_score is not None:
+            cfg_w["value_score"] = weight_value_score
+        if weight_review_due is not None:
+            cfg_w["review_due"] = weight_review_due
+        # 校验：所有权重必须 >= 0，且至少一个 > 0；否则 fail-fast，不静默
+        for k, v in cfg_w.items():
+            if not isinstance(v, (int, float)) or v < 0:
+                console.print(f"[red]非法 hybrid 权重 {k}={v!r}：必须是 >= 0 的数值[/red]")
+                raise typer.Exit(code=2)
+        if all(v == 0 for v in cfg_w.values()):
+            console.print("[red]非法 hybrid 权重：三路权重不能同时为 0[/red]")
+            raise typer.Exit(code=2)
+        active_weights = cfg_w
+
         scan2 = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
         cards_for_hybrid = scan2.cards
-
-    if ranking == "hybrid":
         hybrid_hits = lx.hybrid_search(
             index, query,
-            weights=cfg.search.hybrid.weights,
+            weights=active_weights,
             cards=cards_for_hybrid,
             status_filter=status,
             include_drafts=include_drafts,
@@ -1448,6 +1770,8 @@ def _do_bm25_recall(
         hits = [hh.base for hh in hybrid_hits]
     else:
         hybrid_hits = None
+        active_weights = None
+        weight_source = "n/a"
         hits = lx.search(
             index, query,
             status_filter=status,
@@ -1477,11 +1801,17 @@ def _do_bm25_recall(
                 used_disk_index=used_disk,
                 ranking_mode=ranking,
                 index_stale=index_stale,
+                weight_source=weight_source,
             ),
             keyword_provided=kw_provided,
             keyword_hash=kw_hash,
             output_format=output_format,
         )
+
+    # —— hybrid 索引（既给非 JSON 输出，也给 JSON explain 用） ——
+    hybrid_by_path: dict[str, "lx.HybridHit"] = {}
+    if hybrid_hits is not None:
+        hybrid_by_path = {hh.base.doc.rel_path: hh for hh in hybrid_hits}
 
     if output_format == "json":
         import json as _json
@@ -1491,10 +1821,22 @@ def _do_bm25_recall(
             items = [_hybrid_hit_to_safe_dict(hh, explain=explain) for hh in hybrid_hits]
         else:
             items = [_hit_to_safe_dict(h, explain=explain) for h in hits]
+        # v0.3.2: explain 模式追加 why_this_matched 简短规则解释（不含原文）
+        if explain:
+            for it, h in zip(items, hits):
+                it["why_this_matched"] = _why_matched(h, hybrid_by_path or None)
+                it["matched_terms"] = sorted({t for fh in h.field_hits for t in fh.term_counts})
+                it["matched_fields"] = [fh.field for fh in h.field_hits]
+                it["ranking_mode"] = ranking
+                it["index_stale"] = index_stale
+                it["weight_source"] = weight_source
         payload = {
             "version": 1,
             "engine": "bm25",
             "ranking": ranking,
+            "weight_source": weight_source,
+            "active_weights": active_weights,
+            "index_stale": index_stale,
             "query": {
                 "track": track,
                 "project": project,
@@ -1510,15 +1852,13 @@ def _do_bm25_recall(
             "count": len(hits),
             "items": items,
         }
-        console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
+        print(_json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
     # —— 非 JSON 路径：把 hybrid 的 final_score 与三路分量加到 explain 输出 ——
-    hybrid_by_path: dict[str, "lx.HybridHit"] = {}
-    if hybrid_hits is not None:
-        hybrid_by_path = {hh.base.doc.rel_path: hh for hh in hybrid_hits}
-
-    label = "engine=bm25" + (f" ranking={ranking}" if ranking != "bm25" else "")
+    label = "engine=bm25" + (
+        f" ranking={ranking}" if ranking != "bm25" else ""
+    ) + (f" weights={weight_source}" if ranking == "hybrid" else "")
 
     if output_format == "markdown":
         print(f"# Recall · {len(hits)} 项 ({label})\n")
@@ -1585,13 +1925,14 @@ def _do_bm25_recall(
             f"- score={score_val:.3f} · {d.id or Path(d.rel_path).stem} · "
             f"{d.title or '(untitled)'} · status={d.status} · track={d.track or '-'}"
         )
-        if explain and hh is not None:
-            console.print(
-                f"    [dim]hybrid[/dim] bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f} "
-                f"value={hh.value_norm:.3f} review_due={hh.review_due_norm:.3f} "
-                f"→ final={hh.final_score:.3f}"
-            )
         if explain:
+            console.print(f"    [dim]why[/dim] {_why_matched(h, hybrid_by_path or None)}")
+            if hh is not None:
+                console.print(
+                    f"    [dim]hybrid[/dim] bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f} "
+                    f"value={hh.value_norm:.3f} review_due={hh.review_due_norm:.3f} "
+                    f"→ final={hh.final_score:.3f}"
+                )
             for fh in h.field_hits:
                 terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
                 console.print(
@@ -1609,6 +1950,28 @@ def _hybrid_hit_to_safe_dict(hh, *, explain: bool) -> dict:
     base["final_score"] = round(hh.final_score, 6)
     base["score"] = base["final_score"]
     return base
+
+
+def _why_matched(h, hybrid_by_path: dict | None) -> str:
+    """v0.3.2 — 简短"为什么匹配"规则解释（**绝不**返回原文 / body）。
+
+    设计：只用 SearchHit / HybridHit 已暴露的安全元数据组装一句话。
+    输出长度 < 200 字符；只引用 field 名、weight、term 名、分量值。
+    """
+    if not h.field_hits:
+        return "no field hits"
+    top = max(h.field_hits, key=lambda fh: fh.contribution)
+    terms = ",".join(top.term_counts.keys())
+    parts = [f"top field={top.field}(w={top.weight}, +{top.contribution:.3f}) terms={terms}"]
+    if hybrid_by_path:
+        hh = hybrid_by_path.get(h.doc.rel_path)
+        if hh is not None:
+            parts.append(
+                f"hybrid: bm25_norm={hh.bm25_norm:.2f}, "
+                f"value={hh.value_norm:.2f}, review_due={hh.review_due_norm:.2f} "
+                f"→ {hh.final_score:.3f}"
+            )
+    return "; ".join(parts)
 
 
 def _hit_to_safe_dict(h, *, explain: bool) -> dict:
@@ -1676,16 +2039,61 @@ def index_rebuild(
 @index_app.command("status")
 def index_status(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("compact", "--format", help="compact (默认) | json"),
+    as_json: bool = typer.Option(False, "--json", help="等价于 --format json（v0.3.2 加）"),
 ) -> None:
     """打印索引存在性、字段权重、staleness 摘要。不读 query、不打印卡片正文。"""
+    return _do_index_status(config=config, output_format="json" if as_json else output_format)
+
+
+@index_app.command("info")
+def index_info(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("compact", "--format", help="compact (默认) | json"),
+    as_json: bool = typer.Option(False, "--json", help="等价于 --format json"),
+) -> None:
+    """v0.3.2：``index status`` 的别名，配合 ``--json`` 给机器可读的索引快照。
+
+    JSON schema 稳定（version=1），字段：
+      index_path / exists / stale / card_count / last_built_at /
+      included_statuses / config_hash / current_config_hash /
+      field_weights / k1 / b / ranking_defaults / hybrid_weights / tokenizer
+    """
+    return _do_index_status(config=config, output_format="json" if as_json else output_format)
+
+
+def _do_index_status(*, config: Path, output_format: str) -> None:
     from . import lexical_index as lx
     from .cards import iter_cards
 
     cfg = _load_cfg(config)
     idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    fw_cur = lx.resolve_field_weights(cfg.search.bm25.fields)
+    cur_hash = lx.compute_config_hash(field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b)
 
+    # ── 索引不存在分支 ──
     if not idx_path.exists():
+        if output_format == "json":
+            import json as _json
+            print(_json.dumps({
+                "version": 1,
+                "index_path": str(idx_path),
+                "exists": False,
+                "stale": True,
+                "card_count": len(scan.cards),
+                "last_built_at": None,
+                "included_statuses": ["human_approved", "ai_draft"],
+                "config_hash": None,
+                "current_config_hash": cur_hash,
+                "field_weights": fw_cur,
+                "k1": cfg.search.bm25.k1,
+                "b": cfg.search.bm25.b,
+                "ranking_defaults": "bm25",
+                "hybrid_weights": dict(cfg.search.hybrid.weights),
+                "tokenizer": "ascii_word_plus_cjk_char_v1",
+            }, ensure_ascii=False, indent=2))
+            return
         console.print("[yellow]索引文件不存在[/yellow]")
         console.print(f"  路径：{idx_path}")
         console.print(f"  当前 vault 卡片数：{len(scan.cards)}")
@@ -1700,10 +2108,36 @@ def index_status(
         raise typer.Exit(code=1) from e
 
     diff = lx.diff_index(index, scan.cards)
-    fw_cur = lx.resolve_field_weights(cfg.search.bm25.fields)
-    cur_hash = lx.compute_config_hash(field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b)
     config_drift = bool(index.config_hash) and index.config_hash != cur_hash
     fresh = diff.fresh and not config_drift
+
+    if output_format == "json":
+        import json as _json
+        print(_json.dumps({
+            "version": 1,
+            "index_path": str(idx_path),
+            "exists": True,
+            "stale": not fresh,
+            "config_drift": config_drift,
+            "card_count": diff.indexed_count,
+            "current_card_count": diff.current_count,
+            "last_built_at": index.built_at,
+            "included_statuses": ["human_approved", "ai_draft"],
+            "config_hash": index.config_hash or None,
+            "current_config_hash": cur_hash,
+            "field_weights": index.field_weights,
+            "k1": index.k1,
+            "b": index.b,
+            "avgdl": index.avgdl,
+            "ranking_defaults": "bm25",
+            "hybrid_weights": dict(cfg.search.hybrid.weights),
+            "tokenizer": index.tokenizer_name,
+            "added_count": len(diff.added),
+            "removed_count": len(diff.removed),
+            "changed_count": len(diff.changed),
+        }, ensure_ascii=False, indent=2))
+        return
+
     state_label = "[green]fresh[/green]" if fresh else "[yellow]stale[/yellow]"
     console.print(f"[bold]Index status[/bold] · {state_label}")
     console.print(f"  路径：{idx_path}")
@@ -1764,7 +2198,7 @@ def project_list(
     if output_format == "json":
         import json as _json
 
-        console.print(_json.dumps(
+        print(_json.dumps(
             {"version": 1, "count": len(items), "items": [
                 {"name": n, "card_count": k} for n, k in items
             ]},
@@ -2149,6 +2583,8 @@ def _card_to_safe_dict(c) -> dict:  # type: ignore[no-untyped-def]
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None,
         "review_after": c.review_after.isoformat() if c.review_after else None,
+        "review_count": c.review_count,
+        "last_review_result": c.last_review_result,
         "value_score": c.value_score,
     }
 
@@ -2483,11 +2919,17 @@ def doctor(
 
             res = _iter(cfg.vault.root, cfg.vault.cards_dir)
             n_drafts = sum(1 for c in res.cards if c.status == "ai_draft")
+            n_approved = sum(1 for c in res.cards if c.status == "human_approved")
             if not res.cards:
                 hints.append("尚无 Knowledge Cards → 运行: mindforge scan && mindforge process")
             elif n_drafts > 0:
                 hints.append(
                     f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list"
+                )
+            # v0.3.2: 没有 human_approved 但有 ai_draft → 提示 recall --include-drafts
+            if res.cards and n_approved == 0 and n_drafts > 0:
+                hints.append(
+                    "暂无 human_approved 卡片 → 检索时加: mindforge recall --include-drafts"
                 )
             # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
             idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
