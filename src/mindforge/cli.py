@@ -686,6 +686,401 @@ def llm_ping(
         raise typer.Exit(code=1)
 
 
+# ===========================================================================
+# M4 — review / recall / project memory
+# ===========================================================================
+#
+# 设计原则（详见 docs/M4_RECALL_REVIEW_PROTOCOL.md）：
+# - 五个命令全部不调 LLM、不读 .env、不改源文件、不写 state.json
+# - review mark 是唯一允许写卡片 review 字段的命令（沿用 M3 "审计入口必须
+#   唯一" 原则）
+# - recall / project context 默认只看 status=human_approved；--include-drafts
+#   显式打开
+
+review_app = typer.Typer(add_completion=False, help="复习候选与标记（M4）")
+project_app = typer.Typer(add_completion=False, help="项目记忆与上下文（M4）")
+app.add_typer(review_app, name="review")
+app.add_typer(project_app, name="project")
+
+
+def _hash_keyword(kw: str | None) -> tuple[bool, str]:
+    if not kw:
+        return False, ""
+    import hashlib
+
+    return True, hashlib.sha256(kw.encode("utf-8")).hexdigest()[:8]
+
+
+def _filters_dict(**kwargs: object) -> dict[str, object]:
+    return {k: v for k, v in kwargs.items() if v not in (None, (), [])}
+
+
+def _parse_date(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError as e:
+        console.print(f"[red]日期解析失败：{s!r}: {e}[/red]")
+        raise typer.Exit(code=2) from e
+
+
+# ---------------------------------------------------------------------------
+# review due
+# ---------------------------------------------------------------------------
+
+
+@review_app.command("due")
+def review_due(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    limit: int = typer.Option(10, "--limit"),
+    track: str | None = typer.Option(None, "--track"),
+    project: str | None = typer.Option(None, "--project"),
+    include_drafts: bool = typer.Option(False, "--include-drafts"),
+    include_missing_review_after: bool = typer.Option(
+        False,
+        "--include-missing-review-after",
+        help="把从未 review 过的卡片也列入候选",
+    ),
+    output_format: str = typer.Option(
+        "markdown", "--format", help="markdown | json"
+    ),
+) -> None:
+    """列出到期 / 接近到期的复习候选（默认仅 human_approved）。"""
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    base = filter_cards(
+        scan.cards,
+        track=track,
+        project=project,
+        status="human_approved",
+        include_drafts=include_drafts,
+    )
+    now = datetime.now().astimezone()
+    due: list = []
+    for c in base:
+        if c.review_after is None:
+            if include_missing_review_after:
+                due.append(c)
+            continue
+        # 比较时统一用 timezone-aware
+        ra = c.review_after
+        if ra.tzinfo is None:
+            ra = ra.replace(tzinfo=now.tzinfo)
+        if ra <= now:
+            due.append(c)
+    # 排序
+    def _k(c):  # type: ignore[no-untyped-def]
+        has_after = 0 if c.review_after is not None else 1
+        ra = c.review_after or datetime.max.replace(tzinfo=now.tzinfo)
+        return (has_after, ra, -(c.value_score or 0), c.id or c.path.name)
+
+    due.sort(key=_k)
+    due = due[:limit]
+
+    with RunLogger(cfg.state.runs_path, command="review-due") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "review_due_listed",
+            count=len(due),
+            filters=_filters_dict(
+                track=track,
+                project=project,
+                include_drafts=include_drafts,
+                include_missing_review_after=include_missing_review_after,
+                limit=limit,
+            ),
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+
+        console.print(_json.dumps(
+            {
+                "version": 1,
+                "count": len(due),
+                "items": [_card_to_safe_dict(c) for c in due],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ))
+        return
+
+    if not due:
+        console.print("[yellow]当前没有到期复习候选。[/yellow]")
+        return
+    console.print(f"[bold]Review Due[/bold] · {len(due)} 项")
+    for c in due:
+        console.print(
+            f"- [{c.id or c.path.stem}] {c.title or '(untitled)'} · "
+            f"track={c.track or '-'} · review_after={_safe_date(c.review_after)} · "
+            f"value_score={c.value_score if c.value_score is not None else '-'}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# review mark
+# ---------------------------------------------------------------------------
+
+
+@review_app.command("mark")
+def review_mark(
+    card: Path = typer.Option(..., "--card"),
+    result: str = typer.Option(..., "--result", help="remembered | partial | forgotten"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """记录一次 review 结果到卡片 frontmatter（4 字段写入）。"""
+    from .reviewer import ReviewError, mark_card_review
+
+    cfg = _load_cfg(config)
+    with RunLogger(cfg.state.runs_path, command="review-mark") as logger:  # type: ignore[attr-defined]
+        logger.emit("review_mark_started", card_path=str(card), result=result)
+        try:
+            outcome = mark_card_review(card, result, cfg=cfg)
+        except ReviewError as e:
+            logger.emit(
+                "review_mark_failed",
+                card_path=str(card),
+                error_message=str(e),
+                result=result,
+            )
+            console.print(f"[red]review mark 失败：{e}[/red]")
+            raise typer.Exit(code=e.exit_code) from e
+        logger.emit(
+            "review_mark_completed",
+            card_path=str(outcome.card_path),
+            result=outcome.result,
+            prev_review_count=outcome.prev_review_count,
+            new_review_count=outcome.new_review_count,
+            review_after=outcome.review_after.isoformat(),
+        )
+    console.print(
+        f"[green]✔ reviewed[/green] {outcome.card_path}  "
+        f"(result={outcome.result}, count: {outcome.prev_review_count} → "
+        f"{outcome.new_review_count}, next_review_after={_safe_date(outcome.review_after)})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# recall
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def recall(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    track: str | None = typer.Option(None, "--track"),
+    project: str | None = typer.Option(None, "--project"),
+    tag: list[str] = typer.Option([], "--tag", help="可重复，AND 语义"),
+    keyword: str | None = typer.Option(None, "--keyword"),
+    source_type: str | None = typer.Option(None, "--source-type"),
+    status: str = typer.Option(
+        "human_approved", "--status", help="human_approved | ai_draft | all"
+    ),
+    include_drafts: bool = typer.Option(False, "--include-drafts"),
+    since: str | None = typer.Option(None, "--since", help="YYYY-MM-DD"),
+    until: str | None = typer.Option(None, "--until", help="YYYY-MM-DD"),
+    limit: int = typer.Option(20, "--limit"),
+    output_format: str = typer.Option("markdown", "--format"),
+) -> None:
+    """规则检索 Knowledge Cards（仅查 frontmatter 白名单字段）。"""
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cards = filter_cards(
+        scan.cards,
+        track=track,
+        project=project,
+        tags=tag,
+        source_type=source_type,
+        status=status,
+        keyword=keyword,
+        since=_parse_date(since),
+        until=_parse_date(until),
+        include_drafts=include_drafts,
+    )[:limit]
+
+    kw_provided, kw_hash = _hash_keyword(keyword)
+    with RunLogger(cfg.state.runs_path, command="recall") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "recall_executed",
+            count=len(cards),
+            filters=_filters_dict(
+                track=track,
+                project=project,
+                tags=list(tag),
+                source_type=source_type,
+                status=status,
+                include_drafts=include_drafts,
+                since=since,
+                until=until,
+                limit=limit,
+            ),
+            keyword_provided=kw_provided,
+            keyword_hash=kw_hash,
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+
+        payload = {
+            "version": 1,
+            "query": {
+                "track": track,
+                "project": project,
+                "tags": list(tag),
+                "keyword_provided": kw_provided,
+                "keyword_hash": kw_hash,
+                "status_filter": status,
+                "since": since,
+                "until": until,
+                "limit": limit,
+            },
+            "count": len(cards),
+            "items": [_card_to_safe_dict(c) for c in cards],
+        }
+        console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    if not cards:
+        console.print("[yellow]没有匹配的卡片。[/yellow]")
+        return
+    console.print(f"[bold]Recall[/bold] · {len(cards)} 项")
+    for c in cards:
+        console.print(
+            f"- [{c.id or c.path.stem}] {c.title or '(untitled)'} · "
+            f"status={c.status} · track={c.track or '-'} · "
+            f"value_score={c.value_score if c.value_score is not None else '-'}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# project list / context
+# ---------------------------------------------------------------------------
+
+
+@project_app.command("list")
+def project_list(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("markdown", "--format"),
+) -> None:
+    """列出所有卡片 frontmatter 中出现过的 project（并集去重，按字母序）。"""
+    from .cards import iter_cards
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    counts: dict[str, int] = {}
+    for c in scan.cards:
+        for p in c.projects:
+            counts[p] = counts.get(p, 0) + 1
+    items = sorted(counts.items())
+
+    with RunLogger(cfg.state.runs_path, command="project-list") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "project_list_emitted",
+            count=len(items),
+            output_format=output_format,
+        )
+
+    if output_format == "json":
+        import json as _json
+
+        console.print(_json.dumps(
+            {"version": 1, "count": len(items), "items": [
+                {"name": n, "card_count": k} for n, k in items
+            ]},
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    if not items:
+        console.print("[yellow]当前没有任何卡片声明 project。[/yellow]")
+        return
+    console.print(f"[bold]Projects[/bold] · {len(items)} 项")
+    for name, n in items:
+        console.print(f"- {name} ({n} card{'s' if n != 1 else ''})")
+
+
+@project_app.command("context")
+def project_context(
+    project_name: str = typer.Argument(..., help="项目名（与卡片 frontmatter projects[] 比对）"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    limit: int = typer.Option(20, "--limit"),
+    no_prompts: bool = typer.Option(False, "--no-prompts", help="不输出 Reusable Prompts 段"),
+    include_drafts: bool = typer.Option(False, "--include-drafts"),
+    output_format: str = typer.Option("markdown", "--format"),
+) -> None:
+    """渲染一个 project 的只读上下文包（markdown / json）。"""
+    from .cards import filter_cards, iter_cards
+    from .project_context import (
+        ProjectContextOptions,
+        render_project_context_json,
+        render_project_context_markdown,
+    )
+
+    cfg = _load_cfg(config)
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cards = filter_cards(
+        scan.cards,
+        project=project_name,
+        status="human_approved",
+        include_drafts=include_drafts,
+    )
+
+    opts = ProjectContextOptions(
+        include_prompts=not no_prompts,
+        include_drafts=include_drafts,
+        limit=limit,
+    )
+    if output_format == "json":
+        out = render_project_context_json(project_name, cards, options=opts)
+    else:
+        out = render_project_context_markdown(project_name, cards, options=opts)
+
+    with RunLogger(cfg.state.runs_path, command="project-context") as logger:  # type: ignore[attr-defined]
+        logger.emit(
+            "project_context_emitted",
+            project_name=project_name,
+            count=min(len(cards), limit),
+            output_format=output_format,
+        )
+
+    # 直接 print 到 stdout（不经 Console 的 markup 解析，避免方括号被吞）
+    print(out)
+
+
+# ---------------------------------------------------------------------------
+# 内部辅助 — 卡片摘要的安全字典 / 日期格式化
+# ---------------------------------------------------------------------------
+
+
+def _card_to_safe_dict(c) -> dict:  # type: ignore[no-untyped-def]
+    return {
+        "id": c.id,
+        "title": c.title,
+        "path": c.rel_path,
+        "status": c.status,
+        "track": c.track,
+        "projects": list(c.projects),
+        "tags": list(c.tags),
+        "source_type": c.source_type,
+        "source_url": c.source_url,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None,
+        "review_after": c.review_after.isoformat() if c.review_after else None,
+        "value_score": c.value_score,
+    }
+
+
+def _safe_date(dt) -> str:  # type: ignore[no-untyped-def]
+    if dt is None:
+        return "-"
+    return dt.date().isoformat()
+
+
 def main() -> None:
     app()
 

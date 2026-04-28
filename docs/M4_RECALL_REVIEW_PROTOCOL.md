@@ -20,7 +20,7 @@
 | # | 设计期 [未决] | 协议期 [默认] / [规范] | 可调整 |
 |---|---|---|---|
 | 1 | review_interval_days 默认 | 不再用单一 interval 字段；改为按 result 分桶：`remembered=14d / partial=7d / forgotten=1d` | 是，`review.intervals.*` 配置项 |
-| 2 | review_status 枚举 | 改为 `last_review_result ∈ {remembered, partial, forgotten}` + 派生字段 `next_review_after`；不再单独维护 status 枚举 | 否（结构性约束） |
+| 2 | review_status 枚举 | 改为 `last_review_result ∈ {remembered, partial, forgotten}` + 派生字段 `review_after`；不再单独维护 status 枚举 | 否（结构性约束） |
 | 3 | recall keyword 搜索范围 | **仅** title + frontmatter 字段（track / projects / tags），**不**搜 body | 否，避免 ai_inference / human_note 内容意外暴露到 stdout |
 | 4 | project context 是否含 Reusable Prompts | **默认包含**（这是项目记忆的核心价值之一） | 是，`--no-prompts` 可关 |
 | 5 | `mindforge project list` 来源 | 扫所有卡片 `projects[]` 字段做并集，**不**要求显式 yaml | 是，未来如发现噪音多再引入 `configs/projects.yaml` |
@@ -62,7 +62,7 @@
 reviewed_at: 2026-05-12T10:00:00+08:00       # 上次 review 完成时间
 review_count: 3                              # 累计 review 次数
 last_review_result: remembered               # remembered | partial | forgotten
-next_review_after: 2026-05-26T10:00:00+08:00 # 下一次 review 候选时间（派生）
+review_after: 2026-05-26T10:00:00+08:00 # 下一次 review 候选时间（派生）
 
 # project memory（人手填或既有；M4 不自动推断）
 projects:
@@ -73,7 +73,7 @@ projects:
 [规范]
 - 旧卡片缺这些字段时按 `null/0/null/null` / `[]` 默认值处理；**不**触发
   schema migration、**不**强制回填。
-- `next_review_after` 由 `review mark` 写入，由 `last_review_result` +
+- `review_after` 由 `review mark` 写入，由 `last_review_result` +
   `reviewed_at` + 配置间隔计算得出；**不**手动维护。
 - `last_review_result` 取值仅限三种字符串；其他值视为损坏（exit 3）。
 
@@ -153,8 +153,8 @@ mindforge project context <project_name>
 
 1. `status == "human_approved"`（除非 `--include-drafts`）；
 2. 满足以下任一：
-   - `next_review_after is None` **且** 命令带 `--include-missing-review-after`；
-   - `next_review_after <= now`；
+   - `review_after is None` **且** 命令带 `--include-missing-review-after`；
+   - `review_after <= now`；
 3. 通过可选过滤器（`--track` / `--project`）。
 
 [规范] **不**带 `--include-missing-review-after` 时，**从未 review 过**的
@@ -164,8 +164,8 @@ mindforge project context <project_name>
 ### 4.2 排序
 
 [规范] due 列表按以下顺序：
-1. `next_review_after` 升序（越早到期越靠前）；
-2. `next_review_after is None` 的（仅 `--include-missing-review-after` 模式下出现）排在最后；
+1. `review_after` 升序（越早到期越靠前）；
+2. `review_after is None` 的（仅 `--include-missing-review-after` 模式下出现）排在最后；
 3. 同 review_after 时按 `value_score` 降序；
 4. 同分时按 `id` 字母序（稳定排序）。
 
@@ -183,7 +183,7 @@ mindforge project context <project_name>
    reviewed_at = now (ISO with tz)
    review_count = (旧值 or 0) + 1
    last_review_result = <参数>
-   next_review_after = reviewed_at + review.intervals[last_review_result]
+   review_after = reviewed_at + review.intervals[last_review_result]
    ```
 4. 原子写回（参考 M3 `_atomic_write` 实现）；
 5. 写 runs jsonl `review_mark_completed` 事件。
@@ -239,7 +239,7 @@ mindforge project context <project_name>
 ```
 id, title, path, status, track, projects, tags,
 source_type, source_url, created_at,
-reviewed_at, next_review_after, value_score
+reviewed_at, review_after, value_score
 ```
 
 [禁止] 不得输出：
@@ -278,7 +278,7 @@ reviewed_at, next_review_after, value_score
       "source_url": "https://example.com/post/xxx",
       "created_at": "2026-04-28T13:00:00+08:00",
       "reviewed_at": "2026-05-12T10:00:00+08:00",
-      "next_review_after": "2026-05-26T10:00:00+08:00",
+      "review_after": "2026-05-26T10:00:00+08:00",
       "value_score": 8
     }
   ]
@@ -312,12 +312,12 @@ reviewed_at, next_review_after, value_score
 - agent-runtime (3 cards)
 - harness-engineering (1 card)
 
-## Knowledge Cards (sorted by next_review_after asc, then value_score desc)
+## Knowledge Cards (sorted by review_after asc, then value_score desc)
 
 ### [20260428-react-loop-checkpoint] ReAct Loop 中加 checkpoint 的两种方式
 - track: agent-runtime · status: human_approved · value_score: 8
 - source: https://example.com/post/xxx (cubox_markdown)
-- reviewed_at: 2026-05-12 · next_review_after: 2026-05-26
+- reviewed_at: 2026-05-12 · review_after: 2026-05-26
 - path: 20-Knowledge-Cards/agent-runtime/20260428--react-loop-checkpoint.md
 
 #### Source Excerpt
@@ -354,7 +354,7 @@ reviewed_at, next_review_after, value_score
 ### 6.3 排序与 limit
 
 [规范] 卡片按以下顺序：
-1. `next_review_after` 升序（即将到期的优先），`null` 排最后；
+1. `review_after` 升序（即将到期的优先），`null` 排最后；
 2. 同时按 `value_score` 降序；
 3. `--limit` 默认 20。
 
@@ -368,7 +368,7 @@ reviewed_at, next_review_after, value_score
 |---|---|---|
 | `review_due_listed` | `review due` | `count` / `filters` / `keyword_provided` / `keyword_hash` |
 | `review_mark_started` | `review mark` | `card_path` / `result` |
-| `review_mark_completed` | `review mark` | `card_path` / `result` / `prev_review_count` / `new_review_count` / `next_review_after` |
+| `review_mark_completed` | `review mark` | `card_path` / `result` / `prev_review_count` / `new_review_count` / `review_after` |
 | `review_mark_failed` | `review mark` | `card_path` / `error_message` |
 | `recall_executed` | `recall` | `count` / `filters` / `keyword_provided` / `keyword_hash` / `output_format` |
 | `project_list_emitted` | `project list` | `count` / `output_format` |
@@ -378,7 +378,7 @@ reviewed_at, next_review_after, value_score
 
 ```
 filters, keyword_provided, keyword_hash, output_format,
-result, prev_review_count, new_review_count, next_review_after,
+result, prev_review_count, new_review_count, review_after,
 project_name, count
 ```
 
@@ -407,7 +407,7 @@ tag/source_type/status/since/until/limit/include_drafts/include_missing_review_a
 3. M4 任何命令在零 `MINDFORGE_*` 环境变量下可跑通；
 4. `recall` / `project list` / `review due` 不修改任何文件；
 5. `review mark` 仅修改指定卡片的 4 个字段（`reviewed_at` / `review_count`
-   / `last_review_result` / `next_review_after`），其他字段 + 正文 byte 级不变；
+   / `last_review_result` / `review_after`），其他字段 + 正文 byte 级不变；
 6. `project context` 输出**不含** `AI Inference` / `Human Note` / 任何 secret；
 7. runs jsonl 不出现 keyword 原文与卡片正文。
 

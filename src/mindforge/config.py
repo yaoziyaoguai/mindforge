@@ -124,6 +124,25 @@ class TriageConfig:
 
 
 @dataclass(frozen=True)
+class ReviewIntervals:
+    """review mark 写卡片时按 result 计算 next review_after 的间隔（天）。
+
+    见 docs/M4_RECALL_REVIEW_PROTOCOL.md §0 #1 / §4。"""
+
+    remembered: int = 14
+    partial: int = 7
+    forgotten: int = 1
+
+
+@dataclass(frozen=True)
+class ReviewConfig:
+    """M4 review 子系统配置（可选；缺失时全部走默认）。"""
+
+    intervals: ReviewIntervals = field(default_factory=ReviewIntervals)
+    default_include_drafts: bool = False
+
+
+@dataclass(frozen=True)
 class ModelConfig:
     alias: str
     provider: str
@@ -184,6 +203,7 @@ class MindForgeConfig:
     llm: LLMConfig
     prompts: PromptVersions
     logging: LoggingConfig
+    review: ReviewConfig = field(default_factory=ReviewConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -309,6 +329,30 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         record_outputs=bool(logging_raw.get("record_outputs", True)),
     )
 
+    # ---- review (M4 — optional block；缺失走全默认) ----
+    review_raw = raw.get("review") or {}
+    if not isinstance(review_raw, dict):
+        raise ConfigError(f"review 必须是 mapping，得到 {type(review_raw).__name__}")
+    intervals_raw = review_raw.get("intervals") or {}
+    if not isinstance(intervals_raw, dict):
+        raise ConfigError("review.intervals 必须是 mapping")
+    intervals = ReviewIntervals(
+        remembered=int(intervals_raw.get("remembered", 14)),
+        partial=int(intervals_raw.get("partial", 7)),
+        forgotten=int(intervals_raw.get("forgotten", 1)),
+    )
+    for fname, val in (
+        ("remembered", intervals.remembered),
+        ("partial", intervals.partial),
+        ("forgotten", intervals.forgotten),
+    ):
+        if val < 0:
+            raise ConfigError(f"review.intervals.{fname} 必须 >=0，得到 {val}")
+    review_cfg = ReviewConfig(
+        intervals=intervals,
+        default_include_drafts=bool(review_raw.get("default_include_drafts", False)),
+    )
+
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
         vault=vault,
@@ -318,6 +362,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         llm=llm,
         prompts=prompts,
         logging=logging_cfg,
+        review=review_cfg,
         raw=raw,
     )
 
@@ -451,6 +496,8 @@ __all__ = [
     "SourcesConfig",
     "StateConfig",
     "TriageConfig",
+    "ReviewConfig",
+    "ReviewIntervals",
     "ModelConfig",
     "LLMConfig",
     "PromptVersions",

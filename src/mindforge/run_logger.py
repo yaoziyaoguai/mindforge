@@ -49,6 +49,14 @@ EVENT_STATUS_REPORTED = "status_reported"
 EVENT_APPROVAL_STARTED = "approval_started"
 EVENT_APPROVAL_COMPLETED = "approval_completed"
 EVENT_APPROVAL_FAILED = "approval_failed"
+# M4 review / recall / project memory 事件
+EVENT_REVIEW_DUE_LISTED = "review_due_listed"
+EVENT_REVIEW_MARK_STARTED = "review_mark_started"
+EVENT_REVIEW_MARK_COMPLETED = "review_mark_completed"
+EVENT_REVIEW_MARK_FAILED = "review_mark_failed"
+EVENT_RECALL_EXECUTED = "recall_executed"
+EVENT_PROJECT_LIST_EMITTED = "project_list_emitted"
+EVENT_PROJECT_CONTEXT_EMITTED = "project_context_emitted"
 
 # 字段白名单 — 任何 emit 调用传入的字段都必须在此（除 event/ts/run_id 内置外）。
 # 用白名单显式抵御"顺手把 raw_text 塞进日志"的反模式。
@@ -92,6 +100,18 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "prev_status",
         "state_missing",
         "idempotent",
+        # M4 字段（review / recall / project context）— 见
+        # docs/M4_RECALL_REVIEW_PROTOCOL.md §7
+        "filters",
+        "keyword_provided",
+        "keyword_hash",
+        "output_format",
+        "result",
+        "prev_review_count",
+        "new_review_count",
+        "review_after",
+        "project_name",
+        "count",
     }
 )
 
