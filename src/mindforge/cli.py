@@ -874,7 +874,10 @@ def recall(
     track: str | None = typer.Option(None, "--track"),
     project: str | None = typer.Option(None, "--project"),
     tag: list[str] = typer.Option([], "--tag", help="可重复，AND 语义"),
-    keyword: str | None = typer.Option(None, "--keyword"),
+    keyword: str | None = typer.Option(
+        None, "--keyword",
+        help="多 token AND；ci-contains；仅匹配 frontmatter 白名单 + 文件名",
+    ),
     source_type: str | None = typer.Option(None, "--source-type"),
     status: str = typer.Option(
         "human_approved", "--status", help="human_approved | ai_draft | all"
@@ -883,10 +886,25 @@ def recall(
     since: str | None = typer.Option(None, "--since", help="YYYY-MM-DD"),
     until: str | None = typer.Option(None, "--until", help="YYYY-MM-DD"),
     limit: int = typer.Option(20, "--limit"),
-    output_format: str = typer.Option("markdown", "--format"),
+    sort: str = typer.Option(
+        "default", "--sort",
+        help="default | review_after | updated_at | title | value_score",
+    ),
+    output_format: str = typer.Option(
+        "compact", "--format",
+        help="compact (默认) | table | markdown | json",
+    ),
 ) -> None:
-    """规则检索 Knowledge Cards（仅查 frontmatter 白名单字段）。"""
-    from .cards import filter_cards, iter_cards
+    """规则检索 Knowledge Cards（仅查 frontmatter 白名单字段）。
+
+    M4.1 增量：
+    - --keyword 多 token AND（空白分割），ci-contains；
+    - --sort 控制排序键；
+    - --format 增加 table / markdown，markdown 适合直接粘到 Claude/Copilot；
+    - 仍**不**搜 body / source 原文 / human_note；
+    - 仍默认仅 human_approved；--include-drafts 显式打开。
+    """
+    from .cards import filter_cards, iter_cards, sort_cards
 
     cfg = _load_cfg(config)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
@@ -901,7 +919,13 @@ def recall(
         since=_parse_date(since),
         until=_parse_date(until),
         include_drafts=include_drafts,
-    )[:limit]
+    )
+    try:
+        cards = sort_cards(cards, by=sort)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=2) from e
+    cards = cards[:limit]
 
     kw_provided, kw_hash = _hash_keyword(keyword)
     with RunLogger(cfg.state.runs_path, command="recall") as logger:  # type: ignore[attr-defined]
@@ -918,6 +942,7 @@ def recall(
                 since=since,
                 until=until,
                 limit=limit,
+                sort=sort,
             ),
             keyword_provided=kw_provided,
             keyword_hash=kw_hash,
@@ -939,6 +964,7 @@ def recall(
                 "since": since,
                 "until": until,
                 "limit": limit,
+                "sort": sort,
             },
             "count": len(cards),
             "items": [_card_to_safe_dict(c) for c in cards],
@@ -946,13 +972,52 @@ def recall(
         console.print(_json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
+    if output_format == "markdown":
+        # 直接 print 避免 rich 把 [id] 当 markup 吞掉
+        print(f"# Recall · {len(cards)} 项 (sort={sort})\n")
+        if not cards:
+            print("_(no cards matched)_")
+            return
+        for c in cards:
+            print(
+                f"- **[{c.id or c.path.stem}]** {c.title or '(untitled)'}  "
+                f"`status={c.status}` `track={c.track or '-'}` "
+                f"`value_score={c.value_score if c.value_score is not None else '-'}`  "
+                f"`path={c.rel_path}`"
+            )
+        return
+
+    if output_format == "table":
+        if not cards:
+            console.print("[yellow]没有匹配的卡片。[/yellow]")
+            return
+        table = Table(title=f"Recall · {len(cards)} 项 (sort={sort})")
+        table.add_column("id")
+        table.add_column("title")
+        table.add_column("status")
+        table.add_column("track")
+        table.add_column("score", justify="right")
+        table.add_column("review_after")
+        for c in cards:
+            table.add_row(
+                c.id or c.path.stem,
+                c.title or "(untitled)",
+                c.status,
+                c.track or "-",
+                str(c.value_score) if c.value_score is not None else "-",
+                _safe_date(c.review_after),
+            )
+        console.print(table)
+        return
+
+    # compact (默认)
     if not cards:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
         return
-    console.print(f"[bold]Recall[/bold] · {len(cards)} 项")
+    console.print(f"[bold]Recall[/bold] · {len(cards)} 项 (sort={sort})")
     for c in cards:
         console.print(
-            f"- [{c.id or c.path.stem}] {c.title or '(untitled)'} · "
+            f"- {c.id or c.path.stem} · {c.title or '(untitled)'} · "
             f"status={c.status} · track={c.track or '-'} · "
             f"value_score={c.value_score if c.value_score is not None else '-'}"
         )
@@ -1011,9 +1076,28 @@ def project_context(
     limit: int = typer.Option(20, "--limit"),
     no_prompts: bool = typer.Option(False, "--no-prompts", help="不输出 Reusable Prompts 段"),
     include_drafts: bool = typer.Option(False, "--include-drafts"),
+    include_actions: bool = typer.Option(
+        True, "--include-actions/--no-actions", help="是否聚合 Action Items 段（默认开）"
+    ),
+    include_review_due: bool = typer.Option(
+        True, "--include-review-due/--no-review-due", help="是否输出 Review Due 段（默认开）"
+    ),
+    include_next_step_prompt: bool = typer.Option(
+        True, "--include-next-step-prompt/--no-next-step-prompt",
+        help="是否附固定模板的下一步 prompt（**不调 LLM**，仅模板）",
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o",
+        help="把结果写到该文件而不是 stdout；安全：写入前不读 .env，不调 LLM",
+    ),
     output_format: str = typer.Option("markdown", "--format"),
 ) -> None:
-    """渲染一个 project 的只读上下文包（markdown / json）。"""
+    """渲染一个 project 的只读上下文包（markdown / json）。
+
+    M4.1：新增 --output / --include-actions / --include-review-due /
+    --include-next-step-prompt。仍**不**调 LLM、**不**读 .env、**不**含
+    AI Inference / Human Note 段。
+    """
     from .cards import filter_cards, iter_cards
     from .project_context import (
         ProjectContextOptions,
@@ -1033,6 +1117,9 @@ def project_context(
     opts = ProjectContextOptions(
         include_prompts=not no_prompts,
         include_drafts=include_drafts,
+        include_actions=include_actions,
+        include_review_due=include_review_due,
+        include_next_step_prompt=include_next_step_prompt,
         limit=limit,
     )
     if output_format == "json":
@@ -1047,6 +1134,17 @@ def project_context(
             count=min(len(cards), limit),
             output_format=output_format,
         )
+
+    if output is not None:
+        # 安全：写入前确认父目录存在；不创建父目录之外的路径
+        if not output.parent.exists():
+            console.print(
+                f"[red]--output 父目录不存在：{output.parent}（请先 mkdir）[/red]"
+            )
+            raise typer.Exit(code=2)
+        output.write_text(out, encoding="utf-8")
+        console.print(f"[green]✔ project context 已写入[/green] {output}")
+        return
 
     # 直接 print 到 stdout（不经 Console 的 markup 解析，避免方括号被吞）
     print(out)

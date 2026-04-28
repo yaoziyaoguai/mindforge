@@ -64,10 +64,11 @@ MindForge 是一个**多源接入的 AI 知识加工管线**（Source Ingestion 
 | **M2.5** | Anthropic-compatible provider 接入 + 加固 | ✅ 完成 |
 | **M2.7** | `.env` 自动加载 + `--profile` / `--dry-run` / `llm ping` | ✅ 完成 |
 | **M2.8** | 真实 provider smoke 收口（lazy provider build + 单文件落卡验证） | ✅ 完成 |
-| **M2.9** | v0.1 收口（卡片模板清理 + 安全 E2E 测试 + rc1 复盘） | 🟢 当前 / rc1 |
-| M3 | Vault 输出与人工确认机制 | ⏳ 待启动 |
-| M4 | 回顾、召回与项目记忆（v0.2/v0.3 候选） | ⏳ |
-| M5 | 高级集成（Obsidian 插件 / OCR / RAG ...） | 🚫 v0.1 不做 |
+| **M2.9** | v0.1 收口（卡片模板清理 + 安全 E2E 测试 + rc1 复盘） | ✅ rc1 |
+| **M3** | Vault 输出与人工确认机制（writer + reconciler） | ✅ v0.1.0-rc2 |
+| **M4** | 回顾 / 召回 / 项目记忆（review due + recall + project context） | ✅ v0.2.0 |
+| **M4.1** | recall 排序/格式 + project context output/include flags | ✅ v0.2.1 |
+| M5 | 高级集成（Obsidian 插件 / OCR / RAG / 调度）— [backlog 拆解](docs/M5_BACKLOG.md) | 🚫 明确推迟 |
 
 每个 Milestone 的 **目标 / 交付物 / 验收标准 / 不做什么 / 停止规则 / 进入下一阶段条件** 都在 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
@@ -116,15 +117,19 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.1.0-rc1（本地）
+## 当前状态：v0.2.1（本地）
 
-- M0 → M2.9 全部已本地 commit，**未** push。
+- M0 → M4.1 全部已本地 commit，**未** push。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
   `ai_draft` Knowledge Card → state.json + runs/*.jsonl 证据链。
+- v0.2.0（M4）新增：`mindforge review due` / `mindforge recall` / `mindforge project context`，全部**只读卡片 frontmatter 白名单**，不调 LLM、不读 .env、不索引。
+- v0.2.1（M4.1）增量：
+  - `recall`：多 token AND keyword、`--sort {default|review_after|updated_at|title|value_score}`、`--format {compact|table|markdown|json}`。
+  - `project context`：`--output FILE`、`--include-actions/--no-actions`、`--include-review-due/--no-review-due`、`--include-next-step-prompt/--no-next-step-prompt`（next-step prompt 是**固定模板**，**不**调 LLM）。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- v0.1 收口复盘见 [`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md)。
-- 进入 M3（人工 `human_approved` 反向同步）需用户**显式**确认；先设计协议再写代码。
+- 复盘：[`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md) → [`docs/V0_2_0_REVIEW.md`](docs/V0_2_0_REVIEW.md) → [`docs/V0_2_1_REVIEW.md`](docs/V0_2_1_REVIEW.md)。
+- 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

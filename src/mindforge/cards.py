@@ -42,6 +42,8 @@ class CardSummary:
     review_count: int = 0
     last_review_result: str | None = None
     review_after: datetime | None = None
+    # M4.1：文件 mtime（仅用作 sort key，不参与 keyword 搜索）
+    updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +193,11 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
     if not isinstance(status, str) or not status:
         raise _CardError("frontmatter 缺 status 字段")
 
+    try:
+        mtime = datetime.fromtimestamp(card_path.stat().st_mtime).astimezone()
+    except OSError:
+        mtime = None
+
     return CardSummary(
         id=_str_or_none(data.get("id")),
         title=_str_or_none(data.get("title")),
@@ -209,6 +216,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         review_count=_int_or_none(data.get("review_count")) or 0,
         last_review_result=_str_or_none(data.get("last_review_result")),
         review_after=_dt_or_none(data.get("review_after")),
+        updated_at=mtime,
     )
 
 
@@ -303,6 +311,12 @@ def filter_cards(
 
 
 def _keyword_match(c: CardSummary, kw: str) -> bool:
+    """关键词匹配（M4.1：多 token AND；每个 token 在白名单字段做 ci-contains）。
+
+    安全设计：**绝不**匹配 body / source 原文 / human_note 等敏感字段。仅在
+    frontmatter 白名单 + 文件名上做匹配，从而保证 keyword 命中即可对外打印
+    安全摘要，而不会暴露未审核内容。
+    """
     haystack: list[str] = []
     if c.title:
         haystack.append(c.title)
@@ -313,7 +327,11 @@ def _keyword_match(c: CardSummary, kw: str) -> bool:
     haystack.extend(c.projects)
     haystack.extend(c.tags)
     haystack.append(c.path.name)
-    return any(kw in s.lower() for s in haystack)
+    blob = "\n".join(haystack).lower()
+    tokens = [t for t in kw.lower().split() if t]
+    if not tokens:
+        return True
+    return all(tok in blob for tok in tokens)
 
 
 __all__ = [
@@ -323,7 +341,77 @@ __all__ = [
     "CardScanResult",
     "iter_cards",
     "filter_cards",
+    "sort_cards",
     "read_card_frontmatter",
     "read_card_body",
     "extract_section",
 ]
+
+
+# ---------------------------------------------------------------------------
+# M4.1 — 排序键（recall / project context 共用）
+# ---------------------------------------------------------------------------
+
+
+_SORT_KEYS = ("review_after", "updated_at", "title", "value_score", "default")
+
+
+def sort_cards(cards: Iterable[CardSummary], by: str = "default") -> list[CardSummary]:
+    """稳定排序。``by`` ∈ {default, review_after, updated_at, title, value_score}。
+
+    - default      ：(status_priority, -value_score, title)；human_approved 优先
+    - review_after ：升序，None 排最后
+    - updated_at   ：降序，None 排最后（最近更新在前）
+    - title        ：升序（None 视为空字符串）
+    - value_score  ：降序，None 排最后
+    """
+    items = list(cards)
+    if by not in _SORT_KEYS:
+        raise ValueError(f"unsupported sort key: {by!r} (valid: {_SORT_KEYS})")
+    if by == "default":
+        return sorted(
+            items,
+            key=lambda c: (
+                0 if c.status == "human_approved" else 1,
+                -(c.value_score or 0),
+                (c.title or "").lower(),
+                c.path.name,
+            ),
+        )
+    if by == "review_after":
+        big = datetime.max.replace(tzinfo=None)
+        return sorted(
+            items,
+            key=lambda c: (
+                0 if c.review_after is not None else 1,
+                _strip_tz(c.review_after) or big,
+                c.path.name,
+            ),
+        )
+    if by == "updated_at":
+        return sorted(
+            items,
+            key=lambda c: (
+                0 if c.updated_at is not None else 1,
+                # 反向：用负 timestamp 排序使最新在前
+                -(c.updated_at.timestamp() if c.updated_at else 0),
+                c.path.name,
+            ),
+        )
+    if by == "title":
+        return sorted(items, key=lambda c: ((c.title or "").lower(), c.path.name))
+    # value_score
+    return sorted(
+        items,
+        key=lambda c: (
+            -(c.value_score or 0),
+            (c.title or "").lower(),
+            c.path.name,
+        ),
+    )
+
+
+def _strip_tz(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=None)

@@ -24,6 +24,9 @@ from .cards import CardSummary, extract_section, read_card_body
 class ProjectContextOptions:
     include_prompts: bool = True
     include_drafts: bool = False
+    include_actions: bool = True
+    include_review_due: bool = True
+    include_next_step_prompt: bool = True
     limit: int = 20
 
 
@@ -98,32 +101,34 @@ def render_project_context_markdown(
             lines.append(prompts)
 
     # Action items aggregation
-    lines.append("\n## Action Items")
-    aggregated: list[str] = []
-    for c in selected:
-        body = _safe_body(c.path)
-        if not body:
-            continue
-        seg = extract_section(body, "Action Items")
-        if seg:
-            aggregated.append(f"- from [{c.id or c.path.stem}]:\n{_indent(seg)}")
-    if not aggregated:
-        lines.append("_(no action items)_")
-    else:
-        lines.extend(aggregated)
+    if options.include_actions:
+        lines.append("\n## Action Items")
+        aggregated: list[str] = []
+        for c in selected:
+            body = _safe_body(c.path)
+            if not body:
+                continue
+            seg = extract_section(body, "Action Items")
+            if seg:
+                aggregated.append(f"- from [{c.id or c.path.stem}]:\n{_indent(seg)}")
+        if not aggregated:
+            lines.append("_(no action items)_")
+        else:
+            lines.extend(aggregated)
 
     # Review due summary
-    lines.append("\n## Review Due")
-    due = _due_now(selected)
-    if not due:
-        lines.append("_(none due)_")
-    else:
-        for c in due:
-            overdue = _overdue_days(c.review_after)
-            lines.append(
-                f"- [{c.id or c.path.stem}]"
-                + (f" (overdue {overdue} days)" if overdue > 0 else " (due now)")
-            )
+    if options.include_review_due:
+        lines.append("\n## Review Due")
+        due = _due_now(selected)
+        if not due:
+            lines.append("_(none due)_")
+        else:
+            for c in due:
+                overdue = _overdue_days(c.review_after)
+                lines.append(
+                    f"- [{c.id or c.path.stem}]"
+                    + (f" (overdue {overdue} days)" if overdue > 0 else " (due now)")
+                )
 
     # Safe context hint for LLM
     lines.append("\n## Safe Context Hint for LLM Tools\n")
@@ -138,6 +143,24 @@ def render_project_context_markdown(
     lines.append(
         "> - 优先信任 Source Excerpt（原文事实）与 Reusable Prompts（已沉淀的方法）。"
     )
+
+    # Recommended next-step prompt（M4.1 — 固定模板，**不调 LLM**）
+    if options.include_next_step_prompt:
+        lines.append("\n## Recommended Next-step Prompt for LLM Tools\n")
+        lines.append("```text")
+        lines.append(
+            f"你是我在 {project_name} 项目上的协作助手。下面是 mindforge 给你的"
+        )
+        lines.append(
+            "只读上下文包（含已审核的卡片摘要、源引文、可复用 prompt 与待办）。"
+        )
+        lines.append("请按下列规则工作：")
+        lines.append("1. 不要捏造没有出现在上下文中的事实；")
+        lines.append("2. 你的产出要明确区分「来自上下文的事实」与「你的推断」；")
+        lines.append("3. 给出 3 步建议：next-action / verification / risk；")
+        lines.append("4. 涉及到代码改动，请先列文件路径再给 diff；")
+        lines.append("5. 不要试图读取或修改 .env / runs / state.json。")
+        lines.append("```")
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -156,6 +179,8 @@ def render_project_context_json(
         "generated_at": now_iso,
         "include_drafts": options.include_drafts,
         "include_prompts": options.include_prompts,
+        "include_actions": options.include_actions,
+        "include_review_due": options.include_review_due,
         "count": len(selected),
         "items": [_card_json(c, include_prompts=options.include_prompts) for c in selected],
     }

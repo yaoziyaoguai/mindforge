@@ -31,7 +31,8 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M2.9** | 卡片模板清理 + v0.1 收口测试 + rc1 tag | ❌ | ✅ | ✅ |
 | **M3** | 显式 `mindforge approve` 反 AI 污染闸门（[协议](./M3_HUMAN_APPROVAL_PROTOCOL.md)） | ✅ | ✅ | ✅ |
 | **M4** | 回顾 / 召回 / 项目记忆（[设计](./M4_RECALL_REVIEW_DESIGN.md) → [协议](./M4_RECALL_REVIEW_PROTOCOL.md) → [复盘](./V0_2_0_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.0 |
-| **M5** | 高级集成（插件 / OCR / RAG / 调度） | ✅ | ✅ | ❌（明确推迟） |
+| **M4.1** | recall 排序/格式 + project context output/include flags（[复盘](./V0_2_1_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.1 |
+| **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---
 
