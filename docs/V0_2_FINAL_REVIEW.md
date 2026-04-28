@@ -19,6 +19,7 @@
 | v0.2.3 | M5.7 telemetry + multi-project context | 本地 telemetry.jsonl、multi-project pack、evidence block 幂等写回 |
 | v0.2.4 | M5.2 web clip + chat export | `WebClipMarkdownAdapter` + `ChatExportAdapter`；`mindforge version` / `--debug` |
 | v0.2.5 | M5.5 vault polish + M5.1 doc adapters + CLI polish #2 | `vault index/links/refresh`；真实 PDF/Docx adapter（lazy import + 友好错误）；`doctor`；`--vault` 全局 override |
+| v0.2.6 | 日用化（init + approval polish） | `mindforge init` 幂等骨架；`approve list/--source-id/--all`；`doctor` action items；onboarding smoke |
 
 ## v0.2.5 增量摘要
 

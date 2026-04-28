@@ -118,9 +118,9 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
 
 ---
 
-## 当前状态：v0.2.5（本地，v0.2 收口）
+## 当前状态：v0.2.6（本地，日用化收口）
 
-- M0 → M5.5 全部已本地 commit，**未** push。v0.2.5 是 **v0.2 roadmap 的收口版**，详见 [`docs/V0_2_FINAL_REVIEW.md`](docs/V0_2_FINAL_REVIEW.md)。
+- M0 → M5.5 + M5.6 全部已本地 commit，**未** push。v0.2.6 是 **日用化 polish**，详见 [`docs/V0_2_6_REVIEW.md`](docs/V0_2_6_REVIEW.md)。
 - v0.1 主链路完整：多源 → SourceDocument → 5 stage LLM pipeline →
   `ai_draft` Knowledge Card → state.json + runs/*.jsonl 证据链。
 - v0.2.0（M4）新增：`mindforge review due` / `mindforge recall` / `mindforge project context`，全部**只读卡片 frontmatter 白名单**，不调 LLM、不读 .env、不索引。
@@ -147,10 +147,15 @@ shell `export` 的环境变量优先于 `.env`。详细配置、安全约束、s
   - **M5.1 PDF/Docx adapter（最小真实实装）**：lazy import `pypdf` / `python-docx`；未安装时给出 `OptionalDependencyError("pip install mindforge[pdf]")`；PDF 扫描件无文本层 → `PdfNoTextError`，**不**做 OCR、**不**降级为空卡片。通过 `[project.optional-dependencies]` 暴露 `pdf` / `docx` / `docs` extras，默认 OFF。
   - **CLI polish #2**：全局 `--vault PATH` 临时覆盖 `vault.root`（不改 yaml）；`mindforge doctor` 健康检查（Python / 平台 / 配置 / vault 目录 / optional deps / `.env` 是否在 `.gitignore` / git status 敏感产物嗅探）；**不**读 `.env` 内容。
   - **新文档**：[`docs/CLI_COMPLETION.md`](docs/CLI_COMPLETION.md)、[`docs/V0_2_FINAL_REVIEW.md`](docs/V0_2_FINAL_REVIEW.md)。
+- v0.2.6 增量（init + approval workflow + doctor 增强，详见 [`docs/V0_2_6_REVIEW.md`](docs/V0_2_6_REVIEW.md)）：
+  - **`mindforge init`**：一键铺 vault 骨架 + configs + `.env.example`；自动改写新 yaml 中的 `vault.root`；幂等；`--dry-run` 预览；`--force` 仅覆写 MindForge 自带模板，**绝不**碰用户数据。
+  - **Approve workflow**：保留 `approve --card`；新增 `approve --source-id`、`approve --all [--dry-run|--confirm] [--limit N]`、`approve list [--status … --project … --track … --format table|json]`（仅安全字段；不读卡片正文）。
+  - **Doctor 增强**：actionable hints — vault 缺目录建议 `mindforge init`、ai_draft 堆积建议 `approve list`、active_profile 配置错误显式提示等；仍**不**读 .env 内容。
+  - **新文档**：[`docs/ONBOARDING_SMOKE.md`](docs/ONBOARDING_SMOKE.md)、[`docs/V0_2_6_REVIEW.md`](docs/V0_2_6_REVIEW.md)。
 - 默认 `active_profile=fake`，clone 后跑 `mindforge process` 不会调用真实 LLM。
 - `tests/test_process_e2e.py::test_v0_1_stop_rule_safety_guarantees` 是 rc1
   的核心安全契约：零 env / 拦截 HTTP / 字段白名单 / source 不被改写。
 - M2.8 已用 `anthropic_coding_plan` profile 在 `/tmp` 沙箱完成单文件真实
   smoke；详见 [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) §6.4。
-- 复盘：[`docs/V0_1_RC1_REVIEW.md`](docs/V0_1_RC1_REVIEW.md) → [`docs/V0_2_0_REVIEW.md`](docs/V0_2_0_REVIEW.md) → [`docs/V0_2_1_REVIEW.md`](docs/V0_2_1_REVIEW.md) → [`docs/V0_2_2_REVIEW.md`](docs/V0_2_2_REVIEW.md) → [`docs/V0_2_3_REVIEW.md`](docs/V0_2_3_REVIEW.md) → [`docs/V0_2_4_REVIEW.md`](docs/V0_2_4_REVIEW.md) → [`docs/V0_2_FINAL_REVIEW.md`](docs/V0_2_FINAL_REVIEW.md)。
+- 复盘：[`V0_1_RC1`](docs/V0_1_RC1_REVIEW.md) → [`V0_2_0`](docs/V0_2_0_REVIEW.md) → [`V0_2_1`](docs/V0_2_1_REVIEW.md) → [`V0_2_2`](docs/V0_2_2_REVIEW.md) → [`V0_2_3`](docs/V0_2_3_REVIEW.md) → [`V0_2_4`](docs/V0_2_4_REVIEW.md) → [`V0_2_FINAL` (v0.2.5)](docs/V0_2_FINAL_REVIEW.md) → [`V0_2_6`](docs/V0_2_6_REVIEW.md)。
 - 下一步候选见 [`docs/M5_BACKLOG.md`](docs/M5_BACKLOG.md)；建议先用满 1–2 周再决定。

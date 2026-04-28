@@ -35,7 +35,7 @@ from .scanner import Scanner
 from .writer import CardWriter
 
 app = typer.Typer(
-    add_completion=False,
+    add_completion=True,
     help=(
         "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
         "常用命令：\n"
@@ -82,9 +82,15 @@ def _global_options(
 
     if debug:
         os.environ["MINDFORGE_DEBUG"] = "1"
+    else:
+        os.environ.pop("MINDFORGE_DEBUG", None)
     if vault is not None:
         # 写绝对路径，避免 cwd 漂移
         os.environ["MINDFORGE_VAULT_OVERRIDE"] = str(vault.expanduser().resolve())
+    else:
+        # 重要：每次 CLI 调用未传 --vault 时必须清空，避免跨调用污染
+        # （测试套尤其敏感；一次性 CLI 用户感知不到）
+        os.environ.pop("MINDFORGE_VAULT_OVERRIDE", None)
 
 
 # ---------------------------------------------------------------------------
@@ -335,41 +341,40 @@ def status(
 # ---------------------------------------------------------------------------
 
 
-@app.command()
-def approve(
-    card: Path = typer.Option(
-        ...,
-        "--card",
-        help="要晋升的 Knowledge Card 文件路径（必须是 ai_draft 状态）",
+approve_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "把 Knowledge Card 从 ai_draft 显式晋升为 human_approved。\n\n"
+        "为什么 approve 必须是显式人工动作：\n"
+        "  - long-term memory 的入口；批准的卡片会进入 recall / project context 的"
+        "正式输出，会被复用到多个项目，影响后续判断。\n"
+        "  - 如果允许 LLM 自动 approve，AI 误差会被无限放大；MindForge 的"
+        "差异化前提之一就是 source-grounded + human-approved。\n\n"
+        "常用：\n"
+        "  approve --card <path>     — 单卡晋升（最安全主路径）\n"
+        "  approve --source-id <id>  — 基于 state.json 反查卡片再晋升\n"
+        "  approve list              — 列出可 approve 的 ai_draft 卡片（安全摘要）\n"
+        "  approve --all --dry-run   — 预览批量晋升（不写文件）\n"
     ),
-    config: Path = typer.Option(
-        Path("configs/mindforge.yaml"),
-        "--config",
-        "-c",
-        help="mindforge.yaml 路径",
-    ),
+)
+app.add_typer(approve_app, name="approve")
+
+
+def _do_single_approve(
+    card_path: Path,
+    cfg: MindForgeConfig,
 ) -> None:
-    """显式人工把一张 Knowledge Card 从 ai_draft 晋升为 human_approved。
+    """单卡晋升执行体（callback / source-id 路径共用）。"""
+    from .approver import ApprovalError, approve_card
 
-    硬约束：
-    - 不调用 LLM、不需要 .env、不读 active_profile；
-    - 不修改卡片正文，不改写源文件；
-    - 仅 ai_draft 可晋升；human_approved 幂等；其他状态拒绝。
-    """
-    from .approver import (  # 局部导入：approver 不应被 process 路径间接 import
-        ApprovalError,
-        approve_card,
-    )
-
-    cfg = _load_cfg(config)
     with RunLogger(cfg.state.runs_path, command="approve") as logger:  # type: ignore[attr-defined]
-        logger.emit("approval_started", card_path=str(card))
+        logger.emit("approval_started", card_path=str(card_path))
         try:
-            outcome = approve_card(card, cfg=cfg)
+            outcome = approve_card(card_path, cfg=cfg)
         except ApprovalError as e:
             logger.emit(
                 "approval_failed",
-                card_path=str(card),
+                card_path=str(card_path),
                 error_message=str(e),
                 prev_status=e.prev_status or "",
             )
@@ -390,7 +395,9 @@ def approve(
         logger.emit("approval_completed", **completed_fields)
 
     if outcome.kind == "already_approved":
-        console.print(f"[yellow]已是 human_approved（幂等）：{outcome.card_path}[/yellow]")
+        console.print(
+            f"[yellow]已是 human_approved（幂等）：{outcome.card_path}[/yellow]"
+        )
     else:
         console.print(
             f"[green]✔ approved[/green] {outcome.card_path}  "
@@ -401,6 +408,214 @@ def approve(
             console.print(
                 "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
             )
+
+
+@approve_app.callback(invoke_without_command=True)
+def approve(
+    ctx: typer.Context,
+    card: Path | None = typer.Option(
+        None,
+        "--card",
+        help="要晋升的 Knowledge Card 文件路径（必须是 ai_draft 状态）",
+    ),
+    source_id: str | None = typer.Option(
+        None,
+        "--source-id",
+        help="按 state.json 中的 source_id 反查卡片路径再晋升（card_path 必须已记录）",
+    ),
+    all_: bool = typer.Option(
+        False,
+        "--all",
+        help="批量晋升所有 ai_draft（默认拒绝；必须再加 --dry-run 预览，或 --confirm 真正执行）",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="仅打印将要 approve 的卡片，不写文件、不改 state",
+    ),
+    confirm: bool = typer.Option(
+        False,
+        "--confirm",
+        help="--all 真正执行所需的显式确认（搭配可选 --limit）",
+    ),
+    limit: int = typer.Option(
+        0,
+        "--limit",
+        min=0,
+        help="--all 时最多处理多少张（0=全部）",
+    ),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+) -> None:
+    """显式人工 approve；默认走 --card 主路径。"""
+    if ctx.invoked_subcommand is not None:
+        return  # 让子命令接管
+    cfg = _load_cfg(config)
+
+    # ── --card 主路径 ─────────────────────────────────────────────
+    if card is not None:
+        _do_single_approve(card, cfg)
+        return
+
+    # ── --source-id：state.json 反查 card_path ───────────────────
+    if source_id is not None:
+        from .checkpoint import Checkpoint
+
+        cp = Checkpoint.load(cfg.state.state_path)
+        match: ItemState | None = None
+        for it in cp.items.values():
+            if it.source_id == source_id:
+                match = it
+                break
+        if match is None:
+            console.print(f"[red]✗ state.json 中未找到 source_id={source_id}[/red]")
+            raise typer.Exit(code=2)
+        if not match.card_path:
+            console.print(
+                f"[red]✗ source_id={source_id} 还没有 card_path（也许尚未 process）[/red]"
+            )
+            raise typer.Exit(code=3)
+        card_abs = (cfg.vault.cards_path / match.card_path).resolve()
+        if not card_abs.is_file():
+            # 兼容：card_path 可能是 vault-root 相对
+            alt = (cfg.vault.root / match.card_path).resolve()
+            card_abs = alt if alt.is_file() else card_abs
+        _do_single_approve(card_abs, cfg)
+        return
+
+    # ── --all 批量路径 ──────────────────────────────────────────
+    if all_:
+        _do_bulk_approve(cfg, dry_run=dry_run, confirm=confirm, limit=limit)
+        return
+
+    # 没给任何动作 → 友好提示
+    console.print(
+        "[yellow]请提供动作：--card <path> / --source-id <id> / --all --dry-run / approve list[/yellow]"
+    )
+    raise typer.Exit(code=2)
+
+
+def _do_bulk_approve(
+    cfg: MindForgeConfig, *, dry_run: bool, confirm: bool, limit: int
+) -> None:
+    """--all 批量晋升执行体。
+
+    为什么默认拒绝：批量批准是把"AI 草稿"一次性升级为"长期记忆"的危险动作，
+    必须显式 ``--confirm`` 才能写入。``--dry-run`` 仅展示候选列表。
+    """
+    from .cards import iter_cards
+
+    res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    drafts = [c for c in res.cards if c.status == "ai_draft"]
+    if limit > 0:
+        drafts = drafts[:limit]
+
+    if not drafts:
+        console.print("[dim](no ai_draft cards found)[/dim]")
+        return
+
+    console.print(f"[bold]{len(drafts)} 张 ai_draft 待 approve：[/bold]")
+    for c in drafts:
+        console.print(f"  - {c.rel_path}  [dim]({c.title or '?'})[/dim]")
+
+    if dry_run:
+        console.print("[dim](--dry-run 已启用，未写任何文件)[/dim]")
+        return
+    if not confirm:
+        console.print(
+            "[red]✗ 批量 approve 是危险动作；请加 --dry-run 预览，或确认无误后再加 --confirm[/red]"
+        )
+        raise typer.Exit(code=2)
+
+    # 真正批量执行
+    ok = 0
+    fail = 0
+    for c in drafts:
+        try:
+            _do_single_approve(c.path, cfg)
+            ok += 1
+        except typer.Exit:
+            fail += 1
+    console.print(f"[bold]批量 approve 完成：成功 {ok} / 失败 {fail}[/bold]")
+
+
+@approve_app.command("list")
+def approve_list(
+    status: str = typer.Option(
+        "ai_draft",
+        "--status",
+        help="按 status 过滤（默认 ai_draft）；多个用逗号分隔",
+    ),
+    project: str | None = typer.Option(None, "--project", help="按 projects 字段过滤"),
+    track: str | None = typer.Option(
+        None, "--track", help="按 learning track 过滤（精确匹配）"
+    ),
+    limit: int = typer.Option(50, "--limit", min=1, help="最多展示多少张"),
+    format_: str = typer.Option(
+        "table", "--format", help="table | json", case_sensitive=False
+    ),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"), "--config", "-c", help="mindforge.yaml 路径"
+    ),
+) -> None:
+    """列出可 approve 的卡片（安全字段摘要；不读卡片正文）。"""
+    from .cards import iter_cards
+
+    cfg = _load_cfg(config)
+    wanted = {s.strip() for s in status.split(",") if s.strip()}
+    res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    rows = []
+    for c in res.cards:
+        if wanted and c.status not in wanted:
+            continue
+        if project and project not in c.projects:
+            continue
+        if track and c.track != track:
+            continue
+        rows.append(c)
+    rows = rows[:limit]
+
+    if format_.lower() == "json":
+        import json as _json
+
+        out = [
+            {
+                "title": c.title,
+                "path": c.rel_path,
+                "status": c.status,
+                "track": c.track,
+                "projects": list(c.projects),
+                "source_type": c.source_type,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "value_score": c.value_score,
+            }
+            for c in rows
+        ]
+        console.print_json(_json.dumps({"count": len(out), "items": out}))
+        return
+
+    if not rows:
+        console.print("[dim](no cards match)[/dim]")
+        return
+    table = Table(title=f"approve list (status in {sorted(wanted)})")
+    for col in ("title", "status", "track", "projects", "source_type", "value_score", "path"):
+        table.add_column(col, overflow="fold")
+    for c in rows:
+        table.add_row(
+            c.title or "?",
+            c.status,
+            c.track or "-",
+            ",".join(c.projects) or "-",
+            c.source_type or "-",
+            "" if c.value_score is None else str(c.value_score),
+            c.rel_path,
+        )
+    console.print(table)
+    console.print(f"[dim]({len(rows)} shown)[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -1608,6 +1823,125 @@ def vault_refresh(
 
 
 @app.command()
+def init(
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help="目标 vault 根目录（默认：当前 mindforge.yaml 中 vault.root；"
+        "若不存在则用 ./vault）",
+    ),
+    project_root: Path = typer.Option(
+        Path("."),
+        "--project-root",
+        help="MindForge 工作目录（configs/ 与 .env.example 落在这里；默认当前目录）",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="覆写 MindForge 提供的模板配置文件（**不**会覆写用户数据目录）",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="只打印 plan，不写文件",
+    ),
+) -> None:
+    """初始化最小可用的 vault 骨架与配置文件。
+
+    幂等保证：多次运行不会重复创建已存在的目录或覆盖用户文件；只有 ``--force``
+    才允许覆写 MindForge 自带的模板。
+    """
+    from .init_cmd import build_plan, execute_plan, next_steps_hint
+
+    # repo_root：尽量找到本仓库 configs/ 与 vault_template/
+    import mindforge as _pkg
+
+    repo_root = Path(_pkg.__file__).resolve().parent.parent.parent
+
+    # vault 路径优先级：CLI --vault > 当前 yaml vault.root > ./vault
+    target_vault: Path
+    if vault is not None:
+        target_vault = vault.expanduser().resolve()
+    else:
+        cfg_path = project_root / "configs" / "mindforge.yaml"
+        if cfg_path.exists():
+            try:
+                cfg = load_mindforge_config(cfg_path)
+                target_vault = cfg.vault.root
+            except ConfigError:
+                target_vault = (project_root / "vault").resolve()
+        else:
+            target_vault = (project_root / "vault").resolve()
+
+    plan = build_plan(
+        target_vault, project_root=project_root.resolve(), repo_root=repo_root, force=force
+    )
+
+    console.print("[bold]MindForge init[/bold]")
+    console.print(f"- vault.root  : {plan.vault_root}")
+    console.print(f"- project root: {plan.project_root}")
+    if force:
+        console.print("- mode        : [yellow]--force (will overwrite templates)[/yellow]")
+    if dry_run:
+        console.print("- mode        : [yellow]--dry-run (no files written)[/yellow]")
+
+    summary = plan.summary()
+    console.print(
+        f"- plan: create_dir={summary.get('create_dir', 0)} "
+        f"copy_file={summary.get('copy_file', 0)} "
+        f"overwrite_force={summary.get('overwrite_force', 0)} "
+        f"skip_exists={summary.get('skip_exists', 0)}"
+    )
+
+    if dry_run:
+        for it in plan.items:
+            tag = {
+                "create_dir": "[green]+ DIR [/green]",
+                "copy_file": "[green]+ FILE[/green]",
+                "overwrite_force": "[yellow]! OVR [/yellow]",
+                "skip_exists": "[dim]= keep[/dim]",
+            }.get(it.action, "?")
+            console.print(f"  {tag} {it.target}  [dim]{it.note}[/dim]")
+        console.print("[dim]--dry-run 完成；未写任何文件。[/dim]")
+        return
+
+    actions = execute_plan(plan)
+    for line in actions:
+        console.print(f"  {line}")
+
+    # ── 关键：把刚拷过来的 mindforge.yaml 里的 vault.root 改成本次 --vault ──
+    # 否则用户 init 完之后跑 doctor 会指向 repo 默认的 vault.root，体验割裂。
+    cfg_dst = (project_root / "configs" / "mindforge.yaml").resolve()
+    if cfg_dst.exists():
+        try:
+            import yaml as _yaml
+
+            data = _yaml.safe_load(cfg_dst.read_text(encoding="utf-8")) or {}
+            if isinstance(data, dict):
+                vault_block = data.setdefault("vault", {})
+                if isinstance(vault_block, dict):
+                    if vault_block.get("root") != str(plan.vault_root):
+                        vault_block["root"] = str(plan.vault_root)
+                        cfg_dst.write_text(
+                            _yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                            encoding="utf-8",
+                        )
+                        console.print(
+                            f"  rewrote {cfg_dst}  vault.root → {plan.vault_root}"
+                        )
+        except Exception as e:  # noqa: BLE001
+            console.print(f"[yellow]提示：未能改写 vault.root（{e}），请手工编辑 yaml。[/yellow]")
+
+    console.print("\n[bold green]✓ MindForge initialized.[/bold green]")
+    console.print("[bold]Next steps:[/bold]")
+    for step in next_steps_hint():
+        console.print(f"  {step}")
+    console.print(
+        "[dim]说明：init 不创建真实 .env、不读取 .env、不调用 LLM、不修改原始资料。[/dim]"
+    )
+
+
+@app.command()
 def doctor(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
@@ -1701,6 +2035,38 @@ def doctor(
                 console.print("- git status       : 无敏感运行产物风险")
         except Exception:  # noqa: BLE001
             console.print("- git status       : (跳过)")
+
+    # ── v0.2.6: actionable hints ──────────────────────────────────────
+    hints: list[str] = []
+    if not cards_dir.exists():
+        hints.append("vault 目录缺失 → 运行: mindforge init --vault <path>")
+    if cfg.llm.active_profile not in cfg.llm.profiles:
+        hints.append(
+            f"active_profile={cfg.llm.active_profile!r} 未在 llm.profiles 中定义 → 检查 mindforge.yaml"
+        )
+    elif cfg.llm.active_profile != "fake":
+        hints.append(
+            "active_profile 非 fake：真实跑 process 前请先 `mindforge llm ping` 校验环境变量"
+        )
+    if cards_dir.exists():
+        try:
+            from .cards import iter_cards as _iter
+
+            res = _iter(cfg.vault.root, cfg.vault.cards_dir)
+            n_drafts = sum(1 for c in res.cards if c.status == "ai_draft")
+            if not res.cards:
+                hints.append("尚无 Knowledge Cards → 运行: mindforge scan && mindforge process")
+            elif n_drafts > 0:
+                hints.append(
+                    f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list"
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+    if hints:
+        console.print("[bold]Action items:[/bold]")
+        for h in hints:
+            console.print(f"  • {h}")
 
     console.print(
         "[dim]说明：本命令不读 .env 内容、不发 HTTP、不打印 api_key / token。[/dim]"
