@@ -185,9 +185,10 @@ def test_cli_scan_bad_config(tmp_path: Path) -> None:
 
 
 def _read_run_jsonl(runs_dir: Path) -> list[dict]:
-    files = sorted(runs_dir.glob("*.jsonl"))
+    files = list(runs_dir.glob("*.jsonl"))
     assert files, f"no run jsonl found in {runs_dir}"
-    return [json.loads(line) for line in files[-1].read_text("utf-8").splitlines() if line.strip()]
+    latest = max(files, key=lambda p: p.stat().st_mtime)
+    return [json.loads(line) for line in latest.read_text("utf-8").splitlines() if line.strip()]
 
 
 def test_cli_scan_writes_run_jsonl(tmp_path: Path) -> None:
