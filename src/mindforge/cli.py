@@ -36,11 +36,43 @@ from .writer import CardWriter
 
 app = typer.Typer(
     add_completion=False,
-    help="MindForge — 多源接入的本地 AI 知识加工管线（v0.1）",
+    help=(
+        "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
+        "常用命令：\n"
+        "  scan / process / status      — 把 inbox 文件加工成 Knowledge Cards\n"
+        "  approve --card <path>        — 把 ai_draft 卡片晋升为 human_approved\n"
+        "  recall / review due          — 检索与复习已审核卡片\n"
+        "  project context <name> [...] — 拼装可粘贴给编程助手的项目上下文包\n"
+        "  project update-evidence <n>  — 幂等写入 30-Projects/<n>.md 受控区块\n"
+        "  telemetry status / summary   — 查看本地命令使用统计（不上传）\n"
+        "  llm ping                     — 校验 LLM provider env（不发 HTTP）\n"
+        "  version                      — 打印版本与运行配置摘要（不含 secret）\n"
+    ),
+    pretty_exceptions_enable=False,  # 默认抑制 traceback；--debug 时由 main() 重新放开
 )
 llm_app = typer.Typer(add_completion=False, help="LLM provider 工具子命令（不触发业务 pipeline）")
 app.add_typer(llm_app, name="llm")
 console = Console()
+
+
+# ---------------------------------------------------------------------------
+# 全局 --debug 回调：仅设置 env，由 main() 决定是否打印 traceback
+# 选用 env 而非全局变量是为了：1) 跨进程友好；2) helper 可直接 os.environ 检查。
+# ---------------------------------------------------------------------------
+
+
+@app.callback()
+def _global_options(
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="出错时打印完整 traceback；默认仅打印简短错误信息。",
+    ),
+) -> None:
+    import os
+
+    if debug:
+        os.environ["MINDFORGE_DEBUG"] = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -51,10 +83,21 @@ console = Console()
 def _load_cfg(config_path: Path) -> MindForgeConfig:
     # 入口处加载 .env（静默，不打印 value，env > dotfile）
     load_dotenv_silently(Path.cwd())
+    if not config_path.exists():
+        console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
+        console.print(
+            "[dim]提示：可以从仓库中的 configs/mindforge.yaml 复制一份到目标位置，"
+            "再用 --config 指定，或直接在仓库根运行命令。[/dim]"
+        )
+        raise typer.Exit(code=2)
     try:
         return load_mindforge_config(config_path)
     except ConfigError as e:
-        console.print(f"[red]配置错误：{e}[/red]")
+        console.print(f"[red]✗ 配置错误：{e}[/red]")
+        console.print(
+            "[dim]提示：请检查 vault.root、sources.enabled、llm.active_profile "
+            "三个字段是否合法。[/dim]"
+        )
         raise typer.Exit(code=2) from e
 
 
@@ -1450,7 +1493,76 @@ def _safe_date(dt) -> str:  # type: ignore[no-untyped-def]
 
 
 def main() -> None:
-    app()
+    """CLI 入口。``--debug`` 不传时静默 traceback，仅打印简短错误。
+
+    设计动机：终端用户大多数时候只想看到"哪里坏了 + 怎么办"；完整 traceback
+    属于开发者调试场景，按需开启。
+    """
+    import os
+    import sys
+
+    debug = os.environ.get("MINDFORGE_DEBUG") == "1" or "--debug" in sys.argv
+    try:
+        app()
+    except typer.Exit:
+        raise
+    except Exception as e:  # noqa: BLE001 — 这里就是想兜底；debug 时再原样抛
+        if debug:
+            raise
+        console.print(f"[red]✗ unexpected error: {type(e).__name__}: {e}[/red]")
+        console.print("[dim]提示：加 --debug 查看完整 traceback。[/dim]")
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# version — 打印版本与运行配置摘要（不含 secret）
+# 设计意图：终端用户最常问的是"我装的哪个版本？现在用的哪个 vault / profile？"
+# 输出严格仅元数据：不读 .env，不打印 api_key / model 名以外的敏感字段。
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def version(
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径（找不到也不报错，仅展示 MindForge 版本）",
+    ),
+) -> None:
+    """打印 MindForge 版本与当前运行配置摘要。"""
+    from . import __version__
+    from .config import load_mindforge_config
+    from .telemetry import telemetry_path
+
+    console.print(f"[bold]MindForge[/bold] v{__version__}")
+    console.print(f"- config: {config}")
+    if not config.exists():
+        console.print("  [yellow](config 文件不存在；以下字段省略)[/yellow]")
+        console.print("[dim]提示：复制 configs/mindforge.yaml 到目标位置后重试。[/dim]")
+        return
+    try:
+        cfg = load_mindforge_config(config)
+    except ConfigError as e:
+        console.print(f"  [red]config 解析失败：{e}[/red]")
+        raise typer.Exit(code=2) from e
+
+    console.print(f"- vault.root        : {cfg.vault.root}")
+    console.print(f"- vault.inbox_root  : {cfg.vault.inbox_root}")
+    console.print(f"- vault.cards_dir   : {cfg.vault.cards_dir}")
+    console.print(f"- vault.projects_dir: {cfg.vault.projects_dir}")
+    console.print(f"- state.workdir     : {cfg.state.workdir}")
+    console.print(f"- llm.active_profile: {cfg.llm.active_profile}")
+
+    enabled_sources = sorted(cfg.sources.enabled)
+    console.print(f"- sources.enabled   : {', '.join(enabled_sources) or '(none)'}")
+    console.print(f"- telemetry.enabled : {cfg.telemetry.enabled}")
+    console.print(f"- telemetry.local_only: {cfg.telemetry.local_only}")
+    if cfg.telemetry.enabled:
+        console.print(f"- telemetry.file    : {telemetry_path(cfg.state.workdir)}")
+    console.print(
+        "[dim]说明：本命令不读 .env、不发 HTTP、不打印任何 api_key 或 token。[/dim]"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

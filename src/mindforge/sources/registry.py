@@ -14,14 +14,11 @@ from typing import Type
 
 from ..config import SourcesConfig
 from .base import SourceAdapter
+from .chat_export import ChatExportAdapter
 from .cubox_markdown import CuboxMarkdownAdapter
 from .plain_markdown import PlainMarkdownAdapter
-from .stubs import (
-    ChatExportAdapter,
-    DocxAdapter,
-    PdfAdapter,
-    WebClipMarkdownAdapter,
-)
+from .stubs import DocxAdapter, PdfAdapter
+from .webclip_markdown import WebClipMarkdownAdapter
 
 # adapter 类名 → 类。新增 adapter 在此处加一行即可。
 _BUILTIN_ADAPTERS: dict[str, Type[SourceAdapter]] = {

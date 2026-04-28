@@ -35,6 +35,9 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M5.3** | project context 产品化（target / project profile / suggested prompt 模板）（[协议](./M5_3_PROJECT_CONTEXT_PROTOCOL.md) → [复盘](./V0_2_2_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.2 |
 | **M5.3 收尾** | 多 project 联合 context + 30-Projects evidence block 幂等追加（[复盘](./V0_2_3_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.3 |
 | **M5.7** | 本地 only telemetry（白名单字段 / status / summary）（[协议](./M5_7_TELEMETRY_PROTOCOL.md) → [复盘](./V0_2_3_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.3 |
+| **M5.2** | WebClip / ChatExport adapter 实装（[协议](./M5_2_WEBCLIP_CHATEXPORT_PROTOCOL.md) → [复盘](./V0_2_4_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.4 |
+| **CLI polish #1** | `mindforge version` / 全局 `--debug` / 友好错误（[复盘](./V0_2_4_REVIEW.md)） | ✅ | ✅ | ✅ v0.2.4 |
+| **M5.1（占位）** | PDF / Docx adapter 协议冻结（[协议](./M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md)） | ✅ | 🟡 仅 stub | 🟡 协议落地 v0.2.4 |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度）— [backlog 拆解](./M5_BACKLOG.md) | ✅ | 🟡 backlog 已拆 | ❌（明确推迟） |
 
 ---

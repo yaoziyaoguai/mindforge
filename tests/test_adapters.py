@@ -17,10 +17,8 @@ import pytest
 from mindforge.sources.cubox_markdown import CuboxMarkdownAdapter
 from mindforge.sources.plain_markdown import PlainMarkdownAdapter
 from mindforge.sources.stubs import (
-    ChatExportAdapter,
     DocxAdapter,
     PdfAdapter,
-    WebClipMarkdownAdapter,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -109,15 +107,13 @@ def test_cubox_markdown_hash_changes_when_url_changes(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "cls,expected_type",
     [
-        (WebClipMarkdownAdapter, "webclip_markdown"),
         (PdfAdapter, "pdf"),
         (DocxAdapter, "docx"),
-        (ChatExportAdapter, "chat_export"),
     ],
 )
 def test_stub_load_raises_not_implemented(cls, expected_type) -> None:
     a = cls()
     assert a.source_type == expected_type
     assert a.can_handle("x") is False
-    with pytest.raises(NotImplementedError, match="v0.1"):
+    with pytest.raises(NotImplementedError, match="占位"):
         a.load("/tmp/whatever")

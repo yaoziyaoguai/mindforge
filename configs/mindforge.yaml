@@ -40,6 +40,8 @@ sources:
   enabled:
     - cubox_markdown
     - plain_markdown
+    - webclip_markdown
+    - chat_export
 
   registry:
     cubox_markdown:
@@ -58,25 +60,25 @@ sources:
       adapter: WebClipMarkdownAdapter
       inbox_subdir: "WebClips"
       file_glob: "*.md"
-      enabled: false                # v0.1 仅 stub
+      enabled: true                  # v0.2.4 起：真实 adapter，可吃 Web Clipper / MarkDownload
+
+    chat_export:
+      adapter: ChatExportAdapter
+      inbox_subdir: "ChatExports"
+      file_glob: "*.md"
+      enabled: true                  # v0.2.4 起：真实 adapter，可吃 ChatGPT/Claude/Copilot 导出
 
     pdf:
       adapter: PdfAdapter
       inbox_subdir: "PDFs"
       file_glob: "*.pdf"
-      enabled: false                # v0.1 仅 stub，不做 OCR / 表格抽取
+      enabled: false                 # 仅 stub，明确不做 OCR / 表格抽取（详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md）
 
     docx:
       adapter: DocxAdapter
       inbox_subdir: "Docs"
       file_glob: "*.docx"
-      enabled: false                # v0.1 仅 stub
-
-    chat_export:
-      adapter: ChatExportAdapter
-      inbox_subdir: "ChatExports"
-      file_glob: "*.{md,json}"
-      enabled: false                # v0.1 仅 stub
+      enabled: false                 # 仅 stub，明确不做复杂样式解析
 
 # -----------------------------------------------------------------------------
 # 状态与日志

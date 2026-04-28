@@ -38,7 +38,13 @@ def test_real_mindforge_yaml_loads() -> None:
     assert "cubox_markdown" in cfg.sources.enabled
     assert "plain_markdown" in cfg.sources.enabled
     active = {e.source_type for e in cfg.sources.active_entries()}
-    assert active == {"cubox_markdown", "plain_markdown"}
+    # v0.2.4 起 webclip_markdown / chat_export 默认启用（真实 adapter 已落地）
+    assert active == {
+        "cubox_markdown",
+        "plain_markdown",
+        "webclip_markdown",
+        "chat_export",
+    }
     # llm
     # 真实 mindforge.yaml 默认走 fake，避免误调用真实模型；切换到 anthropic_coding_plan / openai_compatible 需用户显式改。
     assert cfg.llm.active_profile == "fake"
