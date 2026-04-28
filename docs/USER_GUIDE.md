@@ -2,6 +2,7 @@
 
 > 这是一份"工作手册"：每条命令、每个产物、每条边界都在这里查得到。
 > 入门请先看 [`GETTING_STARTED.md`](./GETTING_STARTED.md)。
+> 文档总览见 [`DOCS_INDEX.md`](./DOCS_INDEX.md)。
 > 找不到命令？运行 **`mindforge commands`**（按场景分组）。
 > 不知道下一步？运行 **`mindforge next`**（基于 vault 状态推荐）。
 
@@ -29,6 +30,16 @@
 - `--config PATH` / `-c`：指定 mindforge.yaml；
 - `--vault PATH`：临时覆盖 `vault.root`，**不**改 yaml；
 - `--debug`：打开完整 traceback（默认压制）。
+
+Shell completion:
+
+```bash
+mindforge --install-completion zsh
+mindforge --show-completion bash
+```
+
+Completion 只影响 shell 命令补全，不改变 `--vault` / `--debug` / `--config`
+的语义，也不会读取 vault 或 `.env`。
 
 ## 2. 关键产物
 
@@ -104,4 +115,4 @@ mindforge project context my-first-agent --target claude-code
 - ❌ 不做 SM-2 / FSRS（区间走配置 `cfg.review.intervals`）
 - ❌ 不做自动复习提醒 / 邮件 / 桌面通知
 
-如果未来要做，遵循 `docs/M5_BACKLOG.md` 里的"先 spike，再决策"流程。
+如果未来要做，遵循 [`M5_BACKLOG.md`](./M5_BACKLOG.md) 里的"先 spike，再决策"流程。

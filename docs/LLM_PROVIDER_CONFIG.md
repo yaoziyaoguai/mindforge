@@ -1,4 +1,4 @@
-# LLM Provider 配置指南（MindForge v0.1）
+# LLM Provider 配置指南
 
 本文档解释 MindForge 的 LLM provider 抽象、三种 provider 类型的差异、
 如何配置 `.env`、如何在 `configs/mindforge.yaml` 中切换 `active_profile`，

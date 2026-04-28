@@ -455,7 +455,7 @@ Last updated: <ISO timestamp>
 > manages content **inside the markers**; everything else in this file
 > is human-owned.
 
-- [Card Title](../20-Knowledge-Cards/<track>/<file>.md)
+- `20-Knowledge-Cards/<track>/<file>.md` — Card Title
   - status: human_approved
   - learning_track: <track>
   - value_score: <int|->

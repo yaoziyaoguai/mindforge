@@ -1,7 +1,8 @@
 # M4 · Recall / Review / Project Memory 协议（v0.2.0 实现契约）
 
-> 本文是 M4 的**实现契约**，承接 [`M4_RECALL_REVIEW_DESIGN.md`](./M4_RECALL_REVIEW_DESIGN.md)
-> 调研报告。设计阶段的 8 个 [未决] 问题在本协议中已通过**默认决策**收
+> 本文是 M4 的**实现契约**。原调研报告已归档到
+> [`archive/v0_2/M4_RECALL_REVIEW_DESIGN.md`](./archive/v0_2/M4_RECALL_REVIEW_DESIGN.md)。
+> 设计阶段的 8 个 [未决] 问题在本协议中已通过**默认决策**收
 > 敛 — 见 §0。本文一旦冻结，src 实现按本文为准；偏离协议必须先改本文。
 >
 > 阅读约定：
@@ -459,7 +460,7 @@ backlog，**不**进入当前 M4。
 7. **run_logger 扩展**：白名单字段 + 7 个新事件常量；
 8. **反向断言测试**：单独一份 `tests/test_m4_safety_guarantees.py`，集中
    覆盖 §8 七条；
-9. **README / ROADMAP / V0_2_0 复盘文档**。
+9. **README / ROADMAP / CHANGELOG / archived v0.2 review**。
 
 每步完成后运行 `pytest && ruff check src tests`，绿了才进下一步。
 

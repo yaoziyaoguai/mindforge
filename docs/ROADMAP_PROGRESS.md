@@ -2,6 +2,9 @@
 
 > 与 `docs/ROADMAP.md` 互补：本文档关注**完成度盘点**与**下一阶段建议**，
 > 不重复列里程碑明细。
+>
+> 文档入口见 [`DOCS_INDEX.md`](./DOCS_INDEX.md)，版本历史见
+> [`CHANGELOG.md`](./CHANGELOG.md)。
 
 ## 1. 当前最新版本：**v0.4.3**
 

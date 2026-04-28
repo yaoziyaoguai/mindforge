@@ -1,7 +1,8 @@
 # M5.7 · Local Telemetry Protocol（v0.2.3）
 
 > 本文定义 MindForge **本地 only** 的 usage telemetry 协议。
-> 上线于 v0.2.3。配合 [`V0_2_3_REVIEW.md`](./V0_2_3_REVIEW.md) 阅读。
+> 上线于 v0.2.3。历史复盘已归档到
+> [`archive/v0_2/V0_2_3_REVIEW.md`](./archive/v0_2/V0_2_3_REVIEW.md)。
 
 ---
 

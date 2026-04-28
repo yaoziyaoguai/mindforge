@@ -15,7 +15,8 @@
 > （demo vault 完全虚构，详见 [`examples/demo-vault/README.md`](../examples/demo-vault/README.md)）
 >
 > 不知道下一步该敲哪条命令？随时跑 **`mindforge next`** 看建议，
-> 或 **`mindforge commands`** 看按场景分组的命令地图。
+> 或 **`mindforge commands`** 看按场景分组的命令地图。完整文档地图见
+> [`DOCS_INDEX.md`](./DOCS_INDEX.md)。
 
 ## 1. 安装
 
@@ -132,5 +133,5 @@ mindforge project update-evidence my-first-agent --dry-run
 - **绝不**自动 approve；
 - telemetry **本地 only**，10 字段白名单，`.gitignore` 已防泄漏。
 
-详见 `docs/USER_GUIDE.md`、`docs/M5_7_TELEMETRY_PROTOCOL.md`、
-`docs/V0_1_SCOPE.md`。
+详见 [`USER_GUIDE.md`](./USER_GUIDE.md)、[`SECURITY.md`](./SECURITY.md)、
+[`M5_7_TELEMETRY_PROTOCOL.md`](./M5_7_TELEMETRY_PROTOCOL.md)。
