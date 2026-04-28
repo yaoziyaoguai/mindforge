@@ -63,7 +63,7 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "counts",
         "items_count",
         "active_profile",
-        # M2 起追加的 LLM 字段（提前白名单，避免 M2 改这里）
+        # M2 起追加的 LLM 字段
         "stage",
         "model_alias",
         "provider",
@@ -73,6 +73,13 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "tokens_in",
         "tokens_out",
         "latency_ms",
+        # M2 process 命令新增的 item 级字段
+        "track",
+        "value_score",
+        "output_file",
+        "card_conflict",
+        "skip_reason",
+        "stage_failed",
     }
 )
 

@@ -18,7 +18,9 @@ from rich.table import Table
 
 from .checkpoint import Checkpoint
 from .config import ConfigError, load_mindforge_config
-from .models import ItemState
+from .llm import LLMClient, build_providers
+from .models import ItemState, StageRecord
+from .processors import Pipeline
 from .run_logger import (
     EVENT_SOURCE_ERROR,
     EVENT_SOURCE_SEEN,
@@ -29,6 +31,7 @@ from .run_logger import (
     summarize_latest_run,
 )
 from .scanner import Scanner
+from .writer import CardWriter
 
 app = typer.Typer(
     add_completion=False,
@@ -234,6 +237,231 @@ def status(
             f"[yellow]提示：{len(drafts)} 张卡片仍处于 processed (ai_draft) 状态，"
             "审核后请把 frontmatter 的 status 改为 human_approved。[/yellow]"
         )
+
+
+# ---------------------------------------------------------------------------
+# process — M2 主入口：跑五 stage + 写 Card
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def process(
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+    file: Path | None = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="只处理该单文件（绝对或相对 vault 的路径）",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        "-n",
+        help="本次最多处理多少条",
+    ),
+    prompts_dir: Path = typer.Option(
+        Path("prompts"),
+        "--prompts-dir",
+        help="prompts 根目录",
+    ),
+    tracks: Path = typer.Option(
+        Path("configs/learning_tracks.yaml"),
+        "--tracks",
+        help="learning_tracks.yaml 路径（作为 triage prompt 的上下文）",
+    ),
+    template: Path = typer.Option(
+        Path("templates/knowledge_card.md.j2"),
+        "--template",
+        help="Knowledge Card 模板路径",
+    ),
+) -> None:
+    """对 inbox 中已 scan 的文件跑 5 stage pipeline，落地 Knowledge Card。
+
+    硬约束：原始 source 文件不被改写；卡片默认 ``status: ai_draft``，
+    必须人工修改 frontmatter 才晋升 ``human_approved``。
+    """
+    cfg = _load_cfg(config)
+    scanner = Scanner(cfg)  # type: ignore[arg-type]
+    cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)  # type: ignore[attr-defined]
+
+    providers = build_providers(cfg.llm)  # type: ignore[attr-defined]
+    client = LLMClient(llm_config=cfg.llm, providers=providers)  # type: ignore[attr-defined]
+
+    # 模板路径
+    template_path = template
+    writer = CardWriter(
+        vault_root=cfg.vault.root,  # type: ignore[attr-defined]
+        cards_dir=cfg.vault.cards_dir,  # type: ignore[attr-defined]
+        template_path=template_path,
+    )
+
+    tracks_text = tracks.read_text("utf-8") if tracks.exists() else ""
+    pipeline = Pipeline(
+        client=client,
+        logger=None,  # type: ignore[arg-type]  # 暂占；下面 with 块内重设
+        prompts_dir=prompts_dir,
+        prompt_versions=cfg.prompts,  # type: ignore[attr-defined]
+        triage_threshold=cfg.triage.value_score_threshold,  # type: ignore[attr-defined]
+        learning_tracks_text=tracks_text,
+    )
+
+    counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
+
+    with RunLogger(cfg.state.runs_path, command="process") as logger:  # type: ignore[attr-defined]
+        pipeline.logger = logger
+        for result in scanner.iter_results():
+            if file is not None and Path(result.path).resolve() != file.resolve():
+                continue
+            counts["seen"] += 1
+            if not result.ok:
+                counts["failed"] += 1
+                logger.emit(
+                    EVENT_SOURCE_ERROR,
+                    source_type=result.source_type,
+                    adapter_name=result.adapter_name,
+                    path=str(result.path),
+                    error_message=result.error or "",
+                )
+                continue
+
+            doc = result.document
+            assert doc is not None
+
+            # 把 source 登记到 checkpoint（沿用 scan 的 upsert 语义）
+            candidate = ItemState(
+                source_id=doc.source_id,
+                source_type=doc.source_type,
+                adapter_name=result.adapter_name,
+                source_path=doc.source_path,
+                content_hash=doc.content_hash,
+                first_seen_at=datetime.now(),
+            )
+            item = cp.upsert_seen(candidate)
+
+            outcome = pipeline.run(doc)
+
+            now = datetime.now()
+            item.status = outcome.status  # type: ignore[assignment]
+            item.last_run_id = logger.run_id
+            item.processed_at = now
+            item.error_message = outcome.error_message
+            for stage_name, meta in outcome.stages_meta.items():
+                item.stages[stage_name] = StageRecord(
+                    stage=stage_name,  # type: ignore[arg-type]
+                    model_alias=meta["model_alias"],
+                    provider=meta["provider"],
+                    actual_model=meta["actual_model"],
+                    prompt_version=meta["prompt_version"],
+                    status=meta["status"],
+                    processed_at=now,
+                    tokens_in=meta.get("tokens_in"),
+                    tokens_out=meta.get("tokens_out"),
+                    latency_ms=meta.get("latency_ms"),
+                )
+
+            if outcome.status == "skipped":
+                counts["skipped"] += 1
+                triage_parsed = outcome.triage.parsed if outcome.triage else {}
+                item.track = triage_parsed.get("track")
+                item.value_score = triage_parsed.get("value_score")
+                logger.emit(
+                    "source_processed",
+                    source_id=doc.source_id,
+                    source_type=doc.source_type,
+                    adapter_name=result.adapter_name,
+                    source_path=doc.source_path,
+                    content_hash=doc.content_hash,
+                    status="skipped",
+                    track=item.track or "",
+                    value_score=item.value_score or 0,
+                    skip_reason=outcome.skip_reason or "",
+                )
+                console.print(f"[yellow]skipped[/yellow] {doc.source_path} :: {outcome.skip_reason}")
+            elif outcome.status == "failed":
+                counts["failed"] += 1
+                logger.emit(
+                    "source_processed",
+                    source_id=doc.source_id,
+                    source_type=doc.source_type,
+                    adapter_name=result.adapter_name,
+                    source_path=doc.source_path,
+                    content_hash=doc.content_hash,
+                    status="failed",
+                    stage_failed=outcome.error_stage or "",
+                    error_message=outcome.error_message or "",
+                )
+                console.print(
+                    f"[red]failed[/red] {doc.source_path} @ stage={outcome.error_stage}: {outcome.error_message}"
+                )
+            else:  # processed
+                counts["processed"] += 1
+                triage_parsed = outcome.triage.parsed if outcome.triage else {}
+                item.track = triage_parsed.get("track")
+                item.value_score = triage_parsed.get("value_score")
+                # 渲染并写卡片
+                source_dict = {
+                    "source_id": doc.source_id,
+                    "source_type": doc.source_type,
+                    "adapter_name": result.adapter_name,
+                    "source_path": doc.source_path,
+                    "source_url": doc.source_url or "",
+                    "title": doc.title or "",
+                }
+                run_dict = {
+                    "created_at": now.isoformat(timespec="seconds"),
+                    "prompts": {"distill_version": cfg.prompts.distill},  # type: ignore[attr-defined]
+                    "profile": cfg.llm.active_profile,  # type: ignore[attr-defined]
+                    "stage_models": {
+                        s: {"alias": m["model_alias"], "provider": m["provider"], "model": m["actual_model"]}
+                        for s, m in outcome.stages_meta.items()
+                    },
+                    "run_id": logger.run_id,
+                }
+                wr = writer.write(card_payload=outcome.card_payload or {}, source=source_dict, run=run_dict)
+                item.card_path = str(wr.path.relative_to(cfg.vault.root))  # type: ignore[attr-defined]
+                logger.emit(
+                    "card_written",
+                    output_file=str(wr.path),
+                    source_id=doc.source_id,
+                    source_type=doc.source_type,
+                    track=item.track or "",
+                    value_score=item.value_score or 0,
+                    card_conflict="true" if wr.conflict else "false",
+                )
+                logger.emit(
+                    "source_processed",
+                    source_id=doc.source_id,
+                    source_type=doc.source_type,
+                    adapter_name=result.adapter_name,
+                    source_path=doc.source_path,
+                    content_hash=doc.content_hash,
+                    status="processed",
+                    track=item.track or "",
+                    value_score=item.value_score or 0,
+                    output_file=str(wr.path),
+                )
+                tag = "[yellow]conflict[/yellow]" if wr.conflict else "[green]processed[/green]"
+                console.print(f"{tag} {doc.source_path} → {wr.path}")
+
+            if limit is not None and counts["seen"] >= limit:
+                break
+
+        cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
+        logger.emit(
+            EVENT_STATE_WRITTEN,
+            path=str(cfg.state.state_path),  # type: ignore[attr-defined]
+            items_count=len(list(cp.all_items())),
+        )
+
+    console.print(
+        f"\n[bold]process 完成[/bold]：seen={counts['seen']} "
+        f"processed={counts['processed']} skipped={counts['skipped']} failed={counts['failed']}"
+    )
 
 
 def main() -> None:
