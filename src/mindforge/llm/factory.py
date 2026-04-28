@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from .anthropic_compatible import AnthropicCompatibleProvider
 from .base import LLMProvider, ProviderError
 from .fake import FakeProvider
 from .openai_compatible import OpenAICompatibleProvider
 
 _BUILDERS = {
     "openai_compatible": lambda mc: OpenAICompatibleProvider.from_model_config(mc),
+    "anthropic_compatible": lambda mc: AnthropicCompatibleProvider.from_model_config(mc),
     "fake": lambda mc: FakeProvider(),
 }
 

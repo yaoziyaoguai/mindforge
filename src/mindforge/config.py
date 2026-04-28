@@ -134,6 +134,8 @@ class ModelConfig:
     max_retries: int
     api_key_env: str | None = None
     api_key_optional: bool = False
+    base_url_env: str | None = None              # 优先级高于 base_url；运行时由 provider 解析
+    extra_headers_env: dict[str, str] | None = None  # 例如 {"anthropic-version": "MINDFORGE_ANTHROPIC_VERSION"}
 
 
 @dataclass(frozen=True)
@@ -334,16 +336,28 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
     for alias, mraw in models_raw.items():
         if not isinstance(mraw, dict):
             raise ConfigError(f"llm.models.{alias} 必须是 mapping")
+        # base_url 与 base_url_env 至少一个必须存在；base_url 缺省允许空串占位
+        base_url_env = mraw.get("base_url_env")
+        if "base_url" in mraw:
+            base_url = str(mraw["base_url"])
+        elif base_url_env:
+            base_url = ""  # 运行时由 provider 从 env 读取
+        else:
+            raise ConfigError(
+                f"llm.models.{alias} 必须提供 base_url 或 base_url_env 之一"
+            )
         models[alias] = ModelConfig(
             alias=alias,
             provider=_require(mraw, "provider", str, ctx=f"llm.models.{alias}"),
             type=_require(mraw, "type", str, ctx=f"llm.models.{alias}"),
-            base_url=_require(mraw, "base_url", str, ctx=f"llm.models.{alias}"),
+            base_url=base_url,
             model=_require(mraw, "model", str, ctx=f"llm.models.{alias}"),
             timeout_seconds=int(mraw.get("timeout_seconds", 120)),
             max_retries=int(mraw.get("max_retries", 1)),
             api_key_env=mraw.get("api_key_env"),
             api_key_optional=bool(mraw.get("api_key_optional", False)),
+            base_url_env=base_url_env,
+            extra_headers_env=dict(mraw["extra_headers_env"]) if isinstance(mraw.get("extra_headers_env"), dict) else None,
         )
 
     # 校验每个 profile：必须覆盖全部 5 个 stage，且 alias 必须存在

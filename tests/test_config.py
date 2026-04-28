@@ -40,10 +40,16 @@ def test_real_mindforge_yaml_loads() -> None:
     active = {e.source_type for e in cfg.sources.active_entries()}
     assert active == {"cubox_markdown", "plain_markdown"}
     # llm
-    assert cfg.llm.active_profile == "default"
+    assert cfg.llm.active_profile == "anthropic_coding_plan"
+    assert "default" in cfg.llm.profiles  # 备选保留
     for stage in REQUIRED_STAGES:
         m = cfg.llm.resolve_stage(stage)
         assert m.alias in cfg.llm.models
+        # 主路径模型必须是 anthropic_compatible
+        assert m.type == "anthropic_compatible"
+        # secret 不写在 yaml：base_url 与 api_key 都来自 env
+        assert m.base_url_env == "MINDFORGE_ANTHROPIC_BASE_URL"
+        assert m.api_key_env == "MINDFORGE_ANTHROPIC_API_KEY"
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"

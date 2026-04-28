@@ -111,9 +111,20 @@ triage:
 # 同一 provider 下允许多个 model（如 cheap_cloud / strong_cloud）。
 # -----------------------------------------------------------------------------
 llm:
-  active_profile: default
+  # 当前真实主路径：阿里云 DashScope Coding Plan（Anthropic-compatible 协议）。
+  # base_url 与 api_key 一律从 .env 读取，**不要**写进本 yaml。
+  active_profile: anthropic_coding_plan
 
   profiles:
+    # —— 主路径：Anthropic-compatible Coding Plan（v0.1 默认）——
+    anthropic_coding_plan:
+      triage: qwen_coder_fast
+      distill: qwen_coder_strong
+      link_suggestion: qwen_coder_fast
+      review_questions: qwen_coder_strong
+      action_extraction: qwen_coder_strong
+
+    # —— 备选：OpenAI-compatible 云端（保留兼容）——
     default:
       triage: cheap_cloud
       distill: strong_cloud
@@ -136,11 +147,35 @@ llm:
       action_extraction: local_strong
 
   models:
+    # —— Anthropic-compatible：模型名仅作示例，可按平台支持改 ——
+    qwen_coder_fast:
+      provider: dashscope_coding_plan
+      type: anthropic_compatible
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      extra_headers_env:
+        anthropic-version: MINDFORGE_ANTHROPIC_VERSION
+      model: "qwen3-coder-next"
+      timeout_seconds: 180
+      max_retries: 2
+
+    qwen_coder_strong:
+      provider: dashscope_coding_plan
+      type: anthropic_compatible
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      extra_headers_env:
+        anthropic-version: MINDFORGE_ANTHROPIC_VERSION
+      model: "qwen3-coder-plus"
+      timeout_seconds: 240
+      max_retries: 2
+
+    # —— OpenAI-compatible：备选示例 ——
     cheap_cloud:
       provider: cloud_openai_compatible
       type: openai_compatible
-      base_url: "https://api.example.com/v1"
-      api_key_env: "MINDFORGE_API_KEY"
+      base_url_env: MINDFORGE_OPENAI_BASE_URL
+      api_key_env: MINDFORGE_OPENAI_API_KEY
       model: "cheap-model"
       timeout_seconds: 90
       max_retries: 2
@@ -148,8 +183,8 @@ llm:
     strong_cloud:
       provider: cloud_openai_compatible
       type: openai_compatible
-      base_url: "https://api.example.com/v1"
-      api_key_env: "MINDFORGE_API_KEY"
+      base_url_env: MINDFORGE_OPENAI_BASE_URL
+      api_key_env: MINDFORGE_OPENAI_API_KEY
       model: "strong-model"
       timeout_seconds: 180
       max_retries: 2

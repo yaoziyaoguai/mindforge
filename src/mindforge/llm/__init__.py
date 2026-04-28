@@ -21,6 +21,7 @@
    只做"按 active_profile 把 stage 静态映射成一个 ModelConfig"。
 """
 
+from .anthropic_compatible import AnthropicCompatibleProvider
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
 from .client import LLMClient, ResolvedModel, StageCallResult
 from .factory import build_providers
@@ -34,6 +35,7 @@ __all__ = [
     "ProviderError",
     "FakeProvider",
     "OpenAICompatibleProvider",
+    "AnthropicCompatibleProvider",
     "build_providers",
     "LLMClient",
     "ResolvedModel",
