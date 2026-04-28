@@ -1071,7 +1071,7 @@ def project_list(
 
 @project_app.command("context")
 def project_context(
-    project_name: str = typer.Argument(..., help="项目名（与卡片 frontmatter projects[] 比对）"),
+    project_name: str = typer.Argument(..., help="项目名（与卡片 frontmatter projects[] 比对，并匹配 30-Projects/<name>.md）"),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
     limit: int = typer.Option(20, "--limit"),
     no_prompts: bool = typer.Option(False, "--no-prompts", help="不输出 Reusable Prompts 段"),
@@ -1086,6 +1086,10 @@ def project_context(
         True, "--include-next-step-prompt/--no-next-step-prompt",
         help="是否附固定模板的下一步 prompt（**不调 LLM**，仅模板）",
     ),
+    target: str | None = typer.Option(
+        None, "--target",
+        help="目标助手：claude-code | copilot | codex | generic（默认按 project profile.default_target，再退化为 generic）",
+    ),
     output: Path | None = typer.Option(
         None, "--output", "-o",
         help="把结果写到该文件而不是 stdout；安全：写入前不读 .env，不调 LLM",
@@ -1094,15 +1098,20 @@ def project_context(
 ) -> None:
     """渲染一个 project 的只读上下文包（markdown / json）。
 
-    M4.1：新增 --output / --include-actions / --include-review-due /
-    --include-next-step-prompt。仍**不**调 LLM、**不**读 .env、**不**含
-    AI Inference / Human Note 段。
+    M5.3：新增 --target；项目级 30-Projects/<name>.md frontmatter 优先，
+    Knowledge Cards 作为补充；任何阶段都**不**调 LLM、**不**读 .env、
+    **不**含 AI Inference / Human Note 段。
     """
     from .cards import filter_cards, iter_cards
     from .project_context import (
         ProjectContextOptions,
         render_project_context_json,
         render_project_context_markdown,
+        resolve_target,
+    )
+    from .project_profile import (
+        ProjectProfileError,
+        load_project_profile,
     )
 
     cfg = _load_cfg(config)
@@ -1114,6 +1123,20 @@ def project_context(
         include_drafts=include_drafts,
     )
 
+    try:
+        profile = load_project_profile(
+            cfg.vault.root, cfg.vault.projects_dir, project_name
+        )
+    except ProjectProfileError as e:
+        console.print(f"[red]project_name 非法：{e}[/red]")
+        raise typer.Exit(code=2) from e
+
+    try:
+        resolved_target = resolve_target(target, profile)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=2) from e
+
     opts = ProjectContextOptions(
         include_prompts=not no_prompts,
         include_drafts=include_drafts,
@@ -1121,11 +1144,19 @@ def project_context(
         include_review_due=include_review_due,
         include_next_step_prompt=include_next_step_prompt,
         limit=limit,
+        target=resolved_target,
     )
     if output_format == "json":
-        out = render_project_context_json(project_name, cards, options=opts)
+        out = render_project_context_json(
+            project_name, cards, options=opts, profile=profile
+        )
+    elif output_format == "markdown":
+        out = render_project_context_markdown(
+            project_name, cards, options=opts, profile=profile
+        )
     else:
-        out = render_project_context_markdown(project_name, cards, options=opts)
+        console.print(f"[red]--format 必须是 markdown 或 json，收到 {output_format!r}[/red]")
+        raise typer.Exit(code=2)
 
     with RunLogger(cfg.state.runs_path, command="project-context") as logger:  # type: ignore[attr-defined]
         logger.emit(
@@ -1133,10 +1164,11 @@ def project_context(
             project_name=project_name,
             count=min(len(cards), limit),
             output_format=output_format,
+            target=resolved_target,
+            project_profile_found=profile.found,
         )
 
     if output is not None:
-        # 安全：写入前确认父目录存在；不创建父目录之外的路径
         if not output.parent.exists():
             console.print(
                 f"[red]--output 父目录不存在：{output.parent}（请先 mkdir）[/red]"
@@ -1146,7 +1178,6 @@ def project_context(
         console.print(f"[green]✔ project context 已写入[/green] {output}")
         return
 
-    # 直接 print 到 stdout（不经 Console 的 markup 解析，避免方括号被吞）
     print(out)
 
 

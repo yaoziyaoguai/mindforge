@@ -112,6 +112,9 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "review_after",
         "project_name",
         "count",
+        # M5.3 字段（project context target + profile 来源）
+        "target",
+        "project_profile_found",
     }
 )
 

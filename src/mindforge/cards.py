@@ -44,6 +44,9 @@ class CardSummary:
     review_after: datetime | None = None
     # M4.1：文件 mtime（仅用作 sort key，不参与 keyword 搜索）
     updated_at: datetime | None = None
+    # M5.3：卡片级结构化补充字段（项目 profile 永远优先；这里只做补充）
+    principles: tuple[str, ...] = ()
+    known_risks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -217,6 +220,8 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         last_review_result=_str_or_none(data.get("last_review_result")),
         review_after=_dt_or_none(data.get("review_after")),
         updated_at=mtime,
+        principles=_str_tuple(data.get("principles")),
+        known_risks=_str_tuple(data.get("known_risks")),
     )
 
 

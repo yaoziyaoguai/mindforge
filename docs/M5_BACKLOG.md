@@ -38,16 +38,25 @@
 
 ## M5.3 · Better project context / prompt pack
 
+> ✅ **已落地于 v0.2.2**（[复盘](./V0_2_2_REVIEW.md) · [协议](./M5_3_PROJECT_CONTEXT_PROTOCOL.md)）
+
 - **目标**：在 v0.2.1 已有 `project context` 基础上，再加：
   - 多 project 联合上下文（`mindforge project context a b c`）；
   - 按 project 自动维护 `30-Projects/<name>.md` 的"已审核证据栏"
     （**追加** + 幂等，不覆盖人手写内容）；
   - 一键导出可粘贴到 Claude Code / Copilot 的 `.context.md`。
+- **v0.2.2 已交付**：
+  - 单 project 的 target-aware context pack（`--target {claude-code|copilot|codex|generic}`）；
+  - 项目 profile（`30-Projects/<name>.md` frontmatter）+ Knowledge Cards
+    混合数据源；profile 优先、cards 补充、缺失自动降级；
+  - markdown / json（`version: 2`）双输出；suggested prompt 按 target 拼装；
+  - excluded_content 段始终输出，明示安全边界。
+- **仍未做（→ 后续 v0.2.x）**：
+  - 多 project 联合上下文（一次传多个 project_name）；
+  - 自动维护 `30-Projects/<name>.md` 的追加块（幂等 + magic marker）。
 - **不做**：自动写 ai_inference 进项目笔记、自动生成新 prompt、调 LLM。
-- **验收**：联合上下文输出仍只含白名单字段；项目笔记追加块被 magic
-  marker 包裹（如 `<!-- mindforge:context begin -->`），人手写部分零损失。
 - **风险**：追加块的幂等性是测试重点；切勿把人手写笔记吃掉。
-- **优先级**：⭐⭐⭐（v0.2.x 真实使用一周后最容易需要）
+- **优先级**：⭐⭐⭐（v0.2.2 用满 1 周后再决定是否做"多 project 联合"）
 
 ---
 

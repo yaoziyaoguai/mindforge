@@ -63,6 +63,7 @@ class VaultConfig:
     inbox_root: str
     cards_dir: str
     archive_dir: str
+    projects_dir: str = "30-Projects"
 
     @property
     def inbox_path(self) -> Path:
@@ -71,6 +72,10 @@ class VaultConfig:
     @property
     def cards_path(self) -> Path:
         return self.root / self.cards_dir
+
+    @property
+    def projects_path(self) -> Path:
+        return self.root / self.projects_dir
 
 
 @dataclass(frozen=True)
@@ -258,6 +263,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         inbox_root=_require(vault_raw, "inbox_root", str, ctx="vault"),
         cards_dir=_require(vault_raw, "cards_dir", str, ctx="vault"),
         archive_dir=_require(vault_raw, "archive_dir", str, ctx="vault"),
+        projects_dir=str(vault_raw.get("projects_dir") or "30-Projects"),
     )
 
     # ---- sources ----
