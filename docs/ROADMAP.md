@@ -30,7 +30,7 @@ Roadmap 的本质是：**把"什么时候该做什么"和"什么时候该停"明
 | **M2.8** | 真实 provider smoke 收口（lazy provider build） | ✅（一次性 smoke） | ✅ | ✅ |
 | **M2.9** | 卡片模板清理 + v0.1 收口测试 + rc1 tag | ❌ | ✅ | ✅ |
 | **M3** | 显式 `mindforge approve` 反 AI 污染闸门（[协议](./M3_HUMAN_APPROVAL_PROTOCOL.md)） | ✅ | ✅ | ✅ |
-| **M4** | 回顾 / 召回 / 项目记忆（[设计调研](./M4_RECALL_REVIEW_DESIGN.md)） | ✅ | 🟡 设计中 | ❌（候选 v0.2.0，待 [未决] 确认） |
+| **M4** | 回顾 / 召回 / 项目记忆（[设计](./M4_RECALL_REVIEW_DESIGN.md) → [协议](./M4_RECALL_REVIEW_PROTOCOL.md)） | ✅ | ✅ 协议已收敛 | ⏳ 待实现（v0.2.0） |
 | **M5** | 高级集成（插件 / OCR / RAG / 调度） | ✅ | ✅ | ❌（明确推迟） |
 
 ---

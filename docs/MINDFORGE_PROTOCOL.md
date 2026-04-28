@@ -252,10 +252,16 @@ triaged       ← 已分流（含 value_score / track），但还没出 Card
 skipped       ← value_score 低于阈值，主动放弃
 processed     ← Card 已写入，AI 部分完成
 failed        ← LLM 调用 / 写文件 / 校验失败
-human_approved ← 人工把卡片 status 改成 human_approved（由 reconciler 反向同步到 state）
+human_approved ← 仅 `mindforge approve --card <path>` 触发；详见 [`M3_HUMAN_APPROVAL_PROTOCOL.md`](./M3_HUMAN_APPROVAL_PROTOCOL.md)
 ```
 
 转移图与 `state.json` schema 详见仓库根的 `plan.md`（M1+ 落地）。
+
+> Knowledge Card 在 `human_approved` 之后还会经历 review / recall / project
+> context 三类**只读 + 单字段写**的命令（M4，[`M4_RECALL_REVIEW_PROTOCOL.md`](./M4_RECALL_REVIEW_PROTOCOL.md)）。
+> 这些命令**不**改 `status` 字段、**不**调 LLM、**不**改源文件，只在 frontmatter
+> 上维护 4 个 review 派生字段。它们扩展 pipeline 的"使用端"，但不破坏本节
+> 状态机。
 
 ---
 
