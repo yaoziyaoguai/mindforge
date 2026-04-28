@@ -1,0 +1,438 @@
+"""配置加载与校验 — 加载 ``configs/mindforge.yaml`` 与 ``learning_tracks.yaml``。
+
+设计原则
+========
+
+1. **fail-fast**
+   - 配置错误（active_profile 找不到、source_type 不在 enum、stage 缺失）
+     必须在启动时立即报错，不允许进入处理循环后再炸。
+
+2. **配置层面开放、执行层面克制**
+   - 允许用户列任意多个 profile / model；
+   - 但 ``active_profile`` 一次只激活一组静态映射；
+   - 不做 fallback / 投票 / 动态路由。
+
+3. **本模块只负责 LOAD + VALIDATE**
+   - 不持有 LLMClient、不读 inbox、不写 state；
+   - 它的输出（``MindForgeConfig``）就是其他模块唯一可信的配置视图。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+# v0.1 固定的 5 个 stage（与 prompts/ 下子目录一一对应）
+REQUIRED_STAGES: tuple[str, ...] = (
+    "triage",
+    "distill",
+    "link_suggestion",
+    "review_questions",
+    "action_extraction",
+)
+
+# v0.1 已知的 source_type，必须与 mindforge.sources.base.SourceType 同步
+KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
+    {
+        "cubox_markdown",
+        "plain_markdown",
+        "webclip_markdown",
+        "pdf",
+        "docx",
+        "chat_export",
+        "manual_note",
+    }
+)
+
+
+class ConfigError(ValueError):
+    """配置加载或校验失败。统一异常，方便 CLI 友好提示。"""
+
+
+# ---------------------------------------------------------------------------
+# Dataclass 视图（其他模块只读这些结构，不直接读 yaml dict）
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class VaultConfig:
+    root: Path
+    inbox_root: str
+    cards_dir: str
+    archive_dir: str
+
+    @property
+    def inbox_path(self) -> Path:
+        return self.root / self.inbox_root
+
+    @property
+    def cards_path(self) -> Path:
+        return self.root / self.cards_dir
+
+
+@dataclass(frozen=True)
+class SourceRegistryEntry:
+    source_type: str
+    adapter: str
+    inbox_subdir: str
+    file_glob: str
+    enabled: bool
+
+    @property
+    def is_enabled(self) -> bool:
+        return self.enabled
+
+
+@dataclass(frozen=True)
+class SourcesConfig:
+    enabled: tuple[str, ...]                          # 白名单
+    registry: dict[str, SourceRegistryEntry]          # source_type -> entry
+
+    def active_entries(self) -> list[SourceRegistryEntry]:
+        """返回真正激活的 adapter 配置（白名单 ∩ enabled=true）。"""
+        return [
+            self.registry[st]
+            for st in self.enabled
+            if st in self.registry and self.registry[st].is_enabled
+        ]
+
+
+@dataclass(frozen=True)
+class StateConfig:
+    workdir: Path
+    state_file: str
+    runs_dir: str
+    index_file: str
+    backup_state: bool
+
+    @property
+    def state_path(self) -> Path:
+        return self.workdir / self.state_file
+
+    @property
+    def runs_path(self) -> Path:
+        return self.workdir / self.runs_dir
+
+
+@dataclass(frozen=True)
+class TriageConfig:
+    value_score_threshold: int
+    default_track: str
+
+
+@dataclass(frozen=True)
+class ModelConfig:
+    alias: str
+    provider: str
+    type: str
+    base_url: str
+    model: str
+    timeout_seconds: int
+    max_retries: int
+    api_key_env: str | None = None
+    api_key_optional: bool = False
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    active_profile: str
+    profiles: dict[str, dict[str, str]]               # profile_name -> {stage: alias}
+    models: dict[str, ModelConfig]                    # alias -> ModelConfig
+
+    def resolve_stage(self, stage: str) -> ModelConfig:
+        """按当前 active_profile 把 stage 解析为 ModelConfig。"""
+        profile = self.profiles[self.active_profile]
+        alias = profile[stage]
+        return self.models[alias]
+
+
+@dataclass(frozen=True)
+class PromptVersions:
+    triage: str
+    distill: str
+    link_suggestion: str
+    review_questions: str
+    action_extraction: str
+
+    def for_stage(self, stage: str) -> str:
+        return getattr(self, stage)
+
+
+@dataclass(frozen=True)
+class LoggingConfig:
+    level: str
+    file: str
+    record_prompts: bool
+    record_outputs: bool
+
+
+@dataclass(frozen=True)
+class MindForgeConfig:
+    """整份配置的不可变快照。其他模块只依赖这个对象。"""
+
+    version: float
+    vault: VaultConfig
+    sources: SourcesConfig
+    state: StateConfig
+    triage: TriageConfig
+    llm: LLMConfig
+    prompts: PromptVersions
+    logging: LoggingConfig
+    raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
+
+
+@dataclass(frozen=True)
+class TrackConfig:
+    id: str
+    keywords: tuple[str, ...]
+    negative_keywords: tuple[str, ...]
+    output_focus: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LearningTracksConfig:
+    version: int
+    tracks: tuple[TrackConfig, ...]
+
+    def by_id(self, track_id: str) -> TrackConfig | None:
+        for t in self.tracks:
+            if t.id == track_id:
+                return t
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Loader + Validator
+# ---------------------------------------------------------------------------
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ConfigError(f"配置文件不存在：{path}")
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ConfigError(f"YAML 解析失败 {path}: {e}") from e
+    if not isinstance(data, dict):
+        raise ConfigError(f"{path} 顶层必须是 mapping，得到 {type(data).__name__}")
+    return data
+
+
+def load_mindforge_config(path: str | Path) -> MindForgeConfig:
+    """加载并校验 mindforge.yaml，返回不可变快照。"""
+    p = Path(path)
+    raw = _read_yaml(p)
+    base_dir = p.parent.parent  # configs/mindforge.yaml -> 项目根
+
+    # ---- vault ----
+    vault_raw = _require(raw, "vault", dict, ctx=str(p))
+    vault = VaultConfig(
+        root=Path(_require(vault_raw, "root", str, ctx="vault")).expanduser(),
+        inbox_root=_require(vault_raw, "inbox_root", str, ctx="vault"),
+        cards_dir=_require(vault_raw, "cards_dir", str, ctx="vault"),
+        archive_dir=_require(vault_raw, "archive_dir", str, ctx="vault"),
+    )
+
+    # ---- sources ----
+    sources_raw = _require(raw, "sources", dict, ctx=str(p))
+    enabled_list = _require(sources_raw, "enabled", list, ctx="sources")
+    registry_raw = _require(sources_raw, "registry", dict, ctx="sources")
+
+    registry: dict[str, SourceRegistryEntry] = {}
+    for st, entry in registry_raw.items():
+        if st not in KNOWN_SOURCE_TYPES:
+            raise ConfigError(
+                f"sources.registry 出现未知 source_type {st!r}；"
+                f"已知集合：{sorted(KNOWN_SOURCE_TYPES)}"
+            )
+        if not isinstance(entry, dict):
+            raise ConfigError(f"sources.registry.{st} 必须是 mapping")
+        registry[st] = SourceRegistryEntry(
+            source_type=st,
+            adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{st}"),
+            inbox_subdir=_require(entry, "inbox_subdir", str, ctx=f"sources.registry.{st}"),
+            file_glob=_require(entry, "file_glob", str, ctx=f"sources.registry.{st}"),
+            # enabled 字段在 v0.1 默认 True；显式 false 表示占位 stub
+            enabled=bool(entry.get("enabled", True)),
+        )
+    for st in enabled_list:
+        if st not in registry:
+            raise ConfigError(
+                f"sources.enabled 列出的 {st!r} 不在 sources.registry 中"
+            )
+    sources = SourcesConfig(enabled=tuple(enabled_list), registry=registry)
+
+    # ---- state ----
+    state_raw = _require(raw, "state", dict, ctx=str(p))
+    workdir_str = _require(state_raw, "workdir", str, ctx="state")
+    state = StateConfig(
+        workdir=(base_dir / workdir_str) if not Path(workdir_str).is_absolute() else Path(workdir_str),
+        state_file=_require(state_raw, "state_file", str, ctx="state"),
+        runs_dir=_require(state_raw, "runs_dir", str, ctx="state"),
+        index_file=_require(state_raw, "index_file", str, ctx="state"),
+        backup_state=bool(state_raw.get("backup_state", True)),
+    )
+
+    # ---- triage ----
+    triage_raw = _require(raw, "triage", dict, ctx=str(p))
+    triage = TriageConfig(
+        value_score_threshold=int(_require(triage_raw, "value_score_threshold", int, ctx="triage")),
+        default_track=_require(triage_raw, "default_track", str, ctx="triage"),
+    )
+
+    # ---- llm ----
+    llm = _parse_llm(_require(raw, "llm", dict, ctx=str(p)))
+
+    # ---- prompts ----
+    prompts_raw = _require(raw, "prompts", dict, ctx=str(p))
+    prompts = PromptVersions(
+        triage=_require(prompts_raw, "triage_version", str, ctx="prompts"),
+        distill=_require(prompts_raw, "distill_version", str, ctx="prompts"),
+        link_suggestion=_require(prompts_raw, "link_suggestion_version", str, ctx="prompts"),
+        review_questions=_require(prompts_raw, "review_questions_version", str, ctx="prompts"),
+        action_extraction=_require(prompts_raw, "action_extraction_version", str, ctx="prompts"),
+    )
+
+    # ---- logging ----
+    logging_raw = _require(raw, "logging", dict, ctx=str(p))
+    logging_cfg = LoggingConfig(
+        level=str(logging_raw.get("level", "INFO")),
+        file=str(logging_raw.get("file", ".mindforge/mindforge.log")),
+        record_prompts=bool(logging_raw.get("record_prompts", True)),
+        record_outputs=bool(logging_raw.get("record_outputs", True)),
+    )
+
+    return MindForgeConfig(
+        version=float(raw.get("version", 0.1)),
+        vault=vault,
+        sources=sources,
+        state=state,
+        triage=triage,
+        llm=llm,
+        prompts=prompts,
+        logging=logging_cfg,
+        raw=raw,
+    )
+
+
+def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
+    active_profile = _require(raw, "active_profile", str, ctx="llm")
+    profiles_raw = _require(raw, "profiles", dict, ctx="llm")
+    models_raw = _require(raw, "models", dict, ctx="llm")
+
+    if active_profile not in profiles_raw:
+        raise ConfigError(
+            f"llm.active_profile={active_profile!r} 在 llm.profiles 中不存在"
+        )
+
+    # 解析 models
+    models: dict[str, ModelConfig] = {}
+    for alias, mraw in models_raw.items():
+        if not isinstance(mraw, dict):
+            raise ConfigError(f"llm.models.{alias} 必须是 mapping")
+        models[alias] = ModelConfig(
+            alias=alias,
+            provider=_require(mraw, "provider", str, ctx=f"llm.models.{alias}"),
+            type=_require(mraw, "type", str, ctx=f"llm.models.{alias}"),
+            base_url=_require(mraw, "base_url", str, ctx=f"llm.models.{alias}"),
+            model=_require(mraw, "model", str, ctx=f"llm.models.{alias}"),
+            timeout_seconds=int(mraw.get("timeout_seconds", 120)),
+            max_retries=int(mraw.get("max_retries", 1)),
+            api_key_env=mraw.get("api_key_env"),
+            api_key_optional=bool(mraw.get("api_key_optional", False)),
+        )
+
+    # 校验每个 profile：必须覆盖全部 5 个 stage，且 alias 必须存在
+    profiles: dict[str, dict[str, str]] = {}
+    for pname, pmap in profiles_raw.items():
+        if not isinstance(pmap, dict):
+            raise ConfigError(f"llm.profiles.{pname} 必须是 mapping")
+        missing = [s for s in REQUIRED_STAGES if s not in pmap]
+        if missing:
+            raise ConfigError(
+                f"llm.profiles.{pname} 缺少 stage 映射：{missing}；"
+                f"v0.1 必须覆盖 {list(REQUIRED_STAGES)}"
+            )
+        for stage, alias in pmap.items():
+            if alias not in models:
+                raise ConfigError(
+                    f"llm.profiles.{pname}.{stage}={alias!r} 不在 llm.models 中"
+                )
+        profiles[pname] = dict(pmap)
+
+    # active_profile 是否需要 api_key？仅检查 active_profile 涉及的 model
+    active_aliases = set(profiles[active_profile].values())
+    for alias in active_aliases:
+        m = models[alias]
+        if m.api_key_env and not m.api_key_optional:
+            # 不强制现在就读环境变量（开发阶段可能没设），仅记录契约要求
+            pass
+
+    return LLMConfig(active_profile=active_profile, profiles=profiles, models=models)
+
+
+def load_learning_tracks(path: str | Path) -> LearningTracksConfig:
+    """加载并校验 learning_tracks.yaml。"""
+    p = Path(path)
+    raw = _read_yaml(p)
+    tracks_raw = _require(raw, "tracks", list, ctx=str(p))
+
+    tracks: list[TrackConfig] = []
+    seen_ids: set[str] = set()
+    for i, t in enumerate(tracks_raw):
+        if not isinstance(t, dict):
+            raise ConfigError(f"learning_tracks.tracks[{i}] 必须是 mapping")
+        tid = _require(t, "id", str, ctx=f"tracks[{i}]")
+        if tid in seen_ids:
+            raise ConfigError(f"learning_tracks 中存在重复 id：{tid!r}")
+        seen_ids.add(tid)
+        tracks.append(
+            TrackConfig(
+                id=tid,
+                keywords=tuple(t.get("keywords") or []),
+                negative_keywords=tuple(t.get("negative_keywords") or []),
+                output_focus=tuple(t.get("output_focus") or []),
+            )
+        )
+
+    return LearningTracksConfig(version=int(raw.get("version", 1)), tracks=tuple(tracks))
+
+
+def _require(d: dict[str, Any], key: str, expected_type: type, *, ctx: str) -> Any:
+    if key not in d:
+        raise ConfigError(f"{ctx}: 缺少必填字段 {key!r}")
+    val = d[key]
+    if expected_type is int:
+        # YAML 里 int 也可能被解析成 bool 的子类；这里宽松处理
+        if isinstance(val, bool) or not isinstance(val, int):
+            raise ConfigError(f"{ctx}.{key} 必须是 int，得到 {type(val).__name__}")
+    elif not isinstance(val, expected_type):
+        raise ConfigError(
+            f"{ctx}.{key} 必须是 {expected_type.__name__}，得到 {type(val).__name__}"
+        )
+    return val
+
+
+__all__ = [
+    "REQUIRED_STAGES",
+    "KNOWN_SOURCE_TYPES",
+    "ConfigError",
+    "VaultConfig",
+    "SourceRegistryEntry",
+    "SourcesConfig",
+    "StateConfig",
+    "TriageConfig",
+    "ModelConfig",
+    "LLMConfig",
+    "PromptVersions",
+    "LoggingConfig",
+    "MindForgeConfig",
+    "TrackConfig",
+    "LearningTracksConfig",
+    "load_mindforge_config",
+    "load_learning_tracks",
+]
