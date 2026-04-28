@@ -2,6 +2,12 @@
 
 MindForge is a local-first CLI pipeline. It keeps raw inputs, generated cards, state, run logs, indexes, and telemetry separated so the system can be audited without leaking private content.
 
+Obsidian is treated as personal knowledge context, not as a machine runtime
+store. The v0.5 direction is a minimal read-only Obsidian binding that can
+ingest vault notes through the same source adapter contract while keeping
+generated output in staging/review areas and keeping runtime state outside
+formal notes.
+
 ## Data Flow
 
 ```text
@@ -11,6 +17,16 @@ MindForge is a local-first CLI pipeline. It keeps raw inputs, generated cards, s
   -> LLM pipeline
   -> 20-Knowledge-Cards/<track>/*.md
   -> approve / recall / review / project context / vault helpers
+```
+
+v0.5 adds the design target below without changing the downstream contract:
+
+```text
+Obsidian vault Markdown (read-only)
+  -> ObsidianVaultSource adapter
+  -> SourceDocument
+  -> existing pipeline / recall / review layers
+  -> staging/review output only, never direct formal-note rewrites
 ```
 
 ## Core Layers
@@ -24,6 +40,10 @@ Active adapter contract:
 - [SOURCE_ADAPTER_PROTOCOL.md](./SOURCE_ADAPTER_PROTOCOL.md)
 - `src/mindforge/sources/base.py`
 - `src/mindforge/sources/registry.py`
+
+For Obsidian, the intended source adapter is `ObsidianVaultSource`: it should
+read Markdown notes, frontmatter, tags, `[[wikilinks]]`, and directory context
+without modifying the vault.
 
 ### SourceDocument Contract
 
@@ -55,6 +75,25 @@ Cards are written to `20-Knowledge-Cards/<track>/*.md` and default to `status: a
 - `.mindforge/index/bm25.json`: local recall index built from safe card fields.
 
 These files have separate responsibilities and should not be merged.
+They also must not be written into formal Obsidian notes. Future SQLite,
+vector, graph, cache, or checkpoint stores are derived machine layers and must
+remain rebuildable from source vault content and MindForge artifacts.
+
+### Obsidian Boundary
+
+Obsidian has three roles in the target architecture:
+
+1. **Personal knowledge source**: existing notes, daily notes, project notes,
+   tags, frontmatter, wikilinks, and folders are input context.
+2. **Human knowledge workbench**: MindForge may propose summaries, candidate
+   cards, MOCs, review notes, or learning routes into a staging/review area.
+3. **Not runtime state**: logs, checkpoints, caches, indexes, and intermediate
+   state stay out of formal notes.
+
+MindForge must not auto-organize the vault, move files, rewrite wikilinks, or
+edit formal notes without a separate explicit review workflow.
+
+Detailed v0.5 boundary: [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md).
 
 ### Recall And Review
 

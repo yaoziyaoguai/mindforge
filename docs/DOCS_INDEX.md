@@ -7,7 +7,7 @@ This page is the navigation map for the active documentation set. Historical mil
 The active docs have been consolidated into four layers:
 
 - user path: `README.md`, `GETTING_STARTED.md`, `USER_GUIDE.md`;
-- developer path: `ARCHITECTURE.md`, `SOURCE_ADAPTER_PROTOCOL.md`, `LLM_PROVIDER_CONFIG.md`, `SECURITY.md`, `TESTING.md`;
+- developer path: `ARCHITECTURE.md`, `SOURCE_ADAPTER_PROTOCOL.md`, `OBSIDIAN_BINDING.md`, `LLM_PROVIDER_CONFIG.md`, `SECURITY.md`, `TESTING.md`;
 - planning/history path: `ROADMAP.md`, `ROADMAP_PROGRESS.md`, `CHANGELOG.md`;
 - historical archive: `docs/archive/`.
 
@@ -31,8 +31,9 @@ Milestone reviews, superseded design notes, and narrow smoke/completion notes we
 1. [Architecture](./ARCHITECTURE.md)
 2. [Security](./SECURITY.md)
 3. [SourceAdapter Protocol](./SOURCE_ADAPTER_PROTOCOL.md)
-4. [MindForge Protocol](./MINDFORGE_PROTOCOL.md)
-5. [Testing](./TESTING.md)
+4. [Obsidian Binding](./OBSIDIAN_BINDING.md)
+5. [MindForge Protocol](./MINDFORGE_PROTOCOL.md)
+6. [Testing](./TESTING.md)
 
 ## Planning And History
 

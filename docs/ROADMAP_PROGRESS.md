@@ -61,14 +61,15 @@
 | 模块 | 当前能力 | 缺口 |
 |---|---|---|
 | PDF/Docx adapter | 文本型 PDF / 普通 docx 段落抽取，`OptionalDependencyError` 友好提示 | 不做 OCR；不解析复杂版式；尚无大文件性能基线 |
-| Obsidian 友好度 | `vault index/links` 自动维护 `_index.md` / `_link_candidates.md` | 没有 Obsidian 插件；没有批量双链重写 |
-| 产品化 onboarding | `init --interactive` + `doctor` + `commands` + `next` + `GETTING_STARTED.md` + demo vault + smoke 测试 | 还缺真实 1–2 周 dogfooding 数据；跨平台窄终端表现需人工观察 |
+| Obsidian 友好度 | `vault index/links` 自动维护当前 MindForge vault 的 `_index.md` / `_link_candidates.md` | 尚未把真实 Obsidian vault 作为只读 source；没有 staging/review 写回边界 |
+| 产品化 onboarding | `init --interactive` + `doctor` + `commands` + `next` + `GETTING_STARTED.md` + demo vault + smoke 测试 | 还缺 Obsidian binding 后的真实流程验证；跨平台窄终端表现需人工观察 |
 | Telemetry summary | `telemetry status / summary` 命令，10 字段白名单 | 无远端，未来也不打算上传 |
 
 ## 4. 未开始 / 仅 spike 的模块
 
-- ❌ RAG / embedding / 向量检索（明确不做主干）
-- ❌ Obsidian plugin（明确不做）
+- ❌ ObsidianVaultSource / Obsidian Binding（下一阶段 v0.5，先只读 source + staging/review 边界）
+- ❌ RAG / embedding / 向量检索 / 图数据库（v0.5 不做实现，后续仅在真实缺口出现后 spike）
+- ❌ Obsidian plugin（v0.5 不做；先做 CLI/adapter 层 binding）
 - ❌ OCR / 扫描件 PDF（明确不做）
 - ❌ 云端同步 / 多端推送
 - ❌ SM-2 / FSRS 等遗忘曲线算法
@@ -80,16 +81,17 @@
 
 | 维度 | 完成度 |
 |---|---|
-| **CLI 本地产品（个人 PKM 加工管线）** | **~88%** —— 主链路 + 召回 + 复习 + 项目上下文 + telemetry + onboarding 都齐；剩真实 dogfooding 与少量跨平台 polish |
-| **完整 Learning Memory OS** | **~45%** —— 缺 Obsidian 插件 / RAG 召回 / 多端 / 自动复习调度 / GUI；这是有意为之，不是缺陷 |
+| **CLI 本地产品（个人 PKM 加工管线）** | **~88%** —— 主链路 + 召回 + 复习 + 项目上下文 + telemetry + onboarding 都齐；但尚未接入真实 Obsidian 语境 |
+| **完整 Learning Memory OS** | **~45%** —— 缺 Obsidian binding / RAG 召回 / 多端 / 自动复习调度 / GUI；这是有意为之，不是缺陷 |
 
 ## 6. 下一阶段推荐顺序
 
-1. **真实 dogfooding 1–2 周**（强烈建议）：用 v0.4.3 把自己 vault 跑起来；
-   现在功能/契约已经到位，再加更多代码不如先验证产品假设。
-2. **CLI polish 收尾**：按 dogfooding 反馈补齐残余错误文案、窄终端输出、`doctor --fix` 是否值得做。
-3. **M5.1 PDF/Docx 完善**：加 fixture 测试、`--strip-empty-pages`、
+1. **v0.5 Obsidian Binding / Bridge**：先设计并落地最小只读绑定，把 Obsidian
+   vault 作为 source 语境纳入 SourceAdapter，而不是把它当 output 目录或机器状态仓库。
+2. **小规模非敏感样本验证**：只验证只读扫描、frontmatter/tags/`[[wikilinks]]`/目录解析、
+   staging/review 输出边界；不跑真实 vault 大规模 dogfooding。
+3. **CLI polish 收尾**：按 Obsidian binding 反馈补齐错误文案、窄终端输出、`doctor --fix` 是否值得做。
+4. **M5.1 PDF/Docx 完善**：加 fixture 测试、`--strip-empty-pages`、
    `--max-pages` 等控制项；仍**不**做 OCR。
-4. **M6 RAG/embedding spike**：仅 `docs/POC`，不入主干，决策"是否值得做"。
-5. **Obsidian plugin spike**：同样仅 docs，不入仓库；先评估"能否只做读取插件
-   而不动 vault"。
+5. **RAG/embedding spike**：仅在 Obsidian binding 和真实反馈证明 BM25/hybrid 不够时再写设计；
+   不入主干，不实现 vector/graph。

@@ -22,7 +22,7 @@
 | `mindforge recall --query "..." [--ranking bm25|hybrid] [--explain] [--weight-*]` | 本地词法 + 多路融合检索 | 只读卡片 frontmatter + 白名单 body |
 | `mindforge review due/mark/schedule/backlog/stats/weekly` | 复习计划与执行 | 仅 `mark` 写 4-5 字段 |
 | `mindforge project list/context/update-evidence` | 项目上下文 + evidence 区块 | `update-evidence` 写 30-Projects 受控区块 |
-| `mindforge vault index/links/refresh` | Obsidian 友好度（自动 _index/_link_candidates） | 仅写 _index.md 系列 |
+| `mindforge vault index/links/refresh` | 当前 MindForge vault 友好度（自动 _index/_link_candidates） | 仅写 _index.md 系列 |
 | `mindforge llm ping/inspect [--profile]` | 真实 provider 体检 | 实际网络（仅 ping） |
 | `mindforge telemetry status/summary` | 本地 telemetry 摘要 | 只读 |
 
@@ -54,6 +54,10 @@ Completion 只影响 shell 命令补全，不改变 `--vault` / `--debug` / `--c
 | `.mindforge/telemetry.jsonl` | 本地 only telemetry | 全局 hook | telemetry status/summary |
 | `40-Reviews/*.md` 或 `/tmp/*.ics` | 周报 / iCal 导出 | review weekly / schedule | 用户手动消费 |
 
+Obsidian v0.5 绑定另见 [`OBSIDIAN_BINDING.md`](./OBSIDIAN_BINDING.md)：真实
+Obsidian vault 第一阶段只读扫描，生成内容只能进入 staging/review，机器状态不写入
+正式笔记。
+
 ## 3. 安全契约（不可放宽）
 
 1. **不读 `.env` 内容**：`doctor` 仅检查 `.env` 是否在 `.gitignore`；
@@ -66,6 +70,8 @@ Completion 只影响 shell 命令补全，不改变 `--vault` / `--debug` / `--c
 8. **iCal 仅本地导出**：不接系统日历，不请求权限；
 9. **PDF/Docx 只做最小文本**：不做 OCR、不做表格、不做图片解析；
 10. **`update-evidence`** 只写 START/END 区块，**不**写 raw_text / prompt / completion。
+11. **Obsidian 真实 vault 第一阶段只读**：不移动文件、不改正式笔记、不重写双链；
+12. **机器状态不污染 vault**：checkpoint / cache / index / runtime log 不写入正式笔记。
 
 ## 4. 错误处理（v0.4.1）
 
@@ -106,8 +112,10 @@ mindforge project context my-first-agent --target claude-code
 
 ## 6. 不支持（明示边界，避免误用）
 
-- ❌ 不做 RAG / embedding / 向量库
-- ❌ 不做 Obsidian 插件
+- ❌ v0.5 不做复杂 RAG / embedding / 向量库 / 图数据库实现
+- ❌ v0.5 不做 Obsidian 插件；先做只读 Obsidian Binding / Bridge
+- ❌ 不自动整理真实 Obsidian vault
+- ❌ 不自动移动文件 / 改正式笔记 / 重写双链
 - ❌ 不做浏览器插件
 - ❌ 不做 OCR / 扫描件 PDF
 - ❌ 不做云端同步

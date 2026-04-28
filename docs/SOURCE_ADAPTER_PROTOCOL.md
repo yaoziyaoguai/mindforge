@@ -5,7 +5,7 @@
 
 ## 1. 为什么有这一层
 
-MindForge 的输入是异构的：Cubox / Obsidian 手写笔记 / Web Clipper / PDF /
+MindForge 的输入是异构的：Cubox / Obsidian vault Markdown / Web Clipper / PDF /
 Docx / ChatGPT 导出 …… 如果加工管线（Triager / Distiller / Linker / Writer）
 直接读这些原始格式，就会永远在做"格式分支"：
 
@@ -64,6 +64,8 @@ class SourceAdapter(ABC):
   且在 `M5.X` 协议里走单独评审；
 - PDF/Docx adapter **不**做 OCR、**不**做复杂版式；
 - ChatExport adapter **不**做隐私脱敏推断。
+- Obsidian adapter 第一阶段必须只读真实 vault，**不**移动文件、**不**改正式笔记、
+  **不**重写双链。
 
 ### 2.3 `AdapterRegistry`（`_BUILTIN_ADAPTERS` + `build_active_adapters`）
 
@@ -81,7 +83,31 @@ _BUILTIN_ADAPTERS = {
 `build_active_adapters(cfg.sources)` 根据 yaml 实例化 adapter，并校验
 `adapter.source_type == registry 中的 source_type`，对不上直接 fail-fast。
 
-## 3. 加一个新 source（举例：NotionAdapter）
+## 3. ObsidianVaultSource 定位
+
+`ObsidianVaultSource` 是 v0.5 的目标 source adapter 概念，而不是一个 output
+目录别名。
+
+它应该把 Obsidian vault 作为个人知识语境读取：
+
+- Markdown 正文；
+- frontmatter；
+- tags；
+- `[[wikilinks]]`；
+- 目录结构；
+- 项目记录、每日笔记、学习主线、历史知识卡片等用户维护内容。
+
+第一阶段边界：
+
+- 只读扫描真实 vault；
+- 输出仍然是 `SourceDocument`；
+- 机器状态、cache、index、runtime log 不写入正式笔记；
+- 生成内容如果要回到 Obsidian，只能先进入 staging/review 区；
+- 不自动整理整个 vault、不移动文件、不重写双链。
+
+详细设计边界见 [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md)。
+
+## 4. 加一个新 source（举例：NotionAdapter）
 
 最少改动：
 
@@ -104,15 +130,17 @@ _BUILTIN_ADAPTERS = {
 **完全不需要**改：scanner、processor、pipeline、cli、recall、index、review、
 project context。
 
-## 4. 安全边界（再次强调）
+## 5. 安全边界（再次强调）
 
 - adapter 可以读取原始文件；
 - runs / telemetry / state.json **绝不**记录 raw_text 全文（只记 hash + 元信息）；
 - adapter 不能读取 `.env`；
 - adapter 不能联网，除非未来某个 adapter 明确声明 `network=true` 并经评审；
 - v0.x 默认所有 adapter 都是 local-only。
+- Obsidian adapter 不能把 `.mindforge/`、SQLite、vector index、graph index、cache
+  等机器派生层写进正式 vault 笔记。
 
-## 5. 数据流
+## 6. 数据流
 
 ```
 00-Inbox/<sub>/file.ext
@@ -136,7 +164,7 @@ LLM Pipeline (Triager → Distiller → Linker → Writer)
   Recall / Review / Project Context
 ```
 
-## 6. 与 v0.4.2 之前的差异
+## 7. 与 v0.4.2 之前的差异
 
 | 项 | 之前 | v0.4.2 |
 |---|---|---|
@@ -145,9 +173,11 @@ LLM Pipeline (Triager → Distiller → Linker → Writer)
 | 新增 source 是否动核心 | 否 | 否（已固化） |
 | 文档化程度 | 散落在 `MINDFORGE_PROTOCOL.md` | 独立成文（本文件） |
 
-## 7. 不做（明示）
+## 8. 不做（明示）
 
 - 不做"adapter 自动发现"；新 adapter 必须在 `_BUILTIN_ADAPTERS` 显式注册；
 - 不做"adapter 链式 fallback"；一个文件只能由 1 个 adapter 处理（按子目录派发）；
 - 不做"远程 adapter"；v0.x 全部本地；
 - 不做"adapter 配置热加载"；改 yaml 后重启 CLI 进程即可。
+- 不做"Obsidian 自动整理器"；MindForge 不能把真实 vault 当作可随意改写的
+  机器工作目录。

@@ -14,6 +14,8 @@ MindForge handles personal learning material. The default behavior must stay loc
 8. Do not do OCR. Textless scanned PDFs fail with a clear error.
 9. Do not add a background daemon, system notification, email, or calendar integration in v0.x.
 10. Do not add remote sync or cloud storage.
+11. Do not modify real Obsidian vault notes in the first Obsidian binding phase.
+12. Do not put runtime state, caches, logs, SQLite metadata, vector indexes, or graph indexes into formal Obsidian notes.
 
 ## Default Safe Path
 
@@ -41,6 +43,16 @@ Detailed contract: [M5_7_TELEMETRY_PROTOCOL.md](./M5_7_TELEMETRY_PROTOCOL.md).
 BM25/hybrid recall is local. It indexes safe Knowledge Card frontmatter fields plus approved body sections such as `AI Summary`, `Action Items`, `Principles`, and `Known Risks`. It must not index `Source Excerpt`, `Human Note`, raw source files, runs, state, or `.env`.
 
 Detailed contract: [M5_4_LEXICAL_RECALL_PROTOCOL.md](./M5_4_LEXICAL_RECALL_PROTOCOL.md).
+
+## Obsidian Boundary
+
+Obsidian is a source of personal knowledge context and a human review workbench,
+not a machine state directory. The v0.5 binding must start read-only against real
+vault notes. Generated content may only target staging/review areas until a
+human confirms it. MindForge must not auto-organize the vault, move files, edit
+formal notes, or rewrite wikilinks.
+
+Detailed boundary: [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md).
 
 ## Provider Configuration
 
