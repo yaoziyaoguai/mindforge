@@ -863,6 +863,48 @@ def test_obsidian_dogfooding_flow_from_tmp_disposable_vault(tmp_path: Path, monk
     assert "PASS" in preflight.output
 
 
+def test_obsidian_readiness_doc_exists_and_preserves_boundaries() -> None:
+    """v0.7.6: readiness 只能总结 dry-run 能力，不能提前宣称 write/apply/plugin/RAG。"""
+    doc_path = Path("docs/V0_7_X_OBSIDIAN_INTEGRATION_READINESS.md")
+    text = doc_path.read_text(encoding="utf-8")
+    lowered = text.lower()
+
+    assert doc_path.exists()
+    assert "v0.7.1" in text
+    assert "v0.7.5" in text
+    assert "No formal Obsidian note writes" in text
+    assert "No Obsidian plugin" in text
+    assert "No RAG / embedding" in text
+    assert "No default real LLM path" in text
+    assert "No telemetry upload" in text
+    forbidden_claims = [
+        "apply is implemented",
+        "write gate is enabled",
+        "plugin is implemented",
+        "rag is implemented",
+        "real llm is enabled",
+    ]
+    for claim in forbidden_claims:
+        assert claim not in lowered
+
+
+def test_obsidian_readiness_doc_command_examples_are_covered() -> None:
+    """readiness 文档中的关键命令必须是已有 CLI 入口或明确的人工占位示例。"""
+    text = Path("docs/V0_7_X_OBSIDIAN_INTEGRATION_READINESS.md").read_text(encoding="utf-8")
+    required_commands = [
+        "mindforge obsidian next --vault <disposable-vault-copy>",
+        "mindforge obsidian doctor --vault <copy>",
+        "mindforge obsidian scan --vault <copy> --limit 20",
+        "mindforge obsidian links --vault <copy>",
+        "mindforge obsidian stage --vault <copy> --source <note.md> --dry-run",
+        "mindforge obsidian preflight --vault <copy> --manifest",
+    ]
+    for command in required_commands:
+        assert command in text
+    assert "<note.md>" in text
+    assert "<export>.manifest.json" in text
+
+
 def test_obsidian_stage_rejects_formal_note_output_dir(tmp_path: Path) -> None:
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     res = runner.invoke(
