@@ -4,7 +4,7 @@ This roadmap tracks product direction and explicit non-goals. Completed release 
 
 ## Current Position
 
-Current version: **v0.5.1**.
+Current version: **v0.5.2**.
 
 MindForge v0.x is a local-first CLI for personal learning memory:
 
@@ -18,6 +18,7 @@ MindForge v0.x is a local-first CLI for personal learning memory:
 - CLI onboarding and demo vault.
 - read-only Obsidian Binding / Bridge.
 - Local Usability as a formal milestone.
+- packaged default prompts, templates, and configs.
 
 ## Completed v0.4.3 Follow-Up
 
@@ -70,10 +71,32 @@ non-Obsidian commands, fixes command-map rendering for `[[wikilinks]]`, avoids
 reading `.env` in the fake-provider local smoke path, and makes fake-provider
 demo output inherit source titles instead of producing `Untitled` cards.
 
+## v0.5.2 Packaging / Install Readiness Completed
+
+v0.5.2 keeps the v0.5.1 local product loop intact while removing a packaged
+install footgun: runtime defaults no longer assume a source checkout or repo
+root current directory.
+
+Completed scope:
+
+- default prompts are bundled under `src/mindforge/assets/prompts/`;
+- default Knowledge Card template is bundled under
+  `src/mindforge/assets/templates/`;
+- default configs used by `mindforge init` and default learning tracks are
+  bundled under `src/mindforge/assets/configs/`;
+- default asset loading uses `importlib.resources`;
+- explicit user paths such as `--prompts-dir`, `--tracks`, and `--template`
+  still take priority;
+- SourceAdapter, SourceDocument, processor, approval, and recall architecture
+  remain unchanged.
+
+Non-goals remain explicit: no RAG / embedding, no Obsidian plugin, no live LLM
+default path, no real private vault processing, and no automatic approval.
+
 ## Near-Term Priority
 
-Next: validate v0.5.1 on small, non-sensitive disposable vault copies and patch
-packaging/install readiness before adding new feature classes.
+Next: validate v0.5.2 on small, non-sensitive disposable vault copies and patch
+install smoke / local usability issues before adding new feature classes.
 
 ## Future Candidate Work
 
@@ -81,7 +104,7 @@ See [M5_BACKLOG.md](./M5_BACKLOG.md) for current spike candidates. The active fu
 
 - Obsidian Binding polish from dry-run feedback.
 - Local Usability polish from real non-sensitive dogfooding.
-- Packaging / install readiness.
+- Install smoke polish after packaged asset migration.
 - PDF/docx performance baselines.
 - More onboarding and cross-platform terminal polish.
 - RAG / embedding only as a later design spike if lexical recall proves
