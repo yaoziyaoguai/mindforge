@@ -449,6 +449,139 @@ def test_approval_review_recall_no_env_network_or_obsidian_write(
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
+def test_recall_search_ux_shows_query_rank_source_terms_and_boundary(tmp_path: Path) -> None:
+    """v0.6.3: recall 命中结果要解释“搜到了什么、为什么、下一步”。
+
+    测试通过真实 CLI 跑 BM25 路径，验证输出来自索引/卡片事实；这里不引入
+    RAG/embedding，也不调用 LLM，只做本地词法检索的产品化展示。
+    """
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(
+        cards,
+        "search-card",
+        {
+            "id": "search-card",
+            "title": "Agent search checkpoint",
+            "status": "human_approved",
+            "track": "agent-runtime",
+            "source_type": "plain_markdown",
+        },
+        body="## AI Summary\nagent checkpoint runtime\n",
+    )
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent", "--explain"])
+
+    assert res.exit_code == 0, res.output
+    assert "Search query: agent" in res.output
+    assert "Index:" in res.output
+    assert "rank=#1" in res.output
+    assert "source=plain_markdown" in res.output
+    assert "human_approved/approved knowledge" in res.output
+    assert "terms=agent" in res.output
+    assert "why" in res.output
+    assert "review weekly" in res.output
+    assert "local lexical recall only" in res.output
+    assert "no RAG, no embedding, no LLM, no .env, no upload" in res.output
+
+
+def test_recall_empty_state_reports_counts_and_recovery_actions(tmp_path: Path) -> None:
+    """无结果时要基于本地卡片计数给出下一步，而不是只说 no match。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "approved", {
+        "id": "approved",
+        "title": "Approved memory",
+        "status": "human_approved",
+    })
+    _write_card(cards, "draft", {
+        "id": "draft",
+        "title": "Draft memory",
+        "status": "ai_draft",
+    })
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "zzzz-no-hit"])
+
+    assert res.exit_code == 0, res.output
+    assert "approved cards=1" in res.output
+    assert "ai_draft=1" in res.output
+    assert "index rebuild" in res.output
+    assert "approve list" in res.output
+    assert "继续 process" in res.output
+    assert "换同义词" in res.output
+
+
+def test_recall_missing_index_says_temporary_index_and_rebuild(tmp_path: Path) -> None:
+    """索引缺失不是失败，但必须告诉用户本次用了临时索引并建议 rebuild。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "agent-card", {
+        "id": "agent-card",
+        "title": "Agent card",
+        "status": "human_approved",
+    })
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent"])
+
+    assert res.exit_code == 0, res.output
+    assert "temporary in-memory index" in res.output
+    assert "suggest_rebuild=yes" in res.output
+
+
+def test_recall_include_drafts_marks_draft_risk(tmp_path: Path) -> None:
+    """--include-drafts 可以查看草稿，但输出必须标明 draft 风险。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-agent", {
+        "id": "draft-agent",
+        "title": "Agent draft",
+        "status": "ai_draft",
+    })
+
+    res = runner.invoke(
+        app, ["recall", "--config", str(cfg), "--query", "agent", "--include-drafts"]
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "ai_draft/risky draft" in res.output
+    assert "approved knowledge" not in res.output
+
+
+def test_recall_search_ux_non_repo_cwd_and_no_env_or_obsidian_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """packaged-like recall smoke：显式 --config 时不依赖 repo cwd，也不读 .env。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "agent-card", {
+        "id": "agent-card",
+        "title": "Agent non repo cwd",
+        "status": "human_approved",
+    })
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("recall 不应读取 .env")
+
+    def _blocked_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("recall 不应联网或调用远程 LLM")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(socket, "socket", _blocked_socket)
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent"])
+
+    assert res.exit_code == 0, res.output
+    assert "Agent non repo cwd" in res.output
+    assert "must-not-leak" not in res.output
+    assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
+    assert "RAG enabled" not in res.output
+    assert "embedding enabled" not in res.output
+
+
 def test_backup_export_writes_safe_files_and_refuses_overwrite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
