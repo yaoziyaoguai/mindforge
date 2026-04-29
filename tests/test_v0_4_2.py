@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -244,6 +245,90 @@ def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
     assert weekly.exit_code == 0, weekly.output
     assert "Next action" in weekly.output
     assert "approve list" in weekly.output
+
+
+def test_backup_export_writes_safe_files_and_refuses_overwrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v0.5.5: backup export 只导出安全摘要，不复制正文 secret，也不覆盖旧备份。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(
+        cards,
+        "approved",
+        {"id": "approved", "title": "Approved", "status": "human_approved", "track": "agent-runtime"},
+        body="## AI Summary\nBODY_SECRET_SHOULD_NOT_EXPORT\n",
+    )
+    _write_card(
+        cards,
+        "draft-secret",
+        {"id": "draft-secret", "title": "DRAFT_SECRET_SHOULD_NOT_EXPORT", "status": "ai_draft"},
+    )
+    out_dir = tmp_path / "backup"
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("backup export 不应读取 .env")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    res = runner.invoke(app, ["backup", "export", "--config", str(cfg), "--output-dir", str(out_dir)])
+    assert res.exit_code == 0, res.output
+    assert (out_dir / "manifest.json").exists()
+    exported = "\n".join(p.read_text(encoding="utf-8") for p in out_dir.glob("*.json"))
+    assert "Approved" in exported
+    assert "BODY_SECRET_SHOULD_NOT_EXPORT" not in exported
+    assert "DRAFT_SECRET_SHOULD_NOT_EXPORT" not in exported
+    assert ".env" not in exported
+
+    second = runner.invoke(app, ["backup", "export", "--config", str(cfg), "--output-dir", str(out_dir)])
+    assert second.exit_code == 2
+    assert "拒绝覆盖" in second.output
+
+
+def test_backup_export_works_from_non_repo_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """packaged-like smoke：backup export 不能依赖 repo cwd。"""
+    cfg = _make_vault(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(app, ["backup", "export", "--config", str(cfg), "--output-dir", "backup-out"])
+    assert res.exit_code == 0, res.output
+    assert (run_dir / "backup-out" / "manifest.json").exists()
+
+
+def test_doctor_plus_reports_recovery_actions_and_paths(tmp_path: Path) -> None:
+    """doctor plus 应给恢复检查和路径边界，帮助用户判断会读写哪里。"""
+    cfg = _make_vault(tmp_path)
+    res = runner.invoke(app, ["doctor", "--config", str(cfg), "--paths"])
+    assert res.exit_code == 0, res.output
+    assert "Recovery checks" in res.output
+    assert "state.json" in res.output
+    assert "bm25 index" in res.output
+    assert "package assets" in res.output
+    assert "Data safety paths" in res.output
+    assert "writes backups" in res.output
+    assert "index rebuild" in res.output or "mindforge scan" in res.output
+
+
+def test_doctor_plus_no_env_network_or_obsidian_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """doctor plus 只读本地状态：不读 .env、不联网、不写 Obsidian 正式 notes。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("doctor 不应读取 .env")
+
+    def _blocked_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("doctor 不应联网")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(socket, "socket", _blocked_socket)
+    res = runner.invoke(app, ["doctor", "--config", str(cfg), "--paths"])
+    assert res.exit_code == 0, res.output
+    assert "must-not-leak" not in res.output
+    assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
 def test_post_command_vault_normalization_keeps_cli_boundaries() -> None:

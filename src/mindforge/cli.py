@@ -53,6 +53,8 @@ app = typer.Typer(
 )
 llm_app = typer.Typer(add_completion=False, help="LLM provider 工具子命令（不触发业务 pipeline）")
 app.add_typer(llm_app, name="llm")
+backup_app = typer.Typer(add_completion=False, help="本地备份 / 导出 / 恢复检查（不上传、不读 .env）")
+app.add_typer(backup_app, name="backup")
 console = Console()
 
 
@@ -2436,6 +2438,134 @@ def _do_index_status(*, config: Path, output_format: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# backup — v0.5.5 local export / recovery safety
+# ---------------------------------------------------------------------------
+
+
+@backup_app.command("export")
+def backup_export(
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="备份输出目录；默认 .mindforge/backups/<timestamp>。",
+    ),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """导出本地安全备份：已审核卡片摘要、state summary、review schedule。
+
+    中文学习型说明：v0.5.5 的 backup/export 是恢复辅助，不是云同步。它只导出
+    Knowledge Card frontmatter 白名单摘要和本地状态计数，不读取 `.env`，不复制
+    source 原文、不上传 telemetry，也不会覆盖已存在备份目录。
+    """
+    from .cards import filter_cards, iter_cards
+
+    cfg = _load_cfg(config, read_env=False)
+    now = datetime.now().astimezone()
+    if output_dir is None:
+        safe_ts = now.isoformat(timespec="seconds").replace(":", "-")
+        target = cfg.state.workdir / "backups" / f"mindforge-backup-{safe_ts}"
+    else:
+        target = output_dir.expanduser()
+        if not target.is_absolute():
+            target = Path.cwd() / target
+    target = target.resolve()
+    if target.exists():
+        console.print(f"[red]✗ 备份目录已存在，拒绝覆盖：{target}[/red]")
+        console.print("[dim]下一步：换一个 --output-dir，或先人工检查旧备份。[/dim]")
+        raise typer.Exit(code=2)
+    target.mkdir(parents=True)
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    approved = filter_cards(scan.cards, status="human_approved")
+    cards_payload = [_card_to_safe_dict(card) for card in approved]
+
+    state_payload: dict[str, object]
+    if cfg.state.state_path.exists():
+        try:
+            cp = Checkpoint.load(cfg.state.state_path, backup=False)
+            state_payload = {
+                "state_path": str(cfg.state.state_path),
+                "exists": True,
+                "count_by_status": cp.count_by_status(),
+                "count_by_source_type": cp.count_by_source_type(),
+            }
+        except Exception as e:  # noqa: BLE001 - 只导出错误类别，不输出原始 state 内容
+            state_payload = {
+                "state_path": str(cfg.state.state_path),
+                "exists": True,
+                "error": f"{type(e).__name__}: {e}",
+            }
+    else:
+        state_payload = {"state_path": str(cfg.state.state_path), "exists": False}
+
+    schedule_payload = _build_review_schedule_export(approved, generated_at=now, days=7)
+    manifest = {
+        "version": 1,
+        "generated_at": now.isoformat(timespec="seconds"),
+        "vault_root": str(cfg.vault.root),
+        "files": {
+            "human_approved_cards": "human_approved_cards.json",
+            "state_summary": "state_summary.json",
+            "review_schedule": "review_schedule.json",
+        },
+        "safety": {
+            "contains_env": False,
+            "contains_source_raw_text": False,
+            "contains_prompt_or_completion": False,
+            "uploads_telemetry": False,
+        },
+    }
+
+    _write_json(target / "manifest.json", manifest)
+    _write_json(target / "human_approved_cards.json", {"count": len(cards_payload), "items": cards_payload})
+    _write_json(target / "state_summary.json", state_payload)
+    _write_json(target / "review_schedule.json", schedule_payload)
+    (target / "README.md").write_text(
+        "# MindForge Local Backup\n\n"
+        "This backup contains safe summaries only: human_approved card metadata, "
+        "state counters, and a local review schedule. It does not contain `.env`, "
+        "source raw text, prompt/completion logs, telemetry upload data, or Obsidian formal-note writes.\n",
+        encoding="utf-8",
+    )
+
+    console.print(f"[green]✓ backup exported[/green] {target}")
+    console.print(f"  human_approved cards: {len(cards_payload)}")
+    console.print("  files: manifest.json, human_approved_cards.json, state_summary.json, review_schedule.json")
+    console.print("[dim]说明：未读取 .env，未上传 telemetry，未修改 Obsidian notes。[/dim]")
+
+
+def _write_json(path: Path, payload: object) -> None:
+    import json as _json
+
+    path.write_text(_json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _build_review_schedule_export(cards: list, *, generated_at: datetime, days: int) -> dict[str, object]:
+    """构建安全 review schedule 导出，不写系统日历、不读取正文。"""
+    horizon = generated_at + timedelta(days=days)
+    by_day: dict[str, list[dict[str, object]]] = {}
+    for card in cards:
+        if card.review_after is None:
+            continue
+        due_at = card.review_after if card.review_after.tzinfo else card.review_after.replace(tzinfo=generated_at.tzinfo)
+        if due_at <= generated_at:
+            key = generated_at.date().isoformat()
+        elif due_at <= horizon:
+            key = due_at.date().isoformat()
+        else:
+            continue
+        by_day.setdefault(key, []).append(_card_to_safe_dict(card))
+    return {
+        "version": 1,
+        "generated_at": generated_at.isoformat(timespec="seconds"),
+        "horizon_days": days,
+        "total": sum(len(items) for items in by_day.values()),
+        "days": [{"date": day, "count": len(items), "items": items} for day, items in sorted(by_day.items())],
+    }
+
+
+# ---------------------------------------------------------------------------
 # project list / context
 # ---------------------------------------------------------------------------
 
@@ -3593,6 +3723,7 @@ def doctor(
         "--vault",
         help="临时覆盖配置中的 vault.root（兼容 `mindforge doctor --vault PATH`）。",
     ),
+    paths: bool = typer.Option(False, "--paths", help="展示本地会读/会写/不会写的目录边界"),
 ) -> None:
     """打印环境 + 配置 + 可选依赖 + .gitignore 风险快照。"""
     import importlib.util as _u
@@ -3709,8 +3840,20 @@ def doctor(
         except Exception:  # noqa: BLE001
             console.print(f"  {_doctor_icon('info')} git status       : (跳过)")
 
+    console.print("[dim]" + "─" * 72 + "[/dim]")
+    console.print("[bold]Recovery checks[/bold]")
+    recovery_hints = _doctor_recovery_checks(cfg)
+    for state, label, detail in recovery_hints["rows"]:
+        console.print(f"  {_doctor_icon(state)} {label:<22}: {detail}")
+    if paths:
+        console.print("[dim]" + "─" * 72 + "[/dim]")
+        console.print("[bold]Data safety paths[/bold]")
+        for label, value in _doctor_paths(cfg):
+            console.print(f"  {label:<18}: {value}")
+
     # ── v0.2.6: actionable hints ──────────────────────────────────────
     hints: list[tuple[str, str]] = []
+    hints.extend(recovery_hints["actions"])
     if not cards_dir.exists():
         hints.append(("critical", "vault 目录缺失 → 运行: mindforge init --interactive"))
     if cfg.llm.active_profile not in cfg.llm.profiles:
@@ -3785,6 +3928,7 @@ def doctor(
             pass
 
     if hints:
+        hints = list(dict.fromkeys(hints))
         hints.sort(key=lambda item: {"critical": 0, "recommended": 1, "info": 2}.get(item[0], 9))
         console.print("[dim]" + "─" * 72 + "[/dim]")
         console.print("[bold]Action items:[/bold]")
@@ -3794,6 +3938,76 @@ def doctor(
     console.print(
         "[dim]说明：本命令不读 .env 内容、不发 HTTP、不打印 api_key / token。[/dim]"
     )
+
+
+def _doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, str, str]]]:
+    """doctor plus 的本地恢复检查。
+
+    中文学习型说明：这些检查只读路径存在性、JSON/YAML 可读性和 package asset
+    可访问性；不会读取 `.env`，不会调用 LLM，也不会写 vault 或 Obsidian notes。
+    """
+    rows: list[tuple[str, str, str]] = []
+    actions: list[tuple[str, str]] = []
+
+    state_path = cfg.state.state_path
+    if state_path.exists():
+        try:
+            Checkpoint.load(state_path, backup=False)
+            rows.append(("ok", "state.json", f"readable · {state_path}"))
+        except Exception as e:  # noqa: BLE001
+            rows.append(("error", "state.json", f"unreadable · {type(e).__name__}: {e}"))
+            actions.append(("critical", "state.json 读取失败 → 先备份 .mindforge，再检查 JSON 或从 state.json.bak 恢复"))
+    else:
+        rows.append(("warn", "state.json", f"missing · {state_path}"))
+        actions.append(("recommended", "state.json 缺失 → 运行: mindforge scan"))
+
+    cards_dir = cfg.vault.cards_path
+    rows.append(("ok" if cards_dir.is_dir() else "error", "cards dir", str(cards_dir)))
+    if not cards_dir.is_dir():
+        actions.append(("critical", "Knowledge Cards 目录缺失 → 运行: mindforge init --interactive"))
+
+    index_path = cfg.state.workdir / "index" / "bm25.json"
+    rows.append(("ok" if index_path.exists() else "warn", "bm25 index", str(index_path) if index_path.exists() else "missing"))
+    if not index_path.exists():
+        actions.append(("recommended", "BM25 索引缺失 → 运行: mindforge index rebuild"))
+
+    try:
+        from .assets_runtime import bundled_text
+
+        bundled_text("configs", "mindforge.yaml")
+        bundled_text("templates", "knowledge_card.md.j2")
+        rows.append(("ok", "package assets", "configs/templates readable"))
+    except Exception as e:  # noqa: BLE001
+        rows.append(("error", "package assets", f"unreadable · {type(e).__name__}: {e}"))
+        actions.append(("critical", "package assets 不可读 → 检查安装包或重新安装 MindForge"))
+
+    demo = Path("examples/demo-vault")
+    rows.append(("ok" if demo.is_dir() else "info", "demo vault", str(demo) if demo.is_dir() else "not in current cwd"))
+    try:
+        from .cards import filter_cards, iter_cards
+
+        approved = filter_cards(iter_cards(cfg.vault.root, cfg.vault.cards_dir).cards, status="human_approved")
+        schedule = _build_review_schedule_export(list(approved), generated_at=datetime.now().astimezone(), days=7)
+        rows.append(("ok" if schedule["total"] else "info", "review schedule", f"{schedule['total']} item(s) in next 7 days"))
+        if not schedule["total"]:
+            actions.append(("info", "未来 7 天无复习任务 → 运行: mindforge review weekly 查看整体状态"))
+    except Exception as e:  # noqa: BLE001
+        rows.append(("warn", "review schedule", f"unavailable · {type(e).__name__}: {e}"))
+    return {"rows": rows, "actions": actions}
+
+
+def _doctor_paths(cfg: MindForgeConfig) -> list[tuple[str, str]]:
+    return [
+        ("reads inbox", str(cfg.vault.inbox_path)),
+        ("reads cards", str(cfg.vault.cards_path)),
+        ("reads state", str(cfg.state.state_path)),
+        ("writes state", str(cfg.state.state_path)),
+        ("writes runs", str(cfg.state.runs_path)),
+        ("writes index", str(cfg.state.workdir / "index" / "bm25.json")),
+        ("writes backups", str(cfg.state.workdir / "backups")),
+        ("dry-run only", "obsidian stage defaults to --dry-run"),
+        ("never writes", "formal Obsidian notes unless user explicitly writes staging/review"),
+    ]
 
 
 def _doctor_icon(state: str) -> str:
@@ -4057,6 +4271,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "可观测",
         [
+            ("mindforge backup export", "导出本地安全备份（不含 .env / source 原文）"),
             ("mindforge telemetry status", "查看本地 telemetry 开关与文件路径"),
             ("mindforge telemetry summary", "本地命令使用统计（不上传 / 字段白名单）"),
         ],
