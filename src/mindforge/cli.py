@@ -3467,19 +3467,38 @@ def _print_stage_preview(
     action: str,
     skipped_reason: str,
     content_hash: str = "-",
+    title: str = "-",
+    wikilinks: list[str] | None = None,
+    frontmatter_keys: list[str] | None = None,
+    source_type: str = "-",
+    source_exists: bool | None = None,
+    source_in_vault: bool | None = None,
 ) -> None:
     """输出 Obsidian stage dry-run preview，且不写文件。
 
     dry-run report 是 v0.5.3 的产品边界：它告诉用户将会发生什么、为什么
     可能跳过、下一步怎么确认，但不会修改正式 notes 或 staging 文件。
+    v0.7.1 增加 note 结构摘要，但仍只来自 SourceDocument 安全元数据，不打印
+    note 正文或 source raw_text。
     """
+    if source_exists is None:
+        source_exists = source.exists()
+    if source_in_vault is None:
+        source_in_vault = _safe_relative_to(source, vault_root) is not None
     table = Table(title="Obsidian stage preview", show_lines=False)
     table.add_column("field", style="bold")
     table.add_column("value", overflow="fold")
     table.add_row("mode", "dry-run")
     table.add_row("vault", str(vault_root))
+    table.add_row("vault exists", "yes" if vault_root.exists() and vault_root.is_dir() else "no")
     table.add_row("source file", str(source))
+    table.add_row("source exists", "yes" if source_exists else "no")
+    table.add_row("source in vault", "yes" if source_in_vault else "no")
     table.add_row("proposed path", str(target) if target is not None else "-")
+    table.add_row("proposed title", title or "-")
+    table.add_row("detected wikilinks", ", ".join(wikilinks or []) or "-")
+    table.add_row("frontmatter keys", ", ".join(frontmatter_keys or []) or "-")
+    table.add_row("detected source type", source_type or "-")
     table.add_row("action type", action)
     table.add_row("skipped reason", skipped_reason or "-")
     table.add_row("source hash", content_hash)
@@ -3490,7 +3509,34 @@ def _print_stage_preview(
         f"mindforge obsidian stage --vault {vault_root} --source {hint} --dry-run",
     )
     console.print(table)
+    if skipped_reason:
+        print(f"skipped reason: {skipped_reason}")
     console.print("[yellow]dry-run：未写任何文件，未移动 source note，未重写 wikilinks。[/yellow]")
+
+
+def _safe_relative_to(path: Path, root: Path) -> str | None:
+    """返回 path 相对 vault 的路径；失败返回 None 而不是抛错。
+
+    Obsidian preview 经常处理用户手输路径。这里用显式 helper 避免在错误路径
+    场景下泄漏 traceback，同时不吞掉后续真正写入分支的安全判断。
+    """
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def _stage_preview_fields(doc) -> dict[str, object]:
+    """提取 stage preview 可展示的 note 结构摘要，不读取/打印正文。"""
+    frontmatter = doc.metadata.get("frontmatter") if isinstance(doc.metadata, dict) else {}
+    if not isinstance(frontmatter, dict):
+        frontmatter = {}
+    return {
+        "title": doc.title or Path(doc.source_path).stem,
+        "wikilinks": list(doc.metadata.get("wikilinks") or []),
+        "frontmatter_keys": sorted(str(k) for k in frontmatter.keys()),
+        "source_type": doc.source_type,
+    }
 
 
 @obsidian_app.command("scan")
@@ -3618,9 +3664,18 @@ def obsidian_stage(
     vault_root, _options = _obsidian_options(cfg, vault)
     _obsidian_copy_warning()
     source_path = _resolve_obsidian_source_for_preview(source, vault_root)
-    try:
-        source_path.relative_to(vault_root)
-    except ValueError:
+    if not vault_root.exists() or not vault_root.is_dir():
+        _print_stage_preview(
+            vault_root=vault_root,
+            source=source_path,
+            target=None,
+            action="skipped",
+            skipped_reason="Obsidian vault 不存在或不是目录；请检查 --vault。",
+            source_exists=source_path.exists(),
+            source_in_vault=_safe_relative_to(source_path, vault_root) is not None,
+        )
+        return
+    if _safe_relative_to(source_path, vault_root) is None:
         if dry_run:
             _print_stage_preview(
                 vault_root=vault_root,
@@ -3628,6 +3683,8 @@ def obsidian_stage(
                 target=None,
                 action="skipped",
                 skipped_reason="--source 必须位于 Obsidian vault 内，避免误处理外部资料。",
+                source_exists=source_path.exists(),
+                source_in_vault=False,
             )
             return
         console.print("[red]✗ --source 必须位于 Obsidian vault 内，避免误处理真实外部资料。[/red]")
@@ -3640,6 +3697,8 @@ def obsidian_stage(
                 target=None,
                 action="skipped",
                 skipped_reason="source note 不存在。",
+                source_exists=False,
+                source_in_vault=True,
             )
             return
         console.print(f"[red]✗ source note 不存在：{source_path}[/red]")
@@ -3652,6 +3711,8 @@ def obsidian_stage(
                 target=None,
                 action="skipped",
                 skipped_reason="--source 是目录；stage 需要单个 Markdown note。",
+                source_exists=True,
+                source_in_vault=True,
             )
             return
         console.print(f"[red]✗ --source 是目录；请传单个 Markdown note：{source_path}[/red]")
@@ -3664,6 +3725,8 @@ def obsidian_stage(
                 target=None,
                 action="skipped",
                 skipped_reason="--source 不是 Markdown 文件。",
+                source_exists=True,
+                source_in_vault=True,
             )
             return
         console.print(f"[red]✗ --source 不是 Markdown 文件：{source_path}[/red]")
@@ -3680,6 +3743,8 @@ def obsidian_stage(
                 target=None,
                 action="skipped",
                 skipped_reason=f"source 解析失败：{type(e).__name__}: {e}",
+                source_exists=True,
+                source_in_vault=True,
             )
             return
         console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
@@ -3692,6 +3757,7 @@ def obsidian_stage(
     content = build_stage_markdown(doc)
 
     if dry_run:
+        preview_fields = _stage_preview_fields(doc)
         _print_stage_preview(
             vault_root=vault_root,
             source=source_path,
@@ -3699,6 +3765,12 @@ def obsidian_stage(
             action="would-create-staging-candidate" if not target.exists() else "would-update-staging-candidate",
             skipped_reason="",
             content_hash=doc.content_hash,
+            title=str(preview_fields["title"]),
+            wikilinks=list(preview_fields["wikilinks"]),  # type: ignore[arg-type]
+            frontmatter_keys=list(preview_fields["frontmatter_keys"]),  # type: ignore[arg-type]
+            source_type=str(preview_fields["source_type"]),
+            source_exists=True,
+            source_in_vault=True,
         )
         return
     if not confirm:

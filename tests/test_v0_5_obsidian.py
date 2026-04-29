@@ -211,8 +211,17 @@ def test_obsidian_stage_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert "dry-run" in res.output
     assert "Obsidian stage preview" in res.output
     assert "source file" in res.output
+    assert "source exists" in res.output
+    assert "source in vault" in res.output
     assert "proposed path" in res.output
+    assert "proposed title" in res.output
+    assert "detected wikilinks" in res.output
+    assert "frontmatter keys" in res.output
+    assert "detected source type" in res.output
+    assert "Agent Runtime" in res.output
+    assert "Project Alpha" in res.output
     assert "would-create-staging-candidate" in res.output
+    assert "risk warning" in res.output
     assert "next command" in res.output
     assert note.read_text(encoding="utf-8") == before
     assert not (vault / "90-System" / "MindForge" / "Staging").exists()
@@ -254,7 +263,53 @@ def test_obsidian_stage_dry_run_reports_missing_source_without_write(tmp_path: P
     )
     assert res.exit_code == 0, res.output
     assert "source note 不存在" in res.output
+    assert "source exists" in res.output
     assert "dry-run" in res.output
+    assert not (vault / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_obsidian_stage_reports_missing_vault_without_write(tmp_path: Path) -> None:
+    """v0.7.1: vault 路径错时也要给 dry-run preview，而不是 traceback。"""
+    _vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    missing_vault = tmp_path / "missing-vault"
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(missing_vault),
+            "--source",
+            "note.md",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    assert "vault exists" in res.output
+    assert "no" in res.output
+    assert "Obsidian vault 不存在" in res.output
+    assert not missing_vault.exists()
+
+
+def test_obsidian_stage_reports_source_outside_vault_without_write(tmp_path: Path) -> None:
+    """v0.7.1: 外部 source 必须只报告 skipped，避免误处理真实私人文件。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Outside\n\nsecret body must not print\n", encoding="utf-8")
+    before = outside.read_text(encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(outside)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "source in vault" in res.output
+    assert "no" in res.output
+    assert "必须位于 Obsidian vault 内" in res.output
+    assert "secret body must not print" not in res.output
+    assert outside.read_text(encoding="utf-8") == before
     assert not (vault / "90-System" / "MindForge" / "Staging").exists()
 
 
@@ -270,6 +325,53 @@ def test_obsidian_stage_dry_run_reports_non_markdown_source(tmp_path: Path) -> N
     assert res.exit_code == 0, res.output
     assert "不是 Markdown 文件" in res.output
     assert "skipped" in res.output
+
+
+def test_obsidian_stage_bad_frontmatter_is_preview_skip_not_crash(tmp_path: Path) -> None:
+    """坏 frontmatter 不能中断 dry-run，也不能输出 note 正文。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    bad = vault / "02-Knowledge" / "Broken Stage.md"
+    bad.write_text("---\ntitle: [unterminated\n---\n\nsecret body should stay hidden", encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(bad)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "source 解析失败" in res.output
+    assert "skipped" in res.output
+    assert "secret body should stay hidden" not in res.output
+
+
+def test_obsidian_stage_from_non_repo_cwd_is_dry_run_only(tmp_path: Path, monkeypatch) -> None:
+    """packaged-like smoke：显式 --config/--vault 时从 /tmp 也能 dry-run。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    run_dir = tmp_path / "run dir with space"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            "02-Knowledge/Agent Runtime.md",
+            "--dry-run",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "Obsidian stage preview" in res.output
+    assert "dry-run：未写任何文件" in res.output
+    assert note.read_text(encoding="utf-8") == before
+    assert not (vault / "90-System" / "MindForge" / "Staging").exists()
 
 
 def test_obsidian_stage_write_only_to_staging_and_preserves_source(tmp_path: Path) -> None:
