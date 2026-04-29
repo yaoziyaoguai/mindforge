@@ -174,8 +174,76 @@ def test_next_json_format_is_parseable(tmp_path: Path) -> None:
     assert res.exit_code == 0
     data = json.loads(res.output)
     assert data["version"] == 2
+    assert "status" in data
+    assert "inbox_files" in data["status"]
     assert isinstance(data["suggestions"], list)
     assert all("command" in s and "reason" in s and "priority" in s for s in data["suggestions"])
+
+
+def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None:
+    """v0.5.4: today 是只读每日入口，展示状态和下一步，不触发加工。
+
+    这里用真实 CLI runner 验证输出来自 vault/state/card 文件系统事实，而不是只测
+    字符串拼接。命令不能读正文、不能 approve，也不能写 Obsidian notes。
+    """
+    cfg = _make_vault(tmp_path)
+    inbox = tmp_path / "vault" / "00-Inbox" / "ManualNotes"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / "daily.md").write_text("# Daily\n\nbody\n", encoding="utf-8")
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-1", {
+        "id": "draft-1", "title": "draft", "status": "ai_draft",
+        "track": "agent-runtime", "value_score": 5,
+    })
+
+    res = runner.invoke(app, ["today", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert "MindForge today" in res.output
+    assert "Daily status" in res.output
+    assert "ai_draft=1" in res.output
+    assert "Next actions" in res.output
+    assert "approve list" in res.output
+
+
+def test_today_json_is_parseable_and_does_not_read_env_or_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """today 必须是本地只读命令：不读 .env、不联网、不调用真实 LLM。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("MINDFORGE_SECRET=must-not-leak\n", encoding="utf-8")
+
+    import socket as _socket
+
+    def _no_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("today 不应联网")
+
+    monkeypatch.setattr(_socket, "socket", _no_socket)
+    res = runner.invoke(app, ["today", "--config", str(cfg), "--format", "json"])
+    assert res.exit_code == 0, res.output
+    data = json.loads(res.output)
+    assert data["version"] == 1
+    assert "status" in data and "suggestions" in data
+    assert "must-not-leak" not in res.output
+
+
+def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
+    """空状态也要像产品：告诉用户下一步，而不是只输出 no match。"""
+    cfg = _make_vault(tmp_path)
+
+    approve = runner.invoke(app, ["approve", "list", "--config", str(cfg)])
+    assert approve.exit_code == 0, approve.output
+    assert "没有待 approve" in approve.output
+    assert "profile fake" in approve.output
+
+    recall = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "missing"])
+    assert recall.exit_code == 0, recall.output
+    assert "没有匹配" in recall.output
+    assert "index rebuild" in recall.output
+
+    weekly = runner.invoke(app, ["review", "weekly", "--config", str(cfg)])
+    assert weekly.exit_code == 0, weekly.output
+    assert "Next action" in weekly.output
+    assert "approve list" in weekly.output
 
 
 def test_post_command_vault_normalization_keeps_cli_boundaries() -> None:

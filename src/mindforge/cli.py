@@ -612,7 +612,12 @@ def approve_list(
         return
 
     if not rows:
-        console.print("[dim](no cards match)[/dim]")
+        console.print("[yellow]没有待 approve 的卡片。[/yellow]")
+        console.print(
+            "[dim]下一步：如果 inbox 有新资料，先运行 `mindforge scan`，再运行 "
+            "`mindforge process --profile fake --limit 1` 生成 ai_draft；"
+            "MindForge 不会自动 approve。[/dim]"
+        )
         return
     table = Table(title=f"approve list (status in {sorted(wanted)})")
     for col in ("title", "status", "track", "projects", "source_type", "value_score", "path"):
@@ -1612,6 +1617,7 @@ def review_weekly(
         if c.track:
             focus_score[c.track] = focus_score.get(c.track, 0) + 2
     suggested_focus = sorted(focus_score.items(), key=lambda kv: -kv[1])[:5]
+    has_weekly_work = bool(overdue or due_this_week or reviewed_this_week or forgotten_or_partial or next_week_preview)
 
     with RunLogger(cfg.state.runs_path, command="review-weekly") as logger:  # type: ignore[attr-defined]
         logger.emit(
@@ -1671,6 +1677,13 @@ def review_weekly(
         ("\n".join(f"- {p}: {n}" for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])) + "\n") if project_counts else "_(none)_\n",
         f"\n## Next week preview · {len(next_week_preview)} 项\n",
         _list(next_week_preview),
+        (
+            "\n## Next action\n"
+            "- 当前没有本周复习任务。可以先运行 `mindforge approve list` 查看草稿，"
+            "或运行 `mindforge process --profile fake --limit 1` 从 inbox 生成新的 ai_draft。\n"
+            if not has_weekly_work
+            else ""
+        ),
         "\n_说明：本周报由 frontmatter 结构化汇总生成，**不**调用 LLM。_\n",
     ]
     out = "".join(md)
@@ -1841,6 +1854,7 @@ def recall(
         print(f"# Recall · {len(cards)} 项 (sort={sort})\n")
         if not cards:
             print("_(no cards matched)_")
+            print("\n下一步：确认已有 human_approved 卡片；必要时运行 `mindforge approve list`、`mindforge index rebuild` 或加入更多资料。")
             return
         for c in cards:
             print(
@@ -1854,6 +1868,7 @@ def recall(
     if output_format == "table":
         if not cards:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
+            console.print("[dim]下一步：尝试 `mindforge index rebuild`、放宽过滤条件，或先 approve 一些 ai_draft。[/dim]")
             return
         table = Table(title=f"Recall · {len(cards)} 项 (sort={sort})")
         table.add_column("id")
@@ -1877,6 +1892,7 @@ def recall(
     # compact (默认)
     if not cards:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
+        console.print("[dim]下一步：尝试 `mindforge index rebuild`、放宽过滤条件，或先运行 `mindforge approve list`。[/dim]")
         return
     console.print(f"[bold]Recall[/bold] · {len(cards)} 项 (sort={sort})")
     for c in cards:
@@ -2113,6 +2129,7 @@ def _do_bm25_recall(
         print(f"# Recall · {len(hits)} 项 ({label})\n")
         if not hits:
             print("_(no cards matched)_")
+            print("\n下一步：运行 `mindforge index rebuild`，检查是否已有 human_approved 卡片，或用 `--include-drafts` 临时查看草稿。")
             return
         for h in hits:
             d = h.doc
@@ -2138,6 +2155,7 @@ def _do_bm25_recall(
     if output_format == "table":
         if not hits:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
+            console.print("[dim]下一步：运行 `mindforge index rebuild`，检查 query，或先 `mindforge approve list`。[/dim]")
             return
         table = Table(title=f"Recall · {len(hits)} 项 ({label})")
         table.add_column("score", justify="right")
@@ -2164,6 +2182,7 @@ def _do_bm25_recall(
     # compact（默认）
     if not hits:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
+        console.print("[dim]下一步：运行 `mindforge index rebuild`，检查 query，或先 `mindforge approve list`。[/dim]")
         return
     console.print(f"[bold]Recall[/bold] · {len(hits)} 项 ({label})")
     for h in hits:
@@ -4047,6 +4066,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("mindforge commands", "本命令本身：按场景列出全部命令"),
             ("mindforge next", "根据 vault 状态推荐下一步行动"),
+            ("mindforge today", "每日打开时查看待办、复习、索引和下一条命令"),
         ],
     ),
 ]
@@ -4082,6 +4102,160 @@ class NextSuggestion:
     command: str
     reason: str
     priority: str
+
+
+@dataclass(frozen=True)
+class DailySnapshot:
+    """个人每日入口的只读状态快照。
+
+    中文学习型说明：v0.5.4 的 daily loop 只汇总可观察状态，不读取 source
+    正文、不调用 LLM、不自动 approve，也不修改 Obsidian notes。它是产品引导层，
+    不是 SourceAdapter / processor / recall 架构的一部分。
+    """
+
+    vault_root: str
+    vault_exists: bool
+    inbox_files: int
+    state_exists: bool
+    state_counts: dict[str, int]
+    recent_sources: tuple[str, ...]
+    card_counts: dict[str, int]
+    review_overdue: int
+    review_due_week: int
+    index_exists: bool
+    latest_run: str | None
+
+
+def _daily_snapshot(cfg: MindForgeConfig) -> DailySnapshot:
+    """读取本地 daily loop 所需的安全摘要。
+
+    所有信息来自文件名、state.json 状态字段和 Knowledge Card frontmatter
+    白名单字段；不会读取 `.env`、prompt、completion、source raw_text 或
+    Obsidian 正式 note 正文。
+    """
+    from .cards import iter_cards
+
+    vault_root = cfg.vault.root
+    inbox_files = 0
+    if cfg.vault.inbox_path.exists():
+        inbox_files = sum(
+            1 for p in cfg.vault.inbox_path.rglob("*") if p.is_file() and not p.name.startswith(".")
+        )
+
+    state_counts: dict[str, int] = {}
+    recent_items: list[ItemState] = []
+    if cfg.state.state_path.exists():
+        try:
+            cp = Checkpoint.load(cfg.state.state_path, backup=False)
+            state_counts = cp.count_by_status()
+            recent_items = sorted(
+                (item for item in cp.all_items() if _state_source_belongs_to_vault(item, cfg.vault.root)),
+                key=lambda it: it.processed_at or it.first_seen_at or datetime.min,
+                reverse=True,
+            )[:3]
+        except Exception:
+            state_counts = {"unreadable": 1}
+
+    scan = iter_cards(vault_root, cfg.vault.cards_dir)
+    card_counts: dict[str, int] = {}
+    review_overdue = 0
+    review_due_week = 0
+    now = datetime.now().astimezone()
+    for card in scan.cards:
+        card_counts[card.status] = card_counts.get(card.status, 0) + 1
+        if card.status != "human_approved" or card.review_after is None:
+            continue
+        due_at = card.review_after if card.review_after.tzinfo else card.review_after.replace(tzinfo=now.tzinfo)
+        if due_at <= now:
+            review_overdue += 1
+        elif due_at <= now + timedelta(days=7):
+            review_due_week += 1
+
+    runs_dir = cfg.state.runs_path
+    latest_run = None
+    if runs_dir.exists():
+        files = sorted((p for p in runs_dir.glob("*.jsonl") if p.is_file()), key=lambda p: p.stat().st_mtime)
+        if files:
+            latest_run = files[-1].name
+
+    return DailySnapshot(
+        vault_root=str(vault_root),
+        vault_exists=vault_root.exists(),
+        inbox_files=inbox_files,
+        state_exists=cfg.state.state_path.exists(),
+        state_counts=state_counts,
+        recent_sources=tuple(item.source_path for item in recent_items),
+        card_counts=card_counts,
+        review_overdue=review_overdue,
+        review_due_week=review_due_week,
+        index_exists=(cfg.state.workdir / "index" / "bm25.json").exists(),
+        latest_run=latest_run,
+    )
+
+
+def _state_source_belongs_to_vault(item: ItemState, vault_root: Path) -> bool:
+    """判断 state 记录是否属于当前 vault。
+
+    中文学习型说明：开发/packaged smoke 可能共用同一个 `.mindforge/state.json`，
+    里面混有不同临时 vault 的历史 source。daily loop 不能把别的 vault 的路径
+    显示成当前用户今天的进度，所以只展示当前 vault 内的绝对路径或普通相对路径。
+    """
+    p = Path(item.source_path)
+    if not p.is_absolute():
+        return True
+    try:
+        p.resolve().relative_to(vault_root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _snapshot_to_dict(snapshot: DailySnapshot) -> dict[str, object]:
+    return {
+        "vault_root": snapshot.vault_root,
+        "vault_exists": snapshot.vault_exists,
+        "inbox_files": snapshot.inbox_files,
+        "state_exists": snapshot.state_exists,
+        "state_counts": snapshot.state_counts,
+        "recent_sources": list(snapshot.recent_sources),
+        "card_counts": snapshot.card_counts,
+        "review": {
+            "overdue": snapshot.review_overdue,
+            "due_this_week": snapshot.review_due_week,
+        },
+        "index_exists": snapshot.index_exists,
+        "latest_run": snapshot.latest_run,
+    }
+
+
+def _print_daily_snapshot(snapshot: DailySnapshot) -> None:
+    console.print("[bold]Daily status[/bold]")
+    console.print(f"  vault        : {snapshot.vault_root}")
+    console.print(f"  inbox files  : {snapshot.inbox_files}")
+    console.print(
+        "  cards        : "
+        f"ai_draft={snapshot.card_counts.get('ai_draft', 0)} · "
+        f"human_approved={snapshot.card_counts.get('human_approved', 0)}"
+    )
+    console.print(
+        f"  review       : overdue={snapshot.review_overdue} · "
+        f"due_this_week={snapshot.review_due_week}"
+    )
+    console.print(f"  index        : {'ready' if snapshot.index_exists else 'missing'}")
+    console.print(f"  latest run   : {snapshot.latest_run or '-'}")
+    if snapshot.recent_sources:
+        console.print("  recent source:")
+        for src in snapshot.recent_sources:
+            console.print(f"    - {src}")
+    else:
+        console.print("  recent source: -")
+
+
+def _print_next_actions(suggestions: list[NextSuggestion]) -> None:
+    console.print("\n[bold]Next actions[/bold]")
+    for item in suggestions:
+        console.print(f"  [{item.priority}] → {item.command}", markup=False)
+        console.print(f"    {item.reason}")
 
 
 def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
@@ -4299,6 +4473,61 @@ def _compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSug
     return shown
 
 
+@app.command("today")
+def today_cmd(
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="mindforge.yaml 路径",
+    ),
+    output_format: str = typer.Option("text", "--format", "-f", help="text | json"),
+) -> None:
+    """每日入口：只读汇总待办、复习、索引和下一条命令。
+
+    中文学习型说明：`today` 是 v0.5.4 的个人日常使用入口。它只读取本地状态
+    与卡片 frontmatter 安全字段，不触发 process、不自动 approve、不读取
+    `.env`、不调用真实 LLM，也不修改 Obsidian notes。
+    """
+    if not config.exists():
+        if output_format == "json":
+            import json as _json
+
+            print(_json.dumps({"version": 1, "error": "config_missing"}, ensure_ascii=False))
+        else:
+            console.print("[yellow]配置不存在，先跑：mindforge init --interactive[/yellow]")
+        return
+    cfg = _load_cfg(config, read_env=False)
+    snapshot = _daily_snapshot(cfg)
+    suggestions = _next_suggestions(cfg)
+
+    if output_format == "json":
+        import json as _json
+
+        print(
+            _json.dumps(
+                {
+                    "version": 1,
+                    "status": _snapshot_to_dict(snapshot),
+                    "suggestions": [
+                        {"command": s.command, "reason": s.reason, "priority": s.priority}
+                        for s in suggestions
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    console.print(f"[bold]MindForge today[/bold]  — vault: {cfg.vault.root}\n")
+    _print_daily_snapshot(snapshot)
+    _print_next_actions(suggestions)
+    console.print(
+        "\n[dim]说明：today 只读本地状态和卡片 frontmatter；不读 .env、不调 LLM、"
+        "不发 HTTP、不自动 approve。[/dim]"
+    )
+
+
 @app.command("next")
 def next_cmd(
     config: Path = typer.Option(
@@ -4357,6 +4586,7 @@ def next_cmd(
                 {
                     "version": 2,
                     "vault_root": str(cfg.vault.root),
+                    "status": _snapshot_to_dict(_daily_snapshot(cfg)),
                     "suggestions": [
                         {
                             "command": item.command,
@@ -4372,9 +4602,8 @@ def next_cmd(
         return
 
     console.print(f"[bold]MindForge next[/bold]  — vault: {cfg.vault.root}\n")
-    for item in suggestions:
-        console.print(f"  [{item.priority}] → {item.command}", markup=False)
-        console.print(f"    {item.reason}")
+    _print_daily_snapshot(_daily_snapshot(cfg))
+    _print_next_actions(suggestions)
     console.print(
         "\n[dim]说明：本命令不读 .env、不调 LLM、不发 HTTP；"
         "建议来自文件系统可观察事实（state.json / 卡片 frontmatter / 索引文件）。[/dim]"
