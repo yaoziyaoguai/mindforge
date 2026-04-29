@@ -4202,86 +4202,72 @@ def version(
 # `commands` 的固定脚本：(group, command, "什么时候用")
 _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
-        "初始化",
+        "第一次开始",
         [
-            ("mindforge init --vault PATH", "首次创建 vault 骨架与 configs"),
-            ("mindforge doctor", "健康检查 + 下一步行动建议（不读 .env）"),
-            ("mindforge version", "版本与运行配置摘要（不含 secret）"),
+            ("mindforge start", "第一天入口：看状态、安全边界和下一条命令"),
+            ("mindforge init --vault PATH", "创建 vault 骨架与默认 configs"),
+            ("mindforge doctor --paths", "健康检查 + 本地读写边界"),
         ],
     ),
     (
-        "数据输入",
+        "导入 / 处理资料",
         [
             ("mindforge scan", "扫 inbox，建 SourceDocument，刷 state.json"),
-            ("mindforge process [--limit N]", "跑 LLM pipeline（默认 fake provider）"),
+            ("mindforge process --profile fake --limit N", "离线 fake provider 生成 ai_draft"),
             ("mindforge status", "查看 state.json 中的处理进度"),
         ],
     ),
     (
-        "审核",
+        "审批 ai_draft",
         [
-            ("mindforge approve list", "列出 ai_draft 卡片（仅安全字段）"),
+            ("mindforge approve list", "查看待人工批准的草稿"),
             ("mindforge approve --card PATH", "把单张卡片晋升为 human_approved"),
-            ("mindforge approve --all --confirm", "批量晋升（先 --dry-run 预览）"),
+            ("mindforge approve --all --dry-run", "批量预览；不会自动 approve"),
         ],
     ),
     (
-        "搜索",
+        "Recall",
         [
             ("mindforge index rebuild", "本地 BM25 索引重建（不联网）"),
-            ("mindforge index info --json", "索引健康 / 配置漂移检查"),
             ("mindforge recall --query \"...\"", "本地词法检索"),
             ("mindforge recall --ranking hybrid --explain", "三路融合 + 评分解释"),
         ],
     ),
     (
-        "复习",
+        "Review",
         [
             ("mindforge review backlog", "overdue / today / upcoming / missing 四桶"),
             ("mindforge review schedule --days 7", "未来 N 天复习计划"),
-            ("mindforge review schedule --format ical -o file.ics", "本地 .ics 导出（不接系统日历）"),
             ("mindforge review weekly", "周报（不调 LLM）"),
             ("mindforge review mark --card PATH --result remembered", "标记复习结果"),
         ],
     ),
     (
-        "项目上下文",
+        "Obsidian dry-run",
         [
-            ("mindforge project list", "列出已知项目"),
-            ("mindforge project context <name> --target claude-code", "为编程助手拼装上下文包"),
-            ("mindforge project update-evidence <name> --dry-run", "幂等写入受控 evidence 区块"),
+            ("mindforge obsidian doctor --vault PATH", "检查只读 Obsidian 绑定边界"),
+            ("mindforge obsidian scan --vault PATH", "只读扫描 Markdown note 安全摘要"),
+            ("mindforge obsidian links --vault PATH", "只读解析 [[wikilinks]]"),
+            ("mindforge obsidian stage --source NOTE --dry-run", "预览 staging 候选，不写正式 notes"),
         ],
     ),
     (
-        "Vault 友好度",
+        "Backup / Doctor",
         [
+            ("mindforge backup export", "导出本地安全备份（不含 .env / source 原文）"),
+            ("mindforge doctor --paths", "检查恢复状态和本地读写边界"),
             ("mindforge vault index", "维护 _index.md 导航文件"),
             ("mindforge vault links", "维护 _link_candidates.md 双链建议"),
         ],
     ),
     (
-        "Obsidian Binding",
+        "Debug / Safety",
         [
-            ("mindforge obsidian doctor --vault PATH", "检查只读 Obsidian 绑定边界"),
-            ("mindforge obsidian scan --vault PATH", "只读扫描 Markdown note 安全摘要"),
-            ("mindforge obsidian links --vault PATH", "只读解析 [[wikilinks]]"),
-            ("mindforge obsidian stage --source NOTE --dry-run", "生成 staging 候选预览"),
-        ],
-    ),
-    (
-        "可观测",
-        [
-            ("mindforge backup export", "导出本地安全备份（不含 .env / source 原文）"),
+            ("mindforge commands", "按目标查看命令导航"),
+            ("mindforge next", "根据当前状态推荐下一步"),
+            ("mindforge today", "每日待办 / review / index 状态"),
+            ("mindforge version", "版本与运行配置摘要（不含 secret）"),
             ("mindforge telemetry status", "查看本地 telemetry 开关与文件路径"),
-            ("mindforge telemetry summary", "本地命令使用统计（不上传 / 字段白名单）"),
-        ],
-    ),
-    (
-        "引导",
-        [
-            ("mindforge commands", "本命令本身：按场景列出全部命令"),
-            ("mindforge next", "根据 vault 状态推荐下一步行动"),
-            ("mindforge today", "每日打开时查看待办、复习、索引和下一条命令"),
         ],
     ),
 ]
@@ -4471,6 +4457,31 @@ def _print_next_actions(suggestions: list[NextSuggestion]) -> None:
     for item in suggestions:
         console.print(f"  [{item.priority}] → {item.command}", markup=False)
         console.print(f"    {item.reason}")
+
+
+def _print_start_guidance(snapshot: DailySnapshot, suggestions: list[NextSuggestion]) -> None:
+    """打印第一天 onboarding 状态，不触发任何写操作。
+
+    中文学习型说明：`start` 是 CLI 产品入口，不是新的业务管线。它只把
+    doctor/today/next 的只读信号组合成用户能理解的步骤，避免把 onboarding
+    做成 Web UI/TUI 或隐藏式自动流程。
+    """
+    console.print("[bold]Onboarding status[/bold]")
+    console.print(f"  vault exists        : {'yes' if snapshot.vault_exists else 'no'}")
+    console.print(f"  initialized         : {'yes' if snapshot.state_exists else 'not yet / state missing'}")
+    console.print(f"  sources in inbox    : {snapshot.inbox_files}")
+    console.print(f"  ai_draft cards      : {snapshot.card_counts.get('ai_draft', 0)}")
+    console.print(f"  human_approved      : {snapshot.card_counts.get('human_approved', 0)}")
+    console.print(f"  bm25 index          : {'ready' if snapshot.index_exists else 'missing'}")
+    console.print(
+        f"  review schedule     : overdue={snapshot.review_overdue} · "
+        f"due_this_week={snapshot.review_due_week}"
+    )
+    _print_next_actions(suggestions[:3])
+    console.print(
+        "\n[dim]安全默认：fake provider；start 不读 .env、不调 LLM、不发 HTTP、"
+        "不写正式 Obsidian notes。[/dim]"
+    )
 
 
 def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
@@ -4686,6 +4697,74 @@ def _compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSug
         )
     )
     return shown
+
+
+@app.command("start")
+def start_cmd(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    output_format: str = typer.Option("text", "--format", "-f", help="text | json"),
+) -> None:
+    """第一天入口：展示当前状态、安全边界和下一条推荐命令。
+
+    该命令只读本地文件系统和卡片 frontmatter，不会 init、scan、process、
+    approve 或写 Obsidian notes。真正动作仍由用户显式执行。
+    """
+    if not config.exists():
+        if output_format == "json":
+            import json as _json
+
+            print(
+                _json.dumps(
+                    {
+                        "version": 1,
+                        "error": "config_missing",
+                        "next_command": "mindforge init --interactive",
+                        "safety": _start_safety_dict(),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        else:
+            console.print("[bold]MindForge start[/bold]\n")
+            console.print("[yellow]尚未找到配置。[/yellow]")
+            console.print("  下一步：mindforge init --interactive", markup=False)
+            console.print("[dim]安全默认：初始化不会调用真实 LLM；后续 process 默认 fake。[/dim]")
+        return
+
+    cfg = _load_cfg(config, read_env=False)
+    snapshot = _daily_snapshot(cfg)
+    suggestions = _next_suggestions(cfg)
+    if output_format == "json":
+        import json as _json
+
+        print(
+            _json.dumps(
+                {
+                    "version": 1,
+                    "status": _snapshot_to_dict(snapshot),
+                    "suggestions": [
+                        {"command": s.command, "reason": s.reason, "priority": s.priority}
+                        for s in suggestions
+                    ],
+                    "safety": _start_safety_dict(),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    console.print(f"[bold]MindForge start[/bold]  — vault: {cfg.vault.root}\n")
+    _print_start_guidance(snapshot, suggestions)
+
+
+def _start_safety_dict() -> dict[str, bool]:
+    return {
+        "default_fake_provider": True,
+        "reads_env": False,
+        "calls_real_llm": False,
+        "writes_formal_obsidian_notes": False,
+        "uploads_telemetry": False,
+    }
 
 
 @app.command("today")

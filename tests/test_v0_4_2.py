@@ -105,15 +105,24 @@ def _write_card(cards: Path, name: str, fm: dict, body: str = "## AI Summary\nx\
 # `mindforge commands`
 # ===========================================================================
 def test_commands_lists_key_groups() -> None:
-    """commands 输出应覆盖主要场景：初始化 / 数据输入 / 审核 / 搜索 / 复习 / 项目上下文。"""
+    """commands 输出应按用户目标组织，而不是只按内部模块名铺开。"""
     res = runner.invoke(app, ["commands"])
     assert res.exit_code == 0
     out = res.output
-    for kw in ["初始化", "数据输入", "审核", "搜索", "复习", "项目上下文", "可观测"]:
+    for kw in [
+        "第一次开始",
+        "导入 / 处理资料",
+        "审批 ai_draft",
+        "Recall",
+        "Review",
+        "Obsidian dry-run",
+        "Backup / Doctor",
+        "Debug / Safety",
+    ]:
         assert kw in out, f"commands 输出缺少 group: {kw}"
     # 至少包含 init / scan / approve / index / recall / review / project
-    for cmd in ["mindforge init", "mindforge scan", "mindforge approve", "mindforge index",
-                "mindforge recall", "mindforge review", "mindforge project"]:
+    for cmd in ["mindforge start", "mindforge init", "mindforge scan", "mindforge approve",
+                "mindforge index", "mindforge recall", "mindforge review"]:
         assert cmd in out
     assert "[[wikilinks]]" in out
 
@@ -206,6 +215,44 @@ def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None
     assert "approve list" in res.output
 
 
+def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
+    """v0.6.1: start 是第一天入口，只读展示状态和安全边界。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "approved", {
+        "id": "approved", "title": "approved", "status": "human_approved",
+        "track": "agent-runtime", "value_score": 5,
+    })
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert "MindForge start" in res.output
+    assert "Onboarding status" in res.output
+    assert "human_approved" in res.output
+    assert "Next actions" in res.output
+    assert "不读 .env" in res.output
+
+
+def test_start_missing_config_suggests_init(tmp_path: Path) -> None:
+    """未 init 场景要直接指向 init，而不是抛 Python traceback。"""
+    res = runner.invoke(app, ["start", "--config", str(tmp_path / "missing.yaml")])
+    assert res.exit_code == 0, res.output
+    assert "mindforge init --interactive" in res.output
+
+
+def test_start_json_from_non_repo_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """packaged-like smoke：start 在非 repo cwd 仍可用。"""
+    cfg = _make_vault(tmp_path)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+    res = runner.invoke(app, ["start", "--config", str(cfg), "--format", "json"])
+    assert res.exit_code == 0, res.output
+    data = json.loads(res.output)
+    assert data["version"] == 1
+    assert data["safety"]["calls_real_llm"] is False
+    assert data["safety"]["reads_env"] is False
+
+
 def test_today_json_is_parseable_and_does_not_read_env_or_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -225,6 +272,27 @@ def test_today_json_is_parseable_and_does_not_read_env_or_network(
     assert data["version"] == 1
     assert "status" in data and "suggestions" in data
     assert "must-not-leak" not in res.output
+
+
+def test_start_does_not_read_env_or_network_or_write_obsidian(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """start 只能是只读 onboarding，不得偷偷读 secret、联网或写 Obsidian。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("start 不应读取 .env")
+
+    def _blocked_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("start 不应联网")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(socket, "socket", _blocked_socket)
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert "must-not-leak" not in res.output
+    assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
 def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
