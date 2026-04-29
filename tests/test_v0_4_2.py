@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import socket
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -313,6 +314,139 @@ def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
     assert weekly.exit_code == 0, weekly.output
     assert "Next action" in weekly.output
     assert "approve list" in weekly.output
+
+
+def test_approve_list_outputs_todo_view_without_auto_approving(tmp_path: Path) -> None:
+    """v0.6.2: approve list 是待办视图，不是审批动作。
+
+    测试用真实 CLI 读取卡片 frontmatter，并在命令后回读文件确认 status 仍是
+    ai_draft；这条边界防止未来把“更顺手”误做成自动 approve。
+    """
+    cfg = _make_vault(tmp_path)
+    card = tmp_path / "vault" / "20-Knowledge-Cards" / "draft-ux.md"
+    _write_card(card.parent, "draft-ux", {
+        "id": "draft-ux",
+        "title": "Approve UX draft",
+        "status": "ai_draft",
+        "track": "agent-runtime",
+        "source_title": "Demo source",
+        "created_at": "2026-01-02T03:04:00",
+    })
+
+    res = runner.invoke(app, ["approve", "list", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "Approve Todo" in res.output
+    assert "Demo source" in res.output
+    assert "2026-01-02T03:04" in res.output
+    assert "不会自动 approve" in res.output
+    assert "mindforge approve --card" in res.output
+    assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
+
+
+def test_approve_explicit_action_mentions_human_approval_boundary(tmp_path: Path) -> None:
+    """显式 approve 可以写 human_approved，但输出必须讲清这是人工动作。"""
+    cfg = _make_vault(tmp_path)
+    card = tmp_path / "vault" / "20-Knowledge-Cards" / "draft-approve.md"
+    _write_card(card.parent, "draft-approve", {
+        "id": "draft-approve",
+        "title": "Draft approve",
+        "status": "ai_draft",
+    })
+
+    res = runner.invoke(app, ["approve", "--config", str(cfg), "--card", str(card)])
+
+    assert res.exit_code == 0, res.output
+    assert "human_approved" in res.output
+    assert "显式人工 approve" in res.output
+    assert "不会让 AI 自动写入" in res.output
+    assert "status: human_approved" in card.read_text(encoding="utf-8")
+
+
+def test_review_weekly_outputs_learning_tasks_and_bridge(tmp_path: Path) -> None:
+    """review weekly 应像学习任务清单，同时仍只读 frontmatter 安全字段。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    overdue = (datetime.now().astimezone() - timedelta(days=1)).isoformat()
+    _write_card(cards, "review-card", {
+        "id": "review-card",
+        "title": "Review card",
+        "status": "human_approved",
+        "track": "agent-runtime",
+        "review_after": overdue,
+        "last_review_result": "partial",
+    })
+
+    res = runner.invoke(app, ["review", "weekly", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "Learning tasks" in res.output
+    assert "overdue" in res.output
+    assert "Workflow bridge" in res.output
+    assert "review 只使用 human_approved" in res.output
+    assert "不**调用 LLM" in res.output
+
+
+def test_recall_hit_and_no_hit_include_next_actions(tmp_path: Path) -> None:
+    """recall 是只读检索，但命中/空结果都应把用户带回学习闭环。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(
+        cards,
+        "agent-card",
+        {
+            "id": "agent-card",
+            "title": "Agent runtime card",
+            "status": "human_approved",
+            "track": "agent-runtime",
+            "value_score": 7,
+        },
+        body="## AI Summary\nagent runtime checkpoint\n",
+    )
+
+    hit = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent"])
+    assert hit.exit_code == 0, hit.output
+    assert "review weekly" in hit.output
+    assert "手动 approve" in hit.output
+
+    miss = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "zzzz-no-hit"])
+    assert miss.exit_code == 0, miss.output
+    assert "index rebuild" in miss.output
+    assert "approve list" in miss.output
+    assert "继续 process" in miss.output
+
+
+def test_approval_review_recall_no_env_network_or_obsidian_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v0.6.2 UX 命令只能读本地安全状态，不读 .env、不联网、不写 Obsidian。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-safe", {
+        "id": "draft-safe",
+        "title": "Draft safe",
+        "status": "ai_draft",
+    })
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("approve/review/recall 不应读取 .env")
+
+    def _blocked_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("approve/review/recall 不应联网")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(socket, "socket", _blocked_socket)
+
+    for args in (
+        ["approve", "list", "--config", str(cfg)],
+        ["review", "weekly", "--config", str(cfg)],
+        ["recall", "--config", str(cfg), "--query", "agent"],
+    ):
+        res = runner.invoke(app, args)
+        assert res.exit_code == 0, res.output
+        assert "must-not-leak" not in res.output
+    assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
 def test_backup_export_writes_safe_files_and_refuses_overwrite(

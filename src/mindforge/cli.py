@@ -419,6 +419,11 @@ def _do_single_approve(
             f"(prev={outcome.prev_status} → {outcome.new_status}, "
             f"method={outcome.approval_method})"
         )
+        console.print(
+            "[dim]边界：这是一次显式人工 approve；MindForge 不会让 AI 自动写入 "
+            "human_approved。下一步可运行 `mindforge recall --query ...` 或 "
+            "`mindforge review weekly` 使用这张卡片。[/dim]"
+        )
         if outcome.state_missing:
             console.print(
                 "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
@@ -558,6 +563,29 @@ def _do_bulk_approve(
     console.print(f"[bold]批量 approve 完成：成功 {ok} / 失败 {fail}[/bold]")
 
 
+def _format_card_created_at(c) -> str:
+    """把卡片创建时间压成 CLI 友好字符串；只读 frontmatter 安全字段。"""
+    return c.created_at.isoformat(timespec="minutes") if c.created_at else "-"
+
+
+def _format_card_source_hint(c) -> str:
+    """生成 approve 待办里的 source 摘要，避免读取 source 原文。
+
+    v0.6.2 的边界是“让人更容易判断是否批准”，但不能为了展示更丰富而回读
+    原始资料正文；这里仅使用 CardSummary 已白名单化的 source_* frontmatter。
+    """
+    if c.source_title:
+        return c.source_title
+    if c.source_url:
+        return c.source_url
+    return c.source_type or "-"
+
+
+def _approve_next_command(c) -> str:
+    """为单张草稿给出最短下一步命令，不自动 approve。"""
+    return f"mindforge approve --card {c.rel_path}"
+
+
 @approve_app.command("list")
 def approve_list(
     status: str = typer.Option(
@@ -621,21 +649,37 @@ def approve_list(
             "MindForge 不会自动 approve。[/dim]"
         )
         return
-    table = Table(title=f"approve list (status in {sorted(wanted)})")
-    for col in ("title", "status", "track", "projects", "source_type", "value_score", "path"):
+    table = Table(title=f"Approve Todo · {len(rows)} pending (status in {sorted(wanted)})")
+    for col in (
+        "title",
+        "source",
+        "created",
+        "track",
+        "risk / safety",
+        "next command",
+    ):
         table.add_column(col, overflow="fold")
     for c in rows:
         table.add_row(
             c.title or "?",
-            c.status,
+            _format_card_source_hint(c),
+            _format_card_created_at(c),
             c.track or "-",
-            ",".join(c.projects) or "-",
-            c.source_type or "-",
-            "" if c.value_score is None else str(c.value_score),
-            c.rel_path,
+            "ai_draft，需要人工确认；不会自动 approve",
+            _approve_next_command(c),
         )
     console.print(table)
-    console.print(f"[dim]({len(rows)} shown)[/dim]")
+    console.print("[bold]Todo commands[/bold]")
+    for c in rows:
+        console.print(
+            f"- {c.title or '?'} · source={_format_card_source_hint(c)} · "
+            f"created={_format_card_created_at(c)} · next=`{_approve_next_command(c)}`",
+            markup=False,
+        )
+    console.print(
+        "[dim]说明：approve 会把 ai_draft 晋升为 human_approved，之后才进入 "
+        "recall / review / project context 的默认结果；MindForge 不会自动 approve。[/dim]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1645,6 +1689,7 @@ def review_weekly(
                 for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])
             ],
             "next_week_preview": [_card_to_safe_dict(c) for c in next_week_preview],
+            "next_actions": _review_next_actions(has_weekly_work),
         }, ensure_ascii=False, indent=2)
         if output_path:
             output_path.write_text(payload + "\n", encoding="utf-8")
@@ -1666,6 +1711,8 @@ def review_weekly(
     md = [
         f"# Weekly Review · {now.date().isoformat()}\n",
         f"_window: {week_start.date().isoformat()} → {now.date().isoformat()}_\n",
+        "\n## Learning tasks\n",
+        _review_learning_tasks(overdue, due_this_week, forgotten_or_partial),
         f"\n## Overdue · {len(overdue)} 项\n",
         _list(overdue),
         f"\n## Due this week · {len(due_this_week)} 项\n",
@@ -1681,11 +1728,16 @@ def review_weekly(
         _list(next_week_preview),
         (
             "\n## Next action\n"
-            "- 当前没有本周复习任务。可以先运行 `mindforge approve list` 查看草稿，"
-            "或运行 `mindforge process --profile fake --limit 1` 从 inbox 生成新的 ai_draft。\n"
+            + "\n".join(f"- {a}" for a in _review_next_actions(has_weekly_work))
+            + "\n"
             if not has_weekly_work
             else ""
         ),
+        "\n## Workflow bridge\n",
+        "- review 只使用 human_approved 卡片；新资料先 process 成 ai_draft，"
+        "再由你显式 approve。\n"
+        "- 找不到复习方向时，先运行 `mindforge recall --query <keyword>` 定位卡片，"
+        "再回到 `mindforge review weekly`。\n",
         "\n_说明：本周报由 frontmatter 结构化汇总生成，**不**调用 LLM。_\n",
     ]
     out = "".join(md)
@@ -1694,6 +1746,39 @@ def review_weekly(
         console.print(f"[green]✓[/green] 已写入 {output_path}")
     else:
         print(out)
+
+
+def _review_learning_tasks(
+    overdue: list,
+    due_this_week: list,
+    forgotten_or_partial: list,
+) -> str:
+    """把 review 数据压成个人学习任务，不改变 review 调度。
+
+    这里不新增调度算法，只把已有 frontmatter 汇总转成“今天该做什么”的语言，
+    避免 v0.6.2 越界成智能推荐或 LLM 复习教练。
+    """
+    tasks: list[str] = []
+    if overdue:
+        tasks.append(f"- 先处理 {len(overdue)} 张 overdue 卡片。")
+    if due_this_week:
+        tasks.append(f"- 本周安排 {len(due_this_week)} 张 due card。")
+    if forgotten_or_partial:
+        tasks.append(f"- 优先回看 {len(forgotten_or_partial)} 张 forgotten/partial 卡片。")
+    if not tasks:
+        tasks.append("- 当前没有明确复习任务；先 approve 新草稿或用 recall 找主题。")
+    return "\n".join(tasks) + "\n"
+
+
+def _review_next_actions(has_weekly_work: bool) -> list[str]:
+    """review 空状态的下一步建议；只返回静态命令，不触发任何写操作。"""
+    if has_weekly_work:
+        return ["运行 `mindforge review due` 聚焦今天到期项。"]
+    return [
+        "运行 `mindforge approve list` 查看是否有 ai_draft 待人工批准。",
+        "运行 `mindforge process --profile fake --limit 1` 从 inbox 生成新的 ai_draft。",
+        "运行 `mindforge recall --query <keyword>` 从已批准卡片里找学习主题。",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1856,7 +1941,7 @@ def recall(
         print(f"# Recall · {len(cards)} 项 (sort={sort})\n")
         if not cards:
             print("_(no cards matched)_")
-            print("\n下一步：确认已有 human_approved 卡片；必要时运行 `mindforge approve list`、`mindforge index rebuild` 或加入更多资料。")
+            print("\n" + _recall_no_result_next_action())
             return
         for c in cards:
             print(
@@ -1865,12 +1950,13 @@ def recall(
                 f"`value_score={c.value_score if c.value_score is not None else '-'}`  "
                 f"`path={c.rel_path}`"
             )
+        print("\n" + _recall_hit_next_action())
         return
 
     if output_format == "table":
         if not cards:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
-            console.print("[dim]下一步：尝试 `mindforge index rebuild`、放宽过滤条件，或先 approve 一些 ai_draft。[/dim]")
+            console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
             return
         table = Table(title=f"Recall · {len(cards)} 项 (sort={sort})")
         table.add_column("id")
@@ -1889,12 +1975,13 @@ def recall(
                 _safe_date(c.review_after),
             )
         console.print(table)
+        console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
         return
 
     # compact (默认)
     if not cards:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
-        console.print("[dim]下一步：尝试 `mindforge index rebuild`、放宽过滤条件，或先运行 `mindforge approve list`。[/dim]")
+        console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
         return
     console.print(f"[bold]Recall[/bold] · {len(cards)} 项 (sort={sort})")
     for c in cards:
@@ -1903,6 +1990,7 @@ def recall(
             f"status={c.status} · track={c.track or '-'} · "
             f"value_score={c.value_score if c.value_score is not None else '-'}"
         )
+    console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
 
 
 
@@ -2131,7 +2219,7 @@ def _do_bm25_recall(
         print(f"# Recall · {len(hits)} 项 ({label})\n")
         if not hits:
             print("_(no cards matched)_")
-            print("\n下一步：运行 `mindforge index rebuild`，检查是否已有 human_approved 卡片，或用 `--include-drafts` 临时查看草稿。")
+            print("\n" + _recall_no_result_next_action())
             return
         for h in hits:
             d = h.doc
@@ -2152,12 +2240,13 @@ def _do_bm25_recall(
                 for fh in h.field_hits:
                     terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
                     print(f"    - {fh.field} (w={fh.weight}, +{fh.contribution:.3f}): {terms}")
+        print("\n" + _recall_hit_next_action())
         return
 
     if output_format == "table":
         if not hits:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
-            console.print("[dim]下一步：运行 `mindforge index rebuild`，检查 query，或先 `mindforge approve list`。[/dim]")
+            console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
             return
         table = Table(title=f"Recall · {len(hits)} 项 ({label})")
         table.add_column("score", justify="right")
@@ -2179,12 +2268,13 @@ def _do_bm25_recall(
                 d.rel_path,
             )
         console.print(table)
+        console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
         return
 
     # compact（默认）
     if not hits:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
-        console.print("[dim]下一步：运行 `mindforge index rebuild`，检查 query，或先 `mindforge approve list`。[/dim]")
+        console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
         return
     console.print(f"[bold]Recall[/bold] · {len(hits)} 项 ({label})")
     for h in hits:
@@ -2208,6 +2298,27 @@ def _do_bm25_recall(
                 console.print(
                     f"    [dim]{fh.field}[/dim] w={fh.weight} +{fh.contribution:.3f}: {terms}"
                 )
+    console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
+
+
+def _recall_hit_next_action() -> str:
+    """recall 命中后的学习流桥接提示；不改变检索结果本身。
+
+    recall 的职责仍是只读检索 human_approved 卡片。v0.6.2 只在 CLI 末尾补
+    下一步建议，避免把 search UX 误扩展成自动 review 或自动 approve。
+    """
+    return (
+        "下一步：用 `mindforge review weekly` 安排复习；需要更多材料时运行 "
+        "`mindforge process --profile fake --limit 1`，再手动 approve。"
+    )
+
+
+def _recall_no_result_next_action() -> str:
+    """recall 无结果时的恢复建议；保持纯本地、不调用 LLM。"""
+    return (
+        "下一步：运行 `mindforge index rebuild`，确认已有 human_approved 卡片；"
+        "如只有草稿，先运行 `mindforge approve list`；如资料不足，继续 process。"
+    )
 
 
 def _hybrid_hit_to_safe_dict(hh, *, explain: bool) -> dict:
