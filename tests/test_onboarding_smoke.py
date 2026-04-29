@@ -121,6 +121,8 @@ def test_process_uses_packaged_assets_from_non_repo_cwd(
     res = runner.invoke(app, ["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"])
     assert res.exit_code == 0, res.output
     assert "processed=1" in res.output
+    assert "Next: mindforge approve list" in res.output
+    assert "explicit human approval" in res.output
 
 
 def test_process_explicit_asset_paths_still_win(tmp_path: Path) -> None:

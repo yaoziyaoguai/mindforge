@@ -126,6 +126,11 @@ def test_commands_lists_key_groups() -> None:
                 "mindforge index", "mindforge recall", "mindforge review"]:
         assert cmd in out
     assert "[[wikilinks]]" in out
+    assert "mindforge obsidian next --vault PATH" in out
+    assert "mindforge obsidian preflight --manifest PATH" in out
+    assert "--staged-export" in out
+    assert "--write" in out
+    assert "--confirm" in out
 
 
 def test_commands_does_not_leak_secrets() -> None:
@@ -177,6 +182,26 @@ def test_next_suggests_index_rebuild_when_index_missing(tmp_path: Path) -> None:
     res = runner.invoke(app, ["next", "--config", str(cfg)])
     assert res.exit_code == 0
     assert "index rebuild" in res.output
+
+
+def test_next_after_scan_uses_configured_state_path(tmp_path: Path) -> None:
+    """v0.7.7: next 不能把已写入的 configured state 误判成缺失。
+
+    中文学习型说明：真实 dogfooding 会把 state.workdir 放在 /tmp 或别的目录。
+    这里用真实 scan CLI 先写 state，再运行 next，证明产品提示基于配置里的
+    state_file，而不是硬编码 workdir/state.json。
+    """
+    cfg = _make_vault(tmp_path)
+    inbox = tmp_path / "vault" / "00-Inbox" / "ManualNotes"
+    inbox.joinpath("daily.md").write_text("# Daily\n\nbody\n", encoding="utf-8")
+
+    scan = runner.invoke(app, ["scan", "--config", str(cfg)])
+    res = runner.invoke(app, ["next", "--config", str(cfg)])
+
+    assert scan.exit_code == 0, scan.output
+    assert res.exit_code == 0, res.output
+    assert "state.json 还没建立" not in res.output
+    assert "process --limit" in res.output
 
 
 def test_next_json_format_is_parseable(tmp_path: Path) -> None:

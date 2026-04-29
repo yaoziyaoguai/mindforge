@@ -182,6 +182,22 @@ def test_obsidian_scan_json_is_stable(tmp_path: Path) -> None:
     }
 
 
+def test_obsidian_scan_and_links_show_scope_and_next_steps(tmp_path: Path) -> None:
+    """v0.7.7: dogfooding 输出要告诉用户 scope 生效情况和下一条命令。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+
+    scan = runner.invoke(app, ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault), "--limit", "1"])
+    links = runner.invoke(app, ["obsidian", "links", "--config", str(cfg), "--vault", str(vault)])
+
+    assert scan.exit_code == 0, scan.output
+    assert "scope: include=" in scan.output
+    assert "Next: mindforge obsidian links" in scan.output
+    assert "Then: mindforge obsidian stage" in scan.output
+    assert links.exit_code == 0, links.output
+    assert "scope: include=" in links.output
+    assert "Next: mindforge obsidian stage" in links.output
+
+
 def test_obsidian_links_outputs_outgoing_and_incoming(tmp_path: Path) -> None:
     vault, _note, cfg = _make_obsidian_vault(tmp_path)
     res = runner.invoke(app, ["obsidian", "links", "--config", str(cfg), "--vault", str(vault), "--json"])
@@ -223,6 +239,8 @@ def test_obsidian_stage_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert "would-create-staging-candidate" in res.output
     assert "risk warning" in res.output
     assert "next command" in res.output
+    assert "--staged-export --diff --write --confirm" in res.output
+    assert "manual check" in res.output
     assert note.read_text(encoding="utf-8") == before
     assert not (vault / "90-System" / "MindForge" / "Staging").exists()
 
@@ -475,6 +493,7 @@ def test_obsidian_staged_export_does_not_overwrite_existing_file(tmp_path: Path)
 
     assert res.exit_code == 0, res.output
     assert "diff preview" in res.output
+    assert "manual inspection" in res.output
     assert existing.read_text(encoding="utf-8") == "existing staged review\n"
     assert (export_dir / "Agent-Runtime-2.md").exists()
     assert (export_dir / "Agent-Runtime-2.manifest.json").exists()
@@ -762,6 +781,40 @@ def test_obsidian_next_outputs_dogfooding_flow(tmp_path: Path) -> None:
     assert not (vault / "90-System" / "MindForge" / "Review").exists()
 
 
+def test_obsidian_next_reports_staged_manifest_status(tmp_path: Path) -> None:
+    """obsidian next 应展示 staged export / manifest 状态并建议 preflight。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    export_dir = tmp_path / "staged"
+    _exported, manifest = _write_staged_export_for_preflight(
+        tmp_path,
+        vault,
+        note,
+        cfg,
+        output_dir=export_dir,
+    )
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "next",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--output-dir",
+            str(export_dir),
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "Current status" in res.output
+    assert "staged exports: 1" in res.output
+    assert "manifests: 1" in res.output
+    assert str(manifest) in res.output
+    assert "recommended next: mindforge obsidian preflight" in res.output
+
+
 def test_obsidian_dogfood_snippets_match_next_output(tmp_path: Path) -> None:
     """CLI 输出和 helper 共享 snippets，避免文档化命令逐步漂移。"""
     vault, _note, cfg = _make_obsidian_vault(tmp_path)
@@ -903,6 +956,20 @@ def test_obsidian_readiness_doc_command_examples_are_covered() -> None:
         assert command in text
     assert "<note.md>" in text
     assert "<export>.manifest.json" in text
+
+
+def test_v0_7_7_friction_doc_keeps_no_write_boundaries() -> None:
+    doc = Path("docs/V0_7_7_DOGFOODING_FRICTION_FIXES.md")
+    text = doc.read_text(encoding="utf-8")
+    lowered = text.lower()
+
+    assert doc.exists()
+    assert "Dogfooding path" in text
+    assert "Friction fixed" in text
+    assert "No formal Obsidian notes are written" in text
+    assert "No `.env`, real LLM" in text
+    for claim in ["rag is implemented", "plugin is implemented", "real llm is enabled"]:
+        assert claim not in lowered
 
 
 def test_obsidian_stage_rejects_formal_note_output_dir(tmp_path: Path) -> None:

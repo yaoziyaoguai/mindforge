@@ -274,6 +274,7 @@ def scan(
         if write_state:
             cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
             console.print(f"已写入 state.json → {cfg.state.state_path}")  # type: ignore[attr-defined]
+            console.print("Next: mindforge process --profile fake --limit 1", markup=False)
             logger.emit(
                 EVENT_STATE_WRITTEN,
                 path=str(cfg.state.state_path),  # type: ignore[attr-defined]
@@ -1009,6 +1010,11 @@ def process(
         f"\n[bold]process 完成[/bold]：seen={counts['seen']} "
         f"processed={counts['processed']} skipped={counts['skipped']} failed={counts['failed']}"
     )
+    if counts["processed"] > 0:
+        console.print("Next: mindforge approve list", markup=False)
+        console.print("Boundary: generated cards remain ai_draft until explicit human approval.", markup=False)
+    elif counts["skipped"] > 0 and counts["processed"] == 0:
+        console.print("Next: mindforge scan or mindforge approve list", markup=False)
 
 
 # ---------------------------------------------------------------------------
@@ -3505,12 +3511,18 @@ def _print_stage_preview(
     table.add_row("skipped reason", skipped_reason or "-")
     table.add_row("source hash", content_hash)
     table.add_row("risk warning", "只对可丢弃、非敏感 vault 副本试跑；不修改正式 notes。")
-    hint = _first_markdown_hint(vault_root)
+    source_hint = _safe_relative_to(source, vault_root) or str(source)
     table.add_row(
         "next command",
-        f"mindforge obsidian stage --vault {vault_root} --source {hint} --dry-run",
+        f"mindforge obsidian stage --vault {vault_root} --source {source_hint} --staged-export --diff --write --confirm",
     )
+    table.add_row("manual check", "Use --diff, inspect staged markdown + manifest, then run obsidian preflight.")
     console.print(table)
+    print(
+        "next command: "
+        f"mindforge obsidian stage --vault {vault_root} --source {source_hint} "
+        "--staged-export --diff --write --confirm"
+    )
     if skipped_reason:
         print(f"skipped reason: {skipped_reason}")
     console.print("[yellow]dry-run：未写任何文件，未移动 source note，未重写 wikilinks。[/yellow]")
@@ -3596,6 +3608,9 @@ def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
 
     if not existing.exists():
         console.print("[dim]diff preview: staged target 不存在，将创建新文件。[/dim]")
+        console.print(
+            "[dim]manual inspection: after export, open the staged markdown and manifest before preflight.[/dim]"
+        )
         return
     old_lines = existing.read_text(encoding="utf-8").splitlines(keepends=True)
     new_lines = proposed_content.splitlines(keepends=True)
@@ -3616,6 +3631,9 @@ def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
         console.print(line.rstrip("\n"), markup=False)
     if len(diff) > 80:
         console.print(f"[dim]... diff truncated, {len(diff) - 80} more lines[/dim]")
+    console.print(
+        "[dim]manual inspection: review this staged-only diff, then run obsidian preflight on the manifest.[/dim]"
+    )
 
 
 def _write_obsidian_staged_export(
@@ -3749,6 +3767,11 @@ def obsidian_scan(
     _print_obsidian_issues(vault_root, issues)
     if (vault_root / ".obsidian").is_dir():
         console.print("[dim]检测到 .obsidian/；仅确认存在，未读取其配置内容。[/dim]")
+    console.print(f"Next: mindforge obsidian links --vault {vault_root}", markup=False)
+    console.print(
+        f"Then: mindforge obsidian stage --vault {vault_root} --source {_first_markdown_hint(vault_root)} --dry-run",
+        markup=False,
+    )
 
 
 @obsidian_app.command("links")
@@ -3777,6 +3800,10 @@ def obsidian_links(
         return
 
     _obsidian_copy_warning()
+    console.print(
+        f"[dim]scope: include={', '.join(options.include_dirs) or '<all markdown>'}; "
+        f"exclude={', '.join(options.exclude_dirs) or '<default runtime dirs>'}[/dim]"
+    )
     table = Table(title=f"Obsidian links · {vault_root}", show_lines=False)
     table.add_column("note", overflow="fold")
     table.add_column("outgoing_links", overflow="fold")
@@ -3792,6 +3819,10 @@ def obsidian_links(
         console.print("[yellow]未发现可解析的 Markdown notes；未建立链接报告。[/yellow]")
     _print_obsidian_issues(vault_root, issues)
     console.print("说明：只读解析 [[wikilinks]]；不做 graph DB / RAG / embedding。", markup=False)
+    console.print(
+        f"Next: mindforge obsidian stage --vault {vault_root} --source {_first_markdown_hint(vault_root)} --dry-run",
+        markup=False,
+    )
 
 
 @obsidian_app.command("stage")
@@ -4012,7 +4043,7 @@ def obsidian_preflight_cmd(
     table.add_row("proposed target", str(result.proposed_target or "-"))
     table.add_row("backup path", str(result.backup_path or "-"))
     table.add_row("recovery plan", result.recovery_plan or "-")
-    table.add_row("formal note writes", "NO - v0.7.4 only validates write-gate readiness")
+    table.add_row("formal note writes", "NO - this version only validates write-gate readiness")
     table.add_row("future gate", "staged export -> diff preview -> backup -> explicit confirmation")
     console.print(table)
 
@@ -4062,11 +4093,25 @@ def obsidian_next(
         override=_obsidian_vault_override(vault),
     )
     source_hint = _first_markdown_hint(vault_root) if vault_root.exists() else "<note.md>"
+    resolved_output_dir = output_dir.expanduser()
+    staged_files = sorted(resolved_output_dir.glob("*.md")) if resolved_output_dir.exists() else []
+    manifests = sorted(resolved_output_dir.glob("*.manifest.json")) if resolved_output_dir.exists() else []
+    latest_manifest = manifests[-1] if manifests else None
     console.print("[bold]MindForge Obsidian dogfooding flow[/bold]")
     console.print(f"vault copy: {vault_root}")
     console.print(f"staged export dir: {output_dir}")
     print("Safety: disposable non-sensitive vault copy only; no .env, no real LLM, no formal note writes.")
     print("Boundary: dry-run/staged-export/diff/preflight/manual inspection only; no apply command in this version.")
+    console.print("[bold]Current status[/bold]")
+    print(f"- vault exists: {'yes' if vault_root.exists() else 'no'}")
+    print("- safe mode: dry-run/staged-export/preflight only")
+    print(f"- staged exports: {len(staged_files)}")
+    print(f"- manifests: {len(manifests)}")
+    if latest_manifest is not None:
+        print(f"- latest manifest: {latest_manifest}")
+        print(f"- recommended next: mindforge obsidian preflight --vault {vault_root} --manifest {latest_manifest}")
+    else:
+        print("- recommended next: run stage --dry-run, then staged-export --diff --write --confirm")
     console.print("[bold]Commands[/bold]")
     for command, note in _obsidian_dogfood_command_snippets(vault_root, source_hint, output_dir):
         print(f"- {command}")
@@ -5221,10 +5266,16 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Obsidian dry-run",
         [
+            ("mindforge obsidian next --vault PATH", "查看 dogfooding 状态、staged export 和下一步"),
             ("mindforge obsidian doctor --vault PATH", "检查只读 Obsidian 绑定边界"),
             ("mindforge obsidian scan --vault PATH", "只读扫描 Markdown note 安全摘要"),
             ("mindforge obsidian links --vault PATH", "只读解析 [[wikilinks]]"),
             ("mindforge obsidian stage --source NOTE --dry-run", "预览 staging 候选，不写正式 notes"),
+            (
+                "mindforge obsidian stage --source NOTE --staged-export --diff --write --confirm",
+                "写 staged export + manifest，不写正式 notes",
+            ),
+            ("mindforge obsidian preflight --manifest PATH", "校验 future write-gate 证据链"),
         ],
     ),
     (
@@ -5511,7 +5562,7 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
         )
 
     # 3. state.json 是否有未处理（raw/triaged）
-    state_path = workdir / "state.json"
+    state_path = cfg.state.state_path
     raw_or_triaged = 0
     drafts_in_state = 0
     if state_path.exists():
@@ -5519,7 +5570,8 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
             import json as _json
 
             data = _json.loads(state_path.read_text(encoding="utf-8"))
-            for entry in data.get("documents", {}).values():
+            entries = data.get("items") or data.get("documents") or {}
+            for entry in entries.values():
                 st = entry.get("status", "")
                 if st in {"raw", "triaged"}:
                     raw_or_triaged += 1
