@@ -1,0 +1,110 @@
+# =============================================================================
+# learning_tracks.yaml — MindForge 的"学习主线"声明
+#
+# 为什么要这个文件？
+#   - 标签是平铺的，无法表达"我正在系统学这件事"；
+#   - learning_track 是显式声明的领域主线，决定卡片归属和 distill 偏向；
+#   - Triager 在 LLM 调用时把这份清单作为分流依据，避免它"自由发挥"。
+#
+# 字段说明：
+#   id                — track 唯一标识，对应 20-Knowledge-Cards/<id>/ 目录
+#   keywords          — 命中此 track 的正向关键词（中英文皆可）
+#   negative_keywords — 即使命中正向词，也不算此 track 的反例（降低误分流）
+#   output_focus      — 让 distill 阶段知道这个 track 期望什么样的卡片重点
+# =============================================================================
+
+version: 1
+
+tracks:
+  - id: agent-runtime
+    keywords:
+      - "agent runtime"
+      - "tool calling"
+      - "ReAct"
+      - "state machine"
+      - "checkpoint"
+      - "agent loop"
+    negative_keywords:
+      - "游戏"
+      - "运营增长"
+    output_focus:
+      - "原理"
+      - "架构图"
+      - "失败模式"
+      - "可观察性钩子"
+
+  - id: harness-engineering
+    keywords:
+      - "harness"
+      - "evaluation"
+      - "trace"
+      - "observer"
+      - "replay"
+      - "eval pipeline"
+    output_focus:
+      - "可观测性"
+      - "回放方案"
+      - "评测指标"
+
+  - id: context-engineering
+    keywords:
+      - "context window"
+      - "RAG"
+      - "memory"
+      - "prompt 上下文"
+      - "context compression"
+    output_focus:
+      - "可复用 prompt"
+      - "上下文裁剪策略"
+      - "记忆分层"
+
+  - id: claude-code-codex
+    keywords:
+      - "claude code"
+      - "codex"
+      - "copilot cli"
+      - "coding agent"
+    output_focus:
+      - "工作流"
+      - "经验"
+      - "踩坑记录"
+
+  - id: software-architecture
+    keywords:
+      - "架构"
+      - "domain"
+      - "DDD"
+      - "system design"
+      - "微服务"
+    output_focus:
+      - "决策记录"
+      - "权衡"
+      - "反模式"
+
+  - id: data-engineering
+    keywords:
+      - "数据管道"
+      - "ETL"
+      - "lakehouse"
+      - "pipeline"
+      - "数据建模"
+    output_focus:
+      - "最佳实践"
+      - "性能与一致性权衡"
+
+  - id: stock-analysis
+    keywords:
+      - "股票"
+      - "财报"
+      - "估值"
+      - "industry analysis"
+    output_focus:
+      - "框架与方法论"
+      - "公司画像"
+
+  # 兜底：未能稳定命中任何 track 时的归属，等待人工裁定
+  - id: unrouted
+    keywords: []
+    output_focus:
+      - "保留原文摘要"
+      - "等待人工归档"

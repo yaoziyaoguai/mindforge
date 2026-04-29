@@ -42,6 +42,7 @@ Milestone reviews, superseded design notes, and narrow smoke/completion notes we
 - [M5 Backlog](./M5_BACKLOG.md) - future spike candidates.
 - [Changelog](./CHANGELOG.md) - release history summary.
 - [v0.5.1 Local Usability Review](./V0_5_1_LOCAL_USABILITY_REVIEW.md) - local product-loop smoke and acceptance report.
+- [v0.5.2 Packaging / Install Readiness](./V0_5_2_PACKAGING_INSTALL_READINESS.md) - package asset design and install-readiness acceptance.
 - [v0.5 Obsidian Binding Review](./V0_5_OBSIDIAN_BINDING_REVIEW.md) - latest binding release review.
 - `docs/archive/` - detailed historical reviews and superseded design notes.
 

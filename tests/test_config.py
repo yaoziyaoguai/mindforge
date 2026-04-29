@@ -155,6 +155,40 @@ def test_minimal_valid_config(tmp_path: Path) -> None:
     assert cfg.llm.active_profile == "default"
 
 
+def test_relative_workdir_resolves_against_cwd_not_config_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v0.5.2: copied configs must not make runtime state depend on repo layout.
+
+    Packaged users may keep `mindforge.yaml` anywhere. A relative `.mindforge`
+    should mean "under the directory I run MindForge from", not "two levels above
+    wherever the config file happens to live".
+    """
+    data = _minimal_valid_config()
+    data["state"]["workdir"] = ".mindforge"
+    cfg_dir = tmp_path / "deeply" / "nested"
+    cfg_dir.mkdir(parents=True)
+    cfg_path = cfg_dir / "mindforge.yaml"
+    cfg_path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+
+    run_dir = tmp_path / "run-from-here"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+
+    cfg = load_mindforge_config(cfg_path)
+    assert cfg.state.workdir == run_dir / ".mindforge"
+
+
+def test_absolute_workdir_is_unchanged(tmp_path: Path) -> None:
+    """绝对 workdir 是用户显式选择，不能被 cwd 或 package asset 规则覆盖。"""
+    data = _minimal_valid_config()
+    abs_dir = tmp_path / "runtime" / ".mindforge"
+    data["state"]["workdir"] = str(abs_dir)
+    p = _write_yaml(tmp_path, data)
+    cfg = load_mindforge_config(p)
+    assert cfg.state.workdir == abs_dir
+
+
 def test_active_profile_missing(tmp_path: Path) -> None:
     data = _minimal_valid_config()
     data["llm"]["active_profile"] = "ghost"

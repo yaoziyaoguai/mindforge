@@ -1,4 +1,4 @@
-# MindForge — Roadmap Progress（v0.5.1 视角）
+# MindForge — Roadmap Progress（v0.5.2 视角）
 
 > 与 `docs/ROADMAP.md` 互补：本文档关注**完成度盘点**与**下一阶段建议**，
 > 不重复列里程碑明细。
@@ -6,13 +6,17 @@
 > 文档入口见 [`DOCS_INDEX.md`](./DOCS_INDEX.md)，版本历史见
 > [`CHANGELOG.md`](./CHANGELOG.md)。
 
-## 1. 当前最新版本：**v0.5.1**
+## 1. 当前最新版本：**v0.5.2**
 
-- tag: `v0.5.1`（本地）
+- tag: `v0.5.2`（本地）
 - HEAD branch: `main`
 - 本地可用性 smoke：`examples/demo-vault` 完整主路径已跑通，见
   [`V0_5_1_LOCAL_USABILITY_REVIEW.md`](./V0_5_1_LOCAL_USABILITY_REVIEW.md)。
-- 总测试：**360 passed, 2 skipped**；`ruff check .` clean；本轮不 push。
+- Packaging / Install Readiness：默认 prompts/templates/configs 已迁入 package
+  assets，并通过 `importlib.resources` 读取。见
+  [`V0_5_2_PACKAGING_INSTALL_READINESS.md`](./V0_5_2_PACKAGING_INSTALL_READINESS.md)。
+- 总测试：**365 passed, 2 skipped**；`ruff check .` clean；repo-root 与 `/tmp`
+  非 repo cwd smoke 均已通过；本轮不 push。
 
 ## 2. 已完成模块
 
@@ -62,6 +66,8 @@
 - ✅ **v0.5.1 Local Usability milestone**：完整 demo-vault 本地路径 smoke、
   post-command `--vault` 兼容、命令地图 `[[wikilinks]]` 显示修复、
   fake provider 使用 source title 生成更像产品的 demo 草稿。
+- ✅ **v0.5.2 Packaging / Install Readiness**：默认 prompts/templates/configs
+  package 内置，process/init 不再依赖 repo root；用户显式路径仍优先。
 
 ## 3. 部分完成模块
 
@@ -92,10 +98,10 @@
 
 ## 6. 下一阶段推荐顺序
 
-1. **v0.5.2 Packaging / Install Readiness**：修复 packaged install 后默认
-   prompts/templates/configs 不能依赖 repo root 的问题。
-2. **小规模非敏感 dogfooding**：把 v0.5.1 本地路径跑在可丢弃 vault 副本上，
+1. **小规模非敏感 dogfooding**：把 v0.5.2 本地路径跑在可丢弃 vault 副本上，
    记录 scan/process/approve/recall/review/project context/Obsidian dry-run 的真实摩擦点。
+2. **v0.5.x install smoke polish**：继续补充本地安装、非 repo cwd、配置复制、
+   错误提示和窄终端输出问题。
 3. **M5.1 PDF/Docx 完善**：加 fixture 测试、`--strip-empty-pages`、
    `--max-pages` 等控制项；仍**不**做 OCR。
 4. **RAG/embedding spike**：仅在 Obsidian binding 和真实反馈证明 BM25/hybrid 不够时再写设计；

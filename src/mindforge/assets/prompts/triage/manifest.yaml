@@ -1,0 +1,36 @@
+stage: triage
+version: v1
+description: |
+  对一份 SourceDocument 做轻量分流（learning_track）与价值评分（value_score 0..10）。
+  输出严格 JSON，下游 Triager 直接消费 track / value_score / should_process。
+expected_output_schema:
+  type: object
+  required: [track, value_score, should_process, reason, topic_keywords]
+  properties:
+    track:
+      type: string
+      description: "tracks_yaml 中已声明的 track id 或 'unrouted'"
+    value_score:
+      type: integer
+      minimum: 0
+      maximum: 10
+    should_process:
+      type: boolean
+    reason:
+      type: string
+      maxLength: 400
+    topic_keywords:
+      type: array
+      items: { type: string }
+      minItems: 1
+      maxItems: 10
+input_variables:
+  - title
+  - source_type
+  - source_url
+  - tags
+  - tracks_yaml
+  - excerpt
+notes: |
+  - 本 prompt 文件不可变。任何修改请新建 v2.md 并同步更新本 manifest。
+  - 期望由 cheap / fast 模型胜任（profile.default 中映射到 cheap_cloud）。

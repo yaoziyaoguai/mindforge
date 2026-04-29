@@ -2,6 +2,24 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.5.2
+
+- Added Packaging / Install Readiness design documentation.
+- Bundled runtime default assets under `src/mindforge/assets/`: prompts,
+  Knowledge Card template, and default configs.
+- Resolved default runtime assets with `importlib.resources` so packaged
+  installs and non-repo current directories do not depend on repo-root
+  `prompts/`, `templates/`, or `configs/`.
+- Preserved explicit user overrides for `--prompts-dir`, `--tracks`, and
+  `--template`.
+- Updated `mindforge init` to copy default configs from package assets rather
+  than assuming a source checkout.
+- Clarified relative `state.workdir` resolution so copied configs do not infer a
+  fake repo root from their file location.
+- Kept SourceAdapter, SourceDocument, processor, approval, and recall
+  architecture unchanged; no RAG, embedding, Obsidian plugin, live LLM, private
+  vault, or new heavy dependency was added.
+
 ## v0.5.1
 
 - Promoted Local Usability / 本地友好使用 to a formal roadmap milestone.

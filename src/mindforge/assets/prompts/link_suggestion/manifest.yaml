@@ -1,0 +1,39 @@
+stage: link_suggestion
+version: v1
+description: |
+  为一张 Card 草稿建议双链（[[...]]）与项目钩子，候选必须来自上下文，禁止编造。
+expected_output_schema:
+  type: object
+  required: [suggested_links, project_hooks]
+  properties:
+    suggested_links:
+      type: array
+      maxItems: 5
+      items:
+        type: object
+        required: [card_id, card_title, reason]
+        properties:
+          card_id: { type: string }
+          card_title: { type: string }
+          reason: { type: string, maxLength: 120 }
+    project_hooks:
+      type: array
+      maxItems: 3
+      items:
+        type: object
+        required: [project_id, project_title, hint]
+        properties:
+          project_id: { type: string }
+          project_title: { type: string }
+          hint: { type: string, maxLength: 160 }
+input_variables:
+  - card_title
+  - track
+  - tags
+  - ai_summary_bullets
+  - candidate_cards
+  - candidate_projects
+notes: |
+  - 本 prompt 不可变；改动请新建 v2 并更新本 manifest。
+  - 期望由 cheap / fast 模型胜任（profile.default 映射到 cheap_cloud）。
+  - 候选名单由调用方组装（v0.1 可先用 frontmatter index 全量小集合，未来再换 ANN）。

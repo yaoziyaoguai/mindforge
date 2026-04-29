@@ -52,17 +52,36 @@ Non-goals:
 - no private data dogfooding in the repository;
 - no automatic approve or uploaded telemetry.
 
-## Candidate 1: Packaging / Install Readiness
+## Completed: Packaging / Install Readiness
 
-Goal: make installed wheels resolve prompts, templates, and default configs
-without depending on a development checkout or current working directory.
+v0.5.2 moved runtime default prompts, templates, and configs into package assets
+and resolved them with `importlib.resources`. This makes local installs less
+dependent on a development checkout while keeping explicit user path overrides.
+
+Delivered:
+
+- package assets under `src/mindforge/assets/`;
+- default process prompts/tracks/template loaded from package resources;
+- `mindforge init` default configs copied from package resources;
+- explicit `--prompts-dir`, `--tracks`, and `--template` preserved;
+- packaged-like tests from a non-repo current directory.
+
+Non-goals:
+
+- no SourceAdapter / SourceDocument / processor / approval / recall redesign;
+- no RAG / embedding;
+- no Obsidian plugin;
+- no live LLM or private vault processing.
+
+## Candidate 1: Install Smoke Polish
+
+Goal: continue polishing real install behavior after v0.5.2.
 
 Possible work:
 
-- Move runtime assets under the package.
-- Load package assets with `importlib.resources`.
-- Keep user-overridable `--prompts-dir`, `--tracks`, and `--template`.
-- Do not change SourceAdapter / SourceDocument / processor / approval / recall.
+- Wheel/sdist smoke in a disposable environment.
+- Better messages when user-supplied asset paths are wrong.
+- Cross-platform path output polish.
 
 ## Candidate 2: Real Dogfooding Notes
 

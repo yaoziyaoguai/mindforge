@@ -6,7 +6,7 @@
 
 [project]
 name = "mindforge"
-version = "0.5.1"
+version = "0.5.2"
 description = "个人 AI 学习记忆库：多源接入的 AI 知识加工管线（Source Ingestion → Triage → Distill → Link → Apply → Review → Memory）。"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,6 +46,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mindforge"]
+artifacts = ["src/mindforge/assets/**"]
 
 [tool.ruff]
 line-length = 100

@@ -23,7 +23,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from ..llm import LLMClient
@@ -59,7 +58,7 @@ class Pipeline:
         *,
         client: LLMClient,
         logger: RunLogger,
-        prompts_dir: Path,
+        prompts_dir: Any,
         prompt_versions: Any,        # PromptVersions
         triage_threshold: int,
         learning_tracks_text: str,

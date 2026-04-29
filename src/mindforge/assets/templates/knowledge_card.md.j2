@@ -1,0 +1,109 @@
+---
+id: {{ card.id }}
+title: "{{ card.title }}"
+status: ai_draft               # ai_draft | human_approved | archived
+track: {{ card.track }}
+projects: {{ card.projects | default([]) | tojson }}
+tags: {{ card.tags | tojson }}
+value_score: {{ card.value_score }}
+confidence: {{ card.confidence }}
+
+# ── 来源（多源协议） ──
+source_id: "{{ source.source_id }}"
+source_type: {{ source.source_type }}
+adapter_name: {{ source.adapter_name }}
+source_path: "{{ source.source_path }}"
+source_url: "{{ source.source_url | default('') }}"
+source_title: "{{ source.title | default('') }}"
+
+# ── 加工证据链 ──
+created_at: {{ run.created_at }}
+prompt_version: "distill@{{ run.prompts.distill_version }}"
+profile: "{{ run.profile }}"
+stage_models:
+{% for stage, info in run.stage_models.items() %}  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
+{% endfor %}run_id: "{{ run.run_id }}"
+---
+
+## Source Excerpt
+
+{{ card.source_excerpt }}
+
+## AI Summary
+
+{% for bullet in card.ai_summary_bullets -%}
+- {{ bullet }}
+{% endfor %}
+
+## AI Inference (low confidence)
+
+{% if card.ai_inference_bullets -%}
+{% for bullet in card.ai_inference_bullets -%}
+- {{ bullet }}
+{% endfor %}
+{%- else -%}
+_（本卡片暂无低置信推测）_
+{%- endif %}
+
+## Human Note
+
+<!-- 留给你写自己的理解。补完后把上面的 status 改为 human_approved。 -->
+
+## Reusable Prompts / Principles
+
+{% if card.reusable_prompts_or_principles -%}
+{% for item in card.reusable_prompts_or_principles -%}
+- {{ item }}
+{% endfor %}
+{%- else -%}
+_（本卡片未提炼出可复用 prompt / 原则）_
+{%- endif %}
+
+## Project Hooks
+
+{% if card.project_hooks -%}
+{% for hook in card.project_hooks -%}
+- [[{{ hook.project_id }}]]（{{ hook.project_title }}）— {{ hook.hint }}
+{% endfor %}
+{%- else -%}
+_（本卡片未关联任何项目）_
+{%- endif %}
+
+## Review Questions
+
+{% if card.review_questions -%}
+{% for q in card.review_questions -%}
+{{ loop.index }}. **[{{ q.angle }}]** {{ q.question }}
+   - 答题要点：{{ q.expected_points | join('；') }}
+{% endfor %}
+{%- else -%}
+_（本卡片暂无复习题）_
+{%- endif %}
+
+## Action Items
+
+{% if card.action_items -%}
+{% for a in card.action_items -%}
+- [{{ a.priority }}] [[{{ a.project_id }}]] — {{ a.action }}（理由：{{ a.reason }}）
+{% endfor %}
+{%- else -%}
+_（本卡片暂无行动项）_
+{%- endif %}
+
+## Suggested Links
+
+{% if card.suggested_links -%}
+{% for link in card.suggested_links -%}
+- [[{{ link.card_id }}]]（{{ link.card_title }}）— {{ link.reason }}
+{% endfor %}
+{%- else -%}
+_（本卡片暂无双链建议）_
+{%- endif %}
+
+---
+<!--
+  说明：
+  - 本卡片由 MindForge {{ run.profile }} profile 生成；distill prompt 版本：{{ run.prompts.distill_version }}。
+  - 任何字段如果与原文事实不符，请直接修改对应章节，并在 Human Note 中说明。
+  - 改完后把 frontmatter 中的 status 从 ai_draft 改为 human_approved，下次 scan 会同步到 state.json。
+-->

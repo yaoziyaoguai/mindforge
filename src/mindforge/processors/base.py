@@ -6,7 +6,6 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from ..llm import LLMClient, ProviderError
@@ -79,7 +78,7 @@ def run_stage(
     client: LLMClient,
     logger: RunLogger,
     stage: str,
-    prompts_dir: Path,
+    prompts_dir: Any,
     prompt_version: str,
     variables: dict[str, Any],
     input_file_hash: str,

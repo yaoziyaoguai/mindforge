@@ -8,6 +8,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 import yaml
@@ -88,3 +89,76 @@ def test_post_command_vault_works_through_real_cli_main(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr + result.stdout
     assert str(vault) in result.stdout
+
+
+def test_packaged_default_assets_exist() -> None:
+    """v0.5.2: package resources must contain the runtime defaults used by CLI."""
+    root = files("mindforge.assets")
+    for rel in (
+        ("prompts", "triage", "v1.md"),
+        ("prompts", "distill", "v1.md"),
+        ("templates", "knowledge_card.md.j2"),
+        ("configs", "learning_tracks.yaml"),
+        ("configs", "mindforge.yaml"),
+    ):
+        assert root.joinpath(*rel).is_file(), "/".join(rel)
+
+
+def test_process_uses_packaged_assets_from_non_repo_cwd(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Packaged-like smoke: no repo-root prompts/templates are needed.
+
+    The test changes cwd away from the repository and omits --prompts-dir,
+    --tracks, and --template. If process still depended on Path("prompts") or
+    Path("templates/..."), this would fail before writing a fake card.
+    """
+    _vault, cfg = _copy_demo_vault(tmp_path)
+    run_dir = tmp_path / "run-from-here"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(app, ["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"])
+    assert res.exit_code == 0, res.output
+    assert "processed=1" in res.output
+
+
+def test_process_explicit_asset_paths_still_win(tmp_path: Path) -> None:
+    """用户显式路径优先：v0.5.2 不能破坏自定义 prompt/template 实验。"""
+    vault, cfg = _copy_demo_vault(tmp_path)
+    custom_template = tmp_path / "custom_card.md.j2"
+    custom_template.write_text(
+        "---\n"
+        "id: {{ card.id }}\n"
+        "title: \"CUSTOM {{ card.title }}\"\n"
+        "status: ai_draft\n"
+        "track: {{ card.track }}\n"
+        "projects: []\n"
+        "tags: []\n"
+        "value_score: {{ card.value_score }}\n"
+        "---\n\n"
+        "CUSTOM TEMPLATE MARKER\n",
+        encoding="utf-8",
+    )
+
+    res = runner.invoke(
+        app,
+        [
+            "process",
+            "--config",
+            str(cfg),
+            "--profile",
+            "fake",
+            "--limit",
+            "1",
+            "--prompts-dir",
+            str(Path.cwd() / "prompts"),
+            "--tracks",
+            str(Path.cwd() / "configs" / "learning_tracks.yaml"),
+            "--template",
+            str(custom_template),
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    written = list((vault / "20-Knowledge-Cards").rglob("*agent-runtime-checkpoint*.md"))
+    assert any("CUSTOM TEMPLATE MARKER" in p.read_text(encoding="utf-8") for p in written)

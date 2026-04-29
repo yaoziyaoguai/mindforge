@@ -1,4 +1,4 @@
-# Getting Started — MindForge v0.5.1
+# Getting Started — MindForge v0.5.2
 
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。
 > 全程使用 `fake` provider；**不读取 `.env`**。
@@ -40,6 +40,12 @@ pip install -e .
 # 可选 PDF/Docx 支持（不做 OCR）
 pip install -e '.[pdf,docx]'
 ```
+
+v0.5.2 packages the default prompts, Knowledge Card template, and default
+configs inside the `mindforge` package. That means the default fake-provider
+path works from a vault directory or `/tmp`, not only from the repository root.
+If you pass `--prompts-dir`, `--tracks`, or `--template`, your explicit paths
+still take priority.
 
 ## 2. 一键铺骨架
 

@@ -331,10 +331,16 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def load_mindforge_config(path: str | Path) -> MindForgeConfig:
-    """加载并校验 mindforge.yaml，返回不可变快照。"""
+    """加载并校验 mindforge.yaml，返回不可变快照。
+
+    中文学习型说明：相对 ``state.workdir`` 按当前工作目录解析，而不是按
+    config 文件父目录猜测仓库根。packaged install 下 config 可能被复制到任意
+    位置，继续使用 ``config.parent.parent`` 会把 `.mindforge` 写到违背直觉
+    的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
+    """
     p = Path(path)
     raw = _read_yaml(p)
-    base_dir = p.parent.parent  # configs/mindforge.yaml -> 项目根
+    base_dir = Path.cwd()
 
     # ---- vault ----
     vault_raw = _require(raw, "vault", dict, ctx=str(p))

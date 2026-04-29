@@ -1,0 +1,110 @@
+# =============================================================================
+# llm.example.yaml — 三种典型 profile 的完整样例
+#
+# 这是给用户参考的样例文件，**实际生效的 LLM 配置在 mindforge.yaml 的 llm 块**。
+# 你可以把下面任一 profile 块复制到 mindforge.yaml.llm.profiles 里，
+# 然后改 mindforge.yaml.llm.active_profile 切换。
+#
+# 三种 profile 的语义：
+#   default      — 全云端：质量优先，适合长期沉淀
+#   local_first  — 轻量本地 + 高价值云端：日常默认，平衡成本与质量
+#   all_local    — 全本地：离线 / 隐私优先 / 批量预处理
+#
+# 五个 stage（v0.1 固定）：
+#   triage / distill / link_suggestion / review_questions / action_extraction
+# =============================================================================
+
+llm:
+  active_profile: default
+
+  profiles:
+    # -------------------------------------------------------------------------
+    # default：全云端
+    # 适用场景：网络好、API 预算够、追求卡片质量上限
+    # -------------------------------------------------------------------------
+    default:
+      triage: cheap_cloud
+      distill: strong_cloud
+      link_suggestion: cheap_cloud
+      review_questions: strong_cloud
+      action_extraction: strong_cloud
+
+    # -------------------------------------------------------------------------
+    # local_first：轻量本地 + 高价值云端
+    # 适用场景：日常默认；triage / link_suggestion 走本地省钱省网络，
+    #          distill / review_questions / action_extraction 走云端保质
+    # -------------------------------------------------------------------------
+    local_first:
+      triage: local_fast
+      distill: strong_cloud
+      link_suggestion: local_fast
+      review_questions: strong_cloud
+      action_extraction: strong_cloud
+
+    # -------------------------------------------------------------------------
+    # all_local：全本地
+    # 适用场景：离线、隐私优先、批量预处理
+    # 风险提示：本地模型 JSON 稳定性常较弱，distill/review 阶段可能需要
+    #          更宽松的解析重试（这是 LLMClient 的事，不在配置里表达）
+    # -------------------------------------------------------------------------
+    all_local:
+      triage: local_fast
+      distill: local_strong
+      link_suggestion: local_fast
+      review_questions: local_strong
+      action_extraction: local_strong
+
+  # ---------------------------------------------------------------------------
+  # models：每个 alias 背后的具体 provider 配置
+  # 同一 provider 下可挂多个 model（cheap_cloud / strong_cloud 共用云端 endpoint）
+  # ---------------------------------------------------------------------------
+  models:
+
+    # ---- 云端示例（OpenAI-compatible：OpenAI / 自建中转 / DeepSeek 等都适用）----
+    cheap_cloud:
+      provider: cloud_openai_compatible
+      type: openai_compatible
+      base_url: "https://api.example.com/v1"
+      api_key_env: "MINDFORGE_API_KEY"
+      model: "cheap-model"            # 例如 gpt-4o-mini / deepseek-chat
+      timeout_seconds: 90
+      max_retries: 2
+
+    strong_cloud:
+      provider: cloud_openai_compatible
+      type: openai_compatible
+      base_url: "https://api.example.com/v1"
+      api_key_env: "MINDFORGE_API_KEY"
+      model: "strong-model"           # 例如 gpt-4o / claude-sonnet 等强模型
+      timeout_seconds: 180
+      max_retries: 2
+
+    # ---- 本地示例（Ollama / LM Studio 都暴露 OpenAI-compatible endpoint）----
+    local_fast:
+      provider: local_ollama
+      type: openai_compatible
+      base_url: "http://localhost:11434/v1"
+      api_key_optional: true          # 本地 endpoint 通常不需要 api key
+      model: "qwen2.5:7b"             # 7B 级别，快、用于 triage / link
+      timeout_seconds: 120
+      max_retries: 1
+
+    local_strong:
+      provider: local_ollama
+      type: openai_compatible
+      base_url: "http://localhost:11434/v1"
+      api_key_optional: true
+      model: "qwen2.5:14b"            # 14B 级别，慢但更稳，用于 distill / review
+      timeout_seconds: 240
+      max_retries: 1
+
+    # ---- 进阶示例：多 provider 并存（可选，按需启用）----
+    # 例如同时挂一份 LM Studio：
+    # lmstudio_strong:
+    #   provider: local_lmstudio
+    #   type: openai_compatible
+    #   base_url: "http://localhost:1234/v1"
+    #   api_key_optional: true
+    #   model: "your-local-model"
+    #   timeout_seconds: 180
+    #   max_retries: 1

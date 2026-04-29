@@ -10,9 +10,9 @@ staging/review and machine runtime state stays outside formal notes. v0.5.1
 promotes Local Usability as a roadmap milestone: the local fake-provider path
 should feel like a usable product loop, not just a set of developer commands.
 
-Current version: **v0.5.1** (Local Usability milestone: full demo-vault smoke,
-post-command `--vault` support, safer local `.env` boundary, command-map polish,
-and clearer fake-provider demo output).
+Current version: **v0.5.2** (Packaging / Install Readiness: default prompts,
+templates, and configs are bundled as package assets and resolved with
+`importlib.resources`, while user override paths remain supported).
 
 ## Quick Start
 
@@ -66,6 +66,8 @@ The demo vault is fictional and safe to inspect. See [examples/demo-vault/README
 - No Obsidian plugin; v0.5 is CLI/adapter-level binding only.
 - No automatic edits, file moves, or wikilink rewrites in a real Obsidian vault.
 - No real LLM calls in the default local usability path.
+- No repo-root dependency for default runtime prompts/templates/configs after
+  packaged install.
 - No background daemon, system calendar integration, email, or desktop notifications.
 
 ## Safety Defaults
@@ -99,11 +101,12 @@ Start here:
 ## Development Status
 
 - Latest local usability milestone: `v0.5.1`.
+- Latest packaging/install readiness milestone: `v0.5.2`.
 - Latest v0.5.1 smoke: full `examples/demo-vault` local path, including
   doctor / commands / next / scan / fake process / approve list / index /
   recall / review / project context / Obsidian dry-run.
 - Latest v0.5.1 quality gate is recorded in
   [docs/V0_5_1_LOCAL_USABILITY_REVIEW.md](docs/V0_5_1_LOCAL_USABILITY_REVIEW.md).
 
-Recommended next step after v0.5.1: keep patching local usability and install
-readiness before adding new feature classes.
+Recommended next step after v0.5.2: keep patching local usability and install
+readiness from non-sensitive dogfooding before adding new feature classes.

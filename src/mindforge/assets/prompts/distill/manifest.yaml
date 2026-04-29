@@ -1,0 +1,49 @@
+stage: distill
+version: v1
+description: |
+  把 triage 通过的 SourceDocument 提炼成 Knowledge Card 草稿主体。
+  强制四层分离：source_excerpt / ai_summary / ai_inference / (human_note 留空)。
+expected_output_schema:
+  type: object
+  required:
+    - title
+    - slug
+    - tags
+    - confidence
+    - source_excerpt
+    - ai_summary_bullets
+    - ai_inference_bullets
+    - reusable_prompts_or_principles
+  properties:
+    title: { type: string, maxLength: 80 }
+    slug: { type: string, pattern: "^[a-z0-9-]+$" }
+    tags:
+      type: array
+      items: { type: string }
+      minItems: 1
+    confidence: { type: number, minimum: 0, maximum: 1 }
+    source_excerpt: { type: string }
+    ai_summary_bullets:
+      type: array
+      items: { type: string }
+      minItems: 1
+    ai_inference_bullets:
+      type: array
+      items: { type: string }
+    reusable_prompts_or_principles:
+      type: array
+      items: { type: string }
+input_variables:
+  - title
+  - source_type
+  - source_url
+  - track
+  - output_focus
+  - value_score
+  - topic_keywords
+  - raw_text
+notes: |
+  - 本 prompt 不可变。改 prompt 请新建 v2.md 并同步更新本 manifest。
+  - 期望由 strong 模型胜任（profile.default 中映射到 strong_cloud）。
+  - 不要在此 prompt 里生成 review_questions / suggested_links / action_items；
+    它们由后续 stage 各自的 prompt 负责。

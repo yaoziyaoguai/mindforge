@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import DictLoader, Environment, FileSystemLoader, select_autoescape
 
 
 @dataclass(frozen=True)
@@ -26,12 +26,35 @@ class WriteResult:
 
 
 class CardWriter:
-    def __init__(self, *, vault_root: Path, cards_dir: str, template_path: Path) -> None:
+    def __init__(
+        self,
+        *,
+        vault_root: Path,
+        cards_dir: str,
+        template_path: Path | None = None,
+        template_text: str | None = None,
+        template_name: str = "knowledge_card.md.j2",
+    ) -> None:
+        """Create a writer from either a user template path or bundled text.
+
+        中文学习型说明：packaged install 场景下默认模板来自 package
+        resources，不一定有稳定的 repo-root ``templates/`` 路径；但用户显式
+        传入 ``--template`` 时仍必须优先使用用户文件。这里保留两种入口，
+        不改变 Knowledge Card 写入协议。
+        """
+        if template_path is None and template_text is None:
+            raise ValueError("template_path 或 template_text 必须提供一个")
         self.vault_root = vault_root
         self.cards_dir = cards_dir
         self.template_path = template_path
+        self.template_name = template_path.name if template_path is not None else template_name
+        loader = (
+            FileSystemLoader(str(template_path.parent))
+            if template_path is not None
+            else DictLoader({self.template_name: template_text or ""})
+        )
         self._env = Environment(
-            loader=FileSystemLoader(str(template_path.parent)),
+            loader=loader,
             autoescape=select_autoescape(disabled_extensions=("md", "j2")),
             keep_trailing_newline=True,
         )
@@ -54,7 +77,7 @@ class CardWriter:
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / filename
 
-        template = self._env.get_template(self.template_path.name)
+        template = self._env.get_template(self.template_name)
         rendered = template.render(
             card=card_payload["card"],
             source=source,

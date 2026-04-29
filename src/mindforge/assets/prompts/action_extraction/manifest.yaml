@@ -1,0 +1,32 @@
+stage: action_extraction
+version: v1
+description: |
+  从一张 Card 中提取 0–3 条可执行的行动项，关联到具体候选项目。
+expected_output_schema:
+  type: object
+  required: [action_items]
+  properties:
+    action_items:
+      type: array
+      maxItems: 3
+      items:
+        type: object
+        required: [project_id, project_title, action, reason, priority]
+        properties:
+          project_id: { type: string }
+          project_title: { type: string }
+          action: { type: string, maxLength: 80 }
+          reason: { type: string, maxLength: 160 }
+          priority:
+            type: string
+            enum: [low, medium, high]
+input_variables:
+  - card_title
+  - track
+  - ai_summary_bullets
+  - reusable_prompts_or_principles
+  - candidate_projects
+notes: |
+  - 本 prompt 不可变；改动请新建 v2 并更新本 manifest。
+  - 期望由 strong 模型胜任（profile.default 映射到 strong_cloud）。
+  - 不输出"已完成 / 截止日"等执行状态；MindForge v0.1 不做任务追踪。

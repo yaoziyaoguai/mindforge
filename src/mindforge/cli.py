@@ -667,20 +667,20 @@ def process(
         "--dry-run",
         help="跑完整 pipeline 但不写卡片、不写 state.json；仅 runs/*.jsonl 留痕",
     ),
-    prompts_dir: Path = typer.Option(
-        Path("prompts"),
+    prompts_dir: Path | None = typer.Option(
+        None,
         "--prompts-dir",
-        help="prompts 根目录",
+        help="prompts 根目录；未传时使用 package 内置 prompts。",
     ),
-    tracks: Path = typer.Option(
-        Path("configs/learning_tracks.yaml"),
+    tracks: Path | None = typer.Option(
+        None,
         "--tracks",
-        help="learning_tracks.yaml 路径（作为 triage prompt 的上下文）",
+        help="learning_tracks.yaml 路径；未传时使用 package 内置 learning tracks。",
     ),
-    template: Path = typer.Option(
-        Path("templates/knowledge_card.md.j2"),
+    template: Path | None = typer.Option(
+        None,
         "--template",
-        help="Knowledge Card 模板路径",
+        help="Knowledge Card 模板路径；未传时使用 package 内置模板。",
     ),
 ) -> None:
     """对 inbox 中已 scan 的文件跑 5 stage pipeline，落地 Knowledge Card。
@@ -699,24 +699,43 @@ def process(
         console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
     console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
 
+    from .assets_runtime import asset_root, bundled_text
+
+    # 中文学习型说明：v0.5.2 起默认 prompts/tracks/template 来自 package
+    # resources，而不是当前工作目录或仓库根。用户显式传入路径时仍然优先，
+    # 这保证了自定义 prompt 实验不受影响，同时让 wheel 安装后可运行。
+    resolved_prompts_dir = (
+        prompts_dir.expanduser() if prompts_dir is not None else asset_root().joinpath("prompts")
+    )
+    tracks_text = (
+        tracks.expanduser().read_text("utf-8")
+        if tracks is not None
+        else bundled_text("configs", "learning_tracks.yaml")
+    )
+
     scanner = Scanner(cfg)
     cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)
 
     providers = build_providers(cfg.llm)
     client = LLMClient(llm_config=cfg.llm, providers=providers)
 
-    template_path = template
-    writer = CardWriter(
-        vault_root=cfg.vault.root,
-        cards_dir=cfg.vault.cards_dir,
-        template_path=template_path,
-    )
+    if template is not None:
+        writer = CardWriter(
+            vault_root=cfg.vault.root,
+            cards_dir=cfg.vault.cards_dir,
+            template_path=template.expanduser(),
+        )
+    else:
+        writer = CardWriter(
+            vault_root=cfg.vault.root,
+            cards_dir=cfg.vault.cards_dir,
+            template_text=bundled_text("templates", "knowledge_card.md.j2"),
+        )
 
-    tracks_text = tracks.read_text("utf-8") if tracks.exists() else ""
     pipeline = Pipeline(
         client=client,
         logger=None,  # type: ignore[arg-type]
-        prompts_dir=prompts_dir,
+        prompts_dir=resolved_prompts_dir,
         prompt_versions=cfg.prompts,
         triage_threshold=cfg.triage.value_score_threshold,
         learning_tracks_text=tracks_text,
@@ -3171,10 +3190,13 @@ def init(
     """
     from .init_cmd import VAULT_DIRS, build_plan, execute_plan, next_steps_hint
 
-    # repo_root：尽量找到本仓库 configs/ 与 vault_template/
-    import mindforge as _pkg
+    # v0.5.2：init 的默认 configs 来自 package assets，而不是仓库根。
+    # 这让 wheel 安装后的 `mindforge init` 仍可复制 mindforge.yaml /
+    # learning_tracks.yaml / llm.example.yaml。vault 目录骨架仍由 VAULT_DIRS
+    # 显式创建，不依赖 repo-root vault_template。
+    from .assets_runtime import bundled_asset_path_for_process
 
-    repo_root = Path(_pkg.__file__).resolve().parent.parent.parent
+    repo_root = bundled_asset_path_for_process()
     project_root = project_root.resolve()
 
     interactive_telemetry_enabled: bool | None = None
