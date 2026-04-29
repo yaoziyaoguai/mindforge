@@ -17,6 +17,9 @@ import yaml
 from mindforge.config import load_mindforge_config
 from mindforge.obsidian import obsidian_preflight
 from mindforge.obsidian_stage import (
+    build_obsidian_next_plan,
+    build_preflight_display_plan,
+    build_staged_diff_preview_plan,
     build_staged_manifest_payload,
     plan_staged_export,
     resolve_obsidian_source_for_preview,
@@ -256,3 +259,75 @@ def test_stage_service_does_not_read_env_call_llm_upload_or_write_notes(tmp_path
     assert note.read_text(encoding="utf-8") == before
     assert result.proposed_target is not None
     assert not result.proposed_target.exists()
+
+
+def test_preflight_display_plan_calculates_next_action_without_cli_rendering(tmp_path: Path) -> None:
+    """preflight next-action 属于 service 判断，CLI 只负责把结构化结果打印出来。"""
+    vault, _note, _exported, manifest = _write_service_manifest(tmp_path)
+
+    passed = obsidian_preflight(vault_root=vault, manifest_path=manifest, default_staged_root=tmp_path / "exports")
+    pass_display = build_preflight_display_plan(passed)
+
+    assert pass_display.status == "PASS"
+    assert pass_display.exit_code == 0
+    assert "manually inspect" in pass_display.next_action
+    assert pass_display.future_gate == "staged export -> diff preview -> backup -> explicit confirmation"
+    assert "不会写正式 Obsidian notes" in pass_display.no_write_boundary
+
+    _patch_manifest(manifest, action=None)
+    blocked = obsidian_preflight(vault_root=vault, manifest_path=manifest, default_staged_root=tmp_path / "exports")
+    blocked_display = build_preflight_display_plan(blocked)
+    assert blocked_display.status == "BLOCKED"
+    assert blocked_display.exit_code == 2
+    assert "not ready" in blocked_display.outcome_message
+
+
+def test_diff_preview_plan_is_staged_only_and_structured(tmp_path: Path) -> None:
+    """diff helper 只读取 staged 候选文件，返回结构化 diff，不碰正式 notes。"""
+    vault, note, _cfg_path = _make_service_vault(tmp_path)
+    formal_before = note.read_text(encoding="utf-8")
+    staged = tmp_path / "exports" / "Agent-Runtime.md"
+
+    missing = build_staged_diff_preview_plan(staged, "# proposed\n")
+    assert missing.exists is False
+    assert missing.diff_lines == ()
+    assert "manifest before preflight" in missing.manual_inspection_hint
+
+    staged.parent.mkdir(parents=True)
+    staged.write_text("# old\n", encoding="utf-8")
+    changed = build_staged_diff_preview_plan(staged, "# proposed\n")
+
+    assert changed.exists is True
+    assert changed.has_changes is True
+    assert any(line.startswith("--- ") for line in changed.diff_lines)
+    assert any("+# proposed" in line for line in changed.diff_lines)
+    assert note.read_text(encoding="utf-8") == formal_before
+    assert safe_relative_to(staged, vault) is None
+
+
+def test_obsidian_next_plan_reports_manifest_status_and_no_write_boundary(tmp_path: Path) -> None:
+    """obsidian next 的状态判断在 service 层完成；它只导航，不执行写入。"""
+    vault, note, _exported, manifest = _write_service_manifest(tmp_path, output_dir=tmp_path / "staged")
+    before = note.read_text(encoding="utf-8")
+
+    plan = build_obsidian_next_plan(vault_root=vault, output_dir=tmp_path / "staged")
+
+    assert plan.vault_exists is True
+    assert plan.staged_export_count == 1
+    assert plan.manifest_count == 1
+    assert plan.latest_manifest == manifest
+    assert "obsidian preflight" in plan.recommended_next
+    assert "no .env, no real LLM, no formal note writes" in plan.safety_line
+    assert "no apply command" in plan.boundary_line
+    assert any("obsidian stage" in item.command and "--dry-run" in item.command for item in plan.commands)
+    assert note.read_text(encoding="utf-8") == before
+
+
+def test_obsidian_stage_service_has_no_typer_or_rich_dependency() -> None:
+    """service 模块不能依赖 CLI presentation 库，避免业务判断和渲染重新耦合。"""
+    source = Path("src/mindforge/obsidian_stage.py").read_text(encoding="utf-8")
+
+    assert "import typer" not in source
+    assert "from rich" not in source
+    assert "Console(" not in source
+    assert "Table(" not in source

@@ -23,7 +23,12 @@ from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .obsidian_stage import (
+    build_obsidian_next_plan,
+    build_preflight_display_plan,
+    build_staged_diff_preview_plan,
     build_staged_manifest_payload,
+    first_markdown_hint,
+    obsidian_dogfood_command_snippets,
     obsidian_export_filename,
     plan_staged_export,
     resolve_obsidian_source_for_preview,
@@ -3449,16 +3454,6 @@ def _print_obsidian_issues(vault_root: Path, issues: list[object]) -> None:
     console.print(table)
 
 
-def _first_markdown_hint(vault_root: Path) -> str:
-    for path in sorted(vault_root.rglob("*.md")):
-        if path.is_file():
-            try:
-                return path.relative_to(vault_root).as_posix()
-            except ValueError:
-                return str(path)
-    return "<note.md>"
-
-
 def _print_stage_preview(
     *,
     vault_root: Path,
@@ -3535,36 +3530,20 @@ def _stage_preview_fields(doc) -> dict[str, object]:
 
 def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
     """打印 staged export 的轻量 diff；只比较 staged 目录，不写正式 notes。"""
-    import difflib
-
-    if not existing.exists():
+    plan = build_staged_diff_preview_plan(existing, proposed_content)
+    if not plan.exists:
         console.print("[dim]diff preview: staged target 不存在，将创建新文件。[/dim]")
-        console.print(
-            "[dim]manual inspection: after export, open the staged markdown and manifest before preflight.[/dim]"
-        )
+        console.print(f"[dim]{plan.manual_inspection_hint}[/dim]")
         return
-    old_lines = existing.read_text(encoding="utf-8").splitlines(keepends=True)
-    new_lines = proposed_content.splitlines(keepends=True)
-    diff = list(
-        difflib.unified_diff(
-            old_lines,
-            new_lines,
-            fromfile=str(existing),
-            tofile="proposed",
-            n=3,
-        )
-    )
     console.print("[bold]diff preview[/bold] · staged directory only")
-    if not diff:
+    if not plan.has_changes:
         console.print("[dim]无差异。[/dim]")
         return
-    for line in diff[:80]:
-        console.print(line.rstrip("\n"), markup=False)
-    if len(diff) > 80:
-        console.print(f"[dim]... diff truncated, {len(diff) - 80} more lines[/dim]")
-    console.print(
-        "[dim]manual inspection: review this staged-only diff, then run obsidian preflight on the manifest.[/dim]"
-    )
+    for line in plan.diff_lines:
+        console.print(line, markup=False)
+    if plan.truncated_count:
+        console.print(f"[dim]... diff truncated, {plan.truncated_count} more lines[/dim]")
+    console.print(f"[dim]{plan.manual_inspection_hint}[/dim]")
 
 
 def _write_obsidian_staged_export(
@@ -3666,7 +3645,7 @@ def obsidian_scan(
         console.print("[dim]检测到 .obsidian/；仅确认存在，未读取其配置内容。[/dim]")
     console.print(f"Next: mindforge obsidian links --vault {vault_root}", markup=False)
     console.print(
-        f"Then: mindforge obsidian stage --vault {vault_root} --source {_first_markdown_hint(vault_root)} --dry-run",
+        f"Then: mindforge obsidian stage --vault {vault_root} --source {first_markdown_hint(vault_root)} --dry-run",
         markup=False,
     )
 
@@ -3717,7 +3696,7 @@ def obsidian_links(
     _print_obsidian_issues(vault_root, issues)
     console.print("说明：只读解析 [[wikilinks]]；不做 graph DB / RAG / embedding。", markup=False)
     console.print(
-        f"Next: mindforge obsidian stage --vault {vault_root} --source {_first_markdown_hint(vault_root)} --dry-run",
+        f"Next: mindforge obsidian stage --vault {vault_root} --source {first_markdown_hint(vault_root)} --dry-run",
         markup=False,
     )
 
@@ -3928,6 +3907,7 @@ def obsidian_preflight_cmd(
         manifest_path=manifest,
         default_staged_root=cfg.state.workdir / "staged" / "obsidian",
     )
+    display = build_preflight_display_plan(result)
 
     _obsidian_copy_warning()
     console.print(f"[bold]MindForge Obsidian preflight[/bold] · {result.status}")
@@ -3941,7 +3921,7 @@ def obsidian_preflight_cmd(
     table.add_row("backup path", str(result.backup_path or "-"))
     table.add_row("recovery plan", result.recovery_plan or "-")
     table.add_row("formal note writes", "NO - this version only validates write-gate readiness")
-    table.add_row("future gate", "staged export -> diff preview -> backup -> explicit confirmation")
+    table.add_row("future gate", display.future_gate)
     console.print(table)
 
     if result.blocked:
@@ -3955,19 +3935,16 @@ def obsidian_preflight_cmd(
             console.print(f"  - {reason}", markup=False)
             print(f"WARNING reason: {reason}")
     if result.status == "PASS":
-        console.print("[green]PASS: staged export is ready for manual inspection.[/green]")
+        console.print(f"[green]{display.outcome_message}[/green]")
     elif result.status == "WARNING":
-        console.print("[yellow]WARNING: inspect conflicts manually before any future confirmation.[/yellow]")
+        console.print(f"[yellow]{display.outcome_message}[/yellow]")
     else:
-        console.print("[red]BLOCKED: staged export is not ready for any future write gate.[/red]")
-    console.print(
-        "Next: manually inspect the staged markdown and diff; future write requires explicit confirmation.",
-        markup=False,
-    )
-    print("future gate: staged export -> diff preview -> backup -> explicit confirmation")
-    console.print("说明：本版本不会写正式 Obsidian notes，不会读取 .env，不会调用真实 LLM。", markup=False)
-    if result.status == "BLOCKED":
-        raise typer.Exit(code=2)
+        console.print(f"[red]{display.outcome_message}[/red]")
+    console.print(display.next_action, markup=False)
+    print(f"future gate: {display.future_gate}")
+    console.print(display.no_write_boundary, markup=False)
+    if display.exit_code:
+        raise typer.Exit(code=display.exit_code)
 
 
 @obsidian_app.command("next")
@@ -3989,30 +3966,26 @@ def obsidian_next(
         cfg.vault.root,
         override=_obsidian_vault_override(vault),
     )
-    source_hint = _first_markdown_hint(vault_root) if vault_root.exists() else "<note.md>"
-    resolved_output_dir = output_dir.expanduser()
-    staged_files = sorted(resolved_output_dir.glob("*.md")) if resolved_output_dir.exists() else []
-    manifests = sorted(resolved_output_dir.glob("*.manifest.json")) if resolved_output_dir.exists() else []
-    latest_manifest = manifests[-1] if manifests else None
+    plan = build_obsidian_next_plan(vault_root=vault_root, output_dir=output_dir)
     console.print("[bold]MindForge Obsidian dogfooding flow[/bold]")
-    console.print(f"vault copy: {vault_root}")
-    console.print(f"staged export dir: {output_dir}")
-    print("Safety: disposable non-sensitive vault copy only; no .env, no real LLM, no formal note writes.")
-    print("Boundary: dry-run/staged-export/diff/preflight/manual inspection only; no apply command in this version.")
+    console.print(f"vault copy: {plan.vault_root}")
+    console.print(f"staged export dir: {plan.output_dir}")
+    print(plan.safety_line)
+    print(plan.boundary_line)
     console.print("[bold]Current status[/bold]")
-    print(f"- vault exists: {'yes' if vault_root.exists() else 'no'}")
+    print(f"- vault exists: {'yes' if plan.vault_exists else 'no'}")
     print("- safe mode: dry-run/staged-export/preflight only")
-    print(f"- staged exports: {len(staged_files)}")
-    print(f"- manifests: {len(manifests)}")
-    if latest_manifest is not None:
-        print(f"- latest manifest: {latest_manifest}")
-        print(f"- recommended next: mindforge obsidian preflight --vault {vault_root} --manifest {latest_manifest}")
+    print(f"- staged exports: {plan.staged_export_count}")
+    print(f"- manifests: {plan.manifest_count}")
+    if plan.latest_manifest is not None:
+        print(f"- latest manifest: {plan.latest_manifest}")
+        print(f"- recommended next: {plan.recommended_next}")
     else:
-        print("- recommended next: run stage --dry-run, then staged-export --diff --write --confirm")
+        print(f"- recommended next: {plan.recommended_next}")
     console.print("[bold]Commands[/bold]")
-    for command, note in _obsidian_dogfood_command_snippets(vault_root, source_hint, output_dir):
-        print(f"- {command}")
-        print(f"  {note}")
+    for item in plan.commands:
+        print(f"- {item.command}")
+        print(f"  {item.note}")
     console.print("[bold]Manual inspection[/bold]")
     print("- Inspect staged markdown and manifest by hand.")
     print("- Confirm backup expectations before any future write gate.")
@@ -4024,31 +3997,8 @@ def _obsidian_dogfood_command_snippets(
     source_hint: str,
     output_dir: Path,
 ) -> list[tuple[str, str]]:
-    """集中维护 Obsidian dogfooding 命令，防止 CLI 与 docs/checklist 漂移。
-
-    中文学习型说明：这些 snippets 是人工 dogfooding 导航，不是自动 runner。
-    它们刻意停在 preflight/manual inspection，避免把未来 write gate 误写成
-    当前已实现的正式 Obsidian note 写入能力。
-    """
-    v = str(vault)
-    source = source_hint
-    out = str(output_dir)
-    manifest = str(output_dir / "<export>.manifest.json")
-    return [
-        (f"mindforge obsidian doctor --vault {v}", "检查 vault 边界和 staged export 状态"),
-        (f"mindforge obsidian scan --vault {v} --limit 20", "只读扫描 Markdown 安全摘要"),
-        (f"mindforge obsidian links --vault {v}", "只读解析 [[wikilinks]]，不建 graph/RAG"),
-        (f"mindforge obsidian stage --vault {v} --source {source} --dry-run", "预览候选，不写任何文件"),
-        (
-            f"mindforge obsidian stage --vault {v} --source {source} --staged-export "
-            f"--output-dir {out} --diff --write --confirm",
-            "写 staged export + manifest；仍不写正式 notes",
-        ),
-        (
-            f"mindforge obsidian preflight --vault {v} --manifest {manifest}",
-            "检查未来 write-gate 证据链；BLOCKED/WARNING/PASS 后仍需人工检查",
-        ),
-    ]
+    """兼容旧测试入口；实际 snippets 已迁到 service 层。"""
+    return [(item.command, item.note) for item in obsidian_dogfood_command_snippets(vault, source_hint, output_dir)]
 
 
 @obsidian_app.command("doctor")
