@@ -27,7 +27,44 @@ Non-goals:
 - no plugin implementation in this step;
 - no large-scale real-vault dogfooding before the read-only boundary is tested.
 
-## Candidate 1: Real Dogfooding Notes
+## Completed: Local Usability Milestone
+
+v0.5.1 promoted Local Usability / 本地友好使用 to a roadmap milestone. This
+closed the first full local product loop on `examples/demo-vault` without
+private data, `.env` reads in the fake path, real LLM calls, RAG, embeddings, or
+an Obsidian plugin.
+
+Delivered:
+
+- full local smoke across doctor / commands / next / scan / fake process /
+  approve list / index / recall / review / project context / Obsidian dry-run;
+- user-natural post-command `--vault` compatibility for non-Obsidian commands;
+- command-map rendering fix for `[[wikilinks]]`;
+- fake provider demo output now inherits source titles instead of producing
+  `Untitled` demo cards.
+
+Non-goals:
+
+- no RAG / embedding;
+- no Obsidian plugin;
+- no automatic formal-note edits;
+- no real LLM call;
+- no private data dogfooding in the repository;
+- no automatic approve or uploaded telemetry.
+
+## Candidate 1: Packaging / Install Readiness
+
+Goal: make installed wheels resolve prompts, templates, and default configs
+without depending on a development checkout or current working directory.
+
+Possible work:
+
+- Move runtime assets under the package.
+- Load package assets with `importlib.resources`.
+- Keep user-overridable `--prompts-dir`, `--tracks`, and `--template`.
+- Do not change SourceAdapter / SourceDocument / processor / approval / recall.
+
+## Candidate 2: Real Dogfooding Notes
 
 Goal: collect real usage data after the Obsidian read-only binding boundary is
 clear.
@@ -39,7 +76,7 @@ Deliverable:
   review, and project context.
 - No private source content in the repository.
 
-## Candidate 2: RAG / Embedding Spike Design
+## Candidate 3: RAG / Embedding Spike Design
 
 Goal: decide whether lexical BM25/hybrid is insufficient after Obsidian binding
 and real usage produce concrete recall gaps.
@@ -52,7 +89,7 @@ Design-only deliverable:
 - Explicit reason why local lexical search is not enough.
 - No vector database or graph database implementation in this backlog item.
 
-## Candidate 3: PDF / Docx Baselines
+## Candidate 4: PDF / Docx Baselines
 
 Goal: make current lightweight document adapters more predictable without expanding scope.
 
@@ -63,7 +100,7 @@ Possible work:
 - Better error messages for encrypted or malformed files.
 - Still no OCR, table reconstruction, or layout restoration.
 
-## Candidate 4: CLI Polish From Dogfooding
+## Candidate 5: CLI Polish From Dogfooding
 
 Goal: patch real friction rather than imagined features.
 

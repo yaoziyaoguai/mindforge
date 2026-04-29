@@ -467,7 +467,7 @@ def approve(
     """显式人工 approve；默认走 --card 主路径。"""
     if ctx.invoked_subcommand is not None:
         return  # 让子命令接管
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
 
     # ── --card 主路径 ─────────────────────────────────────────────
     if card is not None:
@@ -578,7 +578,7 @@ def approve_list(
     """列出可 approve 的卡片（安全字段摘要；不读卡片正文）。"""
     from .cards import iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     wanted = {s.strip() for s in status.split(",") if s.strip()}
     res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     rows = []
@@ -688,8 +688,13 @@ def process(
     硬约束：原始 source 文件不被改写；卡片默认 ``status: ai_draft``，
     必须人工修改 frontmatter 才晋升 ``human_approved``。
     """
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     cfg = _override_active_profile(cfg, profile)
+    if cfg.llm.active_profile != "fake":
+        # 中文学习型注释：v0.5.1 把本地 smoke 路径收紧为“不读 .env”。
+        # 只有用户显式切到真实 provider 时，才加载 .env 以解析 base_url /
+        # api_key 等环境变量；fake provider 必须保持完全离线、无 secret 依赖。
+        load_dotenv_silently(Path.cwd())
     if dry_run:
         console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
     console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
@@ -1044,7 +1049,7 @@ def review_due(
     """列出到期 / 接近到期的复习候选（默认仅 human_approved）。"""
     from .cards import filter_cards, iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     base = filter_cards(
         scan.cards,
@@ -1137,7 +1142,7 @@ def review_mark(
     """
     from .reviewer import ReviewError, mark_card_review
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     with RunLogger(cfg.state.runs_path, command="review-mark") as logger:  # type: ignore[attr-defined]
         logger.emit(
             "review_mark_started", card_path=str(card), result=result,
@@ -1223,7 +1228,7 @@ def review_schedule(
     """
     from .cards import filter_cards, iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     base = filter_cards(scan.cards, track=track, project=project, status="human_approved")
     now = datetime.now().astimezone()
@@ -1328,7 +1333,7 @@ def review_backlog(
     """
     from .cards import filter_cards, iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     base = filter_cards(scan.cards, track=track, project=project, status="human_approved")
     now = datetime.now().astimezone()
@@ -1398,7 +1403,7 @@ def review_stats(
     """
     from .cards import filter_cards, iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     base = filter_cards(scan.cards, status="human_approved")
     now = datetime.now().astimezone()
@@ -1544,7 +1549,7 @@ def review_weekly(
     """
     from .cards import filter_cards, iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     base = filter_cards(scan.cards, status="human_approved")
     now = datetime.now().astimezone()
@@ -1746,7 +1751,7 @@ def recall(
 
     from .cards import filter_cards, iter_cards, sort_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     cards = filter_cards(
         scan.cards,
@@ -1917,7 +1922,7 @@ def _do_bm25_recall(
         console.print(f"[red]--ranking 仅支持 bm25 | hybrid，收到 {ranking!r}[/red]")
         raise typer.Exit(code=2)
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     workdir = cfg.state.workdir  # type: ignore[attr-defined]
     idx_path = lx.default_index_path(workdir)
 
@@ -2239,7 +2244,7 @@ def index_rebuild(
     from . import lexical_index as lx
     from .cards import iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     if scan.errors:
         console.print(f"[yellow]跳过 {len(scan.errors)} 张损坏卡片[/yellow]")
@@ -2291,7 +2296,7 @@ def _do_index_status(*, config: Path, output_format: str) -> None:
     from . import lexical_index as lx
     from .cards import iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     fw_cur = lx.resolve_field_weights(cfg.search.bm25.fields)
@@ -2405,7 +2410,7 @@ def project_list(
     """列出所有卡片 frontmatter 中出现过的 project（并集去重，按字母序）。"""
     from .cards import iter_cards
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     counts: dict[str, int] = {}
     for c in scan.cards:
@@ -2497,7 +2502,7 @@ def project_context(
     )
     from .telemetry import measure
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
 
     # 去重并保持用户顺序（"a a b" → ["a", "b"]）
     seen: set[str] = set()
@@ -2635,7 +2640,7 @@ def project_update_evidence(
     from .project_profile import ProjectProfileError, _validate_project_name
     from .telemetry import measure
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
 
     try:
         _validate_project_name(project_name)
@@ -2719,7 +2724,7 @@ def telemetry_status(
     """打印 telemetry 配置与本地文件位置（不读取事件内容）。"""
     from .telemetry import telemetry_path
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     p = telemetry_path(cfg.state.workdir)
     console.print("[bold]Telemetry status[/bold]")
     console.print(f"- enabled: {cfg.telemetry.enabled}")
@@ -2746,7 +2751,7 @@ def telemetry_summary_cmd(
     """
     from .telemetry import read_events, summarize
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     if output_format not in {"markdown", "json"}:
         console.print(f"[red]--format 必须是 markdown 或 json，收到 {output_format!r}[/red]")
         raise typer.Exit(code=2)
@@ -2858,7 +2863,7 @@ def vault_index(
     """
     from .vault import refresh_indexes
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     res = refresh_indexes(
         cfg.vault.root,
         cfg.vault.cards_dir,
@@ -2886,7 +2891,7 @@ def vault_links(
     from .cards import iter_cards
     from .vault import build_link_candidates, write_link_candidates
 
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, read_env=False)
     res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     cands = build_link_candidates(res.cards, top_k=top_k, min_score=min_score)
     p, _ = write_link_candidates(
@@ -3615,6 +3620,70 @@ def _ok_dir(p: Path) -> str:
     return "[green]ok[/green]"
 
 
+_COMMANDS_WITH_LOCAL_VAULT_OPTION = {"init", "obsidian"}
+
+
+def _normalize_post_command_global_options(argv: list[str]) -> list[str]:
+    """把后置 ``--vault`` 归一化为 Typer 全局参数位置。
+
+    中文学习型说明：Typer 的全局 option 按规范应写成
+    ``mindforge --vault PATH next``，但真实用户更自然地写
+    ``mindforge next --vault PATH``。v0.5.1 在入口层做一个很小的 argv
+    归一化，只移动非 ``init`` / ``obsidian`` 命令后面的 ``--vault``：
+
+    - ``init --vault`` 是 init 自己的目标 vault 参数，不能搬动；
+    - ``obsidian ... --vault`` 是 Obsidian 子命令自己的 vault 参数，不能搬动；
+    - 其他命令的 ``--vault`` 表示覆盖 MindForge ``vault.root``，可以安全
+      提前到全局位置。
+
+    这避免给每个子命令重复加一遍 ``vault`` 参数，也不改变 Typer 原本
+    合法的 ``mindforge --vault PATH <command>`` 写法。
+    """
+    if len(argv) < 3:
+        return argv
+
+    option_takes_value = {"--config", "-c", "--vault", "--obsidian-vault"}
+    command_idx: int | None = None
+    i = 1
+    while i < len(argv):
+        token = argv[i]
+        if token == "--":
+            return argv
+        if token.startswith("-"):
+            if token in option_takes_value and i + 1 < len(argv):
+                i += 2
+                continue
+            i += 1
+            continue
+        command_idx = i
+        break
+
+    if command_idx is None:
+        return argv
+    if argv[command_idx] in _COMMANDS_WITH_LOCAL_VAULT_OPTION:
+        return argv
+
+    moved: list[str] = []
+    rest: list[str] = []
+    i = 1
+    while i < len(argv):
+        token = argv[i]
+        if i > command_idx and token == "--vault" and i + 1 < len(argv):
+            moved.extend([token, argv[i + 1]])
+            i += 2
+            continue
+        if i > command_idx and token.startswith("--vault="):
+            moved.extend(["--vault", token.split("=", 1)[1]])
+            i += 1
+            continue
+        rest.append(token)
+        i += 1
+
+    if not moved:
+        return argv
+    return [argv[0], *moved, *rest]
+
+
 def main() -> None:
     """CLI 入口。``--debug`` 不传时静默 traceback，仅打印简短错误。
 
@@ -3624,6 +3693,7 @@ def main() -> None:
     import os
     import sys
 
+    sys.argv = _normalize_post_command_global_options(sys.argv)
     debug = os.environ.get("MINDFORGE_DEBUG") == "1" or "--debug" in sys.argv
     try:
         app()
@@ -3812,13 +3882,14 @@ def commands_cmd() -> None:
     - 不输出任何卡片正文 / raw_text / prompt / completion / api_key。
     """
     from . import __version__
+    from rich.markup import escape
 
     console.print(f"[bold]MindForge[/bold] v{__version__} — 命令地图（按场景）\n")
     for group, items in _COMMAND_GROUPS:
         console.print(f"[bold cyan]{group}[/bold cyan]")
         for cmd, desc in items:
-            console.print(f"  [green]{cmd}[/green]")
-            console.print(f"    {desc}")
+            console.print(f"  [green]{escape(cmd)}[/green]")
+            console.print(f"    {escape(desc)}")
         console.print("")
     console.print(
         "[dim]说明：完整使用手册见 docs/USER_GUIDE.md，新手上路见 docs/GETTING_STARTED.md。"

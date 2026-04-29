@@ -18,7 +18,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app
+from mindforge.cli import app, _normalize_post_command_global_options
 from mindforge.config import load_mindforge_config
 from mindforge.scanner import Scanner
 from mindforge.sources.base import SourceAdapter, SourceDocument, compute_content_hash
@@ -114,6 +114,7 @@ def test_commands_lists_key_groups() -> None:
     for cmd in ["mindforge init", "mindforge scan", "mindforge approve", "mindforge index",
                 "mindforge recall", "mindforge review", "mindforge project"]:
         assert cmd in out
+    assert "[[wikilinks]]" in out
 
 
 def test_commands_does_not_leak_secrets() -> None:
@@ -175,6 +176,25 @@ def test_next_json_format_is_parseable(tmp_path: Path) -> None:
     assert data["version"] == 2
     assert isinstance(data["suggestions"], list)
     assert all("command" in s and "reason" in s and "priority" in s for s in data["suggestions"])
+
+
+def test_post_command_vault_normalization_keeps_cli_boundaries() -> None:
+    """v0.5.1: 自然写法只对普通命令搬动，不能偷走 init/obsidian 的局部参数。"""
+    assert _normalize_post_command_global_options(
+        ["mindforge", "next", "--format", "json", "--vault", "examples/demo-vault"]
+    ) == [
+        "mindforge",
+        "--vault",
+        "examples/demo-vault",
+        "next",
+        "--format",
+        "json",
+    ]
+
+    init_argv = ["mindforge", "init", "--vault", "/tmp/vault"]
+    obsidian_argv = ["mindforge", "obsidian", "scan", "--vault", "/tmp/obsidian"]
+    assert _normalize_post_command_global_options(init_argv) == init_argv
+    assert _normalize_post_command_global_options(obsidian_argv) == obsidian_argv
 
 
 def test_next_does_not_read_env_or_call_http(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

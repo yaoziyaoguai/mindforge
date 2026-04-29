@@ -1,16 +1,21 @@
-# Getting Started — MindForge v0.5.0
+# Getting Started — MindForge v0.5.1
 
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。
 > 全程使用 `fake` provider；**不读取 `.env`**。
 >
 > **想直接看效果？** 用仓库自带的 demo vault 一键跑：
 > ```bash
-> mindforge --vault examples/demo-vault doctor
-> mindforge --vault examples/demo-vault next
-> mindforge --vault examples/demo-vault scan
-> mindforge --vault examples/demo-vault index rebuild
-> mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
-> mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
+> mindforge doctor --vault examples/demo-vault
+> mindforge commands
+> mindforge next --vault examples/demo-vault
+> mindforge scan --vault examples/demo-vault
+> mindforge process --profile fake --limit 1 --vault examples/demo-vault
+> mindforge approve list --vault examples/demo-vault
+> mindforge index rebuild --vault examples/demo-vault
+> mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault examples/demo-vault
+> mindforge review weekly --format markdown --vault examples/demo-vault
+> mindforge review schedule --days 7 --format markdown --vault examples/demo-vault
+> mindforge project context my-first-agent --target claude-code --vault examples/demo-vault
 > mindforge obsidian doctor --vault examples/demo-vault
 > mindforge obsidian scan --vault examples/demo-vault --limit 5
 > mindforge obsidian links --vault examples/demo-vault
@@ -18,6 +23,9 @@
 >   --source 02-Knowledge/agent-runtime-observer.md --dry-run
 > ```
 > （demo vault 完全虚构，详见 [`examples/demo-vault/README.md`](../examples/demo-vault/README.md)）
+>
+> 提示：`process` 会写一张本地 `ai_draft` demo 卡。想反复试跑时，可以先把
+> `examples/demo-vault` 复制到 `/tmp`，再把 `--vault` 指向副本。
 >
 > 不知道下一步该敲哪条命令？随时跑 **`mindforge next`** 看建议，
 > 或 **`mindforge commands`** 看按场景分组的命令地图。完整文档地图见
@@ -138,6 +146,7 @@ mindforge project update-evidence my-first-agent --dry-run
 - **绝不**自动 approve；
 - telemetry **本地 only**，10 字段白名单，`.gitignore` 已防泄漏。
 - Obsidian binding 默认只读；staging 写入必须显式 `--write --confirm`，且不改正式 notes。
+- v0.5.1 Local Usability 不进入 RAG / embedding，不做 Obsidian plugin。
 
 详见 [`USER_GUIDE.md`](./USER_GUIDE.md)、[`SECURITY.md`](./SECURITY.md)、
 [`M5_7_TELEMETRY_PROTOCOL.md`](./M5_7_TELEMETRY_PROTOCOL.md)。

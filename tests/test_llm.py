@@ -106,6 +106,19 @@ def test_client_generate_returns_result_and_routes_correctly() -> None:
     assert "ai_summary_bullets" in payload
 
 
+def test_fake_provider_extracts_rendered_prompt_variable_table_title() -> None:
+    """v0.5.1: fake smoke 卡片应继承 source title，而不是退化成 Untitled。"""
+    prompt = (
+        "## Inputs (variables)\n\n"
+        "- `为什么 Agent Runtime 需要显式 Checkpoint`           — 素材标题\n"
+        "- `agent-runtime`           — Triager 已分流到的 learning_track id\n"
+    )
+    out = FakeProvider().generate(LLMRequest(prompt=prompt, stage="distill", model="x"))
+    payload = json.loads(out.text)
+    assert payload["title"] == "为什么 Agent Runtime 需要显式 Checkpoint"
+    assert payload["slug"] == "agent-runtime-checkpoint"
+
+
 class _BoomProvider(FakeProvider):
     """每次都抛 ProviderError，用于测试重试。"""
 

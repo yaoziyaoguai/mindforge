@@ -27,9 +27,34 @@ def _digest(prompt: str, length: int = 6) -> str:
 
 
 def _extract_var(prompt: str, name: str) -> str | None:
-    """从渲染后的 prompt 中抽取 ``<name>: <value>`` 行。"""
+    """从渲染后的 prompt 中抽取变量值。
+
+    中文学习型说明：fake provider 是本地 smoke 和 CI 的离线替身，不应
+    模拟真实模型能力，但它应该让 demo 产物看起来像真实产品。早期只识别
+    ``title: foo`` 这种测试短格式；真实 prompt 模板会把变量渲染进
+    ``- `foo` — 素材标题`` 这样的说明行，导致 demo 卡片标题退化成
+    ``Untitled``。这里只补最小解析规则，仍然不读取原文、不联网、不调用
+    真实 LLM。
+    """
     m = re.search(rf"^\s*{re.escape(name)}\s*:\s*(.+)$", prompt, flags=re.MULTILINE)
-    return m.group(1).strip() if m else None
+    if m:
+        return m.group(1).strip()
+
+    rendered_labels = {
+        "title": "素材标题",
+        "track": "Triager 已分流",
+    }
+    label = rendered_labels.get(name)
+    if label:
+        m = re.search(
+            rf"^\s*-\s*`([^`]*)`\s+—\s*{re.escape(label)}",
+            prompt,
+            flags=re.MULTILINE,
+        )
+        if m:
+            value = m.group(1).strip()
+            return value or None
+    return None
 
 
 class FakeProvider(LLMProvider):

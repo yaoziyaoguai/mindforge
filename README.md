@@ -6,9 +6,13 @@ MindForge is a CLI pipeline for personal knowledge processing. It scans local in
 
 v0.5 adds a read-only Obsidian Binding / Bridge: an Obsidian vault can be
 scanned as personal knowledge context, while generated candidates go only to
-staging/review and machine runtime state stays outside formal notes.
+staging/review and machine runtime state stays outside formal notes. v0.5.1
+promotes Local Usability as a roadmap milestone: the local fake-provider path
+should feel like a usable product loop, not just a set of developer commands.
 
-Current version: **v0.5.0** (read-only Obsidian scan, links, doctor, and staging bridge).
+Current version: **v0.5.1** (Local Usability milestone: full demo-vault smoke,
+post-command `--vault` support, safer local `.env` boundary, command-map polish,
+and clearer fake-provider demo output).
 
 ## Quick Start
 
@@ -26,12 +30,16 @@ mindforge next
 To try the product without using your own data:
 
 ```bash
-mindforge --vault examples/demo-vault doctor
-mindforge --vault examples/demo-vault next
-mindforge --vault examples/demo-vault scan
-mindforge --vault examples/demo-vault index rebuild
-mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
-mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
+mindforge doctor --vault examples/demo-vault
+mindforge commands
+mindforge next --vault examples/demo-vault
+mindforge scan --vault examples/demo-vault
+mindforge process --profile fake --limit 1 --vault examples/demo-vault
+mindforge approve list --vault examples/demo-vault
+mindforge index rebuild --vault examples/demo-vault
+mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault examples/demo-vault
+mindforge review weekly --format markdown --vault examples/demo-vault
+mindforge project context my-first-agent --target claude-code --vault examples/demo-vault
 mindforge obsidian doctor --vault examples/demo-vault
 mindforge obsidian scan --vault examples/demo-vault --limit 5
 mindforge obsidian links --vault examples/demo-vault
@@ -57,6 +65,7 @@ The demo vault is fictional and safe to inspect. See [examples/demo-vault/README
 - No OCR for scanned PDFs.
 - No Obsidian plugin; v0.5 is CLI/adapter-level binding only.
 - No automatic edits, file moves, or wikilink rewrites in a real Obsidian vault.
+- No real LLM calls in the default local usability path.
 - No background daemon, system calendar integration, email, or desktop notifications.
 
 ## Safety Defaults
@@ -89,9 +98,12 @@ Start here:
 
 ## Development Status
 
-- Latest local commit before v0.5 work: `3141dac`
-- Target tag for this work: `v0.5.0`
-- Latest quality gate during v0.5 implementation: `357 passed, 2 skipped`; `ruff` clean.
+- Latest local usability milestone: `v0.5.1`.
+- Latest v0.5.1 smoke: full `examples/demo-vault` local path, including
+  doctor / commands / next / scan / fake process / approve list / index /
+  recall / review / project context / Obsidian dry-run.
+- Latest v0.5.1 quality gate is recorded in
+  [docs/V0_5_1_LOCAL_USABILITY_REVIEW.md](docs/V0_5_1_LOCAL_USABILITY_REVIEW.md).
 
-Recommended next step after v0.5: run read-only dry-run validation on a small,
-non-sensitive Obsidian vault sample before any broader real-vault dogfooding.
+Recommended next step after v0.5.1: keep patching local usability and install
+readiness before adding new feature classes.

@@ -1,4 +1,4 @@
-# MindForge — Roadmap Progress（v0.5.0 视角）
+# MindForge — Roadmap Progress（v0.5.1 视角）
 
 > 与 `docs/ROADMAP.md` 互补：本文档关注**完成度盘点**与**下一阶段建议**，
 > 不重复列里程碑明细。
@@ -6,11 +6,13 @@
 > 文档入口见 [`DOCS_INDEX.md`](./DOCS_INDEX.md)，版本历史见
 > [`CHANGELOG.md`](./CHANGELOG.md)。
 
-## 1. 当前最新版本：**v0.5.0**
+## 1. 当前最新版本：**v0.5.1**
 
-- tag: `v0.5.0`（本地）
+- tag: `v0.5.1`（本地）
 - HEAD branch: `main`
-- 总测试：**357 passed, 2 skipped**（pytest 全绿，ruff clean，无 push）。
+- 本地可用性 smoke：`examples/demo-vault` 完整主路径已跑通，见
+  [`V0_5_1_LOCAL_USABILITY_REVIEW.md`](./V0_5_1_LOCAL_USABILITY_REVIEW.md)。
+- 总测试：**360 passed, 2 skipped**；`ruff check .` clean；本轮不 push。
 
 ## 2. 已完成模块
 
@@ -57,6 +59,9 @@
 - ✅ **doctor / next polish**（分区、图标、priority、JSON schema v2，v0.4.3）
 - ✅ **onboarding smoke 测试固化**（`tests/test_onboarding_smoke.py`，v0.4.3）
 - ✅ **`mindforge obsidian doctor/scan/links/stage`**（v0.5.0，只读 binding + staging bridge）
+- ✅ **v0.5.1 Local Usability milestone**：完整 demo-vault 本地路径 smoke、
+  post-command `--vault` 兼容、命令地图 `[[wikilinks]]` 显示修复、
+  fake provider 使用 source title 生成更像产品的 demo 草稿。
 
 ## 3. 部分完成模块
 
@@ -64,7 +69,7 @@
 |---|---|---|
 | PDF/Docx adapter | 文本型 PDF / 普通 docx 段落抽取，`OptionalDependencyError` 友好提示 | 不做 OCR；不解析复杂版式；尚无大文件性能基线 |
 | Obsidian Binding | 只读扫描真实 vault Markdown；解析 frontmatter/tags/aliases/wikilinks/headings；stage 默认 dry-run | 还缺小规模非敏感真实 vault dry-run 验证；暂不做 plugin |
-| 产品化 onboarding | `init --interactive` + `doctor` + `commands` + `next` + `GETTING_STARTED.md` + demo vault + smoke 测试 | 跨平台窄终端表现需人工观察 |
+| Local Usability | `init --interactive` + `doctor` + `commands` + `next` + `GETTING_STARTED.md` + demo vault + full local smoke | 跨平台窄终端表现和真实非敏感 dogfooding 仍需人工观察 |
 | Telemetry summary | `telemetry status / summary` 命令，10 字段白名单 | 无远端，未来也不打算上传 |
 
 ## 4. 未开始 / 仅 spike 的模块
@@ -82,14 +87,15 @@
 
 | 维度 | 完成度 |
 |---|---|
-| **CLI 本地产品（个人 PKM 加工管线）** | **~92%** —— 主链路 + 召回 + 复习 + 项目上下文 + telemetry + onboarding + Obsidian 只读 binding 都齐；剩真实 dry-run 验证 |
+| **CLI 本地产品（个人 PKM 加工管线）** | **~94%** —— 主链路 + 召回 + 复习 + 项目上下文 + telemetry + onboarding + Obsidian 只读 binding + local usability smoke 都齐；剩真实非敏感 dogfooding 与安装体验 |
 | **完整 Learning Memory OS** | **~50%** —— 缺 Obsidian plugin / RAG 召回 / 多端 / 自动复习调度 / GUI；这是有意为之，不是缺陷 |
 
 ## 6. 下一阶段推荐顺序
 
-1. **小规模非敏感样本验证**：只验证只读扫描、frontmatter/tags/`[[wikilinks]]`/目录解析、
-   staging/review 输出边界；不跑真实 vault 大规模 dogfooding。
-2. **v0.5.1 Obsidian polish**：按 dry-run 反馈补齐 include/exclude 配置、错误文案、窄终端输出。
+1. **v0.5.2 Packaging / Install Readiness**：修复 packaged install 后默认
+   prompts/templates/configs 不能依赖 repo root 的问题。
+2. **小规模非敏感 dogfooding**：把 v0.5.1 本地路径跑在可丢弃 vault 副本上，
+   记录 scan/process/approve/recall/review/project context/Obsidian dry-run 的真实摩擦点。
 3. **M5.1 PDF/Docx 完善**：加 fixture 测试、`--strip-empty-pages`、
    `--max-pages` 等控制项；仍**不**做 OCR。
 4. **RAG/embedding spike**：仅在 Obsidian binding 和真实反馈证明 BM25/hybrid 不够时再写设计；

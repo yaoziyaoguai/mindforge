@@ -52,7 +52,10 @@ def _setup_two_cards(
     second = first.with_name("20260428--card-two.md")
     second.write_text(first.read_text("utf-8"), encoding="utf-8")
 
-    cards = sorted([first, second])
+    # 中文学习型说明：这里的语义是 first=真实 process 出来的 Agent
+    # Runtime 卡，second=手工复制后改成 Harness 卡。不能按文件名排序，
+    # 否则 `20260428--card-two.md` 会排到前面，i==0/i==1 的语义反转。
+    cards = [first, second]
 
     for i, card in enumerate(cards):
         runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
@@ -76,6 +79,19 @@ def _setup_two_cards(
             past = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(timespec="seconds")
             fm["review_after"] = past
             fm["reviewed_at"] = past
+        if i == 1:
+            # v0.5.1 fake provider 会把真实 source title 写入卡片正文。
+            # 第二张 fixture 既然被改成 Harness 主题，body 也必须同步清理
+            # agent/runtime 字样，否则 keyword AND 测试会因为 fixture 污染而
+            # 同时命中两张卡，误判召回逻辑。
+            body = (
+                body.replace("Agent Runtime", "Harness Engineering")
+                .replace("agent runtime", "harness engineering")
+                .replace("Agent", "Harness")
+                .replace("agent", "harness")
+                .replace("Runtime", "Trace")
+                .replace("runtime", "trace")
+            )
         card.write_text(
             "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False) + "---\n" + body
         )

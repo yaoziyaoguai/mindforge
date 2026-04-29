@@ -21,6 +21,7 @@ import yaml
 from typer.testing import CliRunner
 
 from mindforge.cli import app
+from mindforge import __version__
 from mindforge.sources.chat_export import ChatExportAdapter
 from mindforge.sources.stubs import DocxAdapter, PdfAdapter
 from mindforge.sources.webclip_markdown import WebClipMarkdownAdapter
@@ -180,7 +181,8 @@ def test_version_prints_metadata_only(tmp_path: Path) -> None:
     cfg_path = _make_minimal_cfg(tmp_path)
     res = runner.invoke(app, ["version", "--config", str(cfg_path)])
     assert res.exit_code == 0, res.output
-    assert "MindForge v0.5.0" in res.output
+    # 版本号会随 release 自然演进；测试只要求 CLI 与包内 __version__ 对齐。
+    assert f"MindForge v{__version__}" in res.output
     assert "telemetry.enabled" in res.output
     _assert_no_secrets(res.output)
 
@@ -190,7 +192,7 @@ def test_version_with_missing_config_does_not_crash(tmp_path: Path) -> None:
         app, ["version", "--config", str(tmp_path / "nope.yaml")]
     )
     assert res.exit_code == 0
-    assert "MindForge v0.5.0" in res.output
+    assert f"MindForge v{__version__}" in res.output
 
 
 def test_help_works() -> None:

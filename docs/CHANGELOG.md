@@ -2,6 +2,26 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.5.1
+
+- Promoted Local Usability / 本地友好使用 to a formal roadmap milestone.
+- Ran the full `examples/demo-vault` local user path: doctor, commands, next,
+  scan, fake process, approve list, index rebuild, hybrid recall, review weekly,
+  review schedule, project context, and Obsidian doctor/scan/links/stage
+  dry-run.
+- Added compatibility for post-command `--vault`, so commands such as
+  `mindforge next --vault examples/demo-vault` work as users naturally type
+  them.
+- Fixed `mindforge commands` Rich markup escaping so `[[wikilinks]]` is shown
+  correctly.
+- Improved fake provider demo output so generated cards inherit the rendered
+  source title instead of becoming `Untitled`.
+- Tightened local command boundaries so fake-provider local smoke does not read
+  `.env`.
+- Kept v0.5.1 explicitly out of RAG / embedding / Obsidian plugin work; no real
+  LLM calls, private data handling, automatic approve, formal-note edits, or
+  uploaded telemetry were added.
+
 ## v0.5.0
 
 - Added read-only `ObsidianVaultSourceAdapter` with `source_type: obsidian_note`.

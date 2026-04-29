@@ -35,17 +35,19 @@ cp configs/mindforge.yaml /tmp/demo.yaml
 # 然后用 --vault 临时指向 demo vault（不改 yaml）
 export DEMO=$(pwd)/examples/demo-vault
 
-mindforge --vault "$DEMO" doctor --config configs/mindforge.yaml
-mindforge --vault "$DEMO" next   --config configs/mindforge.yaml
-mindforge --vault "$DEMO" scan   --config configs/mindforge.yaml
-mindforge --vault "$DEMO" process --config configs/mindforge.yaml --limit 5
-mindforge --vault "$DEMO" approve list --config configs/mindforge.yaml
-mindforge --vault "$DEMO" index rebuild --config configs/mindforge.yaml
-mindforge --vault "$DEMO" recall --query "checkpoint runtime" \
-  --ranking hybrid --explain --config configs/mindforge.yaml
-mindforge --vault "$DEMO" review weekly --config configs/mindforge.yaml
-mindforge --vault "$DEMO" project context my-first-agent \
-  --target claude-code --config configs/mindforge.yaml
+mindforge doctor --vault "$DEMO" --config configs/mindforge.yaml
+mindforge commands
+mindforge next --vault "$DEMO" --config configs/mindforge.yaml
+mindforge scan --vault "$DEMO" --config configs/mindforge.yaml
+mindforge process --profile fake --limit 1 --vault "$DEMO" --config configs/mindforge.yaml
+mindforge approve list --vault "$DEMO" --config configs/mindforge.yaml
+mindforge index rebuild --vault "$DEMO" --config configs/mindforge.yaml
+mindforge recall --query "checkpoint runtime" \
+  --ranking hybrid --explain --vault "$DEMO" --config configs/mindforge.yaml
+mindforge review weekly --format markdown --vault "$DEMO" --config configs/mindforge.yaml
+mindforge review schedule --days 7 --format markdown --vault "$DEMO" --config configs/mindforge.yaml
+mindforge project context my-first-agent \
+  --target claude-code --vault "$DEMO" --config configs/mindforge.yaml
 
 # Obsidian Binding v0.5：只读扫描，不改正式 notes
 mindforge obsidian doctor --vault "$DEMO" --config configs/mindforge.yaml
@@ -55,6 +57,9 @@ mindforge obsidian stage --vault "$DEMO" \
   --source 02-Knowledge/agent-runtime-observer.md \
   --dry-run --config configs/mindforge.yaml
 ```
+
+`process` 会写本地 demo 产物。想反复 smoke 时，建议先复制 demo vault 到
+`/tmp`，再把 `DEMO` 指向副本。
 
 ## 安全契约
 

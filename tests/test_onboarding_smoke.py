@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -31,8 +33,13 @@ def _copy_demo_vault(tmp_path: Path) -> tuple[Path, Path]:
     return vault, cfg_path
 
 
-def test_demo_vault_onboarding_smoke(tmp_path: Path) -> None:
+def test_demo_vault_onboarding_smoke(tmp_path: Path, monkeypatch) -> None:
     vault, cfg = _copy_demo_vault(tmp_path)
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("本地可用性 smoke 不应读取 .env")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
 
     checks = [
         (["commands"], "命令地图"),
@@ -56,3 +63,28 @@ def test_demo_vault_onboarding_smoke(tmp_path: Path) -> None:
 
     assert not (vault / ".mindforge").exists()
     assert (tmp_path / ".mindforge").exists()
+
+
+def test_post_command_vault_works_through_real_cli_main(tmp_path: Path) -> None:
+    """回归真实 CLI 入口：CliRunner(app) 会绕过 main()，这里用子进程覆盖 argv 归一化。"""
+    vault, cfg = _copy_demo_vault(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mindforge.cli",
+            "next",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--format",
+            "json",
+        ],
+        cwd=Path.cwd(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert str(vault) in result.stdout
