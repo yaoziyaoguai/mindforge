@@ -2967,6 +2967,95 @@ def _obsidian_options(
     )
 
 
+def _obsidian_copy_warning() -> None:
+    console.print(
+        "[yellow]安全提示：请只对可丢弃、非敏感的 Obsidian vault 副本做 dry-run；"
+        "MindForge 不会自动整理正式 notes。[/yellow]"
+    )
+
+
+def _print_obsidian_issues(vault_root: Path, issues: list[object]) -> None:
+    """打印单文件跳过原因，不输出 note 正文。
+
+    中文学习型说明：真实 vault 副本可能含坏 frontmatter 或工具生成的异常
+    Markdown。这里输出路径和错误类别，足够定位摩擦点，但不泄漏正文内容。
+    """
+    if not issues:
+        return
+    table = Table(title="Skipped notes", show_lines=False)
+    table.add_column("path", overflow="fold")
+    table.add_column("reason", overflow="fold")
+    for issue in issues:
+        path = getattr(issue, "path")
+        reason = getattr(issue, "reason")
+        try:
+            rel = Path(path).resolve().relative_to(vault_root).as_posix()
+        except ValueError:
+            rel = str(path)
+        table.add_row(rel, str(reason))
+    console.print(table)
+
+
+def _resolve_obsidian_source_for_preview(source: Path, vault_root: Path) -> Path:
+    """解析 stage source，兼容 cwd 路径和 vault 内相对路径。
+
+    中文学习型说明：用户 dry-run 时常写 ``--vault demo --source demo`` 或从
+    不同 cwd 传路径。解析顺序先尊重当前 cwd 中真实存在的路径，再回退到 vault
+    内相对路径；后续仍要求 source 位于 vault 内，避免误处理外部资料。
+    """
+    raw = source.expanduser()
+    if raw.is_absolute():
+        return raw.resolve()
+    cwd_candidate = raw.resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return (vault_root / raw).resolve()
+
+
+def _first_markdown_hint(vault_root: Path) -> str:
+    for path in sorted(vault_root.rglob("*.md")):
+        if path.is_file():
+            try:
+                return path.relative_to(vault_root).as_posix()
+            except ValueError:
+                return str(path)
+    return "<note.md>"
+
+
+def _print_stage_preview(
+    *,
+    vault_root: Path,
+    source: Path,
+    target: Path | None,
+    action: str,
+    skipped_reason: str,
+    content_hash: str = "-",
+) -> None:
+    """输出 Obsidian stage dry-run preview，且不写文件。
+
+    dry-run report 是 v0.5.3 的产品边界：它告诉用户将会发生什么、为什么
+    可能跳过、下一步怎么确认，但不会修改正式 notes 或 staging 文件。
+    """
+    table = Table(title="Obsidian stage preview", show_lines=False)
+    table.add_column("field", style="bold")
+    table.add_column("value", overflow="fold")
+    table.add_row("mode", "dry-run")
+    table.add_row("vault", str(vault_root))
+    table.add_row("source file", str(source))
+    table.add_row("proposed path", str(target) if target is not None else "-")
+    table.add_row("action type", action)
+    table.add_row("skipped reason", skipped_reason or "-")
+    table.add_row("source hash", content_hash)
+    table.add_row("risk warning", "只对可丢弃、非敏感 vault 副本试跑；不修改正式 notes。")
+    hint = _first_markdown_hint(vault_root)
+    table.add_row(
+        "next command",
+        f"mindforge obsidian stage --vault {vault_root} --source {hint} --dry-run",
+    )
+    console.print(table)
+    console.print("[yellow]dry-run：未写任何文件，未移动 source note，未重写 wikilinks。[/yellow]")
+
+
 @obsidian_app.command("scan")
 def obsidian_scan(
     vault: Path | None = typer.Option(
@@ -2980,12 +3069,12 @@ def obsidian_scan(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
     """只读扫描 Obsidian Markdown note，输出安全摘要，不输出正文。"""
-    from .obsidian import load_obsidian_documents, summarize_doc
+    from .obsidian import load_obsidian_documents_with_issues, summarize_doc
 
     cfg = _load_cfg(config, read_env=False)
     vault_root, options = _obsidian_options(cfg, vault)
     try:
-        docs = load_obsidian_documents(options, limit=limit)
+        docs, issues = load_obsidian_documents_with_issues(options, limit=limit)
     except (FileNotFoundError, NotADirectoryError) as e:
         console.print(f"[red]✗ {e}[/red]")
         console.print("[dim]提示：传 --vault <ObsidianVault>，或配置 obsidian.vault_path。[/dim]")
@@ -2998,6 +3087,7 @@ def obsidian_scan(
         print(_json.dumps({"version": 1, "vault": str(vault_root), "notes": rows}, ensure_ascii=False))
         return
 
+    _obsidian_copy_warning()
     table = Table(title=f"Obsidian scan · {vault_root}", show_lines=False)
     for col in ("title", "relative_path", "tags", "wikilinks", "headings", "hash"):
         table.add_column(col, overflow="fold")
@@ -3015,6 +3105,12 @@ def obsidian_scan(
         f"[green]✓ scanned {len(rows)} Obsidian notes[/green] "
         "[dim](只读；未输出 note 全文；未写正式 notes)[/dim]"
     )
+    if not rows:
+        console.print(
+            "[yellow]未发现 Markdown notes。请检查 --vault、include_dirs，或先复制一个"
+            "非敏感 Obsidian vault 副本再 dry-run。[/yellow]"
+        )
+    _print_obsidian_issues(vault_root, issues)
     if (vault_root / ".obsidian").is_dir():
         console.print("[dim]检测到 .obsidian/；仅确认存在，未读取其配置内容。[/dim]")
 
@@ -3026,12 +3122,12 @@ def obsidian_links(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
     """只读解析 Obsidian [[wikilinks]]，不建 graph DB、不改 note。"""
-    from .obsidian import build_link_entries, load_obsidian_documents
+    from .obsidian import build_link_entries, load_obsidian_documents_with_issues
 
     cfg = _load_cfg(config, read_env=False)
     vault_root, options = _obsidian_options(cfg, vault)
     try:
-        docs = load_obsidian_documents(options)
+        docs, issues = load_obsidian_documents_with_issues(options)
     except (FileNotFoundError, NotADirectoryError) as e:
         console.print(f"[red]✗ {e}[/red]")
         raise typer.Exit(code=2) from e
@@ -3042,6 +3138,7 @@ def obsidian_links(
         print(_json.dumps({"version": 1, "vault": str(vault_root), "links": entries}, ensure_ascii=False))
         return
 
+    _obsidian_copy_warning()
     table = Table(title=f"Obsidian links · {vault_root}", show_lines=False)
     table.add_column("note", overflow="fold")
     table.add_column("outgoing_links", overflow="fold")
@@ -3053,6 +3150,9 @@ def obsidian_links(
             str(item["incoming_count"]),
         )
     console.print(table)
+    if not entries:
+        console.print("[yellow]未发现可解析的 Markdown notes；未建立链接报告。[/yellow]")
+    _print_obsidian_issues(vault_root, issues)
     console.print("说明：只读解析 [[wikilinks]]；不做 graph DB / RAG / embedding。", markup=False)
 
 
@@ -3079,21 +3179,74 @@ def obsidian_stage(
 
     cfg = _load_cfg(config, read_env=False)
     vault_root, _options = _obsidian_options(cfg, vault)
-    source_path = source.expanduser()
-    if not source_path.is_absolute():
-        source_path = vault_root / source_path
-    source_path = source_path.resolve()
+    _obsidian_copy_warning()
+    source_path = _resolve_obsidian_source_for_preview(source, vault_root)
     try:
         source_path.relative_to(vault_root)
     except ValueError:
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason="--source 必须位于 Obsidian vault 内，避免误处理外部资料。",
+            )
+            return
         console.print("[red]✗ --source 必须位于 Obsidian vault 内，避免误处理真实外部资料。[/red]")
         raise typer.Exit(code=2) from None
     if not source_path.exists():
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason="source note 不存在。",
+            )
+            return
         console.print(f"[red]✗ source note 不存在：{source_path}[/red]")
+        raise typer.Exit(code=2)
+    if source_path.is_dir():
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason="--source 是目录；stage 需要单个 Markdown note。",
+            )
+            return
+        console.print(f"[red]✗ --source 是目录；请传单个 Markdown note：{source_path}[/red]")
+        raise typer.Exit(code=2)
+    if source_path.suffix.lower() != ".md":
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason="--source 不是 Markdown 文件。",
+            )
+            return
+        console.print(f"[red]✗ --source 不是 Markdown 文件：{source_path}[/red]")
         raise typer.Exit(code=2)
 
     adapter = ObsidianVaultSourceAdapter(vault_root)
-    doc = adapter.load(str(source_path))
+    try:
+        doc = adapter.load(str(source_path))
+    except Exception as e:  # noqa: BLE001 - 只打印安全错误摘要，不输出 note 正文
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason=f"source 解析失败：{type(e).__name__}: {e}",
+            )
+            return
+        console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
+        raise typer.Exit(code=2) from e
     try:
         target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
     except ValueError as e:
@@ -3102,10 +3255,14 @@ def obsidian_stage(
     content = build_stage_markdown(doc)
 
     if dry_run:
-        console.print("[yellow]dry-run：未写任何文件[/yellow]")
-        console.print(f"target: {target}")
-        console.print(f"source: {doc.source_path}")
-        console.print(f"status: ai_draft  hash={doc.content_hash}")
+        _print_stage_preview(
+            vault_root=vault_root,
+            source=source_path,
+            target=target,
+            action="would-create-staging-candidate" if not target.exists() else "would-update-staging-candidate",
+            skipped_reason="",
+            content_hash=doc.content_hash,
+        )
         return
     if not confirm:
         console.print("[red]✗ 写入 staging 需要显式 --write --confirm。[/red]")
@@ -3133,6 +3290,7 @@ def obsidian_doctor(
     )
     rows = obsidian_doctor_rows(vault_root, cfg.obsidian)
     console.print(f"[bold]MindForge Obsidian doctor[/bold] · {vault_root}")
+    _obsidian_copy_warning()
     for state, label, detail in rows:
         console.print(f"  {_doctor_icon(state)} {label:<20}: {detail}")
     if not vault_root.exists():

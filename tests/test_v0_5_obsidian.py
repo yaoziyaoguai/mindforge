@@ -209,8 +209,67 @@ def test_obsidian_stage_dry_run_writes_nothing(tmp_path: Path) -> None:
     )
     assert res.exit_code == 0, res.output
     assert "dry-run" in res.output
+    assert "Obsidian stage preview" in res.output
+    assert "source file" in res.output
+    assert "proposed path" in res.output
+    assert "would-create-staging-candidate" in res.output
+    assert "next command" in res.output
     assert note.read_text(encoding="utf-8") == before
     assert not (vault / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_obsidian_stage_dry_run_reports_skipped_directory_source(tmp_path: Path) -> None:
+    """v0.5.3: dry-run 遇到目录 source 应给 preview，而不是写文件或崩溃。
+
+    真实 dogfooding 时用户常把 vault 目录误传给 --source。dry-run 的产品边界是
+    安全说明和下一步建议；真正写入仍要求单个 Markdown note。
+    """
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    res = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(vault)],
+    )
+    assert res.exit_code == 0, res.output
+    assert "Obsidian stage preview" in res.output
+    assert "skipped" in res.output
+    assert "stage 需要单个 Markdown note" in res.output
+    assert not (vault / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_obsidian_stage_dry_run_reports_missing_source_without_write(tmp_path: Path) -> None:
+    """缺失路径在 dry-run 下应变成可读 skipped report，不触碰 vault。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            "02-Knowledge/Missing.md",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    assert "source note 不存在" in res.output
+    assert "dry-run" in res.output
+    assert not (vault / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_obsidian_stage_dry_run_reports_non_markdown_source(tmp_path: Path) -> None:
+    """非 Markdown 文件只报告 skipped，避免用户误以为 MindForge 会处理任意文件。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    txt = vault / "02-Knowledge" / "readme.txt"
+    txt.write_text("not markdown", encoding="utf-8")
+    res = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(txt)],
+    )
+    assert res.exit_code == 0, res.output
+    assert "不是 Markdown 文件" in res.output
+    assert "skipped" in res.output
 
 
 def test_obsidian_stage_write_only_to_staging_and_preserves_source(tmp_path: Path) -> None:
@@ -282,6 +341,13 @@ def test_obsidian_commands_do_not_read_env_or_use_network(tmp_path: Path, monkey
     assert res.exit_code == 0, res.output
     assert "secret" not in res.output
 
+    stage_res = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", "02-Knowledge/Agent Runtime.md"],
+    )
+    assert stage_res.exit_code == 0, stage_res.output
+    assert "secret" not in stage_res.output
+
 
 def test_obsidian_scan_does_not_write_runtime_or_raw_text_state(tmp_path: Path) -> None:
     vault, _note, cfg = _make_obsidian_vault(tmp_path)
@@ -294,3 +360,31 @@ def test_obsidian_scan_does_not_write_runtime_or_raw_text_state(tmp_path: Path) 
         ObsidianScanOptions(vault, ("02-Knowledge",), (".obsidian", ".git", ".mindforge")),
     )
     assert docs and docs[0].raw_text
+
+
+def test_obsidian_scan_empty_vault_is_actionable(tmp_path: Path) -> None:
+    """空 vault 是 dogfooding 常见起点；scan/links 应提示下一步而不是只给空表。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    for note in vault.rglob("*.md"):
+        note.unlink()
+
+    scan = runner.invoke(app, ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault)])
+    assert scan.exit_code == 0, scan.output
+    assert "未发现 Markdown notes" in scan.output
+
+    links = runner.invoke(app, ["obsidian", "links", "--config", str(cfg), "--vault", str(vault)])
+    assert links.exit_code == 0, links.output
+    assert "未发现可解析的 Markdown notes" in links.output
+
+
+def test_obsidian_scan_bad_frontmatter_is_skipped_not_crash(tmp_path: Path) -> None:
+    """坏 frontmatter 只能影响单个 note，不能中断整个只读 vault dry-run。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    bad = vault / "02-Knowledge" / "Broken.md"
+    bad.write_text("---\ntitle: [unterminated\n---\n\nbody secret should stay hidden", encoding="utf-8")
+
+    res = runner.invoke(app, ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault)])
+    assert res.exit_code == 0, res.output
+    assert "Skipped notes" in res.output
+    assert "Broken.md" in res.output
+    assert "body secret should stay hidden" not in res.output

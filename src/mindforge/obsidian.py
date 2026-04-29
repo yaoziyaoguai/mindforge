@@ -28,6 +28,19 @@ class ObsidianScanOptions:
     exclude_dirs: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ObsidianLoadIssue:
+    """单个 note 的只读解析问题。
+
+    中文学习型说明：dogfooding 真实 vault 副本时，用户很可能遇到坏
+    frontmatter、非标准 Markdown 或编辑器生成的边界文件。scan/links 应该把
+    这些文件标成 skipped，而不是因为一个坏 note 中断整个只读巡检。
+    """
+
+    path: Path
+    reason: str
+
+
 def resolve_obsidian_vault(
     cfg_obsidian: ObsidianConfig,
     fallback_vault: Path,
@@ -76,6 +89,31 @@ def load_obsidian_documents(options: ObsidianScanOptions, *, limit: int = 0) -> 
         if limit > 0 and len(docs) >= limit:
             break
     return docs
+
+
+def load_obsidian_documents_with_issues(
+    options: ObsidianScanOptions,
+    *,
+    limit: int = 0,
+) -> tuple[list[SourceDocument], list[ObsidianLoadIssue]]:
+    """只读加载 Obsidian notes，并把单文件解析失败降级成 issue。
+
+    这里不吞掉 vault 路径级错误：vault 不存在或不是目录仍然抛给 CLI 处理。
+    降级范围只限单个 Markdown 文件，避免真实 dry-run 因一条坏 frontmatter
+    卡住，同时不把正文或 secret 打印出来。
+    """
+    adapter = ObsidianVaultSourceAdapter(options.vault_root)
+    docs: list[SourceDocument] = []
+    issues: list[ObsidianLoadIssue] = []
+    for path in iter_obsidian_markdown(options):
+        try:
+            docs.append(adapter.load(str(path)))
+        except Exception as e:  # noqa: BLE001 - CLI 只展示安全摘要，不泄漏 note 正文
+            issues.append(ObsidianLoadIssue(path=path, reason=f"{type(e).__name__}: {e}"))
+            continue
+        if limit > 0 and len(docs) >= limit:
+            break
+    return docs, issues
 
 
 def summarize_doc(doc: SourceDocument) -> dict[str, Any]:
