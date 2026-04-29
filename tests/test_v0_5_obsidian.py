@@ -544,6 +544,201 @@ def test_obsidian_staged_export_from_non_repo_cwd(tmp_path: Path, monkeypatch) -
     assert note.read_text(encoding="utf-8") == before
 
 
+def _write_staged_export_for_preflight(
+    tmp_path: Path,
+    vault: Path,
+    note: Path,
+    cfg: Path,
+    *,
+    output_dir: Path | None = None,
+) -> tuple[Path, Path]:
+    export_dir = output_dir or (tmp_path / "exports")
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            str(note),
+            "--staged-export",
+            "--output-dir",
+            str(export_dir),
+            "--write",
+            "--confirm",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    return export_dir / "Agent-Runtime.md", export_dir / "Agent-Runtime.manifest.json"
+
+
+def _patch_manifest(manifest: Path, **updates) -> None:
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    for key, value in updates.items():
+        if key.startswith("write_gate__"):
+            payload.setdefault("write_gate", {})[key.removeprefix("write_gate__")] = value
+        elif value is None:
+            payload.pop(key, None)
+        else:
+            payload[key] = value
+    manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def test_obsidian_preflight_passes_complete_staged_manifest(tmp_path: Path) -> None:
+    """v0.7.4: 完整 staged export 可进入未来 write-gate 人工检查，但不写正式 note。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "MindForge Obsidian preflight" in res.output
+    assert "PASS" in res.output
+    assert "staged export -> diff preview -> backup -> explicit confirmation" in res.output
+    assert "本版本不会写正式 Obsidian notes" in res.output
+    assert exported.exists()
+    assert note.read_text(encoding="utf-8") == before
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    proposed_target = Path(payload["write_gate"]["proposed_target"])
+    assert not proposed_target.exists()
+
+
+def test_obsidian_preflight_blocks_missing_manifest_field(tmp_path: Path) -> None:
+    """manifest 证据链不完整时必须 BLOCKED，避免未来 write gate 猜测用户意图。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    _exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    _patch_manifest(manifest, action=None)
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 2, res.output
+    assert "BLOCKED" in res.output
+    assert "manifest 缺少 action" in res.output
+
+
+def test_obsidian_preflight_blocks_missing_staged_markdown(tmp_path: Path) -> None:
+    """staged markdown 消失时不能只凭 manifest 继续推进。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    exported.unlink()
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 2, res.output
+    assert "staged markdown 不存在" in res.output
+
+
+def test_obsidian_preflight_blocks_target_outside_vault(tmp_path: Path) -> None:
+    """future proposed target 必须在 vault 内；preflight 仍然不会写任何文件。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    _exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    _patch_manifest(manifest, write_gate__proposed_target=str(tmp_path / "outside.md"))
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 2, res.output
+    assert "proposed target 不在 Obsidian vault 内" in res.output
+    assert note.read_text(encoding="utf-8") == before
+
+
+def test_obsidian_preflight_warns_existing_target_without_overwrite(tmp_path: Path) -> None:
+    """target 已存在只能 WARNING，且 preflight 不覆盖正式或 review note。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    _exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    proposed_target = Path(payload["write_gate"]["proposed_target"])
+    proposed_target.parent.mkdir(parents=True)
+    proposed_target.write_text("human review note stays\n", encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "WARNING" in res.output
+    assert "不会覆盖" in res.output
+    assert proposed_target.read_text(encoding="utf-8") == "human review note stays\n"
+
+
+def test_obsidian_preflight_blocks_runtime_cache_index_paths(tmp_path: Path) -> None:
+    """staged output 若落到 runtime/cache/index/logs/vector/graph 这类机器层，必须阻断。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    _exported, manifest = _write_staged_export_for_preflight(
+        tmp_path,
+        vault,
+        note,
+        cfg,
+        output_dir=tmp_path / "runtime" / "exports",
+    )
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 2, res.output
+    assert "禁止的机器派生层路径" in res.output
+    assert "runtime" in res.output
+
+
+def test_obsidian_preflight_does_not_read_env_llm_or_telemetry(tmp_path: Path, monkeypatch) -> None:
+    """preflight 是本地 manifest 校验，不应碰 .env、真实 LLM provider 或 telemetry 上传。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    _exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    (tmp_path / ".env").write_text("MINDFORGE_LLM_API_KEY=secret\n", encoding="utf-8")
+
+    def _blocked(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("preflight 不应触发这个外部边界")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked)
+    monkeypatch.setattr("mindforge.cli.build_providers", _blocked)
+    monkeypatch.setattr(socket, "socket", _blocked)
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "secret" not in res.output
+    assert "不会调用真实 LLM" in res.output
+
+
+def test_obsidian_preflight_from_non_repo_cwd(tmp_path: Path, monkeypatch) -> None:
+    """显式 --config/--vault/--manifest 时，从 /tmp 类 cwd 也能完成 write-gate prep。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    _exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    run_dir = tmp_path / "tmp cwd"
+    run_dir.mkdir()
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "PASS" in res.output
+
+
 def test_obsidian_stage_rejects_formal_note_output_dir(tmp_path: Path) -> None:
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     res = runner.invoke(

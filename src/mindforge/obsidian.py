@@ -7,6 +7,7 @@ runtime state 写进 Obsidian notes。写入能力仅限 staging/review，并需
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fnmatch import fnmatch
@@ -21,6 +22,16 @@ from .sources.obsidian_vault import ObsidianVaultSourceAdapter
 
 _RUNTIME_DIR_NAMES = {".mindforge", "runs", "state", "telemetry", "index"}
 _DEFAULT_EXCLUDE_DIRS = (".obsidian", ".git", ".mindforge", "node_modules")
+_WRITE_GATE_FORBIDDEN_PARTS = {
+    "runtime",
+    "cache",
+    "index",
+    "logs",
+    "sqlite",
+    "vector",
+    "vectors",
+    "graph",
+}
 
 
 @dataclass(frozen=True)
@@ -41,6 +52,25 @@ class ObsidianLoadIssue:
 
     path: Path
     reason: str
+
+
+@dataclass(frozen=True)
+class ObsidianPreflightResult:
+    """Obsidian future write-gate 的只读检查结果。
+
+    中文学习型说明：preflight 只判断 staged export 是否具备"未来可进入写入闸门"
+    的证据链。它不会创建、修改、删除任何 Obsidian note，也不会把 staged 文件
+    应用回 vault；真正写入仍必须等后续版本加入显式确认、备份与恢复路径。
+    """
+
+    status: str
+    blocked: list[str]
+    warnings: list[str]
+    manifest_path: Path
+    staged_markdown: Path | None
+    proposed_target: Path | None
+    backup_path: Path | None
+    recovery_plan: str
 
 
 def resolve_obsidian_vault(
@@ -251,6 +281,173 @@ def obsidian_doctor_rows(
         rows.append(("warn" if non_markdown else "ok", "non markdown files", str(len(non_markdown))))
         rows.append(("warn" if _duplicate_note_titles(root) else "ok", "duplicate titles", ", ".join(_duplicate_note_titles(root)[:5]) or "none"))
     return rows
+
+
+def obsidian_preflight(
+    *,
+    vault_root: Path,
+    manifest_path: Path,
+    default_staged_root: Path,
+) -> ObsidianPreflightResult:
+    """只读校验 staged export manifest，为未来 write gate 做准备。
+
+    中文学习型说明：这里检查的是"证据是否完整"，不是"执行写入"。因此函数
+    只读取 manifest 和 staged markdown 的存在性，不读取 `.env`、不调用 LLM、
+    不上传 telemetry，也不写正式 Obsidian notes。把这层做成纯函数风格，可以
+    防止未来 apply/write 命令绕过 staged export → diff → confirmation 边界。
+    """
+    root = vault_root.expanduser().resolve()
+    manifest = manifest_path.expanduser().resolve()
+    staged_root = default_staged_root.expanduser().resolve()
+    blocked: list[str] = []
+    warnings: list[str] = []
+    payload: dict[str, Any] = {}
+
+    if not manifest.exists():
+        blocked.append(f"staged manifest 不存在：{manifest}")
+    elif not manifest.is_file():
+        blocked.append(f"staged manifest 不是文件：{manifest}")
+    else:
+        try:
+            loaded = json.loads(manifest.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            blocked.append(f"staged manifest 不是合法 JSON：{e.msg}")
+        else:
+            if not isinstance(loaded, dict):
+                blocked.append("staged manifest 必须是 JSON object")
+            else:
+                payload = loaded
+
+    staged_markdown = _manifest_path_value(payload, "staged_markdown", "proposed_file")
+    proposed_target = _manifest_write_gate_path(payload, "proposed_target")
+    backup_path = _manifest_write_gate_path(payload, "backup_path")
+    recovery_plan = str((payload.get("write_gate") or {}).get("recovery_plan") or "")
+
+    _require_manifest_value(payload, ("source_note", "source"), "source", blocked)
+    _require_manifest_value(payload, ("action",), "action", blocked)
+    _require_manifest_value(payload, ("timestamp",), "timestamp", blocked)
+    _require_manifest_value(payload, ("safety",), "safety boundary", blocked)
+
+    if staged_markdown is None:
+        blocked.append("manifest 缺少 staged_markdown/proposed_file")
+    else:
+        if not staged_markdown.exists():
+            blocked.append(f"staged markdown 不存在：{staged_markdown}")
+        elif staged_markdown.suffix.lower() != ".md":
+            blocked.append(f"staged markdown 不是 .md 文件：{staged_markdown}")
+        _check_staged_output_policy(
+            payload=payload,
+            staged_markdown=staged_markdown,
+            manifest=manifest,
+            default_staged_root=staged_root,
+            blocked=blocked,
+        )
+        _check_no_forbidden_machine_parts(staged_markdown, "staged markdown", blocked)
+
+    if proposed_target is None:
+        blocked.append("manifest.write_gate 缺少 proposed_target")
+    else:
+        if not _is_relative_to(proposed_target, root):
+            blocked.append(f"proposed target 不在 Obsidian vault 内：{proposed_target}")
+        if proposed_target.exists():
+            warnings.append(f"proposed target 已存在；preflight 不会覆盖：{proposed_target}")
+        _check_no_forbidden_machine_parts(proposed_target, "proposed target", blocked)
+
+    if backup_path is None:
+        blocked.append("manifest.write_gate 缺少 backup_path")
+    if not recovery_plan:
+        blocked.append("manifest.write_gate 缺少 rollback/recovery plan")
+
+    _check_safety_boundary(payload, blocked)
+    if payload.get("mode") not in {"staged_export", "human_approved"}:
+        blocked.append("manifest.mode 必须来自 staged_export 或 explicit human-approved")
+    if (payload.get("write_gate") or {}).get("writes_formal_notes_now") is not False:
+        blocked.append("manifest 必须声明 writes_formal_notes_now=false")
+
+    status = "BLOCKED" if blocked else "WARNING" if warnings else "PASS"
+    return ObsidianPreflightResult(
+        status=status,
+        blocked=blocked,
+        warnings=warnings,
+        manifest_path=manifest,
+        staged_markdown=staged_markdown,
+        proposed_target=proposed_target,
+        backup_path=backup_path,
+        recovery_plan=recovery_plan,
+    )
+
+
+def _manifest_path_value(payload: dict[str, Any], *keys: str) -> Path | None:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return Path(value).expanduser().resolve()
+    return None
+
+
+def _manifest_write_gate_path(payload: dict[str, Any], key: str) -> Path | None:
+    write_gate = payload.get("write_gate")
+    if not isinstance(write_gate, dict):
+        return None
+    value = write_gate.get(key)
+    if isinstance(value, str) and value.strip():
+        return Path(value).expanduser().resolve()
+    return None
+
+
+def _require_manifest_value(
+    payload: dict[str, Any],
+    keys: tuple[str, ...],
+    label: str,
+    blocked: list[str],
+) -> None:
+    if not any(key in payload and payload.get(key) not in (None, "", {}) for key in keys):
+        blocked.append(f"manifest 缺少 {label}")
+
+
+def _check_staged_output_policy(
+    *,
+    payload: dict[str, Any],
+    staged_markdown: Path,
+    manifest: Path,
+    default_staged_root: Path,
+    blocked: list[str],
+) -> None:
+    policy = str(payload.get("staged_output_policy") or "")
+    if policy == "explicit-output-dir":
+        if staged_markdown.parent != manifest.parent:
+            blocked.append("explicit output-dir 下 manifest 与 staged markdown 必须在同一目录")
+        return
+    if policy != "default-state-workdir":
+        blocked.append("manifest 缺少 staged_output_policy")
+        return
+    manifest_root = _manifest_path_value(payload, "staged_export_dir") or default_staged_root
+    if not _is_relative_to(staged_markdown, manifest_root):
+        blocked.append(f"default staged output 必须位于 {manifest_root}")
+
+
+def _check_safety_boundary(payload: dict[str, Any], blocked: list[str]) -> None:
+    safety = payload.get("safety")
+    if not isinstance(safety, dict):
+        blocked.append("manifest.safety 必须是 object")
+        return
+    required_true = {
+        "no_formal_obsidian_note_write": "no formal Obsidian note write",
+        "no_real_llm": "no real LLM",
+        "no_env_read": "no .env read",
+        "no_telemetry_upload": "no telemetry upload",
+        "no_runtime_logs_or_index_in_export": "no runtime/cache/index/log export",
+    }
+    for key, label in required_true.items():
+        if safety.get(key) is not True:
+            blocked.append(f"manifest.safety 必须声明 {label}")
+
+
+def _check_no_forbidden_machine_parts(path: Path, label: str, blocked: list[str]) -> None:
+    parts = {part.lower() for part in path.parts}
+    bad = sorted(parts & _WRITE_GATE_FORBIDDEN_PARTS)
+    if bad:
+        blocked.append(f"{label} 包含禁止的机器派生层路径：{', '.join(bad)}")
 
 
 def _is_excluded(path: Path, root: Path, exclude_dirs: tuple[str, ...]) -> bool:

@@ -3638,23 +3638,36 @@ def _write_obsidian_staged_export(
         _print_staged_diff_preview(proposed, content)
     target = _unique_export_path(proposed)
     manifest = target.with_suffix(".manifest.json")
+    proposed_target = (vault_root / cfg.obsidian.review_dir / target.name).resolve()
+    backup_path = (cfg.state.workdir / "backups" / "obsidian" / target.name).expanduser().resolve()
     export_dir.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     payload = {
         "version": 1,
         "source_note": doc.source_path,
         "source_file": str(source_path),
+        "staged_markdown": str(target),
         "proposed_file": str(target),
         "action": "staged-export-create" if target == proposed else "staged-export-create-unique",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "mode": "staged_export",
         "dry_run": False,
+        "staged_export_dir": str(export_dir),
+        "staged_output_policy": "explicit-output-dir" if output_dir is not None else "default-state-workdir",
         "safety": {
             "no_formal_obsidian_note_write": True,
             "no_real_llm": True,
             "no_env_read": True,
             "no_telemetry_upload": True,
             "no_runtime_logs_or_index_in_export": True,
+        },
+        "write_gate": {
+            "proposed_target": str(proposed_target),
+            "backup_path": str(backup_path),
+            "recovery_plan": "restore backup_path, keep staged_markdown unchanged, then rerun preflight",
+            "explicit_confirmation_required": True,
+            "diff_preview_required": True,
+            "writes_formal_notes_now": False,
         },
     }
     manifest.write_text(_json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -3961,6 +3974,68 @@ def obsidian_stage(
     target.write_text(content, encoding="utf-8")
     console.print(f"[green]✓ staged[/green] {target}")
     console.print("[dim]说明：未修改 source note、未移动文件、未重写 wikilinks、未 auto approve。[/dim]")
+
+
+@obsidian_app.command("preflight")
+def obsidian_preflight_cmd(
+    manifest: Path = typer.Option(..., "--manifest", help="staged export manifest JSON 路径"),
+    vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """只读检查 staged export 是否具备未来 write-gate 条件；本版本不写正式 notes。"""
+    from .obsidian import obsidian_preflight, resolve_obsidian_vault
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root = resolve_obsidian_vault(
+        cfg.obsidian,
+        cfg.vault.root,
+        override=_obsidian_vault_override(vault),
+    )
+    result = obsidian_preflight(
+        vault_root=vault_root,
+        manifest_path=manifest,
+        default_staged_root=cfg.state.workdir / "staged" / "obsidian",
+    )
+
+    _obsidian_copy_warning()
+    console.print(f"[bold]MindForge Obsidian preflight[/bold] · {result.status}")
+    table = Table(title="Write-gate prep", show_lines=False)
+    table.add_column("field", style="bold")
+    table.add_column("value", overflow="fold")
+    table.add_row("status", result.status)
+    table.add_row("manifest", str(result.manifest_path))
+    table.add_row("staged markdown", str(result.staged_markdown or "-"))
+    table.add_row("proposed target", str(result.proposed_target or "-"))
+    table.add_row("backup path", str(result.backup_path or "-"))
+    table.add_row("recovery plan", result.recovery_plan or "-")
+    table.add_row("formal note writes", "NO - v0.7.4 only validates write-gate readiness")
+    table.add_row("future gate", "staged export -> diff preview -> backup -> explicit confirmation")
+    console.print(table)
+
+    if result.blocked:
+        console.print("[red]BLOCKED reasons[/red]")
+        for reason in result.blocked:
+            console.print(f"  - {reason}", markup=False)
+            print(f"BLOCKED reason: {reason}")
+    if result.warnings:
+        console.print("[yellow]WARNING reasons[/yellow]")
+        for reason in result.warnings:
+            console.print(f"  - {reason}", markup=False)
+            print(f"WARNING reason: {reason}")
+    if result.status == "PASS":
+        console.print("[green]PASS: staged export is ready for manual inspection.[/green]")
+    elif result.status == "WARNING":
+        console.print("[yellow]WARNING: inspect conflicts manually before any future confirmation.[/yellow]")
+    else:
+        console.print("[red]BLOCKED: staged export is not ready for any future write gate.[/red]")
+    console.print(
+        "Next: manually inspect the staged markdown and diff; future write requires explicit confirmation.",
+        markup=False,
+    )
+    print("future gate: staged export -> diff preview -> backup -> explicit confirmation")
+    console.print("说明：本版本不会写正式 Obsidian notes，不会读取 .env，不会调用真实 LLM。", markup=False)
+    if result.status == "BLOCKED":
+        raise typer.Exit(code=2)
 
 
 @obsidian_app.command("doctor")
