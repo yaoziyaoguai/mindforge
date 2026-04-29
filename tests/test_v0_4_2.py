@@ -734,6 +734,45 @@ def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
         assert required in text
 
 
+def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
+    """v0.6.x 收尾文档是轻量 release readiness，不应宣称新大功能已实现。"""
+    root = Path(__file__).resolve().parent.parent
+    doc = root / "docs" / "V0_6_X_LOCAL_PRODUCT_UX_READINESS.md"
+    assert doc.exists()
+    text = doc.read_text(encoding="utf-8")
+
+    for version in ("v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5"):
+        assert version in text
+    for command in (
+        "mindforge start --vault examples/demo-vault",
+        "mindforge config show --vault examples/demo-vault",
+        "mindforge process --profile fake --limit 1 --vault examples/demo-vault",
+        "mindforge approve show --card <card-path> --vault examples/demo-vault",
+        "mindforge recall --query \"agent\" --explain --vault examples/demo-vault",
+        "mindforge backup export --vault examples/demo-vault",
+        "mindforge obsidian stage --vault examples/demo-vault",
+    ):
+        assert command in text
+    for boundary in (
+        "No real LLM by default",
+        "No `.env` read",
+        "No writes to real Obsidian notes",
+        "No RAG / embedding platform",
+        "No Obsidian plugin",
+        "No Web UI or TUI",
+        "No telemetry upload",
+    ):
+        assert boundary in text
+    for forbidden in (
+        "RAG is implemented",
+        "embedding search is implemented",
+        "Obsidian plugin is implemented",
+        "Web UI is available",
+        "real LLM default path is implemented",
+    ):
+        assert forbidden not in text
+
+
 def test_backup_export_writes_safe_files_and_refuses_overwrite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
