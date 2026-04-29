@@ -582,6 +582,92 @@ def test_recall_search_ux_non_repo_cwd_and_no_env_or_obsidian_write(
     assert "embedding enabled" not in res.output
 
 
+def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
+    """v0.6.4: config UX 要让用户知道当前会读写哪些本地路径。"""
+    cfg = _make_vault(tmp_path)
+
+    show = runner.invoke(app, ["config", "show", "--config", str(cfg)])
+    assert show.exit_code == 0, show.output
+    assert "MindForge config show" in show.output
+    assert "vault.root" in show.output
+    assert "active_profile: fake" in show.output
+    assert "calls_real_llm" in show.output
+    assert "False" in show.output
+
+    doctor = runner.invoke(app, ["config", "doctor", "--config", str(cfg)])
+    assert doctor.exit_code == 0, doctor.output
+    assert "package assets" in doctor.output
+    assert "env policy" in doctor.output
+    assert "config looks safe" in doctor.output
+
+
+def test_config_missing_and_bad_yaml_are_actionable(tmp_path: Path) -> None:
+    """配置缺失或 YAML 损坏时要给 next action，不输出 traceback。"""
+    missing = runner.invoke(app, ["config", "doctor", "--config", str(tmp_path / "missing.yaml")])
+    assert missing.exit_code == 2
+    assert "config missing" in missing.output
+    assert "config init" in missing.output
+
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("vault: [unterminated\n", encoding="utf-8")
+    res = runner.invoke(app, ["config", "doctor", "--config", str(bad)])
+    assert res.exit_code == 2
+    assert "config invalid" in res.output
+    assert "fix YAML" in res.output
+
+
+def test_config_init_defaults_fake_and_refuses_overwrite(tmp_path: Path) -> None:
+    """config init 只写安全默认配置，并默认拒绝覆盖用户文件。"""
+    cfg = tmp_path / "mindforge.yaml"
+    vault = tmp_path / "vault"
+
+    dry = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault), "--dry-run"])
+    assert dry.exit_code == 0, dry.output
+    assert "dry-run" in dry.output
+    assert not cfg.exists()
+
+    written = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
+    assert written.exit_code == 0, written.output
+    text = cfg.read_text(encoding="utf-8")
+    assert "active_profile: fake" in text
+    assert str(vault.resolve()) in text
+
+    second = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
+    assert second.exit_code == 2
+    assert "拒绝覆盖" in second.output
+
+
+def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """setup/config 是本地配置引导，不应读取 .env、联网或写 Obsidian。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("config/setup 不应读取 .env")
+
+    def _blocked_socket(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("config/setup 不应联网")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(socket, "socket", _blocked_socket)
+    monkeypatch.chdir(run_dir)
+
+    show = runner.invoke(app, ["config", "show", "--config", str(cfg)])
+    assert show.exit_code == 0, show.output
+    assert "must-not-leak" not in show.output
+
+    setup = runner.invoke(app, ["setup", "--config", str(run_dir / "new.yaml"), "--vault", str(tmp_path / "vault"), "--dry-run"])
+    assert setup.exit_code == 0, setup.output
+    assert "no .env" in setup.output
+    assert "no real LLM" in setup.output
+    assert not (run_dir / "new.yaml").exists()
+    assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
+
+
 def test_backup_export_writes_safe_files_and_refuses_overwrite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
