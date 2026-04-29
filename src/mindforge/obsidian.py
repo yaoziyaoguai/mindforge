@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from .sources.base import SourceDocument
 from .sources.obsidian_vault import ObsidianVaultSourceAdapter
 
 _RUNTIME_DIR_NAMES = {".mindforge", "runs", "state", "telemetry", "index"}
+_DEFAULT_EXCLUDE_DIRS = (".obsidian", ".git", ".mindforge", "node_modules")
 
 
 @dataclass(frozen=True)
@@ -65,20 +67,32 @@ def iter_obsidian_markdown(options: ObsidianScanOptions) -> list[Path]:
     if not root.is_dir():
         raise NotADirectoryError(f"Obsidian vault 不是目录：{root}")
 
-    scan_roots: list[Path] = []
-    for include in options.include_dirs:
-        candidate = root / include
-        if candidate.exists() and candidate.is_dir():
-            scan_roots.append(candidate)
-    if not scan_roots:
-        scan_roots = [root]
-
     files: list[Path] = []
-    for scan_root in scan_roots:
-        for path in sorted(scan_root.rglob("*.md")):
-            if path.is_file() and not _is_excluded(path, root, options.exclude_dirs):
-                files.append(path)
+    for path in sorted(root.rglob("*.md")):
+        if not path.is_file():
+            continue
+        in_scope, _reason = obsidian_path_in_scope(path, options)
+        if in_scope:
+            files.append(path)
     return files
+
+
+def obsidian_path_in_scope(path: Path, options: ObsidianScanOptions) -> tuple[bool, str]:
+    """判断单个 note 是否落在 Obsidian include/exclude 范围内。
+
+    中文学习型说明：scan 与 stage 共用同一套 scope 规则，避免出现"scan 看不到，
+    stage 却能写出候选"的安全错觉。这里只做路径判断，不读取正文、不写文件。
+    """
+    root = options.vault_root.expanduser().resolve()
+    try:
+        path.resolve().relative_to(root)
+    except ValueError:
+        return False, "source 不在 Obsidian vault 内"
+    if _is_excluded(path, root, options.exclude_dirs):
+        return False, "被 exclude rules 排除"
+    if options.include_dirs and not any(_matches_scope(path, root, item) for item in options.include_dirs):
+        return False, "不匹配 include rules"
+    return True, ""
 
 
 def load_obsidian_documents(options: ObsidianScanOptions, *, limit: int = 0) -> list[SourceDocument]:
@@ -225,23 +239,60 @@ def obsidian_doctor_rows(
     rows.append(("warn" if (root / ".mindforge").exists() else "ok", ".mindforge in vault", "present" if (root / ".mindforge").exists() else "absent"))
     runtime = root / "90-System" / "MindForge" / "Runtime"
     rows.append(("warn" if runtime.exists() else "ok", "runtime notes risk", "present" if runtime.exists() else "absent"))
+    rows.append(("ok", "formal note writes", "no"))
+    rows.append(("ok", "include rules", ", ".join(cfg_obsidian.include_dirs) or "<all markdown>"))
+    rows.append(("ok", "exclude rules", ", ".join(_effective_excludes(cfg_obsidian.exclude_dirs))))
+    if root.exists() and root.is_dir():
+        markdown_files = list(root.rglob("*.md"))
+        non_markdown = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() != ".md"]
+        large_md = [p for p in markdown_files if p.stat().st_size > 1_000_000]
+        rows.append(("ok" if markdown_files else "warn", "markdown files", str(len(markdown_files))))
+        rows.append(("warn" if large_md else "ok", "large markdown", str(len(large_md))))
+        rows.append(("warn" if non_markdown else "ok", "non markdown files", str(len(non_markdown))))
+        rows.append(("warn" if _duplicate_note_titles(root) else "ok", "duplicate titles", ", ".join(_duplicate_note_titles(root)[:5]) or "none"))
     return rows
 
 
 def _is_excluded(path: Path, root: Path, exclude_dirs: tuple[str, ...]) -> bool:
-    rel = path.resolve().relative_to(root).as_posix()
     parts = set(path.resolve().relative_to(root).parts)
     if parts & _RUNTIME_DIR_NAMES:
         return True
-    for item in exclude_dirs:
-        clean = item.strip().strip("/")
-        if not clean:
-            continue
-        if rel == clean or rel.startswith(clean + "/"):
-            return True
-        if clean in parts:
+    for item in _effective_excludes(exclude_dirs):
+        if _matches_scope(path, root, item):
             return True
     return False
+
+
+def _effective_excludes(exclude_dirs: tuple[str, ...]) -> tuple[str, ...]:
+    """默认排除工具/runtime 目录，再叠加配置或 CLI exclude。"""
+    seen: set[str] = set()
+    merged: list[str] = []
+    for item in (*_DEFAULT_EXCLUDE_DIRS, *exclude_dirs):
+        clean = item.strip().strip("/")
+        if clean and clean not in seen:
+            seen.add(clean)
+            merged.append(clean)
+    return tuple(merged)
+
+
+def _matches_scope(path: Path, root: Path, pattern: str) -> bool:
+    rel = path.resolve().relative_to(root).as_posix()
+    clean = pattern.strip().strip("/")
+    if not clean:
+        return False
+    parts = set(path.resolve().relative_to(root).parts)
+    if any(ch in clean for ch in "*?[]"):
+        return fnmatch(rel, clean) or fnmatch(Path(rel).name, clean)
+    return rel == clean or rel.startswith(clean + "/") or clean in parts
+
+
+def _duplicate_note_titles(root: Path) -> list[str]:
+    """轻量查重：只看文件 stem，避免 doctor 为了诊断去解析 note 正文。"""
+    seen: dict[str, int] = {}
+    for path in root.rglob("*.md"):
+        title = path.stem.strip().lower()
+        seen[title] = seen.get(title, 0) + 1
+    return sorted(title for title, count in seen.items() if count > 1)
 
 
 def _is_formal_runtime_path(path: Path, root: Path) -> bool:

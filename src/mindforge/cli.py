@@ -3389,6 +3389,8 @@ def _obsidian_vault_override(arg: Path | None) -> Path | None:
 def _obsidian_options(
     cfg: MindForgeConfig,
     vault_override: Path | None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
 ) -> tuple[Path, object]:
     from .obsidian import ObsidianScanOptions, resolve_obsidian_vault
 
@@ -3399,8 +3401,8 @@ def _obsidian_options(
     )
     return vault_root, ObsidianScanOptions(
         vault_root=vault_root,
-        include_dirs=cfg.obsidian.include_dirs,
-        exclude_dirs=cfg.obsidian.exclude_dirs,
+        include_dirs=tuple(include) if include else cfg.obsidian.include_dirs,
+        exclude_dirs=(*cfg.obsidian.exclude_dirs, *(exclude or [])),
     )
 
 
@@ -3675,6 +3677,8 @@ def obsidian_scan(
         "--obsidian-vault",
         help="Obsidian vault 路径；覆盖 obsidian.vault_path。",
     ),
+    include: list[str] | None = typer.Option(None, "--include", help="本次 scan 的 include pattern，可重复"),
+    exclude: list[str] | None = typer.Option(None, "--exclude", help="本次 scan 的 exclude pattern，可重复"),
     limit: int = typer.Option(0, "--limit", min=0, help="最多展示多少条（0=全部）"),
     json_output: bool = typer.Option(False, "--json", help="输出 JSON 安全摘要"),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
@@ -3683,7 +3687,7 @@ def obsidian_scan(
     from .obsidian import load_obsidian_documents_with_issues, summarize_doc
 
     cfg = _load_cfg(config, read_env=False)
-    vault_root, options = _obsidian_options(cfg, vault)
+    vault_root, options = _obsidian_options(cfg, vault, include=include, exclude=exclude)
     try:
         docs, issues = load_obsidian_documents_with_issues(options, limit=limit)
     except (FileNotFoundError, NotADirectoryError) as e:
@@ -3699,6 +3703,10 @@ def obsidian_scan(
         return
 
     _obsidian_copy_warning()
+    console.print(
+        f"[dim]scope: include={', '.join(options.include_dirs) or '<all markdown>'}; "
+        f"exclude={', '.join(options.exclude_dirs) or '<default runtime dirs>'}[/dim]"
+    )
     table = Table(title=f"Obsidian scan · {vault_root}", show_lines=False)
     for col in ("title", "relative_path", "tags", "wikilinks", "headings", "hash"):
         table.add_column(col, overflow="fold")
@@ -3729,6 +3737,8 @@ def obsidian_scan(
 @obsidian_app.command("links")
 def obsidian_links(
     vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    include: list[str] | None = typer.Option(None, "--include", help="本次 links 的 include pattern，可重复"),
+    exclude: list[str] | None = typer.Option(None, "--exclude", help="本次 links 的 exclude pattern，可重复"),
     json_output: bool = typer.Option(False, "--json", help="输出 JSON"),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
@@ -3736,7 +3746,7 @@ def obsidian_links(
     from .obsidian import build_link_entries, load_obsidian_documents_with_issues
 
     cfg = _load_cfg(config, read_env=False)
-    vault_root, options = _obsidian_options(cfg, vault)
+    vault_root, options = _obsidian_options(cfg, vault, include=include, exclude=exclude)
     try:
         docs, issues = load_obsidian_documents_with_issues(options)
     except (FileNotFoundError, NotADirectoryError) as e:
@@ -3778,6 +3788,8 @@ def obsidian_stage(
     ),
     staged_export: bool = typer.Option(False, "--staged-export", help="写入 staged export directory，不写正式 Obsidian notes"),
     diff_preview: bool = typer.Option(False, "--diff", help="显示 proposed markdown 与已有 staged file 的轻量 diff"),
+    include: list[str] | None = typer.Option(None, "--include", help="本次 stage 的 include pattern，可重复"),
+    exclude: list[str] | None = typer.Option(None, "--exclude", help="本次 stage 的 exclude pattern，可重复"),
     dry_run: bool = typer.Option(
         True,
         "--dry-run/--write",
@@ -3787,11 +3799,11 @@ def obsidian_stage(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
     """把 Obsidian note 的候选加工结果写入 staging/review，而不是修改原 note。"""
-    from .obsidian import build_stage_markdown, stage_output_path
+    from .obsidian import build_stage_markdown, obsidian_path_in_scope, stage_output_path
     from .sources.obsidian_vault import ObsidianVaultSourceAdapter
 
     cfg = _load_cfg(config, read_env=False)
-    vault_root, _options = _obsidian_options(cfg, vault)
+    vault_root, options = _obsidian_options(cfg, vault, include=include, exclude=exclude)
     _obsidian_copy_warning()
     source_path = _resolve_obsidian_source_for_preview(source, vault_root)
     if not vault_root.exists() or not vault_root.is_dir():
@@ -3860,6 +3872,21 @@ def obsidian_stage(
             )
             return
         console.print(f"[red]✗ --source 不是 Markdown 文件：{source_path}[/red]")
+        raise typer.Exit(code=2)
+    in_scope, scope_reason = obsidian_path_in_scope(source_path, options)  # type: ignore[arg-type]
+    if not in_scope:
+        if dry_run:
+            _print_stage_preview(
+                vault_root=vault_root,
+                source=source_path,
+                target=None,
+                action="skipped",
+                skipped_reason=f"source 不在当前 include/exclude scope：{scope_reason}。",
+                source_exists=True,
+                source_in_vault=True,
+            )
+            return
+        console.print(f"[red]✗ source 不在当前 include/exclude scope：{scope_reason}。[/red]")
         raise typer.Exit(code=2)
 
     adapter = ObsidianVaultSourceAdapter(vault_root)
@@ -3955,6 +3982,12 @@ def obsidian_doctor(
     _obsidian_copy_warning()
     for state, label, detail in rows:
         console.print(f"  {_doctor_icon(state)} {label:<20}: {detail}")
+    staged_dir = (cfg.state.workdir / "staged" / "obsidian").expanduser().resolve()
+    staged_count = len(list(staged_dir.glob("*"))) if staged_dir.exists() else 0
+    console.print(
+        f"  {_doctor_icon('warn' if staged_count else 'ok')} {'staged export dir':<20}: "
+        f"{staged_dir} · files={staged_count}"
+    )
     if not vault_root.exists():
         console.print("[critical] 设置 Obsidian vault：mindforge obsidian doctor --vault <path>", markup=False)
         raise typer.Exit(code=2)
@@ -3963,6 +3996,10 @@ def obsidian_doctor(
     console.print("  [recommended] mindforge obsidian links --vault <path>", markup=False)
     console.print(
         "  [info] mindforge obsidian stage --vault <path> --source <note.md> --dry-run",
+        markup=False,
+    )
+    console.print(
+        "  [info] mindforge obsidian stage --vault <path> --source <note.md> --staged-export --write --confirm",
         markup=False,
     )
     console.print("[dim]不建议、也不会直接修改正式 Obsidian notes。[/dim]")

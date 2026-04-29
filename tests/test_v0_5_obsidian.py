@@ -620,6 +620,109 @@ def test_obsidian_scan_empty_vault_is_actionable(tmp_path: Path) -> None:
     assert "未发现可解析的 Markdown notes" in links.output
 
 
+def test_obsidian_scan_include_exclude_scope_rules(tmp_path: Path) -> None:
+    """v0.7.3: include/exclude 是 dry-run 范围边界，不应靠用户肉眼过滤输出。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+
+    include_res = runner.invoke(
+        app,
+        ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault), "--include", "03-Projects", "--json"],
+    )
+    assert include_res.exit_code == 0, include_res.output
+    include_titles = [item["title"] for item in json.loads(include_res.output)["notes"]]
+    assert include_titles == ["Project Alpha"]
+
+    exclude_res = runner.invoke(
+        app,
+        ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault), "--exclude", "03-Projects", "--json"],
+    )
+    assert exclude_res.exit_code == 0, exclude_res.output
+    exclude_titles = [item["title"] for item in json.loads(exclude_res.output)["notes"]]
+    assert "Agent Runtime" in exclude_titles
+    assert "Project Alpha" not in exclude_titles
+
+
+def test_obsidian_default_excludes_runtime_dirs(tmp_path: Path) -> None:
+    """默认排除 .obsidian/.git/.mindforge，避免把机器目录当用户知识扫描。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    (vault / ".obsidian" / "Plugin Note.md").write_text("# Plugin Note\n", encoding="utf-8")
+    (vault / ".git").mkdir()
+    (vault / ".git" / "Git Note.md").write_text("# Git Note\n", encoding="utf-8")
+    (vault / ".mindforge" / "Runtime Note.md").write_text("# Runtime Note\n", encoding="utf-8")
+
+    res = runner.invoke(app, ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault), "--json"])
+
+    assert res.exit_code == 0, res.output
+    titles = [item["title"] for item in json.loads(res.output)["notes"]]
+    assert "Plugin Note" not in titles
+    assert "Git Note" not in titles
+    assert "Runtime Note" not in titles
+    assert "Agent Runtime" in titles
+
+
+def test_obsidian_scope_handles_chinese_and_space_paths(tmp_path: Path) -> None:
+    """中文和空格路径是个人 vault 常态，scope 规则不能只适配 demo 英文路径。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    folder = vault / "02-Knowledge" / "中文 资料"
+    folder.mkdir()
+    note = folder / "学习 笔记.md"
+    note.write_text("---\ntitle: 学习 笔记\n---\n\n# 学习\n", encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["obsidian", "scan", "--config", str(cfg), "--vault", str(vault), "--include", "02-Knowledge/中文 资料"],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "学习 笔记" in res.output
+
+
+def test_obsidian_stage_respects_scope_without_write(tmp_path: Path) -> None:
+    """stage 必须复用 scan scope；排除的 source 只能 skipped，不能写 export。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            str(note),
+            "--exclude",
+            "02-Knowledge",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "include/exclude scope" in res.output
+    assert "skipped" in res.output
+    assert note.read_text(encoding="utf-8") == before
+    assert not (vault / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_obsidian_doctor_reports_scope_and_staged_safety(tmp_path: Path) -> None:
+    """doctor plus 要说明 scope、安全写入边界，并识别 staged export 目录。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    staged = tmp_path / ".mindforge" / "staged" / "obsidian"
+    staged.mkdir(parents=True)
+    (staged / "candidate.md").write_text("# staged\n", encoding="utf-8")
+
+    res = runner.invoke(app, ["obsidian", "doctor", "--config", str(cfg), "--vault", str(vault)])
+
+    assert res.exit_code == 0, res.output
+    assert "formal note writes" in res.output
+    assert "include rules" in res.output
+    assert "exclude rules" in res.output
+    assert "staged export dir" in res.output
+    assert "files=1" in res.output
+    assert "RAG" not in res.output
+    assert "plugin" not in res.output.lower()
+
+
 def test_obsidian_scan_bad_frontmatter_is_skipped_not_crash(tmp_path: Path) -> None:
     """坏 frontmatter 只能影响单个 note，不能中断整个只读 vault dry-run。"""
     vault, _note, cfg = _make_obsidian_vault(tmp_path)
