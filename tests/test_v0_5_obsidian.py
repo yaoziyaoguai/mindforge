@@ -403,6 +403,147 @@ def test_obsidian_stage_write_only_to_staging_and_preserves_source(tmp_path: Pat
     assert "Body secret should not be printed" not in text
 
 
+def test_obsidian_staged_export_writes_export_dir_not_formal_notes(tmp_path: Path) -> None:
+    """v0.7.2: staged export 是人工检查目录，不能写回正式 Obsidian notes。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    export_dir = tmp_path / "exports"
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            str(note),
+            "--staged-export",
+            "--output-dir",
+            str(export_dir),
+            "--write",
+            "--confirm",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    exported = export_dir / "Agent-Runtime.md"
+    manifest = export_dir / "Agent-Runtime.manifest.json"
+    assert exported.exists()
+    assert manifest.exists()
+    assert note.read_text(encoding="utf-8") == before
+    assert not (vault / "02-Knowledge" / "Agent-Runtime.md").exists()
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["source_note"] == "02-Knowledge/Agent Runtime.md"
+    assert payload["action"] == "staged-export-create"
+    assert payload["safety"]["no_formal_obsidian_note_write"] is True
+    assert payload["safety"]["no_real_llm"] is True
+    assert payload["safety"]["no_env_read"] is True
+    assert "Body secret should not be printed" not in exported.read_text(encoding="utf-8")
+    assert "secret" not in manifest.read_text(encoding="utf-8").lower()
+
+
+def test_obsidian_staged_export_does_not_overwrite_existing_file(tmp_path: Path) -> None:
+    """同名 staged 文件应生成唯一文件名，避免覆盖用户已检查的 export。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir()
+    existing = export_dir / "Agent-Runtime.md"
+    existing.write_text("existing staged review\n", encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            str(note),
+            "--staged-export",
+            "--output-dir",
+            str(export_dir),
+            "--diff",
+            "--write",
+            "--confirm",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "diff preview" in res.output
+    assert existing.read_text(encoding="utf-8") == "existing staged review\n"
+    assert (export_dir / "Agent-Runtime-2.md").exists()
+    assert (export_dir / "Agent-Runtime-2.manifest.json").exists()
+
+
+def test_obsidian_staged_export_warns_formal_same_name_without_overwrite(tmp_path: Path) -> None:
+    """正式 vault 同名文件只提示人工检查，不允许自动覆盖或 apply。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    formal_same_name = vault / "02-Knowledge" / "Agent-Runtime.md"
+    formal_same_name.write_text("# Keep formal note\n", encoding="utf-8")
+    before = formal_same_name.read_text(encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            str(note),
+            "--staged-export",
+            "--output-dir",
+            str(tmp_path / "exports"),
+            "--write",
+            "--confirm",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert "可能存在正式 vault 同名 note" in res.output
+    assert formal_same_name.read_text(encoding="utf-8") == before
+
+
+def test_obsidian_staged_export_from_non_repo_cwd(tmp_path: Path, monkeypatch) -> None:
+    """显式 --config/--vault/--output-dir 时，packaged-like cwd 不影响 export。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+    run_dir = tmp_path / "outside cwd"
+    run_dir.mkdir()
+    export_dir = tmp_path / "exports"
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(
+        app,
+        [
+            "obsidian",
+            "stage",
+            "--config",
+            str(cfg),
+            "--vault",
+            str(vault),
+            "--source",
+            "02-Knowledge/Agent Runtime.md",
+            "--staged-export",
+            "--output-dir",
+            str(export_dir),
+            "--write",
+            "--confirm",
+        ],
+    )
+
+    assert res.exit_code == 0, res.output
+    assert (export_dir / "Agent-Runtime.md").exists()
+    assert note.read_text(encoding="utf-8") == before
+
+
 def test_obsidian_stage_rejects_formal_note_output_dir(tmp_path: Path) -> None:
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     res = runner.invoke(

@@ -3539,6 +3539,134 @@ def _stage_preview_fields(doc) -> dict[str, object]:
     }
 
 
+def _obsidian_export_filename(doc) -> str:
+    """生成 staged export 文件名，避免依赖 obsidian.py 内部私有 slug helper。"""
+    import re
+
+    title = doc.title or Path(doc.source_path).stem
+    slug = re.sub(r"[^A-Za-z0-9\u4e00-\u9fff]+", "-", title).strip("-")
+    return (slug or "obsidian-candidate") + ".md"
+
+
+def _unique_export_path(path: Path) -> Path:
+    """返回不会覆盖已有文件的 staged export 路径。
+
+    中文学习型说明：staged export 是人工检查目录，不是正式 vault 写入通道。
+    因此遇到同名文件时生成唯一文件名，而不是覆盖或尝试自动合并，避免用户
+    误以为 MindForge 已经替他们完成了 Obsidian note 决策。
+    """
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for idx in range(2, 10_000):
+        candidate = path.with_name(f"{stem}-{idx}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"无法生成唯一 staged export 文件名：{path}")
+
+
+def _staged_export_dir(cfg: MindForgeConfig, output_dir: Path | None) -> Path:
+    """解析 staged export 目录；用户显式路径优先，否则走 state.workdir。"""
+    if output_dir is not None:
+        return output_dir.expanduser().resolve()
+    return (cfg.state.workdir / "staged" / "obsidian").expanduser().resolve()
+
+
+def _formal_note_conflict_paths(vault_root: Path, filename: str) -> list[Path]:
+    """只报告正式 vault 中可能冲突的同名 note，不自动覆盖、不自动迁移。"""
+    conflicts: list[Path] = []
+    for path in vault_root.rglob(filename):
+        if not path.is_file():
+            continue
+        rel = _safe_relative_to(path, vault_root)
+        if rel is None:
+            continue
+        if rel.startswith(".mindforge/") or rel.startswith("90-System/MindForge/"):
+            continue
+        conflicts.append(path)
+    return sorted(conflicts)
+
+
+def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
+    """打印 staged export 的轻量 diff；只比较 staged 目录，不写正式 notes。"""
+    import difflib
+
+    if not existing.exists():
+        console.print("[dim]diff preview: staged target 不存在，将创建新文件。[/dim]")
+        return
+    old_lines = existing.read_text(encoding="utf-8").splitlines(keepends=True)
+    new_lines = proposed_content.splitlines(keepends=True)
+    diff = list(
+        difflib.unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=str(existing),
+            tofile="proposed",
+            n=3,
+        )
+    )
+    console.print("[bold]diff preview[/bold] · staged directory only")
+    if not diff:
+        console.print("[dim]无差异。[/dim]")
+        return
+    for line in diff[:80]:
+        console.print(line.rstrip("\n"), markup=False)
+    if len(diff) > 80:
+        console.print(f"[dim]... diff truncated, {len(diff) - 80} more lines[/dim]")
+
+
+def _write_obsidian_staged_export(
+    *,
+    cfg: MindForgeConfig,
+    vault_root: Path,
+    source_path: Path,
+    doc,
+    content: str,
+    output_dir: Path | None,
+    diff_preview: bool,
+) -> Path:
+    """写 staged export markdown + manifest，明确不写正式 Obsidian notes。"""
+    import json as _json
+
+    export_dir = _staged_export_dir(cfg, output_dir)
+    filename = _obsidian_export_filename(doc)
+    proposed = export_dir / filename
+    if diff_preview:
+        _print_staged_diff_preview(proposed, content)
+    target = _unique_export_path(proposed)
+    manifest = target.with_suffix(".manifest.json")
+    export_dir.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    payload = {
+        "version": 1,
+        "source_note": doc.source_path,
+        "source_file": str(source_path),
+        "proposed_file": str(target),
+        "action": "staged-export-create" if target == proposed else "staged-export-create-unique",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "mode": "staged_export",
+        "dry_run": False,
+        "safety": {
+            "no_formal_obsidian_note_write": True,
+            "no_real_llm": True,
+            "no_env_read": True,
+            "no_telemetry_upload": True,
+            "no_runtime_logs_or_index_in_export": True,
+        },
+    }
+    manifest.write_text(_json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    conflicts = _formal_note_conflict_paths(vault_root, target.name)
+    console.print(f"[green]✓ staged export written[/green] {target}")
+    console.print(f"[green]✓ manifest written[/green] {manifest}")
+    if conflicts:
+        console.print("[yellow]可能存在正式 vault 同名 note；仅提示人工检查，未覆盖：[/yellow]")
+        for item in conflicts[:10]:
+            console.print(f"  - {_safe_relative_to(item, vault_root) or item}")
+    console.print("[dim]说明：未写正式 Obsidian notes；未移动 source；未读取 .env；未调用 LLM。[/dim]")
+    return target
+
+
 @obsidian_app.command("scan")
 def obsidian_scan(
     vault: Path | None = typer.Option(
@@ -3646,8 +3774,10 @@ def obsidian_stage(
     output_dir: Path | None = typer.Option(
         None,
         "--output-dir",
-        help="staging/review 内的输出目录，默认 obsidian.staging_dir。",
+        help="输出目录；普通 staging 限定在 vault staging/review，--staged-export 时可为任意 staged export 目录。",
     ),
+    staged_export: bool = typer.Option(False, "--staged-export", help="写入 staged export directory，不写正式 Obsidian notes"),
+    diff_preview: bool = typer.Option(False, "--diff", help="显示 proposed markdown 与已有 staged file 的轻量 diff"),
     dry_run: bool = typer.Option(
         True,
         "--dry-run/--write",
@@ -3749,11 +3879,14 @@ def obsidian_stage(
             return
         console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
         raise typer.Exit(code=2) from e
-    try:
-        target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
-    except ValueError as e:
-        console.print(f"[red]✗ {e}[/red]")
-        raise typer.Exit(code=2) from e
+    if staged_export:
+        target = _staged_export_dir(cfg, output_dir) / _obsidian_export_filename(doc)
+    else:
+        try:
+            target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
+        except ValueError as e:
+            console.print(f"[red]✗ {e}[/red]")
+            raise typer.Exit(code=2) from e
     content = build_stage_markdown(doc)
 
     if dry_run:
@@ -3762,7 +3895,15 @@ def obsidian_stage(
             vault_root=vault_root,
             source=source_path,
             target=target,
-            action="would-create-staging-candidate" if not target.exists() else "would-update-staging-candidate",
+            action=(
+                "would-create-staged-export"
+                if staged_export and not target.exists()
+                else "would-update-staged-export"
+                if staged_export
+                else "would-create-staging-candidate"
+                if not target.exists()
+                else "would-update-staging-candidate"
+            ),
             skipped_reason="",
             content_hash=doc.content_hash,
             title=str(preview_fields["title"]),
@@ -3776,6 +3917,18 @@ def obsidian_stage(
     if not confirm:
         console.print("[red]✗ 写入 staging 需要显式 --write --confirm。[/red]")
         raise typer.Exit(code=2)
+
+    if staged_export:
+        _write_obsidian_staged_export(
+            cfg=cfg,
+            vault_root=vault_root,
+            source_path=source_path,
+            doc=doc,
+            content=content,
+            output_dir=output_dir,
+            diff_preview=diff_preview,
+        )
+        return
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
