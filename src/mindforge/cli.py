@@ -3679,6 +3679,10 @@ def _write_obsidian_staged_export(
         for item in conflicts[:10]:
             console.print(f"  - {_safe_relative_to(item, vault_root) or item}")
     console.print("[dim]说明：未写正式 Obsidian notes；未移动 source；未读取 .env；未调用 LLM。[/dim]")
+    console.print(
+        f"Next: mindforge obsidian preflight --vault {vault_root} --manifest {manifest}",
+        markup=False,
+    )
     return target
 
 
@@ -4038,6 +4042,73 @@ def obsidian_preflight_cmd(
         raise typer.Exit(code=2)
 
 
+@obsidian_app.command("next")
+def obsidian_next(
+    vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
+    output_dir: Path = typer.Option(
+        Path("/tmp/mindforge-obsidian-staged"),
+        "--output-dir",
+        help="推荐 staged export 目录；仅用于生成命令建议，不会创建目录。",
+    ),
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+) -> None:
+    """输出 Obsidian dogfooding 路径；只做导航，不执行命令、不写 vault。"""
+    from .obsidian import resolve_obsidian_vault
+
+    cfg = _load_cfg(config, read_env=False)
+    vault_root = resolve_obsidian_vault(
+        cfg.obsidian,
+        cfg.vault.root,
+        override=_obsidian_vault_override(vault),
+    )
+    source_hint = _first_markdown_hint(vault_root) if vault_root.exists() else "<note.md>"
+    console.print("[bold]MindForge Obsidian dogfooding flow[/bold]")
+    console.print(f"vault copy: {vault_root}")
+    console.print(f"staged export dir: {output_dir}")
+    print("Safety: disposable non-sensitive vault copy only; no .env, no real LLM, no formal note writes.")
+    print("Boundary: dry-run/staged-export/diff/preflight/manual inspection only; no apply command in this version.")
+    console.print("[bold]Commands[/bold]")
+    for command, note in _obsidian_dogfood_command_snippets(vault_root, source_hint, output_dir):
+        print(f"- {command}")
+        print(f"  {note}")
+    console.print("[bold]Manual inspection[/bold]")
+    print("- Inspect staged markdown and manifest by hand.")
+    print("- Confirm backup expectations before any future write gate.")
+    print("- Record unclear output in docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md.")
+
+
+def _obsidian_dogfood_command_snippets(
+    vault: Path,
+    source_hint: str,
+    output_dir: Path,
+) -> list[tuple[str, str]]:
+    """集中维护 Obsidian dogfooding 命令，防止 CLI 与 docs/checklist 漂移。
+
+    中文学习型说明：这些 snippets 是人工 dogfooding 导航，不是自动 runner。
+    它们刻意停在 preflight/manual inspection，避免把未来 write gate 误写成
+    当前已实现的正式 Obsidian note 写入能力。
+    """
+    v = str(vault)
+    source = source_hint
+    out = str(output_dir)
+    manifest = str(output_dir / "<export>.manifest.json")
+    return [
+        (f"mindforge obsidian doctor --vault {v}", "检查 vault 边界和 staged export 状态"),
+        (f"mindforge obsidian scan --vault {v} --limit 20", "只读扫描 Markdown 安全摘要"),
+        (f"mindforge obsidian links --vault {v}", "只读解析 [[wikilinks]]，不建 graph/RAG"),
+        (f"mindforge obsidian stage --vault {v} --source {source} --dry-run", "预览候选，不写任何文件"),
+        (
+            f"mindforge obsidian stage --vault {v} --source {source} --staged-export "
+            f"--output-dir {out} --diff --write --confirm",
+            "写 staged export + manifest；仍不写正式 notes",
+        ),
+        (
+            f"mindforge obsidian preflight --vault {v} --manifest {manifest}",
+            "检查未来 write-gate 证据链；BLOCKED/WARNING/PASS 后仍需人工检查",
+        ),
+    ]
+
+
 @obsidian_app.command("doctor")
 def obsidian_doctor(
     vault: Path | None = typer.Option(None, "--vault", "--obsidian-vault"),
@@ -4077,6 +4148,8 @@ def obsidian_doctor(
         "  [info] mindforge obsidian stage --vault <path> --source <note.md> --staged-export --write --confirm",
         markup=False,
     )
+    console.print("  [info] mindforge obsidian preflight --vault <path> --manifest <export.manifest.json>", markup=False)
+    console.print("  [info] mindforge obsidian next --vault <path>", markup=False)
     console.print("[dim]不建议、也不会直接修改正式 Obsidian notes。[/dim]")
 
 

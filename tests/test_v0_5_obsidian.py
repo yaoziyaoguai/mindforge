@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app
+from mindforge.cli import app, _obsidian_dogfood_command_snippets
 from mindforge.config import load_mindforge_config
 from mindforge.obsidian import ObsidianScanOptions, load_obsidian_documents
 from mindforge.scanner import Scanner
@@ -737,6 +737,130 @@ def test_obsidian_preflight_from_non_repo_cwd(tmp_path: Path, monkeypatch) -> No
 
     assert res.exit_code == 0, res.output
     assert "PASS" in res.output
+
+
+def test_obsidian_next_outputs_dogfooding_flow(tmp_path: Path) -> None:
+    """v0.7.5: Obsidian 专用 next 只输出人工 dogfooding 路径，不执行写入。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+
+    res = runner.invoke(app, ["obsidian", "next", "--config", str(cfg), "--vault", str(vault)])
+
+    assert res.exit_code == 0, res.output
+    assert "MindForge Obsidian dogfooding flow" in res.output
+    assert "obsidian doctor" in res.output
+    assert "obsidian scan" in res.output
+    assert "obsidian links" in res.output
+    assert "--dry-run" in res.output
+    assert "--staged-export" in res.output
+    assert "--diff" in res.output
+    assert "obsidian preflight" in res.output
+    assert "manual inspection" in res.output.lower()
+    assert "no .env, no real LLM, no formal note writes" in res.output
+    assert "apply command" in res.output
+    assert note.read_text(encoding="utf-8") == before
+    assert not (vault / "90-System" / "MindForge" / "Review").exists()
+
+
+def test_obsidian_dogfood_snippets_match_next_output(tmp_path: Path) -> None:
+    """CLI 输出和 helper 共享 snippets，避免文档化命令逐步漂移。"""
+    vault, _note, cfg = _make_obsidian_vault(tmp_path)
+    source_hint = "02-Knowledge/Agent Runtime.md"
+    output_dir = Path("/tmp/mindforge-obsidian-staged")
+    res = runner.invoke(app, ["obsidian", "next", "--config", str(cfg), "--vault", str(vault)])
+
+    assert res.exit_code == 0, res.output
+    for command, _note_text in _obsidian_dogfood_command_snippets(vault.resolve(), source_hint, output_dir):
+        assert command in res.output
+
+
+def test_obsidian_dogfooding_checklist_exists_and_sets_boundaries() -> None:
+    checklist = Path("docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md")
+    text = checklist.read_text(encoding="utf-8")
+
+    assert checklist.exists()
+    assert "disposable, non-sensitive vault copy" in text
+    assert "real `.env`" in text
+    assert "real LLM" in text
+    assert "formal Obsidian notes" in text
+    assert "staged export path" in text
+    assert "manifest path" in text
+    assert "Diff preview" in text
+    assert "include/exclude" in text
+    assert "v0.7 patch" in text
+    assert "v0.8 backlog" in text
+    assert "No RAG / embedding" in text
+    assert "No Obsidian plugin" in text
+
+
+def test_obsidian_dogfooding_docs_do_not_claim_forbidden_capabilities() -> None:
+    """v0.7.5 docs 可以说 non-goals，但不能把 plugin/RAG/real LLM 写成已实现。"""
+    doc = Path("docs/V0_7_5_OBSIDIAN_DOGFOODING_FLOW.md").read_text(encoding="utf-8")
+    checklist = Path("docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md").read_text(encoding="utf-8")
+    combined = f"{doc}\n{checklist}".lower()
+
+    forbidden_claims = [
+        "rag is implemented",
+        "embedding is implemented",
+        "plugin is implemented",
+        "real llm is enabled",
+        "can write formal obsidian notes",
+        "automatic vault cleanup is implemented",
+        "does automatic vault cleanup",
+    ]
+    for claim in forbidden_claims:
+        assert claim not in combined
+    assert "no formal obsidian notes are written" in combined
+
+
+def test_obsidian_dogfooding_flow_demo_vault_hash_unchanged(tmp_path: Path) -> None:
+    """真实 CLI 行为：dry-run -> staged export -> preflight 后，正式 note hash 不变。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    before = note.read_text(encoding="utf-8")
+
+    dry_run = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(note), "--dry-run"],
+    )
+    exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg)
+    preflight = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert dry_run.exit_code == 0, dry_run.output
+    assert "dry-run：未写任何文件" in dry_run.output
+    assert exported.exists()
+    assert preflight.exit_code == 0, preflight.output
+    assert "PASS" in preflight.output
+    assert note.read_text(encoding="utf-8") == before
+    assert not (vault / "02-Knowledge" / "Agent-Runtime.md").exists()
+
+
+def test_obsidian_dogfooding_flow_from_tmp_disposable_vault(tmp_path: Path, monkeypatch) -> None:
+    """从 /tmp 类 cwd 走完整 Obsidian dogfooding 主路径，证明不依赖 repo cwd。"""
+    vault, note, cfg = _make_obsidian_vault(tmp_path)
+    run_dir = tmp_path / "tmp-run"
+    run_dir.mkdir()
+    output_dir = tmp_path / "staged"
+    monkeypatch.chdir(run_dir)
+
+    next_res = runner.invoke(app, ["obsidian", "next", "--config", str(cfg), "--vault", str(vault)])
+    dry_run = runner.invoke(
+        app,
+        ["obsidian", "stage", "--config", str(cfg), "--vault", str(vault), "--source", str(note), "--dry-run"],
+    )
+    exported, manifest = _write_staged_export_for_preflight(tmp_path, vault, note, cfg, output_dir=output_dir)
+    preflight = runner.invoke(
+        app,
+        ["obsidian", "preflight", "--config", str(cfg), "--vault", str(vault), "--manifest", str(manifest)],
+    )
+
+    assert next_res.exit_code == 0, next_res.output
+    assert dry_run.exit_code == 0, dry_run.output
+    assert exported.exists()
+    assert preflight.exit_code == 0, preflight.output
+    assert "PASS" in preflight.output
 
 
 def test_obsidian_stage_rejects_formal_note_output_dir(tmp_path: Path) -> None:
