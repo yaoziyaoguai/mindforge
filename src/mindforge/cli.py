@@ -57,6 +57,8 @@ backup_app = typer.Typer(add_completion=False, help="本地备份 / 导出 / 恢
 app.add_typer(backup_app, name="backup")
 config_app = typer.Typer(add_completion=False, help="本地配置 / setup 诊断（safe-by-default）")
 app.add_typer(config_app, name="config")
+dogfood_app = typer.Typer(add_completion=False, help="非敏感本地 dogfooding 计划与 checklist")
+app.add_typer(dogfood_app, name="dogfood")
 console = Console()
 
 
@@ -687,6 +689,44 @@ def approve_list(
         "[dim]说明：approve 会把 ai_draft 晋升为 human_approved，之后才进入 "
         "recall / review / project context 的默认结果；MindForge 不会自动 approve。[/dim]"
     )
+
+
+@approve_app.command("show")
+def approve_show(
+    card: Path = typer.Option(..., "--card", help="要查看的 ai_draft / card 路径"),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"), "--config", "-c", help="mindforge.yaml 路径"
+    ),
+) -> None:
+    """查看待 approve 卡片的安全摘要；不读取正文、不改变状态。
+
+    v0.6.5 dogfooding 需要用户在 approve 前多看一步，但这里仍守住边界：
+    只读 frontmatter 白名单字段，不打印 source raw text，也不把 ai_draft 自动晋升。
+    """
+    from .cards import read_card_frontmatter
+
+    cfg = _load_cfg(config, read_env=False)
+    card_path = card.expanduser()
+    if not card_path.is_absolute():
+        card_path = cfg.vault.root / card_path
+    if not card_path.exists():
+        console.print(f"[red]✗ card 不存在：{card_path}[/red]")
+        console.print("Next: mindforge approve list", markup=False)
+        raise typer.Exit(code=2)
+    try:
+        fm = read_card_frontmatter(card_path)
+    except Exception as e:  # noqa: BLE001 - 只打印解析错误摘要，不输出正文
+        console.print(f"[red]✗ card frontmatter 无法读取：{type(e).__name__}: {e}[/red]")
+        raise typer.Exit(code=2) from e
+    console.print("[bold]Approve preview[/bold]")
+    for key in ("id", "title", "status", "track", "source_type", "source_title", "created_at", "value_score"):
+        console.print(f"{key:<12}: {fm.get(key, '-')}")
+    console.print(f"path        : {card_path}")
+    console.print(
+        "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
+        markup=False,
+    )
+    console.print(f"Next: mindforge approve --card {card_path}", markup=False)
 
 
 # ---------------------------------------------------------------------------
@@ -4187,6 +4227,49 @@ def _print_config_init_plan(plan: dict[str, object], *, dry_run: bool) -> None:
         console.print("[dim]dry-run: no files written[/dim]")
 
 
+@dogfood_app.command("plan")
+def dogfood_plan(
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help="非敏感 disposable vault 副本路径；省略时使用全局 --vault 或 examples/demo-vault",
+    ),
+) -> None:
+    """输出非敏感 dogfooding 命令路径；不执行、不读 .env、不写 vault。
+
+    中文学习型说明：这是 checklist/命令导航层，不是自动化 runner。真实
+    dogfooding 必须由用户拿可丢弃副本逐条执行，避免工具误改正式资料。
+    """
+    import os as _os
+
+    chosen = vault or Path(_os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault"))
+    console.print("[bold]MindForge non-sensitive dogfooding plan[/bold]")
+    console.print(f"vault copy: {chosen}")
+    print("Safety: disposable non-sensitive copy only; no .env, no real LLM, no Obsidian formal-note writes.")
+    console.print("[bold]Commands[/bold]")
+    for command, note in _dogfood_command_snippets(chosen):
+        print(f"- {command}")
+        print(f"  {note}")
+    console.print("Checklist: docs/templates/NON_SENSITIVE_DOGFOODING_CHECKLIST.md", markup=False)
+
+
+def _dogfood_command_snippets(vault: Path) -> list[tuple[str, str]]:
+    """集中维护 dogfooding 命令，供 CLI 与测试共同使用，减少文档漂移。"""
+    v = str(vault)
+    return [
+        (f"mindforge doctor --vault {v} --paths", "确认本地路径和安全边界"),
+        (f"mindforge scan --vault {v}", "扫描非敏感 inbox"),
+        (f"mindforge process --profile fake --limit 1 --vault {v}", "只用 fake provider 生成 ai_draft"),
+        (f"mindforge approve list --vault {v}", "查看待人工批准草稿"),
+        (f"mindforge approve show --card <card-path> --vault {v}", "预览单张草稿安全摘要"),
+        (f"mindforge recall --query \"agent\" --vault {v}", "检索 human_approved knowledge"),
+        (f"mindforge review weekly --vault {v}", "生成本周学习任务"),
+        (f"mindforge backup export --vault {v} --output-dir /tmp/mindforge-backup", "导出安全备份"),
+        (f"mindforge obsidian stage --vault {v} --source <note.md> --dry-run", "只预览 staging，不写正式 notes"),
+        (f"mindforge today --vault {v}", "回到每日入口检查下一步"),
+    ]
+
+
 @app.command()
 def doctor(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
@@ -4686,6 +4769,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("mindforge start", "第一天入口：看状态、安全边界和下一条命令"),
             ("mindforge setup --dry-run", "预览本地 safe-by-default setup"),
             ("mindforge config show", "查看当前 config / vault / state 路径"),
+            ("mindforge dogfood plan --vault PATH", "非敏感副本 dogfooding 命令路径"),
             ("mindforge init --vault PATH", "创建 vault 骨架与默认 configs"),
             ("mindforge doctor --paths", "健康检查 + 本地读写边界"),
         ],
@@ -4702,6 +4786,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         "审批 ai_draft",
         [
             ("mindforge approve list", "查看待人工批准的草稿"),
+            ("mindforge approve show --card PATH", "预览单张草稿安全摘要"),
             ("mindforge approve --card PATH", "把单张卡片晋升为 human_approved"),
             ("mindforge approve --all --dry-run", "批量预览；不会自动 approve"),
         ],

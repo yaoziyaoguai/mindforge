@@ -20,7 +20,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app, _normalize_post_command_global_options
+from mindforge.cli import app, _dogfood_command_snippets, _normalize_post_command_global_options
 from mindforge.config import load_mindforge_config
 from mindforge.scanner import Scanner
 from mindforge.sources.base import SourceAdapter, SourceDocument, compute_content_hash
@@ -666,6 +666,72 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
     assert "no real LLM" in setup.output
     assert not (run_dir / "new.yaml").exists()
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_dogfood_plan_lists_safe_copyable_loop() -> None:
+    """v0.6.5: dogfood plan 是只读命令地图，不是自动 runner。"""
+    res = runner.invoke(app, ["dogfood", "plan", "--vault", "/tmp/disposable-vault"])
+    assert res.exit_code == 0, res.output
+    for command, _note in _dogfood_command_snippets(Path("/tmp/disposable-vault")):
+        assert command in res.output
+    assert "disposable non-sensitive copy" in res.output
+    assert "no .env" in res.output
+    assert "no real LLM" in res.output
+    assert "no Obsidian formal-note writes" in res.output
+    assert "RAG enabled" not in res.output
+    assert "plugin enabled" not in res.output
+
+
+def test_approve_show_previews_frontmatter_without_approving_or_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve show 支撑 dogfooding 决策，但必须只读安全摘要。"""
+    cfg = _make_vault(tmp_path)
+    (tmp_path / ".env").write_text("SECRET=must-not-leak\n", encoding="utf-8")
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    card = cards / "dogfood-draft.md"
+    _write_card(cards, "dogfood-draft", {
+        "id": "dogfood-draft",
+        "title": "Dogfood Draft",
+        "status": "ai_draft",
+        "source_type": "plain_markdown",
+    }, body="## AI Summary\nBODY_SECRET_SHOULD_NOT_PRINT\n")
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("approve show 不应读取 .env")
+
+    monkeypatch.setattr("mindforge.cli.load_dotenv_silently", _blocked_env)
+    res = runner.invoke(app, ["approve", "show", "--config", str(cfg), "--card", str(card)])
+
+    assert res.exit_code == 0, res.output
+    assert "Approve preview" in res.output
+    assert "Dogfood Draft" in res.output
+    assert "ai_draft" in res.output
+    assert "preview only" in res.output
+    assert "BODY_SECRET_SHOULD_NOT_PRINT" not in res.output
+    assert "must-not-leak" not in res.output
+    assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
+
+
+def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
+    """dogfooding pack 文档必须强调非敏感、安全、CLI-first 边界。"""
+    root = Path(__file__).resolve().parent.parent
+    pack = root / "docs" / "V0_6_5_DOGFOODING_PACK.md"
+    checklist = root / "docs" / "templates" / "NON_SENSITIVE_DOGFOODING_CHECKLIST.md"
+    assert pack.exists()
+    assert checklist.exists()
+    text = pack.read_text(encoding="utf-8") + "\n" + checklist.read_text(encoding="utf-8")
+    for required in [
+        "non-sensitive",
+        "no real LLM",
+        "No RAG / embedding",
+        "No Obsidian plugin",
+        "No Web UI / TUI",
+        "No automatic approve",
+        "mindforge process --profile fake --limit 1",
+        "mindforge obsidian stage",
+    ]:
+        assert required in text
 
 
 def test_backup_export_writes_safe_files_and_refuses_overwrite(
