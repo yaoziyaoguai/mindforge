@@ -1,0 +1,182 @@
+"""Obsidian staged export 的纯 service helper。
+
+本模块刻意不依赖 Typer / Rich / CLI app，只负责 staged export 的路径规划、
+manifest payload 与安全边界判断。CLI 可以调用这里的结构化结果再决定如何
+展示；这里不能写正式 Obsidian notes，也不能读取 `.env` 或调用 LLM。
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .config import MindForgeConfig
+
+
+@dataclass(frozen=True)
+class StagedExportPlan:
+    """一次 staged export 的结构化计划。
+
+    中文学习型说明：plan 只描述"写到人工检查目录的候选文件和 manifest"，
+    不代表可以写回正式 vault。把这层从 CLI 抽出，是为了让未来 write gate
+    只能消费明确的证据链，而不是散落在 Rich 输出里的隐含约定。
+    """
+
+    export_dir: Path
+    proposed_path: Path
+    target_path: Path
+    manifest_path: Path
+    proposed_target: Path
+    backup_path: Path
+    action: str
+    output_policy: str
+    formal_conflicts: tuple[Path, ...]
+
+
+def safe_relative_to(path: Path, root: Path) -> str | None:
+    """返回 path 相对 root 的 posix 路径，越界时返回 None。
+
+    中文学习型说明：Obsidian 集成大量处理用户手输路径。service 层用这个
+    helper 明确表达"路径是否在 vault 内"，避免 CLI 直接拼字符串时误把外部
+    文件当成 vault note。这里不读取文件内容，也不写任何路径。
+    """
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def resolve_obsidian_source_for_preview(source: Path, vault_root: Path) -> Path:
+    """解析 stage source，兼容 cwd 路径和 vault 内相对路径。
+
+    中文学习型说明：这是 stage/dry-run 的输入路径规范化，不代表允许处理
+    vault 外部文件；调用方仍要用 ``safe_relative_to`` 做 vault 边界判断。
+    """
+    raw = source.expanduser()
+    if raw.is_absolute():
+        return raw.resolve()
+    cwd_candidate = raw.resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return (vault_root / raw).resolve()
+
+
+def obsidian_export_filename(doc: Any) -> str:
+    """生成 staged export 文件名；仅用于人工检查目录，不是正式 note 路径。"""
+    title = doc.title or Path(doc.source_path).stem
+    slug = re.sub(r"[^A-Za-z0-9\u4e00-\u9fff]+", "-", title).strip("-")
+    return (slug or "obsidian-candidate") + ".md"
+
+
+def unique_export_path(path: Path) -> Path:
+    """返回不会覆盖已有 staged 文件的路径。
+
+    中文学习型说明：staged export 是人工检查目录，不是正式 vault 写入通道。
+    遇到同名文件时生成唯一文件名，而不是覆盖或自动合并，避免把人的检查
+    结果变成机器状态。
+    """
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for idx in range(2, 10_000):
+        candidate = path.with_name(f"{stem}-{idx}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"无法生成唯一 staged export 文件名：{path}")
+
+
+def staged_export_dir(cfg: MindForgeConfig, output_dir: Path | None) -> Path:
+    """解析 staged export 目录；用户显式路径优先，否则走本地 state workdir。"""
+    if output_dir is not None:
+        return output_dir.expanduser().resolve()
+    return (cfg.state.workdir / "staged" / "obsidian").expanduser().resolve()
+
+
+def formal_note_conflict_paths(vault_root: Path, filename: str) -> tuple[Path, ...]:
+    """报告正式 vault 中可能冲突的同名 note，不覆盖、不迁移、不 apply。"""
+    conflicts: list[Path] = []
+    for path in vault_root.rglob(filename):
+        if not path.is_file():
+            continue
+        rel = safe_relative_to(path, vault_root)
+        if rel is None:
+            continue
+        if rel.startswith(".mindforge/") or rel.startswith("90-System/MindForge/"):
+            continue
+        conflicts.append(path)
+    return tuple(sorted(conflicts))
+
+
+def plan_staged_export(
+    *,
+    cfg: MindForgeConfig,
+    vault_root: Path,
+    doc: Any,
+    output_dir: Path | None,
+) -> StagedExportPlan:
+    """生成 staged export 写入计划，但不创建目录、不写文件。
+
+    中文学习型说明：这个 helper 是 CLI/service 边界的核心切片。它把"候选
+    输出路径、manifest 路径、未来 proposed target、backup path、冲突提示"
+    这些业务事实集中起来；CLI 仍然负责真正写 staged 文件和渲染提示。
+    """
+    export_dir = staged_export_dir(cfg, output_dir)
+    filename = obsidian_export_filename(doc)
+    proposed = export_dir / filename
+    target = unique_export_path(proposed)
+    proposed_target = (vault_root / cfg.obsidian.review_dir / target.name).resolve()
+    backup_path = (cfg.state.workdir / "backups" / "obsidian" / target.name).expanduser().resolve()
+    return StagedExportPlan(
+        export_dir=export_dir,
+        proposed_path=proposed,
+        target_path=target,
+        manifest_path=target.with_suffix(".manifest.json"),
+        proposed_target=proposed_target,
+        backup_path=backup_path,
+        action="staged-export-create" if target == proposed else "staged-export-create-unique",
+        output_policy="explicit-output-dir" if output_dir is not None else "default-state-workdir",
+        formal_conflicts=formal_note_conflict_paths(vault_root, target.name),
+    )
+
+
+def build_staged_manifest_payload(
+    *,
+    plan: StagedExportPlan,
+    source_path: Path,
+    doc: Any,
+    timestamp: datetime | None = None,
+) -> dict[str, Any]:
+    """构建 staged export manifest；payload 声明 no-write / no-env / no-LLM 边界。"""
+    ts = timestamp or datetime.now(timezone.utc)
+    return {
+        "version": 1,
+        "source_note": doc.source_path,
+        "source_file": str(source_path),
+        "staged_markdown": str(plan.target_path),
+        "proposed_file": str(plan.target_path),
+        "action": plan.action,
+        "timestamp": ts.isoformat(),
+        "mode": "staged_export",
+        "dry_run": False,
+        "staged_export_dir": str(plan.export_dir),
+        "staged_output_policy": plan.output_policy,
+        "safety": {
+            "no_formal_obsidian_note_write": True,
+            "no_real_llm": True,
+            "no_env_read": True,
+            "no_telemetry_upload": True,
+            "no_runtime_logs_or_index_in_export": True,
+        },
+        "write_gate": {
+            "proposed_target": str(plan.proposed_target),
+            "backup_path": str(plan.backup_path),
+            "recovery_plan": "restore backup_path, keep staged_markdown unchanged, then rerun preflight",
+            "explicit_confirmation_required": True,
+            "diff_preview_required": True,
+            "writes_formal_notes_now": False,
+        },
+    }

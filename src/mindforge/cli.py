@@ -22,6 +22,14 @@ from .config import ConfigError, MindForgeConfig, load_mindforge_config
 from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
+from .obsidian_stage import (
+    build_staged_manifest_payload,
+    obsidian_export_filename,
+    plan_staged_export,
+    resolve_obsidian_source_for_preview,
+    safe_relative_to,
+    staged_export_dir,
+)
 from .processors import Pipeline
 from .run_logger import (
     EVENT_SOURCE_ERROR,
@@ -3441,22 +3449,6 @@ def _print_obsidian_issues(vault_root: Path, issues: list[object]) -> None:
     console.print(table)
 
 
-def _resolve_obsidian_source_for_preview(source: Path, vault_root: Path) -> Path:
-    """解析 stage source，兼容 cwd 路径和 vault 内相对路径。
-
-    中文学习型说明：用户 dry-run 时常写 ``--vault demo --source demo`` 或从
-    不同 cwd 传路径。解析顺序先尊重当前 cwd 中真实存在的路径，再回退到 vault
-    内相对路径；后续仍要求 source 位于 vault 内，避免误处理外部资料。
-    """
-    raw = source.expanduser()
-    if raw.is_absolute():
-        return raw.resolve()
-    cwd_candidate = raw.resolve()
-    if cwd_candidate.exists():
-        return cwd_candidate
-    return (vault_root / raw).resolve()
-
-
 def _first_markdown_hint(vault_root: Path) -> str:
     for path in sorted(vault_root.rglob("*.md")):
         if path.is_file():
@@ -3492,7 +3484,7 @@ def _print_stage_preview(
     if source_exists is None:
         source_exists = source.exists()
     if source_in_vault is None:
-        source_in_vault = _safe_relative_to(source, vault_root) is not None
+        source_in_vault = safe_relative_to(source, vault_root) is not None
     table = Table(title="Obsidian stage preview", show_lines=False)
     table.add_column("field", style="bold")
     table.add_column("value", overflow="fold")
@@ -3511,7 +3503,7 @@ def _print_stage_preview(
     table.add_row("skipped reason", skipped_reason or "-")
     table.add_row("source hash", content_hash)
     table.add_row("risk warning", "只对可丢弃、非敏感 vault 副本试跑；不修改正式 notes。")
-    source_hint = _safe_relative_to(source, vault_root) or str(source)
+    source_hint = safe_relative_to(source, vault_root) or str(source)
     table.add_row(
         "next command",
         f"mindforge obsidian stage --vault {vault_root} --source {source_hint} --staged-export --diff --write --confirm",
@@ -3528,18 +3520,6 @@ def _print_stage_preview(
     console.print("[yellow]dry-run：未写任何文件，未移动 source note，未重写 wikilinks。[/yellow]")
 
 
-def _safe_relative_to(path: Path, root: Path) -> str | None:
-    """返回 path 相对 vault 的路径；失败返回 None 而不是抛错。
-
-    Obsidian preview 经常处理用户手输路径。这里用显式 helper 避免在错误路径
-    场景下泄漏 traceback，同时不吞掉后续真正写入分支的安全判断。
-    """
-    try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return None
-
-
 def _stage_preview_fields(doc) -> dict[str, object]:
     """提取 stage preview 可展示的 note 结构摘要，不读取/打印正文。"""
     frontmatter = doc.metadata.get("frontmatter") if isinstance(doc.metadata, dict) else {}
@@ -3551,55 +3531,6 @@ def _stage_preview_fields(doc) -> dict[str, object]:
         "frontmatter_keys": sorted(str(k) for k in frontmatter.keys()),
         "source_type": doc.source_type,
     }
-
-
-def _obsidian_export_filename(doc) -> str:
-    """生成 staged export 文件名，避免依赖 obsidian.py 内部私有 slug helper。"""
-    import re
-
-    title = doc.title or Path(doc.source_path).stem
-    slug = re.sub(r"[^A-Za-z0-9\u4e00-\u9fff]+", "-", title).strip("-")
-    return (slug or "obsidian-candidate") + ".md"
-
-
-def _unique_export_path(path: Path) -> Path:
-    """返回不会覆盖已有文件的 staged export 路径。
-
-    中文学习型说明：staged export 是人工检查目录，不是正式 vault 写入通道。
-    因此遇到同名文件时生成唯一文件名，而不是覆盖或尝试自动合并，避免用户
-    误以为 MindForge 已经替他们完成了 Obsidian note 决策。
-    """
-    if not path.exists():
-        return path
-    stem = path.stem
-    suffix = path.suffix
-    for idx in range(2, 10_000):
-        candidate = path.with_name(f"{stem}-{idx}{suffix}")
-        if not candidate.exists():
-            return candidate
-    raise RuntimeError(f"无法生成唯一 staged export 文件名：{path}")
-
-
-def _staged_export_dir(cfg: MindForgeConfig, output_dir: Path | None) -> Path:
-    """解析 staged export 目录；用户显式路径优先，否则走 state.workdir。"""
-    if output_dir is not None:
-        return output_dir.expanduser().resolve()
-    return (cfg.state.workdir / "staged" / "obsidian").expanduser().resolve()
-
-
-def _formal_note_conflict_paths(vault_root: Path, filename: str) -> list[Path]:
-    """只报告正式 vault 中可能冲突的同名 note，不自动覆盖、不自动迁移。"""
-    conflicts: list[Path] = []
-    for path in vault_root.rglob(filename):
-        if not path.is_file():
-            continue
-        rel = _safe_relative_to(path, vault_root)
-        if rel is None:
-            continue
-        if rel.startswith(".mindforge/") or rel.startswith("90-System/MindForge/"):
-            continue
-        conflicts.append(path)
-    return sorted(conflicts)
 
 
 def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
@@ -3649,59 +3580,25 @@ def _write_obsidian_staged_export(
     """写 staged export markdown + manifest，明确不写正式 Obsidian notes。"""
     import json as _json
 
-    export_dir = _staged_export_dir(cfg, output_dir)
-    filename = _obsidian_export_filename(doc)
-    proposed = export_dir / filename
+    plan = plan_staged_export(cfg=cfg, vault_root=vault_root, doc=doc, output_dir=output_dir)
     if diff_preview:
-        _print_staged_diff_preview(proposed, content)
-    target = _unique_export_path(proposed)
-    manifest = target.with_suffix(".manifest.json")
-    proposed_target = (vault_root / cfg.obsidian.review_dir / target.name).resolve()
-    backup_path = (cfg.state.workdir / "backups" / "obsidian" / target.name).expanduser().resolve()
-    export_dir.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    payload = {
-        "version": 1,
-        "source_note": doc.source_path,
-        "source_file": str(source_path),
-        "staged_markdown": str(target),
-        "proposed_file": str(target),
-        "action": "staged-export-create" if target == proposed else "staged-export-create-unique",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "mode": "staged_export",
-        "dry_run": False,
-        "staged_export_dir": str(export_dir),
-        "staged_output_policy": "explicit-output-dir" if output_dir is not None else "default-state-workdir",
-        "safety": {
-            "no_formal_obsidian_note_write": True,
-            "no_real_llm": True,
-            "no_env_read": True,
-            "no_telemetry_upload": True,
-            "no_runtime_logs_or_index_in_export": True,
-        },
-        "write_gate": {
-            "proposed_target": str(proposed_target),
-            "backup_path": str(backup_path),
-            "recovery_plan": "restore backup_path, keep staged_markdown unchanged, then rerun preflight",
-            "explicit_confirmation_required": True,
-            "diff_preview_required": True,
-            "writes_formal_notes_now": False,
-        },
-    }
-    manifest.write_text(_json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    conflicts = _formal_note_conflict_paths(vault_root, target.name)
-    console.print(f"[green]✓ staged export written[/green] {target}")
-    console.print(f"[green]✓ manifest written[/green] {manifest}")
-    if conflicts:
+        _print_staged_diff_preview(plan.proposed_path, content)
+    plan.export_dir.mkdir(parents=True, exist_ok=True)
+    plan.target_path.write_text(content, encoding="utf-8")
+    payload = build_staged_manifest_payload(plan=plan, source_path=source_path, doc=doc)
+    plan.manifest_path.write_text(_json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    console.print(f"[green]✓ staged export written[/green] {plan.target_path}")
+    console.print(f"[green]✓ manifest written[/green] {plan.manifest_path}")
+    if plan.formal_conflicts:
         console.print("[yellow]可能存在正式 vault 同名 note；仅提示人工检查，未覆盖：[/yellow]")
-        for item in conflicts[:10]:
-            console.print(f"  - {_safe_relative_to(item, vault_root) or item}")
+        for item in plan.formal_conflicts[:10]:
+            console.print(f"  - {safe_relative_to(item, vault_root) or item}")
     console.print("[dim]说明：未写正式 Obsidian notes；未移动 source；未读取 .env；未调用 LLM。[/dim]")
     console.print(
-        f"Next: mindforge obsidian preflight --vault {vault_root} --manifest {manifest}",
+        f"Next: mindforge obsidian preflight --vault {vault_root} --manifest {plan.manifest_path}",
         markup=False,
     )
-    return target
+    return plan.target_path
 
 
 @obsidian_app.command("scan")
@@ -3853,7 +3750,7 @@ def obsidian_stage(
     cfg = _load_cfg(config, read_env=False)
     vault_root, options = _obsidian_options(cfg, vault, include=include, exclude=exclude)
     _obsidian_copy_warning()
-    source_path = _resolve_obsidian_source_for_preview(source, vault_root)
+    source_path = resolve_obsidian_source_for_preview(source, vault_root)
     if not vault_root.exists() or not vault_root.is_dir():
         _print_stage_preview(
             vault_root=vault_root,
@@ -3862,10 +3759,10 @@ def obsidian_stage(
             action="skipped",
             skipped_reason="Obsidian vault 不存在或不是目录；请检查 --vault。",
             source_exists=source_path.exists(),
-            source_in_vault=_safe_relative_to(source_path, vault_root) is not None,
+            source_in_vault=safe_relative_to(source_path, vault_root) is not None,
         )
         return
-    if _safe_relative_to(source_path, vault_root) is None:
+    if safe_relative_to(source_path, vault_root) is None:
         if dry_run:
             _print_stage_preview(
                 vault_root=vault_root,
@@ -3955,7 +3852,7 @@ def obsidian_stage(
         console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
         raise typer.Exit(code=2) from e
     if staged_export:
-        target = _staged_export_dir(cfg, output_dir) / _obsidian_export_filename(doc)
+        target = staged_export_dir(cfg, output_dir) / obsidian_export_filename(doc)
     else:
         try:
             target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
