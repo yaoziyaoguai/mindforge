@@ -23,18 +23,17 @@ from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .obsidian_stage import (
-    build_obsidian_next_plan,
     build_preflight_display_plan,
     build_staged_diff_preview_plan,
     build_staged_manifest_payload,
     first_markdown_hint,
-    obsidian_dogfood_command_snippets,
     obsidian_export_filename,
     plan_staged_export,
     resolve_obsidian_source_for_preview,
     safe_relative_to,
     staged_export_dir,
 )
+from .obsidian_workflow import build_obsidian_next_plan, obsidian_dogfood_command_snippets
 from .processors import Pipeline
 from .recall_service import (
     RecallQuery,
@@ -3572,7 +3571,7 @@ def obsidian_next(
     print(plan.boundary_line)
     console.print("[bold]Current status[/bold]")
     print(f"- vault exists: {'yes' if plan.vault_exists else 'no'}")
-    print("- safe mode: dry-run/staged-export/preflight only")
+    print(f"- safe mode: {plan.safe_mode_line}")
     print(f"- staged exports: {plan.staged_export_count}")
     print(f"- manifests: {plan.manifest_count}")
     if plan.latest_manifest is not None:
@@ -3585,9 +3584,8 @@ def obsidian_next(
         print(f"- {item.command}")
         print(f"  {item.note}")
     console.print("[bold]Manual inspection[/bold]")
-    print("- Inspect staged markdown and manifest by hand.")
-    print("- Confirm backup expectations before any future write gate.")
-    print("- Record unclear output in docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md.")
+    for step in plan.manual_inspection_steps:
+        print(f"- {step}")
 
 
 def _obsidian_dogfood_command_snippets(

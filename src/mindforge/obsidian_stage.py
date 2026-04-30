@@ -15,6 +15,31 @@ from pathlib import Path
 from typing import Any
 
 from .config import MindForgeConfig
+from .obsidian_workflow import (
+    ObsidianDogfoodCommand,
+    ObsidianNextPlan,
+    build_obsidian_next_plan,
+    obsidian_dogfood_command_snippets,
+)
+
+__all__ = [
+    "DiffPreviewPlan",
+    "ObsidianDogfoodCommand",
+    "ObsidianNextPlan",
+    "PreflightDisplayPlan",
+    "StagedExportPlan",
+    "build_obsidian_next_plan",
+    "build_preflight_display_plan",
+    "build_staged_diff_preview_plan",
+    "build_staged_manifest_payload",
+    "first_markdown_hint",
+    "obsidian_dogfood_command_snippets",
+    "obsidian_export_filename",
+    "plan_staged_export",
+    "resolve_obsidian_source_for_preview",
+    "safe_relative_to",
+    "staged_export_dir",
+]
 
 
 @dataclass(frozen=True)
@@ -68,34 +93,6 @@ class PreflightDisplayPlan:
     future_gate: str
     no_write_boundary: str
     exit_code: int
-
-
-@dataclass(frozen=True)
-class ObsidianDogfoodCommand:
-    command: str
-    note: str
-
-
-@dataclass(frozen=True)
-class ObsidianNextPlan:
-    """Obsidian dogfooding next-action 的结构化状态。
-
-    中文学习型说明：`obsidian next` 是导航，不是 runner。service 只计算当前
-    staged export/manifest 状态和推荐下一步，CLI 负责输出；这里不会创建目录、
-    不写 vault，也不会把 preflight 误当成 apply。
-    """
-
-    vault_root: Path
-    output_dir: Path
-    source_hint: str
-    vault_exists: bool
-    staged_export_count: int
-    manifest_count: int
-    latest_manifest: Path | None
-    recommended_next: str
-    commands: tuple[ObsidianDogfoodCommand, ...]
-    safety_line: str
-    boundary_line: str
 
 
 def safe_relative_to(path: Path, root: Path) -> str | None:
@@ -280,70 +277,6 @@ def build_preflight_display_plan(result: Any) -> PreflightDisplayPlan:
         future_gate=future_gate,
         no_write_boundary=no_write,
         exit_code=exit_code,
-    )
-
-
-def obsidian_dogfood_command_snippets(
-    vault: Path,
-    source_hint: str,
-    output_dir: Path,
-) -> tuple[ObsidianDogfoodCommand, ...]:
-    """集中维护 Obsidian dogfooding 命令，防止 CLI 与 docs/checklist 漂移。
-
-    中文学习型说明：这些 snippets 是人工 dogfooding 导航，不是自动 runner。
-    它们刻意停在 preflight/manual inspection，避免把未来 write gate 误写成
-    当前已实现的正式 Obsidian note 写入能力。
-    """
-    v = str(vault)
-    source = source_hint
-    out = str(output_dir)
-    manifest = str(output_dir / "<export>.manifest.json")
-    return (
-        ObsidianDogfoodCommand(f"mindforge obsidian doctor --vault {v}", "检查 vault 边界和 staged export 状态"),
-        ObsidianDogfoodCommand(f"mindforge obsidian scan --vault {v} --limit 20", "只读扫描 Markdown 安全摘要"),
-        ObsidianDogfoodCommand(f"mindforge obsidian links --vault {v}", "只读解析 [[wikilinks]]，不建 graph/RAG"),
-        ObsidianDogfoodCommand(f"mindforge obsidian stage --vault {v} --source {source} --dry-run", "预览候选，不写任何文件"),
-        ObsidianDogfoodCommand(
-            f"mindforge obsidian stage --vault {v} --source {source} --staged-export "
-            f"--output-dir {out} --diff --write --confirm",
-            "写 staged export + manifest；仍不写正式 notes",
-        ),
-        ObsidianDogfoodCommand(
-            f"mindforge obsidian preflight --vault {v} --manifest {manifest}",
-            "检查未来 write-gate 证据链；BLOCKED/WARNING/PASS 后仍需人工检查",
-        ),
-    )
-
-
-def build_obsidian_next_plan(
-    *,
-    vault_root: Path,
-    output_dir: Path,
-    source_hint: str | None = None,
-) -> ObsidianNextPlan:
-    """计算 `obsidian next` 的当前状态与推荐下一步，不执行任何命令。"""
-    root = vault_root.expanduser().resolve()
-    resolved_output = output_dir.expanduser()
-    hint = source_hint or (first_markdown_hint(root) if root.exists() else "<note.md>")
-    staged_files = sorted(resolved_output.glob("*.md")) if resolved_output.exists() else []
-    manifests = sorted(resolved_output.glob("*.manifest.json")) if resolved_output.exists() else []
-    latest_manifest = manifests[-1] if manifests else None
-    if latest_manifest is not None:
-        recommended = f"mindforge obsidian preflight --vault {root} --manifest {latest_manifest}"
-    else:
-        recommended = "run stage --dry-run, then staged-export --diff --write --confirm"
-    return ObsidianNextPlan(
-        vault_root=root,
-        output_dir=output_dir,
-        source_hint=hint,
-        vault_exists=root.exists(),
-        staged_export_count=len(staged_files),
-        manifest_count=len(manifests),
-        latest_manifest=latest_manifest,
-        recommended_next=recommended,
-        commands=obsidian_dogfood_command_snippets(root, hint, output_dir),
-        safety_line="Safety: disposable non-sensitive vault copy only; no .env, no real LLM, no formal note writes.",
-        boundary_line="Boundary: dry-run/staged-export/diff/preflight/manual inspection only; no apply command in this version.",
     )
 
 
