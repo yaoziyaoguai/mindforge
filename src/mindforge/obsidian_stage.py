@@ -21,6 +21,7 @@ from .obsidian_workflow import (
     build_obsidian_next_plan,
     obsidian_dogfood_command_snippets,
 )
+from .safety_policy import obsidian_manifest_safety_flags
 
 __all__ = [
     "DiffPreviewPlan",
@@ -301,13 +302,7 @@ def build_staged_manifest_payload(
         "dry_run": False,
         "staged_export_dir": str(plan.export_dir),
         "staged_output_policy": plan.output_policy,
-        "safety": {
-            "no_formal_obsidian_note_write": True,
-            "no_real_llm": True,
-            "no_env_read": True,
-            "no_telemetry_upload": True,
-            "no_runtime_logs_or_index_in_export": True,
-        },
+        "safety": obsidian_manifest_safety_flags(),
         "write_gate": {
             "proposed_target": str(plan.proposed_target),
             "backup_path": str(plan.backup_path),

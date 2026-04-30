@@ -17,21 +17,12 @@ from typing import Any
 import yaml
 
 from .config import ObsidianConfig
+from .safety_policy import OBSIDIAN_MANIFEST_SAFETY_LABELS, forbidden_derived_parts
 from .sources.base import SourceDocument
 from .sources.obsidian_vault import ObsidianVaultSourceAdapter
 
 _RUNTIME_DIR_NAMES = {".mindforge", "runs", "state", "telemetry", "index"}
 _DEFAULT_EXCLUDE_DIRS = (".obsidian", ".git", ".mindforge", "node_modules")
-_WRITE_GATE_FORBIDDEN_PARTS = {
-    "runtime",
-    "cache",
-    "index",
-    "logs",
-    "sqlite",
-    "vector",
-    "vectors",
-    "graph",
-}
 
 
 @dataclass(frozen=True)
@@ -431,21 +422,13 @@ def _check_safety_boundary(payload: dict[str, Any], blocked: list[str]) -> None:
     if not isinstance(safety, dict):
         blocked.append("manifest.safety 必须是 object")
         return
-    required_true = {
-        "no_formal_obsidian_note_write": "no formal Obsidian note write",
-        "no_real_llm": "no real LLM",
-        "no_env_read": "no .env read",
-        "no_telemetry_upload": "no telemetry upload",
-        "no_runtime_logs_or_index_in_export": "no runtime/cache/index/log export",
-    }
-    for key, label in required_true.items():
+    for key, label in OBSIDIAN_MANIFEST_SAFETY_LABELS.items():
         if safety.get(key) is not True:
             blocked.append(f"manifest.safety 必须声明 {label}")
 
 
 def _check_no_forbidden_machine_parts(path: Path, label: str, blocked: list[str]) -> None:
-    parts = {part.lower() for part in path.parts}
-    bad = sorted(parts & _WRITE_GATE_FORBIDDEN_PARTS)
+    bad = forbidden_derived_parts(path)
     if bad:
         blocked.append(f"{label} 包含禁止的机器派生层路径：{', '.join(bad)}")
 

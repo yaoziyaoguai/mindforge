@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .safety_policy import OBSIDIAN_WORKFLOW_BOUNDARY_LINE, OBSIDIAN_WORKFLOW_SAFETY_LINE
+
 
 @dataclass(frozen=True)
 class ObsidianDogfoodCommand:
@@ -100,8 +102,8 @@ def build_obsidian_next_plan(
         latest_manifest=latest_manifest,
         recommended_next=recommended,
         commands=obsidian_dogfood_command_snippets(root, hint, output_dir),
-        safety_line="Safety: disposable non-sensitive vault copy only; no .env, no real LLM, no formal note writes.",
-        boundary_line="Boundary: dry-run/staged-export/diff/preflight/manual inspection only; no apply command in this version.",
+        safety_line=OBSIDIAN_WORKFLOW_SAFETY_LINE,
+        boundary_line=OBSIDIAN_WORKFLOW_BOUNDARY_LINE,
         safe_mode_line="dry-run/staged-export/preflight only",
         manual_inspection_steps=(
             "Inspect staged markdown and manifest by hand.",

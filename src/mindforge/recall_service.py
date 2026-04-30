@@ -15,6 +15,7 @@ from typing import Any
 from . import lexical_index as lx
 from .cards import CardSummary, iter_cards
 from .config import MindForgeConfig
+from .safety_policy import LEXICAL_RECALL_BOUNDARY_LINE
 
 
 class RecallServiceError(ValueError):
@@ -316,7 +317,7 @@ def recall_search_summary(result: RecallSearchResult) -> str:
         f"Search query: {result.query.query}\n"
         f"Index: {index_label} (source={result.index.source}, suggest_rebuild={suggest}, path={result.index.path})\n"
         f"Cards: approved={stats['human_approved']} ai_draft={stats['ai_draft']} total={stats['total']}\n"
-        "Boundary: local lexical recall only; no RAG, no embedding, no LLM, no .env, no upload.\n"
+        f"{LEXICAL_RECALL_BOUNDARY_LINE}\n"
     )
 
 
