@@ -1663,58 +1663,15 @@ def review_weekly(
     - "suggested_focus_tracks" 只是按 backlog + forgotten 计数排序，
       **不**做语义推断、**不**预测下周。
     """
-    from .cards import filter_cards, iter_cards
+    from .review_service import build_weekly_review
 
     cfg = _load_cfg(config, read_env=False)
-    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    base = filter_cards(scan.cards, status="human_approved")
-    now = datetime.now().astimezone()
-    week_start = now - timedelta(days=7)
-    next_week_end = now + timedelta(days=7)
-
-    overdue: list = []
-    due_this_week: list = []
-    next_week_preview: list = []
-    forgotten_or_partial: list = []
-    reviewed_this_week: list = []
-    track_counts: dict[str, int] = {}
-    project_counts: dict[str, int] = {}
-
-    for c in base:
-        if c.review_after is not None:
-            ra = c.review_after if c.review_after.tzinfo else c.review_after.replace(tzinfo=now.tzinfo)
-            if ra <= now:
-                overdue.append(c)
-            elif ra <= now + timedelta(days=7):
-                due_this_week.append(c)
-            elif ra <= next_week_end + timedelta(days=7):
-                next_week_preview.append(c)
-        if c.reviewed_at is not None:
-            ra2 = c.reviewed_at if c.reviewed_at.tzinfo else c.reviewed_at.replace(tzinfo=now.tzinfo)
-            if ra2 >= week_start:
-                reviewed_this_week.append(c)
-        if c.last_review_result in ("partial", "forgotten"):
-            forgotten_or_partial.append(c)
-        if c.track:
-            track_counts[c.track] = track_counts.get(c.track, 0) + 1
-        for p in c.projects:
-            project_counts[p] = project_counts.get(p, 0) + 1
-
-    # suggested focus = backlog × forgotten 加权排序（纯计数，非 LLM）
-    focus_score: dict[str, int] = {}
-    for c in overdue + due_this_week:
-        if c.track:
-            focus_score[c.track] = focus_score.get(c.track, 0) + 1
-    for c in forgotten_or_partial:
-        if c.track:
-            focus_score[c.track] = focus_score.get(c.track, 0) + 2
-    suggested_focus = sorted(focus_score.items(), key=lambda kv: -kv[1])[:5]
-    has_weekly_work = bool(overdue or due_this_week or reviewed_this_week or forgotten_or_partial or next_week_preview)
+    result = build_weekly_review(cfg)
 
     with RunLogger(cfg.state.runs_path, command="review-weekly") as logger:  # type: ignore[attr-defined]
         logger.emit(
             "review_due_listed",
-            count=len(overdue) + len(due_this_week),
+            count=len(result.overdue) + len(result.due_this_week),
             output_format=output_format,
         )
 
@@ -1722,20 +1679,23 @@ def review_weekly(
         import json as _json
         payload = _json.dumps({
             "version": 1,
-            "generated_at": now.isoformat(timespec="seconds"),
-            "window": {"week_start": week_start.date().isoformat(),
-                       "week_end": now.date().isoformat()},
-            "overdue": [_card_to_safe_dict(c) for c in overdue],
-            "due_this_week": [_card_to_safe_dict(c) for c in due_this_week],
-            "reviewed_this_week_count": len(reviewed_this_week),
-            "forgotten_or_partial": [_card_to_safe_dict(c) for c in forgotten_or_partial],
-            "suggested_focus_tracks": [{"track": t, "score": s} for t, s in suggested_focus],
-            "project_distribution": [
-                {"project": p, "card_count": n}
-                for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])
+            "generated_at": result.window.generated_at.isoformat(timespec="seconds"),
+            "window": {"week_start": result.window.week_start.date().isoformat(),
+                       "week_end": result.window.generated_at.date().isoformat()},
+            "overdue": [_card_to_safe_dict(c) for c in result.overdue],
+            "due_this_week": [_card_to_safe_dict(c) for c in result.due_this_week],
+            "reviewed_this_week_count": len(result.reviewed_this_week),
+            "forgotten_or_partial": [_card_to_safe_dict(c) for c in result.forgotten_or_partial],
+            "suggested_focus_tracks": [
+                {"track": item.track, "score": item.score}
+                for item in result.suggested_focus_tracks
             ],
-            "next_week_preview": [_card_to_safe_dict(c) for c in next_week_preview],
-            "next_actions": _review_next_actions(has_weekly_work),
+            "project_distribution": [
+                {"project": item.project, "card_count": item.card_count}
+                for item in result.project_distribution
+            ],
+            "next_week_preview": [_card_to_safe_dict(c) for c in result.next_week_preview],
+            "next_actions": _review_next_actions(result.has_weekly_work),
         }, ensure_ascii=False, indent=2)
         if output_path:
             output_path.write_text(payload + "\n", encoding="utf-8")
@@ -1755,28 +1715,45 @@ def review_weekly(
         ) + "\n"
 
     md = [
-        f"# Weekly Review · {now.date().isoformat()}\n",
-        f"_window: {week_start.date().isoformat()} → {now.date().isoformat()}_\n",
+        f"# Weekly Review · {result.window.generated_at.date().isoformat()}\n",
+        f"_window: {result.window.week_start.date().isoformat()} → "
+        f"{result.window.generated_at.date().isoformat()}_\n",
         "\n## Learning tasks\n",
-        _review_learning_tasks(overdue, due_this_week, forgotten_or_partial),
-        f"\n## Overdue · {len(overdue)} 项\n",
-        _list(overdue),
-        f"\n## Due this week · {len(due_this_week)} 项\n",
-        _list(due_this_week),
-        f"\n## Reviewed this week · {len(reviewed_this_week)} 项\n",
-        f"\n## Forgotten / partial · {len(forgotten_or_partial)} 项\n",
-        _list(forgotten_or_partial),
+        _review_learning_tasks(
+            list(result.overdue),
+            list(result.due_this_week),
+            list(result.forgotten_or_partial),
+        ),
+        f"\n## Overdue · {len(result.overdue)} 项\n",
+        _list(list(result.overdue)),
+        f"\n## Due this week · {len(result.due_this_week)} 项\n",
+        _list(list(result.due_this_week)),
+        f"\n## Reviewed this week · {len(result.reviewed_this_week)} 项\n",
+        f"\n## Forgotten / partial · {len(result.forgotten_or_partial)} 项\n",
+        _list(list(result.forgotten_or_partial)),
         "\n## Suggested focus tracks\n",
-        ("\n".join(f"- {t} (score={s})" for t, s in suggested_focus) + "\n") if suggested_focus else "_(none)_\n",
+        (
+            "\n".join(
+                f"- {item.track} (score={item.score})"
+                for item in result.suggested_focus_tracks
+            )
+            + "\n"
+        ) if result.suggested_focus_tracks else "_(none)_\n",
         "\n## Project distribution\n",
-        ("\n".join(f"- {p}: {n}" for p, n in sorted(project_counts.items(), key=lambda kv: -kv[1])) + "\n") if project_counts else "_(none)_\n",
-        f"\n## Next week preview · {len(next_week_preview)} 项\n",
-        _list(next_week_preview),
+        (
+            "\n".join(
+                f"- {item.project}: {item.card_count}"
+                for item in result.project_distribution
+            )
+            + "\n"
+        ) if result.project_distribution else "_(none)_\n",
+        f"\n## Next week preview · {len(result.next_week_preview)} 项\n",
+        _list(list(result.next_week_preview)),
         (
             "\n## Next action\n"
-            + "\n".join(f"- {a}" for a in _review_next_actions(has_weekly_work))
+            + "\n".join(f"- {a}" for a in _review_next_actions(result.has_weekly_work))
             + "\n"
-            if not has_weekly_work
+            if not result.has_weekly_work
             else ""
         ),
         "\n## Workflow bridge\n",
