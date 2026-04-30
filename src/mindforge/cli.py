@@ -36,6 +36,15 @@ from .obsidian_stage import (
     staged_export_dir,
 )
 from .processors import Pipeline
+from .recall_service import (
+    RecallQuery,
+    RecallServiceError,
+    recall_hit_next_action,
+    recall_hit_to_safe_dict,
+    recall_no_result_next_action,
+    recall_search_summary,
+    run_bm25_recall,
+)
 from .run_logger import (
     EVENT_SOURCE_ERROR,
     EVENT_SOURCE_SEEN,
@@ -2007,7 +2016,7 @@ def recall(
         print(f"# Recall · {len(cards)} 项 (sort={sort})\n")
         if not cards:
             print("_(no cards matched)_")
-            print("\n" + _recall_no_result_next_action())
+            print("\n" + recall_no_result_next_action())
             return
         for c in cards:
             print(
@@ -2016,13 +2025,13 @@ def recall(
                 f"`value_score={c.value_score if c.value_score is not None else '-'}`  "
                 f"`path={c.rel_path}`"
             )
-        print("\n" + _recall_hit_next_action())
+        print("\n" + recall_hit_next_action())
         return
 
     if output_format == "table":
         if not cards:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
-            console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
+            console.print(f"[dim]{recall_no_result_next_action()}[/dim]")
             return
         table = Table(title=f"Recall · {len(cards)} 项 (sort={sort})")
         table.add_column("id")
@@ -2041,13 +2050,13 @@ def recall(
                 _safe_date(c.review_after),
             )
         console.print(table)
-        console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
+        console.print(f"[dim]{recall_hit_next_action()}[/dim]")
         return
 
     # compact (默认)
     if not cards:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
-        console.print(f"[dim]{_recall_no_result_next_action()}[/dim]")
+        console.print(f"[dim]{recall_no_result_next_action()}[/dim]")
         return
     console.print(f"[bold]Recall[/bold] · {len(cards)} 项 (sort={sort})")
     for c in cards:
@@ -2056,7 +2065,7 @@ def recall(
             f"status={c.status} · track={c.track or '-'} · "
             f"value_score={c.value_score if c.value_score is not None else '-'}"
         )
-    console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
+    console.print(f"[dim]{recall_hit_next_action()}[/dim]")
 
 
 
@@ -2100,116 +2109,41 @@ def _do_bm25_recall(
     weight_value_score: float | None = None,
     weight_review_due: float | None = None,
 ) -> None:
-    """BM25 / hybrid 路径。
-
-    - BM25 字段权重 / k1 / b 全部走 ``cfg.search.bm25``；
-    - hybrid 路径在 BM25 之上叠加 value_score + review_due 两路本地信号；
-    - 索引文件记录 ``config_hash``，与当前配置不一致 → 自动用内存重建（提示一次）。
-    """
-    from . import lexical_index as lx
-    from .cards import iter_cards
-
-    if ranking not in ("bm25", "hybrid"):
-        console.print(f"[red]--ranking 仅支持 bm25 | hybrid，收到 {ranking!r}[/red]")
-        raise typer.Exit(code=2)
-
+    """BM25 / hybrid CLI wrapper；核心检索逻辑在 recall_service。"""
     cfg = _load_cfg(config, read_env=False)
-    workdir = cfg.state.workdir  # type: ignore[attr-defined]
-    idx_path = lx.default_index_path(workdir)
-    card_scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    recall_stats = _recall_local_stats(card_scan.cards)
+    recall_query = RecallQuery(
+        query=query,
+        track=track,
+        project=project,
+        tags=tuple(tags),
+        source_type=source_type,
+        status=status,
+        include_drafts=include_drafts,
+        since=_parse_date(since),
+        until=_parse_date(until),
+        limit=limit,
+        output_format=output_format,
+        explain=explain,
+        ranking=ranking,
+        weight_bm25=weight_bm25,
+        weight_value_score=weight_value_score,
+        weight_review_due=weight_review_due,
+    )
+    try:
+        result = run_bm25_recall(cfg, recall_query)
+    except RecallServiceError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=2) from e
 
-    # 当前配置的字段权重（解析用户别名）+ k1 / b + config_hash
-    fw = lx.resolve_field_weights(cfg.search.bm25.fields)
-    cur_k1 = cfg.search.bm25.k1
-    cur_b = cfg.search.bm25.b
-    cur_hash = lx.compute_config_hash(field_weights=fw, k1=cur_k1, b=cur_b)
-
-    index: lx.BM25Index
-    used_disk = False
-    index_stale = False
-    index_source = "memory-temp"
-    if idx_path.exists():
-        try:
-            index = lx.BM25Index.load(idx_path)
-            if index.config_hash and index.config_hash != cur_hash:
-                # 配置漂移 → 旧索引按旧权重打分，结果不能信
-                index_stale = True
-                index_source = "memory-rebuilt-stale"
-                if output_format not in ("json",):
-                    console.print(
-                        "[yellow]提示：磁盘索引的 config_hash 与当前配置不一致；"
-                        "本次内存即时重建。建议运行 `mindforge index rebuild`。[/yellow]"
-                    )
-                index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
-            else:
-                used_disk = True
-                index_source = "disk"
-        except (lx.IndexFormatError, OSError, ValueError) as e:
-            index_source = "memory-rebuilt-error"
-            console.print(f"[yellow]索引文件不可用（{e}）；改为内存即时构建。[/yellow]")
-            index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
-    else:
-        if output_format not in ("json",):
-            console.print(
-                "[yellow]提示：尚无索引文件，本次内存即时构建。"
-                "建议运行 `mindforge index rebuild` 以加速后续查询。[/yellow]"
-            )
-        index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
-
-    if ranking == "hybrid":
-        # v0.3.2 临时权重覆盖：仅作用于本次查询，绝不写回 yaml。
-        # 任意一个 --weight-* 给出 → 进入 override 模式；其它分量回退到配置默认。
-        cfg_w = dict(cfg.search.hybrid.weights)
-        overrides_given = [w is not None for w in (weight_bm25, weight_value_score, weight_review_due)]
-        weight_source = "cli_override" if any(overrides_given) else "config"
-        if weight_bm25 is not None:
-            cfg_w["bm25"] = weight_bm25
-        if weight_value_score is not None:
-            cfg_w["value_score"] = weight_value_score
-        if weight_review_due is not None:
-            cfg_w["review_due"] = weight_review_due
-        # 校验：所有权重必须 >= 0，且至少一个 > 0；否则 fail-fast，不静默
-        for k, v in cfg_w.items():
-            if not isinstance(v, (int, float)) or v < 0:
-                console.print(f"[red]非法 hybrid 权重 {k}={v!r}：必须是 >= 0 的数值[/red]")
-                raise typer.Exit(code=2)
-        if all(v == 0 for v in cfg_w.values()):
-            console.print("[red]非法 hybrid 权重：三路权重不能同时为 0[/red]")
-            raise typer.Exit(code=2)
-        active_weights = cfg_w
-
-        cards_for_hybrid = card_scan.cards
-        hybrid_hits = lx.hybrid_search(
-            index, query,
-            weights=active_weights,
-            cards=cards_for_hybrid,
-            status_filter=status,
-            include_drafts=include_drafts,
-            track=track, project=project, tags=tags, source_type=source_type,
-            since=_parse_date(since), until=_parse_date(until),
-            limit=limit,
-        )
-        hits = [hh.base for hh in hybrid_hits]
-    else:
-        hybrid_hits = None
-        active_weights = None
-        weight_source = "n/a"
-        hits = lx.search(
-            index, query,
-            status_filter=status,
-            include_drafts=include_drafts,
-            track=track, project=project, tags=tags, source_type=source_type,
-            since=_parse_date(since), until=_parse_date(until),
-            limit=limit,
-        )
+    for warning in result.warnings:
+        console.print(f"[yellow]{warning}[/yellow]")
 
     # 不把 query 原文写入 telemetry/runs；只记录是否提供 + hash 化指纹。
     kw_provided, kw_hash = _hash_keyword(query)
     with RunLogger(cfg.state.runs_path, command="recall_bm25") as logger:  # type: ignore[attr-defined]
         logger.emit(
             "recall_bm25_executed",
-            count=len(hits),
+            count=result.count,
             filters=_filters_dict(
                 track=track,
                 project=project,
@@ -2221,51 +2155,42 @@ def _do_bm25_recall(
                 until=until,
                 limit=limit,
                 explain=explain,
-                used_disk_index=used_disk,
+                used_disk_index=result.index.used_disk,
                 ranking_mode=ranking,
-                index_stale=index_stale,
-                weight_source=weight_source,
+                index_stale=result.index.stale,
+                weight_source=result.weight_source,
             ),
             keyword_provided=kw_provided,
             keyword_hash=kw_hash,
             output_format=output_format,
         )
 
-    # —— hybrid 索引（既给非 JSON 输出，也给 JSON explain 用） ——
-    hybrid_by_path: dict[str, "lx.HybridHit"] = {}
-    if hybrid_hits is not None:
-        hybrid_by_path = {hh.base.doc.rel_path: hh for hh in hybrid_hits}
-
     if output_format == "json":
         import json as _json
 
-        items: list[dict]
-        if hybrid_hits is not None:
-            items = [_hybrid_hit_to_safe_dict(hh, explain=explain) for hh in hybrid_hits]
-        else:
-            items = [_hit_to_safe_dict(h, explain=explain) for h in hits]
-        # v0.3.2: explain 模式追加 why_this_matched 简短规则解释（不含原文）
-        if explain:
-            for it, h in zip(items, hits):
-                it["why_this_matched"] = _why_matched(h, hybrid_by_path or None)
-                it["matched_terms"] = sorted({t for fh in h.field_hits for t in fh.term_counts})
-                it["matched_fields"] = [fh.field for fh in h.field_hits]
-                it["ranking_mode"] = ranking
-                it["index_stale"] = index_stale
-                it["weight_source"] = weight_source
+        items = [
+            recall_hit_to_safe_dict(
+                hit,
+                explain=explain,
+                ranking=ranking,
+                index_stale=result.index.stale,
+                weight_source=result.weight_source,
+            )
+            for hit in result.hits
+        ]
         payload = {
             "version": 1,
             "engine": "bm25",
             "ranking": ranking,
-            "weight_source": weight_source,
-            "active_weights": active_weights,
-            "index_stale": index_stale,
+            "weight_source": result.weight_source,
+            "active_weights": result.active_weights,
+            "index_stale": result.index.stale,
             "index": {
-                "source": index_source,
-                "used_disk": used_disk,
-                "path": str(idx_path),
-                "suggest_rebuild": _recall_should_suggest_rebuild(index_source, index_stale),
-                "card_counts": recall_stats,
+                "source": result.index.source,
+                "used_disk": result.index.used_disk,
+                "path": str(result.index.path),
+                "suggest_rebuild": result.index.suggest_rebuild,
+                "card_counts": result.index.card_counts,
             },
             "query": {
                 "track": track,
@@ -2279,68 +2204,50 @@ def _do_bm25_recall(
                 "until": until,
                 "limit": limit,
             },
-            "count": len(hits),
+            "count": result.count,
             "items": items,
         }
         print(_json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
     # —— 非 JSON 路径：把 hybrid 的 final_score 与三路分量加到 explain 输出 ——
-    label = "engine=bm25" + (
-        f" ranking={ranking}" if ranking != "bm25" else ""
-    ) + (f" weights={weight_source}" if ranking == "hybrid" else "")
+    label = result.label
 
     if output_format == "markdown":
-        print(f"# Recall · {len(hits)} 项 ({label})\n")
-        print(_recall_search_summary(
-            query=query,
-            index_source=index_source,
-            index_path=idx_path,
-            used_disk=used_disk,
-            index_stale=index_stale,
-            stats=recall_stats,
-        ))
-        if not hits:
+        print(f"# Recall · {result.count} 项 ({label})\n")
+        print(recall_search_summary(result))
+        if not result.hits:
             print("_(no cards matched)_")
-            print("\n" + _recall_no_result_next_action(recall_stats))
+            print("\n" + recall_no_result_next_action(result.index.card_counts))
             return
-        for rank, h in enumerate(hits, start=1):
-            d = h.doc
-            hh = hybrid_by_path.get(d.rel_path)
-            score_str = f"score={(hh.final_score if hh else h.score):.3f}"
+        for rank, hit in enumerate(result.hits, start=1):
+            score_str = f"score={hit.score:.3f}"
             print(
-                f"- **#{rank} [{d.id or Path(d.rel_path).stem}]** {d.title or '(untitled)'}  "
-                f"`{score_str}` `source={d.source_type or '-'}` "
-                f"`status={_recall_status_label(d.status)}` `track={d.track or '-'}` "
-                f"`terms={_hit_terms(h)}` `path={d.rel_path}`"
+                f"- **#{rank} [{hit.id or Path(hit.rel_path).stem}]** {hit.title or '(untitled)'}  "
+                f"`{score_str}` `source={hit.source_type or '-'}` "
+                f"`status={hit.status_label}` `track={hit.track or '-'}` "
+                f"`terms={hit.matched_terms}` `path={hit.rel_path}`"
             )
-            if explain and hh is not None:
+            if explain and hit.final_score is not None:
                 print(
-                    f"    - hybrid: bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f}, "
-                    f"value={hh.value_norm:.3f}, review_due={hh.review_due_norm:.3f} "
-                    f"→ final={hh.final_score:.3f}"
+                    f"    - hybrid: bm25={hit.bm25_norm:.3f}·{hit.bm25_score:.3f}, "
+                    f"value={hit.value_norm:.3f}, review_due={hit.review_due_norm:.3f} "
+                    f"→ final={hit.final_score:.3f}"
                 )
             if explain:
-                for fh in h.field_hits:
-                    terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
-                    print(f"    - {fh.field} (w={fh.weight}, +{fh.contribution:.3f}): {terms}")
-        print("\n" + _recall_hit_next_action())
+                for field in hit.field_hits:
+                    terms = ", ".join(f"{t}×{n}" for t, n in field.term_counts.items())
+                    print(f"    - {field.field} (w={field.weight}, +{field.contribution:.3f}): {terms}")
+        print("\n" + recall_hit_next_action())
         return
 
     if output_format == "table":
-        _print_recall_search_summary(
-            query=query,
-            index_source=index_source,
-            index_path=idx_path,
-            used_disk=used_disk,
-            index_stale=index_stale,
-            stats=recall_stats,
-        )
-        if not hits:
+        _print_recall_search_summary(result)
+        if not result.hits:
             console.print("[yellow]没有匹配的卡片。[/yellow]")
-            console.print(f"[dim]{_recall_no_result_next_action(recall_stats)}[/dim]")
+            console.print(f"[dim]{recall_no_result_next_action(result.index.card_counts)}[/dim]")
             return
-        table = Table(title=f"Recall · {len(hits)} 项 ({label})")
+        table = Table(title=f"Recall · {result.count} 项 ({label})")
         table.add_column("rank", justify="right")
         table.add_column("score", justify="right")
         table.add_column("title")
@@ -2348,235 +2255,52 @@ def _do_bm25_recall(
         table.add_column("status")
         table.add_column("matched terms")
         table.add_column("next")
-        for rank, h in enumerate(hits, start=1):
-            d = h.doc
-            hh = hybrid_by_path.get(d.rel_path)
-            score_val = hh.final_score if hh else h.score
+        for rank, hit in enumerate(result.hits, start=1):
             table.add_row(
                 str(rank),
-                f"{score_val:.3f}",
-                d.title or "(untitled)",
-                d.source_type or "-",
-                _recall_status_label(d.status),
-                _hit_terms(h),
+                f"{hit.score:.3f}",
+                hit.title or "(untitled)",
+                hit.source_type or "-",
+                hit.status_label,
+                hit.matched_terms,
                 "review weekly",
             )
         console.print(table)
-        console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
+        console.print(f"[dim]{recall_hit_next_action()}[/dim]")
         return
 
     # compact（默认）
-    _print_recall_search_summary(
-        query=query,
-        index_source=index_source,
-        index_path=idx_path,
-        used_disk=used_disk,
-        index_stale=index_stale,
-        stats=recall_stats,
-    )
-    if not hits:
+    _print_recall_search_summary(result)
+    if not result.hits:
         console.print("[yellow]没有匹配的卡片。[/yellow]")
-        print(_recall_no_result_next_action(recall_stats))
+        print(recall_no_result_next_action(result.index.card_counts))
         return
-    console.print(f"[bold]Recall[/bold] · {len(hits)} 项 ({label})")
-    for rank, h in enumerate(hits, start=1):
-        d = h.doc
-        hh = hybrid_by_path.get(d.rel_path)
-        score_val = hh.final_score if hh else h.score
+    console.print(f"[bold]Recall[/bold] · {result.count} 项 ({label})")
+    for rank, hit in enumerate(result.hits, start=1):
         console.print(
-            f"- score={score_val:.3f} · rank=#{rank} · {d.id or Path(d.rel_path).stem} · "
-            f"{d.title or '(untitled)'} · source={d.source_type or '-'} · "
-            f"status={_recall_status_label(d.status)} · terms={_hit_terms(h)}"
+            f"- score={hit.score:.3f} · rank=#{rank} · {hit.id or Path(hit.rel_path).stem} · "
+            f"{hit.title or '(untitled)'} · source={hit.source_type or '-'} · "
+            f"status={hit.status_label} · terms={hit.matched_terms}"
         )
         if explain:
-            console.print(f"    [dim]why[/dim] {_why_matched(h, hybrid_by_path or None)}")
-            if hh is not None:
+            console.print(f"    [dim]why[/dim] {hit.why_this_matched}")
+            if hit.final_score is not None:
                 console.print(
-                    f"    [dim]hybrid[/dim] bm25={hh.bm25_norm:.3f}·{hh.bm25_score:.3f} "
-                    f"value={hh.value_norm:.3f} review_due={hh.review_due_norm:.3f} "
-                    f"→ final={hh.final_score:.3f}"
+                    f"    [dim]hybrid[/dim] bm25={hit.bm25_norm:.3f}·{hit.bm25_score:.3f} "
+                    f"value={hit.value_norm:.3f} review_due={hit.review_due_norm:.3f} "
+                    f"→ final={hit.final_score:.3f}"
                 )
-            for fh in h.field_hits:
-                terms = ", ".join(f"{t}×{n}" for t, n in fh.term_counts.items())
+            for field in hit.field_hits:
+                terms = ", ".join(f"{t}×{n}" for t, n in field.term_counts.items())
                 console.print(
-                    f"    [dim]{fh.field}[/dim] w={fh.weight} +{fh.contribution:.3f}: {terms}"
+                    f"    [dim]{field.field}[/dim] w={field.weight} +{field.contribution:.3f}: {terms}"
                 )
-    console.print(f"[dim]{_recall_hit_next_action()}[/dim]")
+    console.print(f"[dim]{recall_hit_next_action()}[/dim]")
 
 
-def _recall_local_stats(cards) -> dict[str, int]:
-    """汇总 recall 空状态需要的本地计数；只读 CardSummary 安全字段。
-
-    这里不用 state.json，也不读 source 原文，避免 search UX 越界成诊断全仓库的
-    重流程。计数只帮助用户判断下一步是 approve、process 还是 rebuild。
-    """
-    stats = {"total": 0, "human_approved": 0, "ai_draft": 0, "other": 0}
-    for c in cards:
-        stats["total"] += 1
-        if c.status == "human_approved":
-            stats["human_approved"] += 1
-        elif c.status == "ai_draft":
-            stats["ai_draft"] += 1
-        else:
-            stats["other"] += 1
-    return stats
-
-
-def _recall_should_suggest_rebuild(index_source: str, index_stale: bool) -> bool:
-    """判断是否建议 rebuild；不把临时内存索引误说成失败。"""
-    return index_stale or index_source != "disk"
-
-
-def _recall_search_summary(
-    *,
-    query: str,
-    index_source: str,
-    index_path: Path,
-    used_disk: bool,
-    index_stale: bool,
-    stats: dict[str, int],
-) -> str:
-    """生成 recall 搜索摘要；stdout 可显示 query，但 telemetry 仍只写 hash。"""
-    suggest = "yes" if _recall_should_suggest_rebuild(index_source, index_stale) else "no"
-    index_label = (
-        "disk index" if used_disk else "temporary in-memory index"
-    )
-    return (
-        f"Search query: {query}\n"
-        f"Index: {index_label} (source={index_source}, suggest_rebuild={suggest}, path={index_path})\n"
-        f"Cards: approved={stats['human_approved']} ai_draft={stats['ai_draft']} total={stats['total']}\n"
-        "Boundary: local lexical recall only; no RAG, no embedding, no LLM, no .env, no upload.\n"
-    )
-
-
-def _print_recall_search_summary(
-    *,
-    query: str,
-    index_source: str,
-    index_path: Path,
-    used_disk: bool,
-    index_stale: bool,
-    stats: dict[str, int],
-) -> None:
+def _print_recall_search_summary(result) -> None:
     """用普通文本打印搜索摘要，避免 Rich markup 吞掉 query 中的方括号。"""
-    print(
-        _recall_search_summary(
-            query=query,
-            index_source=index_source,
-            index_path=index_path,
-            used_disk=used_disk,
-            index_stale=index_stale,
-            stats=stats,
-        ).rstrip()
-    )
-
-
-def _hit_terms(h) -> str:
-    """从 SearchHit 提取匹配 term 摘要；不返回任何原文片段。"""
-    terms: list[str] = []
-    for fh in h.field_hits:
-        for term in fh.term_counts:
-            if term not in terms:
-                terms.append(term)
-    return ",".join(terms[:6]) or "-"
-
-
-def _recall_status_label(status: str) -> str:
-    """把状态翻译成搜索风险提示，明确 draft 不是正式长期记忆。"""
-    if status == "human_approved":
-        return "human_approved/approved knowledge"
-    if status == "ai_draft":
-        return "ai_draft/risky draft"
-    return status
-
-
-def _recall_hit_next_action() -> str:
-    """recall 命中后的学习流桥接提示；不改变检索结果本身。
-
-    recall 的职责仍是只读检索 human_approved 卡片。v0.6.2 只在 CLI 末尾补
-    下一步建议，避免把 search UX 误扩展成自动 review 或自动 approve。
-    """
-    return (
-        "下一步：用 `mindforge review weekly` 安排复习；需要更多材料时运行 "
-        "`mindforge process --profile fake --limit 1`，再手动 approve。"
-    )
-
-
-def _recall_no_result_next_action(stats: dict[str, int] | None = None) -> str:
-    """recall 无结果时的恢复建议；保持纯本地、不调用 LLM。"""
-    counts = ""
-    if stats is not None:
-        counts = (
-            f"当前 approved cards={stats['human_approved']}，"
-            f"ai_draft={stats['ai_draft']}。"
-        )
-    return (
-        f"{counts}下一步：运行 `mindforge index rebuild`；如只有草稿，先运行 "
-        "`mindforge approve list`；如资料不足，继续 process。也可以缩短 query、"
-        "换同义词，或改用更具体的 title/track 关键词。"
-    )
-
-
-def _hybrid_hit_to_safe_dict(hh, *, explain: bool) -> dict:
-    """HybridHit → JSON 安全 dict；包含 final_score 与三路分量。"""
-    base = _hit_to_safe_dict(hh.base, explain=explain)
-    base["bm25_score"] = round(hh.bm25_score, 6)
-    base["bm25_norm"] = round(hh.bm25_norm, 6)
-    base["value_norm"] = round(hh.value_norm, 6)
-    base["review_due_norm"] = round(hh.review_due_norm, 6)
-    base["final_score"] = round(hh.final_score, 6)
-    base["score"] = base["final_score"]
-    return base
-
-
-def _why_matched(h, hybrid_by_path: dict | None) -> str:
-    """v0.3.2 — 简短"为什么匹配"规则解释（**绝不**返回原文 / body）。
-
-    设计：只用 SearchHit / HybridHit 已暴露的安全元数据组装一句话。
-    输出长度 < 200 字符；只引用 field 名、weight、term 名、分量值。
-    """
-    if not h.field_hits:
-        return "no field hits"
-    top = max(h.field_hits, key=lambda fh: fh.contribution)
-    terms = ",".join(top.term_counts.keys())
-    parts = [f"top field={top.field}(w={top.weight}, +{top.contribution:.3f}) terms={terms}"]
-    if hybrid_by_path:
-        hh = hybrid_by_path.get(h.doc.rel_path)
-        if hh is not None:
-            parts.append(
-                f"hybrid: bm25_norm={hh.bm25_norm:.2f}, "
-                f"value={hh.value_norm:.2f}, review_due={hh.review_due_norm:.2f} "
-                f"→ {hh.final_score:.3f}"
-            )
-    return "; ".join(parts)
-
-
-def _hit_to_safe_dict(h, *, explain: bool) -> dict:
-    """SearchHit → JSON 安全 dict；只暴露白名单字段。"""
-    d = h.doc
-    out: dict = {
-        "score": round(h.score, 6),
-        "id": d.id,
-        "title": d.title,
-        "rel_path": d.rel_path,
-        "status": d.status,
-        "track": d.track,
-        "projects": list(d.projects),
-        "tags": list(d.tags),
-        "source_type": d.source_type,
-        "created_at": d.created_at,
-    }
-    if explain:
-        out["explain"] = [
-            {
-                "field": fh.field,
-                "weight": fh.weight,
-                "contribution": round(fh.contribution, 6),
-                "terms": dict(fh.term_counts),
-            }
-            for fh in h.field_hits
-        ]
-    return out
+    print(recall_search_summary(result).rstrip())
 
 
 @index_app.command("rebuild")
