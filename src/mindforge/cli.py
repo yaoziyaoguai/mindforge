@@ -40,11 +40,10 @@ from .recall_service import (
     RecallQuery,
     RecallServiceError,
     recall_hit_next_action,
-    recall_hit_to_safe_dict,
     recall_no_result_next_action,
-    recall_search_summary,
     run_bm25_recall,
 )
+from .recall_presenter import RecallRenderContext, render_recall_result
 from .run_logger import (
     EVENT_SOURCE_ERROR,
     EVENT_SOURCE_SEEN,
@@ -2165,142 +2164,17 @@ def _do_bm25_recall(
             output_format=output_format,
         )
 
-    if output_format == "json":
-        import json as _json
-
-        items = [
-            recall_hit_to_safe_dict(
-                hit,
-                explain=explain,
-                ranking=ranking,
-                index_stale=result.index.stale,
-                weight_source=result.weight_source,
-            )
-            for hit in result.hits
-        ]
-        payload = {
-            "version": 1,
-            "engine": "bm25",
-            "ranking": ranking,
-            "weight_source": result.weight_source,
-            "active_weights": result.active_weights,
-            "index_stale": result.index.stale,
-            "index": {
-                "source": result.index.source,
-                "used_disk": result.index.used_disk,
-                "path": str(result.index.path),
-                "suggest_rebuild": result.index.suggest_rebuild,
-                "card_counts": result.index.card_counts,
-            },
-            "query": {
-                "track": track,
-                "project": project,
-                "tags": list(tags),
-                "query_provided": kw_provided,
-                "query_hash": kw_hash,
-                "status_filter": status,
-                "include_drafts": include_drafts,
-                "since": since,
-                "until": until,
-                "limit": limit,
-            },
-            "count": result.count,
-            "items": items,
-        }
-        print(_json.dumps(payload, ensure_ascii=False, indent=2))
-        return
-
-    # —— 非 JSON 路径：把 hybrid 的 final_score 与三路分量加到 explain 输出 ——
-    label = result.label
-
-    if output_format == "markdown":
-        print(f"# Recall · {result.count} 项 ({label})\n")
-        print(recall_search_summary(result))
-        if not result.hits:
-            print("_(no cards matched)_")
-            print("\n" + recall_no_result_next_action(result.index.card_counts))
-            return
-        for rank, hit in enumerate(result.hits, start=1):
-            score_str = f"score={hit.score:.3f}"
-            print(
-                f"- **#{rank} [{hit.id or Path(hit.rel_path).stem}]** {hit.title or '(untitled)'}  "
-                f"`{score_str}` `source={hit.source_type or '-'}` "
-                f"`status={hit.status_label}` `track={hit.track or '-'}` "
-                f"`terms={hit.matched_terms}` `path={hit.rel_path}`"
-            )
-            if explain and hit.final_score is not None:
-                print(
-                    f"    - hybrid: bm25={hit.bm25_norm:.3f}·{hit.bm25_score:.3f}, "
-                    f"value={hit.value_norm:.3f}, review_due={hit.review_due_norm:.3f} "
-                    f"→ final={hit.final_score:.3f}"
-                )
-            if explain:
-                for field in hit.field_hits:
-                    terms = ", ".join(f"{t}×{n}" for t, n in field.term_counts.items())
-                    print(f"    - {field.field} (w={field.weight}, +{field.contribution:.3f}): {terms}")
-        print("\n" + recall_hit_next_action())
-        return
-
-    if output_format == "table":
-        _print_recall_search_summary(result)
-        if not result.hits:
-            console.print("[yellow]没有匹配的卡片。[/yellow]")
-            console.print(f"[dim]{recall_no_result_next_action(result.index.card_counts)}[/dim]")
-            return
-        table = Table(title=f"Recall · {result.count} 项 ({label})")
-        table.add_column("rank", justify="right")
-        table.add_column("score", justify="right")
-        table.add_column("title")
-        table.add_column("source")
-        table.add_column("status")
-        table.add_column("matched terms")
-        table.add_column("next")
-        for rank, hit in enumerate(result.hits, start=1):
-            table.add_row(
-                str(rank),
-                f"{hit.score:.3f}",
-                hit.title or "(untitled)",
-                hit.source_type or "-",
-                hit.status_label,
-                hit.matched_terms,
-                "review weekly",
-            )
-        console.print(table)
-        console.print(f"[dim]{recall_hit_next_action()}[/dim]")
-        return
-
-    # compact（默认）
-    _print_recall_search_summary(result)
-    if not result.hits:
-        console.print("[yellow]没有匹配的卡片。[/yellow]")
-        print(recall_no_result_next_action(result.index.card_counts))
-        return
-    console.print(f"[bold]Recall[/bold] · {result.count} 项 ({label})")
-    for rank, hit in enumerate(result.hits, start=1):
-        console.print(
-            f"- score={hit.score:.3f} · rank=#{rank} · {hit.id or Path(hit.rel_path).stem} · "
-            f"{hit.title or '(untitled)'} · source={hit.source_type or '-'} · "
-            f"status={hit.status_label} · terms={hit.matched_terms}"
-        )
-        if explain:
-            console.print(f"    [dim]why[/dim] {hit.why_this_matched}")
-            if hit.final_score is not None:
-                console.print(
-                    f"    [dim]hybrid[/dim] bm25={hit.bm25_norm:.3f}·{hit.bm25_score:.3f} "
-                    f"value={hit.value_norm:.3f} review_due={hit.review_due_norm:.3f} "
-                    f"→ final={hit.final_score:.3f}"
-                )
-            for field in hit.field_hits:
-                terms = ", ".join(f"{t}×{n}" for t, n in field.term_counts.items())
-                console.print(
-                    f"    [dim]{field.field}[/dim] w={field.weight} +{field.contribution:.3f}: {terms}"
-                )
-    console.print(f"[dim]{recall_hit_next_action()}[/dim]")
-
-
-def _print_recall_search_summary(result) -> None:
-    """用普通文本打印搜索摘要，避免 Rich markup 吞掉 query 中的方括号。"""
-    print(recall_search_summary(result).rstrip())
+    render_recall_result(
+        console=console,
+        result=result,
+        output_format=output_format,
+        context=RecallRenderContext(
+            keyword_provided=kw_provided,
+            keyword_hash=kw_hash,
+            since=since,
+            until=until,
+        ),
+    )
 
 
 @index_app.command("rebuild")
