@@ -17,6 +17,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .app_context import AppContextError, load_app_config
 from .checkpoint import Checkpoint
 from .config import ConfigError, MindForgeConfig, load_mindforge_config
 from .env_loader import load_dotenv_silently
@@ -140,16 +141,16 @@ def _load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
     # 入口处加载 .env（静默，不打印 value，env > dotfile）
     if read_env:
         load_dotenv_silently(Path.cwd())
-    if not config_path.exists():
-        console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
-        console.print(
-            "[dim]提示：可以从仓库中的 configs/mindforge.yaml 复制一份到目标位置，"
-            "再用 --config 指定，或直接在仓库根运行命令。[/dim]"
-        )
-        raise typer.Exit(code=2)
     try:
-        cfg = load_mindforge_config(config_path)
-    except ConfigError as e:
+        return load_app_config(config_path, vault_override=_global_vault_override())
+    except AppContextError as e:
+        if e.kind == "missing_config":
+            console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
+            console.print(
+                "[dim]提示：可以从仓库中的 configs/mindforge.yaml 复制一份到目标位置，"
+                "再用 --config 指定，或直接在仓库根运行命令。[/dim]"
+            )
+            raise typer.Exit(code=2) from e
         console.print(f"[red]✗ 配置错误：{e}[/red]")
         console.print(
             "[dim]提示：请检查 vault.root、sources.enabled、llm.active_profile "
@@ -157,22 +158,15 @@ def _load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
         )
         raise typer.Exit(code=2) from e
 
-    # ── --vault override（CLI > config）─────────────────────────────────
-    # 仅替换 vault.root，其他子字段（inbox_root / cards_dir / projects_dir）保留。
-    # 这样用户可以"同一份 yaml + 不同 vault"复用，无需复制配置。
-    return _apply_global_vault_override(cfg)
 
-
-def _apply_global_vault_override(cfg: MindForgeConfig) -> MindForgeConfig:
-    """应用全局 --vault 覆盖；只改 vault.root，不碰 yaml 文件。"""
+def _global_vault_override() -> Path | None:
+    """读取 CLI 入口设置的 vault override；不读取 `.env` 文件。"""
     import os as _os
-    from dataclasses import replace as _replace
 
     override = _os.environ.get("MINDFORGE_VAULT_OVERRIDE")
     if not override:
-        return cfg
-    new_vault = _replace(cfg.vault, root=Path(override))
-    return _replace(cfg, vault=new_vault)
+        return None
+    return Path(override)
 
 
 def _override_active_profile(cfg: MindForgeConfig, profile: str | None) -> MindForgeConfig:
@@ -3929,8 +3923,8 @@ def config_doctor(
         console.print("Safe defaults: fake provider, no .env, no real LLM, no Obsidian writes.", markup=False)
         raise typer.Exit(code=2)
     try:
-        cfg = _apply_global_vault_override(load_mindforge_config(config))
-    except ConfigError as e:
+        cfg = load_app_config(config, vault_override=_global_vault_override())
+    except AppContextError as e:
         console.print(f"[red]✗ config invalid[/red] {e}")
         console.print("Next: fix YAML, or run `mindforge config init --dry-run` to inspect a safe template.")
         raise typer.Exit(code=2) from e
@@ -4598,7 +4592,6 @@ def version(
 ) -> None:
     """打印 MindForge 版本与当前运行配置摘要。"""
     from . import __version__
-    from .config import load_mindforge_config
     from .telemetry import telemetry_path
 
     console.print(f"[bold]MindForge[/bold] v{__version__}")
@@ -4608,18 +4601,10 @@ def version(
         console.print("[dim]提示：复制 configs/mindforge.yaml 到目标位置后重试。[/dim]")
         return
     try:
-        cfg = load_mindforge_config(config)
-    except ConfigError as e:
+        cfg = load_app_config(config, vault_override=_global_vault_override())
+    except AppContextError as e:
         console.print(f"  [red]config 解析失败：{e}[/red]")
         raise typer.Exit(code=2) from e
-
-    # 兼容全局 --vault override（与 _load_cfg 行为一致）
-    import os as _os
-    from dataclasses import replace as _replace
-
-    _ov = _os.environ.get("MINDFORGE_VAULT_OVERRIDE")
-    if _ov:
-        cfg = _replace(cfg, vault=_replace(cfg.vault, root=Path(_ov)))
 
     console.print(f"- vault.root        : {cfg.vault.root}")
     console.print(f"- vault.inbox_root  : {cfg.vault.inbox_root}")
