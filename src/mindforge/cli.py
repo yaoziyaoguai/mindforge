@@ -404,21 +404,23 @@ def _do_single_approve(
     cfg: MindForgeConfig,
 ) -> None:
     """单卡晋升执行体（callback / source-id 路径共用）。"""
-    from .approver import ApprovalError, approve_card
+    from .approval_service import approve_explicit_card
 
     with RunLogger(cfg.state.runs_path, command="approve") as logger:  # type: ignore[attr-defined]
         logger.emit("approval_started", card_path=str(card_path))
-        try:
-            outcome = approve_card(card_path, cfg=cfg)
-        except ApprovalError as e:
+        result = approve_explicit_card(cfg, card_path)
+        if result.error is not None:
             logger.emit(
                 "approval_failed",
                 card_path=str(card_path),
-                error_message=str(e),
-                prev_status=e.prev_status or "",
+                error_message=result.error.message,
+                prev_status=result.error.prev_status or "",
             )
-            console.print(f"[red]approve 失败：{e}[/red]")
-            raise typer.Exit(code=e.exit_code) from e
+            console.print(f"[red]approve 失败：{result.error.message}[/red]")
+            raise typer.Exit(code=result.error.exit_code)
+
+        assert result.outcome is not None
+        outcome = result.outcome
 
         completed_fields: dict[str, object] = {
             "card_path": str(outcome.card_path),
@@ -507,28 +509,14 @@ def approve(
 
     # ── --source-id：state.json 反查 card_path ───────────────────
     if source_id is not None:
-        from .checkpoint import Checkpoint
+        from .approval_service import resolve_card_path_by_source_id
 
-        cp = Checkpoint.load(cfg.state.state_path)
-        match: ItemState | None = None
-        for it in cp.items.values():
-            if it.source_id == source_id:
-                match = it
-                break
-        if match is None:
-            console.print(f"[red]✗ state.json 中未找到 source_id={source_id}[/red]")
-            raise typer.Exit(code=2)
-        if not match.card_path:
-            console.print(
-                f"[red]✗ source_id={source_id} 还没有 card_path（也许尚未 process）[/red]"
-            )
-            raise typer.Exit(code=3)
-        card_abs = (cfg.vault.cards_path / match.card_path).resolve()
-        if not card_abs.is_file():
-            # 兼容：card_path 可能是 vault-root 相对
-            alt = (cfg.vault.root / match.card_path).resolve()
-            card_abs = alt if alt.is_file() else card_abs
-        _do_single_approve(card_abs, cfg)
+        lookup = resolve_card_path_by_source_id(cfg, source_id)
+        if lookup.error is not None:
+            console.print(f"[red]✗ {lookup.error.message}[/red]")
+            raise typer.Exit(code=lookup.error.exit_code)
+        assert lookup.card_path is not None
+        _do_single_approve(lookup.card_path, cfg)
         return
 
     # ── --all 批量路径 ──────────────────────────────────────────
@@ -551,12 +539,10 @@ def _do_bulk_approve(
     为什么默认拒绝：批量批准是把"AI 草稿"一次性升级为"长期记忆"的危险动作，
     必须显式 ``--confirm`` 才能写入。``--dry-run`` 仅展示候选列表。
     """
-    from .cards import iter_cards
+    from .approval_service import build_bulk_approval_plan
 
-    res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    drafts = [c for c in res.cards if c.status == "ai_draft"]
-    if limit > 0:
-        drafts = drafts[:limit]
+    plan = build_bulk_approval_plan(cfg, limit=limit)
+    drafts = list(plan.candidates)
 
     if not drafts:
         console.print("[dim](no ai_draft cards found)[/dim]")
@@ -630,21 +616,20 @@ def approve_list(
     ),
 ) -> None:
     """列出可 approve 的卡片（安全字段摘要；不读卡片正文）。"""
-    from .cards import iter_cards
+    from .approval_service import ApprovalListQuery, list_approval_candidates
 
     cfg = _load_cfg(config, read_env=False)
     wanted = {s.strip() for s in status.split(",") if s.strip()}
-    res = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    rows = []
-    for c in res.cards:
-        if wanted and c.status not in wanted:
-            continue
-        if project and project not in c.projects:
-            continue
-        if track and c.track != track:
-            continue
-        rows.append(c)
-    rows = rows[:limit]
+    res = list_approval_candidates(
+        cfg,
+        ApprovalListQuery(
+            statuses=tuple(wanted),
+            project=project,
+            track=track,
+            limit=limit,
+        ),
+    )
+    rows = list(res.candidates)
 
     if format_.lower() == "json":
         import json as _json
@@ -718,24 +703,18 @@ def approve_show(
     v0.6.5 dogfooding 需要用户在 approve 前多看一步，但这里仍守住边界：
     只读 frontmatter 白名单字段，不打印 source raw text，也不把 ai_draft 自动晋升。
     """
-    from .cards import read_card_frontmatter
+    from .approval_service import APPROVAL_PREVIEW_FIELDS, preview_approval_card
 
     cfg = _load_cfg(config, read_env=False)
-    card_path = card.expanduser()
-    if not card_path.is_absolute():
-        card_path = cfg.vault.root / card_path
-    if not card_path.exists():
-        console.print(f"[red]✗ card 不存在：{card_path}[/red]")
+    preview = preview_approval_card(cfg, card)
+    card_path = preview.card_path or card
+    if preview.error is not None:
+        console.print(f"[red]✗ {preview.error.message}[/red]")
         console.print("Next: mindforge approve list", markup=False)
-        raise typer.Exit(code=2)
-    try:
-        fm = read_card_frontmatter(card_path)
-    except Exception as e:  # noqa: BLE001 - 只打印解析错误摘要，不输出正文
-        console.print(f"[red]✗ card frontmatter 无法读取：{type(e).__name__}: {e}[/red]")
-        raise typer.Exit(code=2) from e
+        raise typer.Exit(code=preview.error.exit_code)
     console.print("[bold]Approve preview[/bold]")
-    for key in ("id", "title", "status", "track", "source_type", "source_title", "created_at", "value_score"):
-        console.print(f"{key:<12}: {fm.get(key, '-')}")
+    for key in APPROVAL_PREVIEW_FIELDS:
+        console.print(f"{key:<12}: {preview.fields.get(key, '-')}")
     console.print(f"path        : {card_path}")
     console.print(
         "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
