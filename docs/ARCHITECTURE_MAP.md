@@ -6,10 +6,12 @@
 ## CLI / Command Layer
 
 - `src/mindforge/cli.py`
+- `src/mindforge/obsidian_cli.py`
 
 职责：
 
-- Typer app 和命令入口；
+- `cli.py`：top-level Typer app、全局选项和 command registry；
+- `obsidian_cli.py`：Obsidian 子命令 adapter；
 - CLI 参数与 exit code；
 - 用户可见输出；
 - RunLogger 事件；
@@ -20,6 +22,13 @@
 - CLI 可以组合多个 service，但不应承载核心业务判断；
 - CLI 可以渲染 Markdown/JSON/Rich 输出；
 - CLI 不应把 LLM、approval、review、Obsidian 写入边界写散。
+- `obsidian_cli.py` 可以依赖 Typer/Rich，因为它是 command adapter；但它不能
+  承接 Obsidian 核心业务规则，也不能新增 apply/write-back。
+
+当前说明：
+
+- `cli.py` 已挂载 `obsidian_app`，不再承载大段 Obsidian handler；
+- 其他命令仍可能留在 `cli.py`，这是后续治理点。
 
 ## Service Layer
 
@@ -64,8 +73,9 @@
 - 不做业务判断；
 - 不改变状态。
 
-当前 presenter 层仍不完整：`review weekly` 和多数 Obsidian 输出仍由 `cli.py`
-直接渲染。
+当前 presenter 层仍不完整：`review weekly` 仍由 `cli.py` 直接渲染；
+Obsidian 输出已迁入 `obsidian_cli.py` 这个 command adapter，但还不是独立
+presenter。
 
 ## Context / Policy Layer
 
@@ -87,6 +97,7 @@
 - `src/mindforge/obsidian.py`
 - `src/mindforge/obsidian_stage.py`
 - `src/mindforge/obsidian_workflow.py`
+- `src/mindforge/obsidian_cli.py`
 
 职责：
 
@@ -95,6 +106,12 @@
 - staged export / manifest / diff；
 - preflight readiness；
 - dogfooding next-plan。
+
+说明：
+
+- `obsidian_cli.py` 只是 CLI adapter，不是 integration core；
+- `obsidian.py` / `obsidian_stage.py` / `obsidian_workflow.py` 继续承接结构化
+  integration/service 逻辑。
 
 安全边界：
 
@@ -117,9 +134,11 @@
 ## 未治理完的地方
 
 - `cli.py` 仍然是主巨石；
-- Obsidian CLI handler 可能适合后续迁出；
+- `cli.py` 仍可能承载 process/provider/start/commands 等命令入口；
 - process/provider 命令可能适合后续 service extraction；
 - presenter 层还不完整；
 - `obsidian.py` 仍较宽，preflight 可考虑后续独立为专门 service；
+- Obsidian 内部 service/presenter 仍需观察，避免 `obsidian_cli.py` 形成新的
+  输出小巨石；
 - review/approval/presenter 需要继续观察，避免形成新的小巨石；
 - 测试文件仍按历史版本聚合，短期作为保护网保留。
