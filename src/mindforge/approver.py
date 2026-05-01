@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -45,20 +46,114 @@ class ApprovalError(Exception):
         self.prev_status = prev_status
 
 
-ApprovalOutcomeKind = Literal["approved", "already_approved"]
+# ---------------------------------------------------------------------------
+# Bundle B：first-class ApprovalDecision seam
+#
+# 设计动机（务必理解再扩展，否则容易回退到巨石）：
+#
+# 1. ``ApprovalDecision`` 表达**用户/流程层面的"决定"**：用户在审 ai_draft
+#    卡片时可能选择 approve / reject / defer / append-as-evidence /
+#    link-to-existing / merge-candidate / split。这是一个**意图域**。
+#
+# 2. ``ApprovalEffect``（原 ``ApprovalOutcome``）表达**系统执行后的"效果"**：
+#    实际 frontmatter 改了什么、是否幂等、是否找到 ItemState。这是**结果域**。
+#
+# 3. 把两者合在一个名字下（旧 ``ApprovalOutcome`` 同时承担"用户做了什么"和
+#    "系统发生了什么"）会随着 reject/defer/merge/split 的加入迅速变成
+#    "无所不包的状态字典"。本轮 rename + enum 是为了从源头切开。
+#
+# 4. 本轮**只接通 APPROVE 分支**（复用既有 ``approve_card``）。其余 6 个分支
+#    在 ``apply_decision`` 中显式 ``raise NotImplementedDecisionError``，
+#    错误消息明确说"该 decision 是已规划的扩展点，但尚未实现"。
+#
+#    显式 NotImplemented 而不是静默 ignore 的理由：
+#    - CLI 层任何误用都会立刻爆炸，绝不会"假装成功"
+#    - fitness 测试可以 AST 锁住"dispatcher 必须穷举所有 enum 成员"
+#    - 后续 Bundle B-2/B-3 添加 reject/defer 时，只改 dispatcher 单分支，
+#      调用方零感知
+#
+# 5. 本轮**不**新增任何 CLI 子命令；CLI ``approve`` 仍走既有
+#    ``approve_explicit_card`` 路径。seam 只是把"决定"这件事在领域模型上
+#    显式化，避免 review/approval 模块再次巨石化。
+# ---------------------------------------------------------------------------
+
+
+class ApprovalDecision(str, Enum):
+    """用户对一张 ai_draft 卡片的**决定**。
+
+    取值采用 ``str`` 基类是为了 JSON / 日志序列化时直接得到稳定字符串，
+    避免 ``ApprovalDecision.APPROVE`` 在跨进程边界变成 ``"<ApprovalDecision.APPROVE: 'approve'>"``。
+
+    枚举顺序无业务含义；新增分支必须**同时**在 :func:`apply_decision`
+    的 dispatcher 中处理（由 fitness 测试静态保证）。
+    """
+
+    APPROVE = "approve"
+    REJECT = "reject"
+    DEFER = "defer"
+    APPEND_AS_EVIDENCE = "append_as_evidence"
+    LINK_TO_EXISTING = "link_to_existing"
+    MERGE_CANDIDATE = "merge_candidate"
+    SPLIT = "split"
+
+
+class NotImplementedDecisionError(ApprovalError):
+    """显式声明：该 decision 是 Phase 1 已规划的扩展点，但当前 bundle 未实现。
+
+    继承 ``ApprovalError`` 是为了让 CLI 既有错误处理路径自然兜住（exit code
+    复用），不必在 CLI 中新增分支。``exit_code=64`` 取自 ``EX_USAGE``：调用
+    了一个语义合法但实现尚未到位的 decision，本质上是用法时序错误。
+    """
+
+    def __init__(self, decision: "ApprovalDecision") -> None:
+        super().__init__(
+            f"approval decision {decision.value!r} 已在领域模型中预留，"
+            f"但当前版本尚未实现执行路径；仅 'approve' 已接通。",
+            exit_code=64,
+        )
+        self.decision = decision
 
 
 @dataclass(frozen=True)
-class ApprovalOutcome:
-    """approve 成功路径的结果。失败一律抛 ApprovalError。"""
+class ApprovalRequest:
+    """承载用户**意图**的值对象，不含任何 IO 行为。
 
-    kind: ApprovalOutcomeKind
+    ``target_card_path`` / ``note`` 留给后续 link/merge/defer 分支使用，本轮
+    APPROVE 分支不消费这两个字段。
+    """
+
+    card_path: Path
+    decision: ApprovalDecision
+    target_card_path: Path | None = None
+    note: str | None = None
+
+
+ApprovalEffectKind = Literal["approved", "already_approved"]
+
+
+@dataclass(frozen=True)
+class ApprovalEffect:
+    """approve 成功路径的**执行效果**记录。失败一律抛 ApprovalError。
+
+    历史名字 ``ApprovalOutcome`` 同时被理解为"用户决定"和"系统效果"，导致
+    引入 ``ApprovalDecision`` 时命名碰撞。Bundle B 将其重命名为
+    ``ApprovalEffect``，与 ``ApprovalDecision`` 形成清晰二元：
+    ``decision``（用户做了什么）→ dispatcher → ``effect``（系统结果如何）。
+    """
+
+    kind: ApprovalEffectKind
     card_path: Path
     prev_status: str
     new_status: str
     approval_method: str
     approved_at: datetime | None  # already_approved 路径不更新此字段
     state_missing: bool
+
+
+# 历史别名：保持外部 import ``from mindforge.approver import ApprovalOutcome``
+# 暂时可用，便于未受控的下游脚本平滑过渡。本仓库内部一律使用新名字。
+ApprovalOutcome = ApprovalEffect
+ApprovalOutcomeKind = ApprovalEffectKind
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +207,7 @@ def approve_card(
     card_path: Path,
     *,
     cfg: MindForgeConfig,
-) -> ApprovalOutcome:
+) -> ApprovalEffect:
     """显式人工晋升一张 Knowledge Card 为 ``human_approved``。
 
     不抛网络异常 / 不实例化 LLM。失败抛 ``ApprovalError``。
@@ -120,7 +215,7 @@ def approve_card(
     state.json 同步：
     - 找到对应 ItemState（按 ``card_path`` 反查）→ 更新 status / approved_at /
       approval_method 并 save。
-    - 找不到 → 仍 approve 卡片，``ApprovalOutcome.state_missing=True``，
+    - 找不到 → 仍 approve 卡片，``ApprovalEffect.state_missing=True``，
       由 CLI 在 jsonl 中标注。
     """
     if not card_path.exists() or not card_path.is_file():
@@ -150,7 +245,7 @@ def approve_card(
 
     # ---- 幂等路径 ----
     if prev_status == _TARGET_STATUS:
-        return ApprovalOutcome(
+        return ApprovalEffect(
             kind="already_approved",
             card_path=card_path,
             prev_status=prev_status,
@@ -187,7 +282,7 @@ def approve_card(
         item.approval_method = APPROVAL_METHOD_EXPLICIT_CLI
         checkpoint.save()
 
-    return ApprovalOutcome(
+    return ApprovalEffect(
         kind="approved",
         card_path=card_path,
         prev_status=prev_status,
@@ -232,7 +327,59 @@ def _find_item_by_card(
 
 __all__ = [
     "APPROVAL_METHOD_EXPLICIT_CLI",
+    "ApprovalDecision",
+    "ApprovalEffect",
+    "ApprovalEffectKind",
     "ApprovalError",
-    "ApprovalOutcome",
+    "ApprovalOutcome",  # 历史别名（= ApprovalEffect），保留以平滑迁移
+    "ApprovalRequest",
+    "NotImplementedDecisionError",
+    "apply_decision",
     "approve_card",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Decision dispatcher
+#
+# 当前唯一接通的分支是 APPROVE → ``approve_card``。其余 6 个分支是 Phase 1
+# Roadmap 显式预留的扩展点，必须 raise :class:`NotImplementedDecisionError`
+# 而不是 ``pass`` / 返回 None / 静默忽略：否则上层调用一旦误用，会得到一个
+# "看起来成功"的 None，破坏 ai_draft / human_approved 边界。
+#
+# 新增 enum 成员时**必须**同步在本函数中处理一个对应分支；
+# ``tests/test_approval_decision.py`` 中的 fitness 测试会 AST 静态保证这条
+# 不变量，避免后续 Coding Agent 加了 enum 成员却忘了接 dispatcher。
+# ---------------------------------------------------------------------------
+
+
+def apply_decision(
+    request: ApprovalRequest,
+    *,
+    cfg: MindForgeConfig,
+) -> ApprovalEffect:
+    """根据用户 decision 调用对应执行路径。
+
+    本函数是 Phase 1 "first-class approval outcomes" 的入口 seam。它把
+    "用户做了什么决定"（``ApprovalDecision``）和"系统执行后的效果"
+    （``ApprovalEffect``）解耦，使后续 reject/defer/append/link/merge/split
+    可以**只在本 dispatcher 中加分支**，无需扩散到 CLI / presenter / service。
+    """
+
+    decision = request.decision
+    if decision is ApprovalDecision.APPROVE:
+        return approve_card(request.card_path, cfg=cfg)
+    if decision is ApprovalDecision.REJECT:
+        raise NotImplementedDecisionError(decision)
+    if decision is ApprovalDecision.DEFER:
+        raise NotImplementedDecisionError(decision)
+    if decision is ApprovalDecision.APPEND_AS_EVIDENCE:
+        raise NotImplementedDecisionError(decision)
+    if decision is ApprovalDecision.LINK_TO_EXISTING:
+        raise NotImplementedDecisionError(decision)
+    if decision is ApprovalDecision.MERGE_CANDIDATE:
+        raise NotImplementedDecisionError(decision)
+    if decision is ApprovalDecision.SPLIT:
+        raise NotImplementedDecisionError(decision)
+    # Defensive：枚举被扩展但 dispatcher 漏改时立刻爆炸；不静默 fallback。
+    raise NotImplementedDecisionError(decision)

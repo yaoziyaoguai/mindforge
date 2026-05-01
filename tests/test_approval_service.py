@@ -192,8 +192,8 @@ def test_approve_requires_explicit_target_and_promotes_only_that_card(tmp_path: 
     result = approve_explicit_card(cfg, target)
 
     assert result.error is None
-    assert result.outcome is not None
-    assert result.outcome.new_status == "human_approved"
+    assert result.effect is not None
+    assert result.effect.new_status == "human_approved"
     assert "status: human_approved" in target.read_text(encoding="utf-8")
     assert other.read_text(encoding="utf-8") == other_before
     assert formal_note.read_text(encoding="utf-8") == note_before
@@ -217,8 +217,8 @@ def test_human_approved_card_is_idempotent_not_reapproved(tmp_path: Path) -> Non
 
     result = approve_explicit_card(cfg, card)
 
-    assert result.outcome is not None
-    assert result.outcome.kind == "already_approved"
+    assert result.effect is not None
+    assert result.effect.kind == "already_approved"
     assert card.read_text(encoding="utf-8") == before
 
 

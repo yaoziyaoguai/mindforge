@@ -414,19 +414,19 @@ def _do_single_approve(
             render_execution_failure(console, result.error)
             raise typer.Exit(code=result.error.exit_code)
 
-        assert result.outcome is not None
-        outcome = result.outcome
+        assert result.effect is not None
+        effect = result.effect
 
         completed_fields: dict[str, object] = {
-            "card_path": str(outcome.card_path),
-            "status": outcome.new_status,
-            "prev_status": outcome.prev_status,
-            "approval_method": outcome.approval_method,
-            "idempotent": outcome.kind == "already_approved",
+            "card_path": str(effect.card_path),
+            "status": effect.new_status,
+            "prev_status": effect.prev_status,
+            "approval_method": effect.approval_method,
+            "idempotent": effect.kind == "already_approved",
         }
-        if outcome.approved_at is not None:
-            completed_fields["approved_at"] = outcome.approved_at.isoformat()
-        if outcome.state_missing:
+        if effect.approved_at is not None:
+            completed_fields["approved_at"] = effect.approved_at.isoformat()
+        if effect.state_missing:
             completed_fields["state_missing"] = True
         logger.emit("approval_completed", **completed_fields)
 

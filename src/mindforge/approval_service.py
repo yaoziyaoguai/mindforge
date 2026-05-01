@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .approver import ApprovalError, ApprovalOutcome, approve_card
+from .approver import ApprovalEffect, ApprovalError, approve_card
 from .cards import CardLoadValueError, CardLoadError, CardSummary, iter_cards, read_card_frontmatter
 from .checkpoint import Checkpoint
 from .config import MindForgeConfig
@@ -87,14 +87,18 @@ class ApprovalPreviewResult:
 
 @dataclass(frozen=True)
 class ApprovalExecutionResult:
-    """显式 approve 的结构化执行结果；失败不抛给 CLI。"""
+    """显式 approve 的结构化执行结果；失败不抛给 CLI。
 
-    outcome: ApprovalOutcome | None = None
+    ``effect`` 字段（原 ``outcome``）记录系统执行后的实际变化；与领域里的
+    ``ApprovalDecision``（用户意图）形成清晰二元，避免一个名字承担两件事。
+    """
+
+    effect: ApprovalEffect | None = None
     error: ApprovalServiceError | None = None
 
     @property
     def ok(self) -> bool:
-        return self.error is None and self.outcome is not None
+        return self.error is None and self.effect is not None
 
 
 def list_approval_candidates(
@@ -276,7 +280,7 @@ def approve_explicit_card(
             )
         )
     try:
-        return ApprovalExecutionResult(outcome=approve_card(card_path, cfg=cfg))
+        return ApprovalExecutionResult(effect=approve_card(card_path, cfg=cfg))
     except ApprovalError as exc:
         return ApprovalExecutionResult(
             error=ApprovalServiceError(

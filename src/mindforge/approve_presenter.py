@@ -299,24 +299,24 @@ def render_execution_success(
 
     包含的展示意图：成功提示 / 幂等提示 / 边界说明 / state_missing 警告。
     """
-    assert result.outcome is not None
-    outcome = result.outcome
-    if outcome.kind == "already_approved":
+    assert result.effect is not None
+    effect = result.effect
+    if effect.kind == "already_approved":
         console.print(
-            f"[yellow]已是 human_approved（幂等）：{outcome.card_path}[/yellow]"
+            f"[yellow]已是 human_approved（幂等）：{effect.card_path}[/yellow]"
         )
         return
     console.print(
-        f"[green]✔ approved[/green] {outcome.card_path}  "
-        f"(prev={outcome.prev_status} → {outcome.new_status}, "
-        f"method={outcome.approval_method})"
+        f"[green]✔ approved[/green] {effect.card_path}  "
+        f"(prev={effect.prev_status} → {effect.new_status}, "
+        f"method={effect.approval_method})"
     )
     console.print(
         "[dim]边界：这是一次显式人工 approve；MindForge 不会让 AI 自动写入 "
         "human_approved。下一步可运行 `mindforge recall --query ...` 或 "
         "`mindforge review weekly` 使用这张卡片。[/dim]"
     )
-    if outcome.state_missing:
+    if effect.state_missing:
         console.print(
             "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
         )

@@ -48,7 +48,7 @@ from mindforge.approval_service import (
     ApprovalPreviewResult,
     ApprovalServiceError,
 )
-from mindforge.approver import ApprovalOutcome
+from mindforge.approver import ApprovalEffect
 from mindforge.cards import CardSummary
 
 
@@ -253,8 +253,8 @@ def test_render_bulk_empty_state():
 # ---------------------------------------------------------------------------
 
 
-def _outcome(kind: str = "approved", state_missing: bool = False) -> ApprovalOutcome:
-    return ApprovalOutcome(
+def _outcome(kind: str = "approved", state_missing: bool = False) -> ApprovalEffect:
+    return ApprovalEffect(
         kind=kind,  # type: ignore[arg-type]
         card_path=Path("/tmp/vault/cards/x.md"),
         prev_status="ai_draft",
@@ -267,7 +267,7 @@ def _outcome(kind: str = "approved", state_missing: bool = False) -> ApprovalOut
 
 def test_render_execution_success_includes_check_mark_and_boundary_line():
     """approve 成功：✔ approved + prev/new/method + 边界 dim 提示。"""
-    res = ApprovalExecutionResult(outcome=_outcome("approved"))
+    res = ApprovalExecutionResult(effect=_outcome("approved"))
     console, buf = _capture_console()
     approve_presenter.render_execution_success(console, res)
     out = buf.getvalue()
@@ -279,7 +279,7 @@ def test_render_execution_success_includes_check_mark_and_boundary_line():
 
 def test_render_execution_success_idempotent_branch():
     """已批准：黄字幂等提示，不应再出现 ✔。"""
-    res = ApprovalExecutionResult(outcome=_outcome("already_approved"))
+    res = ApprovalExecutionResult(effect=_outcome("already_approved"))
     console, buf = _capture_console()
     approve_presenter.render_execution_success(console, res)
     out = buf.getvalue()
@@ -288,7 +288,7 @@ def test_render_execution_success_idempotent_branch():
 
 
 def test_render_execution_success_state_missing_warning():
-    res = ApprovalExecutionResult(outcome=_outcome("approved", state_missing=True))
+    res = ApprovalExecutionResult(effect=_outcome("approved", state_missing=True))
     console, buf = _capture_console()
     approve_presenter.render_execution_success(console, res)
     assert "state.json 中找不到对应 item" in buf.getvalue()
@@ -414,9 +414,9 @@ def test_presenter_does_not_call_path_write_text_or_read_text():
 
 def test_presenter_does_not_modify_input_dataclasses():
     """presenter 输入是 frozen dataclass；尝试修改会抛 FrozenInstanceError。"""
-    res = ApprovalExecutionResult(outcome=_outcome("approved"))
+    res = ApprovalExecutionResult(effect=_outcome("approved"))
     with pytest.raises(Exception):
-        res.outcome = None  # type: ignore[misc]
+        res.effect = None  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
