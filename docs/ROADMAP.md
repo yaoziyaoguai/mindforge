@@ -160,6 +160,17 @@ provider.
     serve the Obsidian workflow are all documented and surfaced through
     `doctor` / `next`.
 
+**Phase 1 closed-loop dogfood test (living regression spine):**
+
+`tests/test_phase1_cubox_e2e.py` is the canonical executable specification
+of the 9-step closed loop. It uses the Cubox first-class adapter
+(`CuboxMarkdownAdapter`) on a real-shape sample fixture, drives the
+`KnowledgeStrategy` seam (criterion 7) via `build_strategy(...)`, and
+promotes the resulting `ai_draft` card to `human_approved` via the
+`ApprovalDecision.APPROVE` seam (criterion 9). Any regression in either
+seam, in the Cubox adapter contract, or in the workspace safety boundary
+fails this test before it can reach a release.
+
 **Phase 1 Non-Goals (explicit):**
 
 - No Web UI, no TUI, no Obsidian plugin.
