@@ -70,7 +70,8 @@
 ## Presenter Layer
 
 - `src/mindforge/recall_presenter.py`
-- 未来可扩展 review / approval / Obsidian presenter。
+- `src/mindforge/approve_presenter.py`
+- 未来可扩展 review / process / Obsidian presenter。
 
 职责：
 
@@ -80,8 +81,10 @@
 - 不改变状态。
 
 当前 presenter 层仍不完整：`review weekly` 仍由 `cli.py` 直接渲染；
+`process` / `scan` / `config doctor` 等命令仍内嵌 console.print；
 Obsidian 输出已迁入 `obsidian_cli.py` 这个 command adapter，但还不是独立
-presenter。
+presenter。v0.7.21 已抽出 `approve_presenter.py`，覆盖 approve list /
+approve show / approve --all / 单卡 approve 结果 / routing 与错误展示。
 
 ## Context / Policy Layer
 

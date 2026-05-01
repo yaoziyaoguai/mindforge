@@ -395,6 +395,10 @@ def _do_single_approve(
 ) -> None:
     """单卡晋升执行体（callback / source-id 路径共用）。"""
     from .approval_service import approve_explicit_card
+    from .approve_presenter import (
+        render_execution_failure,
+        render_execution_success,
+    )
 
     with RunLogger(cfg.state.runs_path, command="approve") as logger:  # type: ignore[attr-defined]
         logger.emit("approval_started", card_path=str(card_path))
@@ -406,7 +410,7 @@ def _do_single_approve(
                 error_message=result.error.message,
                 prev_status=result.error.prev_status or "",
             )
-            console.print(f"[red]approve 失败：{result.error.message}[/red]")
+            render_execution_failure(console, result.error)
             raise typer.Exit(code=result.error.exit_code)
 
         assert result.outcome is not None
@@ -425,25 +429,7 @@ def _do_single_approve(
             completed_fields["state_missing"] = True
         logger.emit("approval_completed", **completed_fields)
 
-    if outcome.kind == "already_approved":
-        console.print(
-            f"[yellow]已是 human_approved（幂等）：{outcome.card_path}[/yellow]"
-        )
-    else:
-        console.print(
-            f"[green]✔ approved[/green] {outcome.card_path}  "
-            f"(prev={outcome.prev_status} → {outcome.new_status}, "
-            f"method={outcome.approval_method})"
-        )
-        console.print(
-            "[dim]边界：这是一次显式人工 approve；MindForge 不会让 AI 自动写入 "
-            "human_approved。下一步可运行 `mindforge recall --query ...` 或 "
-            "`mindforge review weekly` 使用这张卡片。[/dim]"
-        )
-        if outcome.state_missing:
-            console.print(
-                "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
-            )
+    render_execution_success(console, result)
 
 
 @approve_app.callback(invoke_without_command=True)
@@ -500,10 +486,11 @@ def approve(
     # ── --source-id：state.json 反查 card_path ───────────────────
     if source_id is not None:
         from .approval_service import resolve_card_path_by_source_id
+        from .approve_presenter import render_lookup_error
 
         lookup = resolve_card_path_by_source_id(cfg, source_id)
         if lookup.error is not None:
-            console.print(f"[red]✗ {lookup.error.message}[/red]")
+            render_lookup_error(console, lookup)
             raise typer.Exit(code=lookup.error.exit_code)
         assert lookup.card_path is not None
         _do_single_approve(lookup.card_path, cfg)
@@ -515,9 +502,9 @@ def approve(
         return
 
     # 没给任何动作 → 友好提示
-    console.print(
-        "[yellow]请提供动作：--card <path> / --source-id <id> / --all --dry-run / approve list[/yellow]"
-    )
+    from .approve_presenter import render_routing_hint
+
+    render_routing_hint(console)
     raise typer.Exit(code=2)
 
 
@@ -530,25 +517,28 @@ def _do_bulk_approve(
     必须显式 ``--confirm`` 才能写入。``--dry-run`` 仅展示候选列表。
     """
     from .approval_service import build_bulk_approval_plan
+    from .approve_presenter import (
+        render_bulk_candidate_list,
+        render_bulk_confirm_required,
+        render_bulk_dry_run_footer,
+        render_bulk_empty,
+        render_bulk_summary,
+    )
 
     plan = build_bulk_approval_plan(cfg, limit=limit)
-    drafts = list(plan.candidates)
+    drafts = tuple(plan.candidates)
 
     if not drafts:
-        console.print("[dim](no ai_draft cards found)[/dim]")
+        render_bulk_empty(console)
         return
 
-    console.print(f"[bold]{len(drafts)} 张 ai_draft 待 approve：[/bold]")
-    for c in drafts:
-        console.print(f"  - {c.rel_path}  [dim]({c.title or '?'})[/dim]")
+    render_bulk_candidate_list(console, drafts)
 
     if dry_run:
-        console.print("[dim](--dry-run 已启用，未写任何文件)[/dim]")
+        render_bulk_dry_run_footer(console)
         return
     if not confirm:
-        console.print(
-            "[red]✗ 批量 approve 是危险动作；请加 --dry-run 预览，或确认无误后再加 --confirm[/red]"
-        )
+        render_bulk_confirm_required(console)
         raise typer.Exit(code=2)
 
     # 真正批量执行
@@ -560,30 +550,28 @@ def _do_bulk_approve(
             ok += 1
         except typer.Exit:
             fail += 1
-    console.print(f"[bold]批量 approve 完成：成功 {ok} / 失败 {fail}[/bold]")
+    render_bulk_summary(console, ok=ok, fail=fail)
 
 
 def _format_card_created_at(c) -> str:
-    """把卡片创建时间压成 CLI 友好字符串；只读 frontmatter 安全字段。"""
-    return c.created_at.isoformat(timespec="minutes") if c.created_at else "-"
+    """已迁移到 approve_presenter.format_card_created_at；保留薄包装兼容。"""
+    from .approve_presenter import format_card_created_at
+
+    return format_card_created_at(c)
 
 
 def _format_card_source_hint(c) -> str:
-    """生成 approve 待办里的 source 摘要，避免读取 source 原文。
+    """已迁移到 approve_presenter.format_card_source_hint；保留薄包装兼容。"""
+    from .approve_presenter import format_card_source_hint
 
-    v0.6.2 的边界是“让人更容易判断是否批准”，但不能为了展示更丰富而回读
-    原始资料正文；这里仅使用 CardSummary 已白名单化的 source_* frontmatter。
-    """
-    if c.source_title:
-        return c.source_title
-    if c.source_url:
-        return c.source_url
-    return c.source_type or "-"
+    return format_card_source_hint(c)
 
 
 def _approve_next_command(c) -> str:
-    """为单张草稿给出最短下一步命令，不自动 approve。"""
-    return f"mindforge approve --card {c.rel_path}"
+    """已迁移到 approve_presenter.approve_next_command；保留薄包装兼容。"""
+    from .approve_presenter import approve_next_command
+
+    return approve_next_command(c)
 
 
 @approve_app.command("list")
@@ -607,6 +595,10 @@ def approve_list(
 ) -> None:
     """列出可 approve 的卡片（安全字段摘要；不读卡片正文）。"""
     from .approval_service import ApprovalListQuery, list_approval_candidates
+    from .approve_presenter import (
+        render_approval_list,
+        render_approval_list_json,
+    )
 
     cfg = _load_cfg(config, read_env=False)
     wanted = {s.strip() for s in status.split(",") if s.strip()}
@@ -619,66 +611,12 @@ def approve_list(
             limit=limit,
         ),
     )
-    rows = list(res.candidates)
 
     if format_.lower() == "json":
-        import json as _json
-
-        out = [
-            {
-                "title": c.title,
-                "path": c.rel_path,
-                "status": c.status,
-                "track": c.track,
-                "projects": list(c.projects),
-                "source_type": c.source_type,
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-                "value_score": c.value_score,
-            }
-            for c in rows
-        ]
-        console.print_json(_json.dumps({"count": len(out), "items": out}))
+        render_approval_list_json(console, res)
         return
 
-    if not rows:
-        console.print("[yellow]没有待 approve 的卡片。[/yellow]")
-        console.print(
-            "[dim]下一步：如果 inbox 有新资料，先运行 `mindforge scan`，再运行 "
-            "`mindforge process --profile fake --limit 1` 生成 ai_draft；"
-            "MindForge 不会自动 approve。[/dim]"
-        )
-        return
-    table = Table(title=f"Approve Todo · {len(rows)} pending (status in {sorted(wanted)})")
-    for col in (
-        "title",
-        "source",
-        "created",
-        "track",
-        "risk / safety",
-        "next command",
-    ):
-        table.add_column(col, overflow="fold")
-    for c in rows:
-        table.add_row(
-            c.title or "?",
-            _format_card_source_hint(c),
-            _format_card_created_at(c),
-            c.track or "-",
-            "ai_draft，需要人工确认；不会自动 approve",
-            _approve_next_command(c),
-        )
-    console.print(table)
-    console.print("[bold]Todo commands[/bold]")
-    for c in rows:
-        console.print(
-            f"- {c.title or '?'} · source={_format_card_source_hint(c)} · "
-            f"created={_format_card_created_at(c)} · next=`{_approve_next_command(c)}`",
-            markup=False,
-        )
-    console.print(
-        "[dim]说明：approve 会把 ai_draft 晋升为 human_approved，之后才进入 "
-        "recall / review / project context 的默认结果；MindForge 不会自动 approve。[/dim]"
-    )
+    render_approval_list(console, res, wanted_statuses=wanted)
 
 
 @approve_app.command("show")
@@ -693,24 +631,18 @@ def approve_show(
     v0.6.5 dogfooding 需要用户在 approve 前多看一步，但这里仍守住边界：
     只读 frontmatter 白名单字段，不打印 source raw text，也不把 ai_draft 自动晋升。
     """
-    from .approval_service import APPROVAL_PREVIEW_FIELDS, preview_approval_card
+    from .approval_service import preview_approval_card
+    from .approve_presenter import (
+        render_approval_show,
+        render_approval_show_error,
+    )
 
     cfg = _load_cfg(config, read_env=False)
     preview = preview_approval_card(cfg, card)
-    card_path = preview.card_path or card
     if preview.error is not None:
-        console.print(f"[red]✗ {preview.error.message}[/red]")
-        console.print("Next: mindforge approve list", markup=False)
+        render_approval_show_error(console, preview)
         raise typer.Exit(code=preview.error.exit_code)
-    console.print("[bold]Approve preview[/bold]")
-    for key in APPROVAL_PREVIEW_FIELDS:
-        console.print(f"{key:<12}: {preview.fields.get(key, '-')}")
-    console.print(f"path        : {card_path}")
-    console.print(
-        "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
-        markup=False,
-    )
-    console.print(f"Next: mindforge approve --card {card_path}", markup=False)
+    render_approval_show(console, preview, card)
 
 
 # ---------------------------------------------------------------------------
