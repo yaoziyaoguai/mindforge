@@ -212,10 +212,28 @@ must serve at least one axis without violating the others.
   reverse-dependency bans, real-LLM SDK bans, `os.environ` access bans,
   status-mutation call bans, `human_approved` literal-assignment ban,
   `__all__` snapshot lock, function and dataclass count caps, an import
-  allow-list, and `safety_policy` boundary alignment. The test file is the
-  template for future `*_service_boundaries.py` slices on `review_service` /
-  `approval_service` / `recall_service`, but those are **not** part of this
-  milestone unless evidence shows a concrete service is regressing.
+  allow-list, and `safety_policy` boundary alignment.
+
+- **v0.7.23 follow-up — `review_service` + `approval_service` AST boundary
+  tests (completed 2026-05).** Same architecture-fitness-function pattern
+  applied to the two other independently-extracted use-case services. Added
+  `tests/test_review_service_boundaries.py` (16 AST tests) and
+  `tests/test_approval_service_boundaries.py` (16 AST tests). **Zero
+  production code change.** Together with the v0.7.20 `process_service`
+  extraction tests, the three `*_boundaries.py` files form a lightweight
+  set of architecture fitness functions that lock import allow-lists,
+  reverse-dependency bans (cli / presenters / obsidian / cross-service),
+  real-LLM SDK / dotenv / UI framework / RAG bans, file-write and
+  `os.environ` bans, `__all__` snapshots, and function/dataclass count
+  caps for each service. Service-specific differences:
+  - `review_service`: `"human_approved"` may **only** appear as the
+    `status=` keyword (read-only filter), never as Assign/Return value.
+  - `approval_service`: `"human_approved"` literal **forbidden anywhere**
+    in source — status mutation must be delegated to `approver.approve_card`,
+    and a positive assertion enforces that delegation call exists.
+  Future `*_boundaries.py` slices on `recall_service` / presenter / CLI
+  thin adapter are possible but **not** part of this milestone unless
+  evidence shows a concrete component is regressing.
 
 ### Definition of Done
 

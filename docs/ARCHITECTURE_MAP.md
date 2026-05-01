@@ -161,22 +161,43 @@ v0.7.22 已抽出 `review_presenter.py`（仅 weekly）。
 
 为防止已抽出的 service 静默退化为新巨石或悄悄突破"不依赖 CLI / presenter
 / Rich / Typer / RunLogger / 真实 LLM / .env / Obsidian write" 边界，
-v0.7.23 起引入专门的 AST 静态边界测试层：
+v0.7.23 起引入专门的 AST 静态边界测试层（architecture fitness functions）：
 
 - `tests/test_process_service.py`（v0.7.20 引入，混合行为 + AST）
-- `tests/test_process_service_boundaries.py`（v0.7.23 引入，**纯架构锁**）
-  - 顶层 import 封闭白名单
-  - 反向依赖 ban：cli / *_presenter / obsidian_*
-  - 真实 LLM SDK ban：openai / anthropic / litellm / cohere / ollama
-  - `os.environ` / `getenv` 直接访问 ban
-  - status mutation call ban：approve_card / approve_explicit_card / mark_*
-  - `human_approved` 字面量赋值 ban
-  - `write_text` / `write_bytes` / `open()` 写盘 ban
-  - `__all__` 12 项快照锁
-  - 函数数量上限 4、dataclass 数量上限 7
-  - safety_policy 三条边界声明对齐：fake_provider_default / no_real_llm
-    / no_env_read
+- `tests/test_process_service_boundaries.py`（v0.7.23，**纯架构锁**）
+- `tests/test_review_service_boundaries.py`（v0.7.23 后续 slice）
+- `tests/test_approval_service_boundaries.py`（v0.7.23 后续 slice）
 
-后续可按同模式扩展到 `review_service` / `approval_service` /
-`recall_service` 的 `*_boundaries.py`，但只在出现具体退化信号时再加，
-不机械复刻。
+三个 `*_boundaries.py` 文件结构同构（同一组 AST helper、同一类断言），
+但每个 service 的白名单 / 上限 / 禁忌不同，**有意不共享 fixture**：让
+每个 service 的边界声明独立、显式、可单独修改。
+
+共同覆盖：
+
+  - 顶层 import 封闭白名单（service-specific allow-list）
+  - 反向依赖 ban：cli / *_presenter / obsidian_*
+  - 跨 use-case service 反向依赖 ban（review / approval / process 互不
+    依赖；只有 approval_service 可显式 import `mindforge.approver`）
+  - 真实 LLM SDK ban：openai / anthropic / litellm / cohere / ollama
+  - UI 框架 ban：typer / click / rich / textual / prompt_toolkit
+  - RAG / embedding / vector store ban
+  - dotenv ban
+  - `os.environ` / `getenv` 直接访问 ban
+  - `write_text` / `write_bytes` / `open()` 写盘 ban（read_text 仍允许）
+  - `__all__` 快照锁 + 函数 / dataclass 数量上限
+
+service-specific 关键差异：
+
+  - **process_service**：status mutation call ban；`human_approved`
+    字面量赋值 ban；safety_policy 三条 boundary 对齐
+    （`fake_provider_default` / `no_real_llm` / `no_env_read`）
+  - **review_service**：`human_approved` 字面量**只能**作为 `status=`
+    keyword 出现（只读筛选条件，不可作为返回值或赋值）；不依赖
+    `mindforge.approver`
+  - **approval_service**：`human_approved` 字面量**完全不可出现**
+    （写状态必须委托 `approver.approve_card`）；正向断言要求 `approve_card`
+    必须被调用（delegation 不可丢）；唯一允许 import `mindforge.approver`
+    的 service
+
+后续可按同模式扩展 `recall_service` / presenter 层 / CLI thin adapter，
+但只在出现具体退化信号或新治理 milestone 时再加，不机械复刻。
