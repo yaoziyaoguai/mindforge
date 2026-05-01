@@ -1600,6 +1600,10 @@ def review_weekly(
     - "suggested_focus_tracks" 只是按 backlog + forgotten 计数排序，
       **不**做语义推断、**不**预测下周。
     """
+    from .review_presenter import (
+        build_weekly_review_json,
+        render_weekly_review_markdown,
+    )
     from .review_service import build_weekly_review
 
     cfg = _load_cfg(config, read_env=False)
@@ -1614,26 +1618,11 @@ def review_weekly(
 
     if output_format == "json":
         import json as _json
-        payload = _json.dumps({
-            "version": 1,
-            "generated_at": result.window.generated_at.isoformat(timespec="seconds"),
-            "window": {"week_start": result.window.week_start.date().isoformat(),
-                       "week_end": result.window.generated_at.date().isoformat()},
-            "overdue": [_card_to_safe_dict(c) for c in result.overdue],
-            "due_this_week": [_card_to_safe_dict(c) for c in result.due_this_week],
-            "reviewed_this_week_count": len(result.reviewed_this_week),
-            "forgotten_or_partial": [_card_to_safe_dict(c) for c in result.forgotten_or_partial],
-            "suggested_focus_tracks": [
-                {"track": item.track, "score": item.score}
-                for item in result.suggested_focus_tracks
-            ],
-            "project_distribution": [
-                {"project": item.project, "card_count": item.card_count}
-                for item in result.project_distribution
-            ],
-            "next_week_preview": [_card_to_safe_dict(c) for c in result.next_week_preview],
-            "next_actions": _review_next_actions(result.has_weekly_work),
-        }, ensure_ascii=False, indent=2)
+        payload = _json.dumps(
+            build_weekly_review_json(result),
+            ensure_ascii=False,
+            indent=2,
+        )
         if output_path:
             output_path.write_text(payload + "\n", encoding="utf-8")
             console.print(f"[green]✓[/green] 已写入 {output_path}")
@@ -1641,66 +1630,7 @@ def review_weekly(
             print(payload)
         return
 
-    def _list(items: list) -> str:
-        if not items:
-            return "_(none)_\n"
-        return "\n".join(
-            f"- [{c.id or c.path.stem}] {c.title or '(untitled)'}  "
-            f"`track={c.track or '-'}` `last={c.last_review_result or '-'}` "
-            f"`path={c.rel_path}`"
-            for c in items
-        ) + "\n"
-
-    md = [
-        f"# Weekly Review · {result.window.generated_at.date().isoformat()}\n",
-        f"_window: {result.window.week_start.date().isoformat()} → "
-        f"{result.window.generated_at.date().isoformat()}_\n",
-        "\n## Learning tasks\n",
-        _review_learning_tasks(
-            list(result.overdue),
-            list(result.due_this_week),
-            list(result.forgotten_or_partial),
-        ),
-        f"\n## Overdue · {len(result.overdue)} 项\n",
-        _list(list(result.overdue)),
-        f"\n## Due this week · {len(result.due_this_week)} 项\n",
-        _list(list(result.due_this_week)),
-        f"\n## Reviewed this week · {len(result.reviewed_this_week)} 项\n",
-        f"\n## Forgotten / partial · {len(result.forgotten_or_partial)} 项\n",
-        _list(list(result.forgotten_or_partial)),
-        "\n## Suggested focus tracks\n",
-        (
-            "\n".join(
-                f"- {item.track} (score={item.score})"
-                for item in result.suggested_focus_tracks
-            )
-            + "\n"
-        ) if result.suggested_focus_tracks else "_(none)_\n",
-        "\n## Project distribution\n",
-        (
-            "\n".join(
-                f"- {item.project}: {item.card_count}"
-                for item in result.project_distribution
-            )
-            + "\n"
-        ) if result.project_distribution else "_(none)_\n",
-        f"\n## Next week preview · {len(result.next_week_preview)} 项\n",
-        _list(list(result.next_week_preview)),
-        (
-            "\n## Next action\n"
-            + "\n".join(f"- {a}" for a in _review_next_actions(result.has_weekly_work))
-            + "\n"
-            if not result.has_weekly_work
-            else ""
-        ),
-        "\n## Workflow bridge\n",
-        "- review 只使用 human_approved 卡片；新资料先 process 成 ai_draft，"
-        "再由你显式 approve。\n"
-        "- 找不到复习方向时，先运行 `mindforge recall --query <keyword>` 定位卡片，"
-        "再回到 `mindforge review weekly`。\n",
-        "\n_说明：本周报由 frontmatter 结构化汇总生成，**不**调用 LLM。_\n",
-    ]
-    out = "".join(md)
+    out = render_weekly_review_markdown(result)
     if output_path:
         output_path.write_text(out, encoding="utf-8")
         console.print(f"[green]✓[/green] 已写入 {output_path}")
@@ -1713,32 +1643,26 @@ def _review_learning_tasks(
     due_this_week: list,
     forgotten_or_partial: list,
 ) -> str:
-    """把 review 数据压成个人学习任务，不改变 review 调度。
+    """薄包装：委托 ``review_presenter.render_weekly_learning_tasks``。
 
-    这里不新增调度算法，只把已有 frontmatter 汇总转成“今天该做什么”的语言，
-    避免 v0.6.2 越界成智能推荐或 LLM 复习教练。
+    保留是为了向后兼容（如果有其他模块或 helper 引用此符号）。本函数
+    自身**不**包含业务，唯一作用是 forward 到 presenter。未来一轮可
+    彻底删除。
     """
-    tasks: list[str] = []
-    if overdue:
-        tasks.append(f"- 先处理 {len(overdue)} 张 overdue 卡片。")
-    if due_this_week:
-        tasks.append(f"- 本周安排 {len(due_this_week)} 张 due card。")
-    if forgotten_or_partial:
-        tasks.append(f"- 优先回看 {len(forgotten_or_partial)} 张 forgotten/partial 卡片。")
-    if not tasks:
-        tasks.append("- 当前没有明确复习任务；先 approve 新草稿或用 recall 找主题。")
-    return "\n".join(tasks) + "\n"
+    from .review_presenter import render_weekly_learning_tasks
+
+    return render_weekly_learning_tasks(overdue, due_this_week, forgotten_or_partial)
 
 
 def _review_next_actions(has_weekly_work: bool) -> list[str]:
-    """review 空状态的下一步建议；只返回静态命令，不触发任何写操作。"""
-    if has_weekly_work:
-        return ["运行 `mindforge review due` 聚焦今天到期项。"]
-    return [
-        "运行 `mindforge approve list` 查看是否有 ai_draft 待人工批准。",
-        "运行 `mindforge process --profile fake --limit 1` 从 inbox 生成新的 ai_draft。",
-        "运行 `mindforge recall --query <keyword>` 从已批准卡片里找学习主题。",
-    ]
+    """薄包装：委托 ``review_presenter.render_weekly_next_actions``。
+
+    保留向后兼容；本函数自身**不**包含业务，唯一作用是 forward 到
+    presenter。未来一轮可彻底删除。
+    """
+    from .review_presenter import render_weekly_next_actions
+
+    return render_weekly_next_actions(has_weekly_work)
 
 
 # ---------------------------------------------------------------------------

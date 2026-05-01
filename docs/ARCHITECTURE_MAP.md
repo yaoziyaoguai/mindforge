@@ -71,7 +71,8 @@
 
 - `src/mindforge/recall_presenter.py`
 - `src/mindforge/approve_presenter.py`
-- 未来可扩展 review / process / Obsidian presenter。
+- `src/mindforge/review_presenter.py`
+- 未来可扩展 process / config / Obsidian presenter。
 
 职责：
 
@@ -80,11 +81,13 @@
 - 不做业务判断；
 - 不改变状态。
 
-当前 presenter 层仍不完整：`review weekly` 仍由 `cli.py` 直接渲染；
-`process` / `scan` / `config doctor` 等命令仍内嵌 console.print；
-Obsidian 输出已迁入 `obsidian_cli.py` 这个 command adapter，但还不是独立
-presenter。v0.7.21 已抽出 `approve_presenter.py`，覆盖 approve list /
-approve show / approve --all / 单卡 approve 结果 / routing 与错误展示。
+当前 presenter 层仍不完整：`process` / `scan` / `config doctor` 等命令
+仍内嵌 console.print；review 子命令仅 `weekly` 已抽出 presenter，其余
+`due` / `mark` / `schedule` / `backlog` / `stats` 5 个仍 inline 调
+`iter_cards` + `filter_cards` + `_bucket_review`，需要先扩 review_service
+再做 presenter 抽取；Obsidian 输出已迁入 `obsidian_cli.py` 这个 command
+adapter，但还不是独立 presenter。v0.7.21 已抽出 `approve_presenter.py`，
+v0.7.22 已抽出 `review_presenter.py`（仅 weekly）。
 
 ## Context / Policy Layer
 
