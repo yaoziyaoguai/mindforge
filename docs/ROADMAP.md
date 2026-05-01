@@ -214,26 +214,38 @@ must serve at least one axis without violating the others.
   `__all__` snapshot lock, function and dataclass count caps, an import
   allow-list, and `safety_policy` boundary alignment.
 
-- **v0.7.23 follow-up — `review_service` + `approval_service` AST boundary
-  tests (completed 2026-05).** Same architecture-fitness-function pattern
-  applied to the two other independently-extracted use-case services. Added
-  `tests/test_review_service_boundaries.py` (16 AST tests) and
-  `tests/test_approval_service_boundaries.py` (16 AST tests). **Zero
-  production code change.** Together with the v0.7.20 `process_service`
-  extraction tests, the three `*_boundaries.py` files form a lightweight
-  set of architecture fitness functions that lock import allow-lists,
-  reverse-dependency bans (cli / presenters / obsidian / cross-service),
-  real-LLM SDK / dotenv / UI framework / RAG bans, file-write and
-  `os.environ` bans, `__all__` snapshots, and function/dataclass count
-  caps for each service. Service-specific differences:
-  - `review_service`: `"human_approved"` may **only** appear as the
-    `status=` keyword (read-only filter), never as Assign/Return value.
-  - `approval_service`: `"human_approved"` literal **forbidden anywhere**
-    in source — status mutation must be delegated to `approver.approve_card`,
-    and a positive assertion enforces that delegation call exists.
-  Future `*_boundaries.py` slices on `recall_service` / presenter / CLI
-  thin adapter are possible but **not** part of this milestone unless
-  evidence shows a concrete component is regressing.
+- **v0.7.23 second follow-up — presenter + CLI adapter AST boundary tests
+  (completed 2026-05).** Extended the architecture-fitness-function pattern
+  from Layer 1 (service) to Layer 2 (presenter + CLI adapter). Added
+  `tests/test_presenter_boundaries.py` (45 parametrized AST tests across
+  `approve_presenter` / `recall_presenter` / `review_presenter`) and
+  `tests/test_cli_adapter_boundaries.py` (14 tests across `cli.py` +
+  `obsidian_cli.py`). **Zero production code change.** Together with Layer 1,
+  the boundary test suite now totals **106 AST tests** locking import graphs,
+  reverse-dependency direction, real-LLM SDK / dotenv / UI-framework / RAG
+  bans, file-write and `os.environ` bans (where applicable), and public
+  surface snapshots across **5 services + 3 presenters + 2 CLI adapters**.
+  Layer 2 specifics:
+  - **presenters** are pure transformations: per-presenter import allow-list,
+    no `approver` / `reviewer`, no cross-`use-case` service imports, no
+    status mutation calls, no `write_text` / `open()`, no `os.environ`,
+    `"human_approved"` only as `status=` keyword.
+  - **CLI adapters** are **not** locked by line / function caps (anti-KPI;
+    "thin" means business semantics live in services, not row count). Hard
+    bans: real LLM SDK direct import, real LLM credential string literals
+    (`OPENAI_API_KEY`, etc.), direct `dotenv` import, RAG/embedding,
+    `obsidian_cli` reverse-importing `cli`. Positive assertions: must
+    `import mindforge.env_loader` + call `load_dotenv_silently`; must
+    `import mindforge.llm` + call `build_providers`; must call
+    `approve_explicit_card` (approval delegation must exist).
+  - **CLI `human_approved` literal rule** is more permissive than for
+    services: allowed as `keyword`, list/tuple/set/dict element, `Compare`
+    right-hand side (`c.status == "human_approved"`), `in` expression, and
+    f-string fragment. Banned only as Assign / Return value (which would
+    indicate CLI bypassing the approval delegation).
+  Layer 3 candidates (policy / context / workflow / `recall_service`) are
+  possible but **not** part of this milestone unless evidence shows a
+  concrete regression.
 
 ### Definition of Done
 

@@ -159,45 +159,61 @@ v0.7.22 已抽出 `review_presenter.py`（仅 weekly）。
 
 ## Boundary Test Layer
 
-为防止已抽出的 service 静默退化为新巨石或悄悄突破"不依赖 CLI / presenter
-/ Rich / Typer / RunLogger / 真实 LLM / .env / Obsidian write" 边界，
-v0.7.23 起引入专门的 AST 静态边界测试层（architecture fitness functions）：
+为防止已抽出的 service / presenter 静默退化为新巨石或悄悄突破"不依赖
+CLI / 真实 LLM / .env / Obsidian write" 边界，v0.7.23 起引入分层的
+AST 静态边界测试（architecture fitness functions）：
 
+**Layer 1 — Service**（v0.7.23 + follow-up）：
 - `tests/test_process_service.py`（v0.7.20 引入，混合行为 + AST）
 - `tests/test_process_service_boundaries.py`（v0.7.23，**纯架构锁**）
-- `tests/test_review_service_boundaries.py`（v0.7.23 后续 slice）
-- `tests/test_approval_service_boundaries.py`（v0.7.23 后续 slice）
+- `tests/test_review_service_boundaries.py`（v0.7.23 follow-up）
+- `tests/test_approval_service_boundaries.py`（v0.7.23 follow-up）
 
-三个 `*_boundaries.py` 文件结构同构（同一组 AST helper、同一类断言），
-但每个 service 的白名单 / 上限 / 禁忌不同，**有意不共享 fixture**：让
-每个 service 的边界声明独立、显式、可单独修改。
+**Layer 2 — Presenter / CLI Adapter**（v0.7.23 second follow-up）：
+- `tests/test_presenter_boundaries.py`（覆盖 approve / recall / review
+  三个 presenter，parametrize 同一组检查）
+- `tests/test_cli_adapter_boundaries.py`（覆盖 cli.py + obsidian_cli.py，
+  parametrize 同一组检查）
+
+三层文件结构同构（同一组 AST helper、同类断言），但每个组件的白名单 /
+上限 / 禁忌不同，**有意不共享 fixture**：让每个组件的边界声明独立、显式、
+可单独修改。
 
 共同覆盖：
 
-  - 顶层 import 封闭白名单（service-specific allow-list）
-  - 反向依赖 ban：cli / *_presenter / obsidian_*
-  - 跨 use-case service 反向依赖 ban（review / approval / process 互不
-    依赖；只有 approval_service 可显式 import `mindforge.approver`）
+  - 顶层 import 封闭白名单（service/presenter）或核心负面 ban（CLI 适配器）
+  - 反向依赖 ban：service / presenter 不可 import CLI；presenter 不可
+    跨 use-case service；service 不可 import presenter / 其他 service
   - 真实 LLM SDK ban：openai / anthropic / litellm / cohere / ollama
-  - UI 框架 ban：typer / click / rich / textual / prompt_toolkit
+  - UI 框架 ban（presenter / service 层）：typer / click / textual / prompt_toolkit
   - RAG / embedding / vector store ban
-  - dotenv ban
-  - `os.environ` / `getenv` 直接访问 ban
-  - `write_text` / `write_bytes` / `open()` 写盘 ban（read_text 仍允许）
-  - `__all__` 快照锁 + 函数 / dataclass 数量上限
+  - dotenv 直接 import ban（必须走 `mindforge.env_loader`）
+  - `os.environ` / `getenv` 直接访问 ban（service / presenter 层；CLI 允许，
+    用于 `MINDFORGE_*` 标志桥接）
+  - `write_text` / `write_bytes` / `open()` 写盘 ban（service / presenter）
+  - `__all__` 或顶层公开符号面快照锁
+  - 函数 / dataclass / class 数量上限
 
-service-specific 关键差异：
+组件特定差异：
 
-  - **process_service**：status mutation call ban；`human_approved`
-    字面量赋值 ban；safety_policy 三条 boundary 对齐
-    （`fake_provider_default` / `no_real_llm` / `no_env_read`）
-  - **review_service**：`human_approved` 字面量**只能**作为 `status=`
-    keyword 出现（只读筛选条件，不可作为返回值或赋值）；不依赖
-    `mindforge.approver`
-  - **approval_service**：`human_approved` 字面量**完全不可出现**
-    （写状态必须委托 `approver.approve_card`）；正向断言要求 `approve_card`
-    必须被调用（delegation 不可丢）；唯一允许 import `mindforge.approver`
-    的 service
+  - **process_service**：status mutation call ban；`human_approved` 字面量
+    赋值 ban；safety_policy 三条 boundary 对齐
+  - **review_service**：`human_approved` 字面量**只能**作 `status=` keyword
+  - **approval_service**：`human_approved` 字面量**完全不可出现**；正向断言
+    必须调用 `approver.approve_card`（delegation 不可丢）；唯一允许 import
+    `mindforge.approver` 的 service
+  - **presenter 层**：禁止 import `approver` / `reviewer` 状态层；禁止跨 use-case
+    service（每个 presenter 只可 import 自己同名 service + cards）；纯转换
+    函数语义
+  - **CLI 适配器**：不锁行数 / 不锁文件大小（明确反 KPI 化）；锁真实 LLM SDK
+    直 import ban、真实 LLM credential 字面量（OPENAI_API_KEY 等）ban；
+    正向断言：必须 import `env_loader` 并调用 `load_dotenv_silently`、必须
+    import `mindforge.llm` 并调用 `build_providers`、必须调用
+    `approve_explicit_card` 完成 approval delegation；`obsidian_cli` 不可
+    反向 import `cli`
+  - **CLI `human_approved` 字面量规则**：允许作为 keyword、collection 元素、
+    Compare 右值、`in` 表达式、f-string 拼接片段；禁止作为 Assign / Return
+    的写入值
 
-后续可按同模式扩展 `recall_service` / presenter 层 / CLI thin adapter，
+后续可按同模式扩展 `recall_service` / `policy` / `context` / `workflow`，
 但只在出现具体退化信号或新治理 milestone 时再加，不机械复刻。
