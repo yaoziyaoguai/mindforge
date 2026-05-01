@@ -1,7 +1,9 @@
 # MindForge Architecture Map
 
 本文档是当前代码分层地图，服务于 v0.7.x 架构治理。它描述真实仓库状态，不替代
-协议文档，也不承诺尚未实现的模块。
+协议文档，也不承诺尚未实现的模块。治理脉络与验收标准见
+[ROADMAP.md](./ROADMAP.md) 的 *v0.7.20–v0.7.23 Architecture Quality
+Milestone* 段。
 
 ## CLI / Command Layer
 
