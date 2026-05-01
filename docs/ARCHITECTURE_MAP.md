@@ -156,3 +156,27 @@ v0.7.22 已抽出 `review_presenter.py`（仅 weekly）。
   输出小巨石；
 - review/approval/presenter 需要继续观察，避免形成新的小巨石；
 - 测试文件仍按历史版本聚合，短期作为保护网保留。
+
+## Boundary Test Layer
+
+为防止已抽出的 service 静默退化为新巨石或悄悄突破"不依赖 CLI / presenter
+/ Rich / Typer / RunLogger / 真实 LLM / .env / Obsidian write" 边界，
+v0.7.23 起引入专门的 AST 静态边界测试层：
+
+- `tests/test_process_service.py`（v0.7.20 引入，混合行为 + AST）
+- `tests/test_process_service_boundaries.py`（v0.7.23 引入，**纯架构锁**）
+  - 顶层 import 封闭白名单
+  - 反向依赖 ban：cli / *_presenter / obsidian_*
+  - 真实 LLM SDK ban：openai / anthropic / litellm / cohere / ollama
+  - `os.environ` / `getenv` 直接访问 ban
+  - status mutation call ban：approve_card / approve_explicit_card / mark_*
+  - `human_approved` 字面量赋值 ban
+  - `write_text` / `write_bytes` / `open()` 写盘 ban
+  - `__all__` 12 项快照锁
+  - 函数数量上限 4、dataclass 数量上限 7
+  - safety_policy 三条边界声明对齐：fake_provider_default / no_real_llm
+    / no_env_read
+
+后续可按同模式扩展到 `review_service` / `approval_service` /
+`recall_service` 的 `*_boundaries.py`，但只在出现具体退化信号时再加，
+不机械复刻。

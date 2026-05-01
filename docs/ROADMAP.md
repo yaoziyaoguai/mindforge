@@ -202,16 +202,20 @@ must serve at least one axis without violating the others.
 
 ### Current / next governance candidate
 
-- **v0.7.23 — `process_service` AST static boundary tests (planned, not
-  implemented).** Goal: add automated architectural guardrails around
+- **v0.7.23 — `process_service` AST static boundary tests (completed
+  2026-05).** Goal: add automated architectural guardrails around
   `process_service` so it cannot silently regress into a small monolith or
   silently grow dependencies on CLI / presenter / Typer / Rich / RunLogger /
   real LLM SDKs / `.env` / Obsidian write layer / RAG / embedding. v0.7.23
-  is **explicitly not new feature** and **does not modify production code**;
-  it adds a dedicated `tests/test_process_service_boundaries.py` covering
+  was **explicitly not new feature** and **did not modify production code**;
+  it added `tests/test_process_service_boundaries.py` (15 AST tests) covering
   reverse-dependency bans, real-LLM SDK bans, `os.environ` access bans,
-  status-mutation call bans, `__all__` snapshot lock, function and dataclass
-  count caps, an import allow-list, and `safety_policy` boundary alignment.
+  status-mutation call bans, `human_approved` literal-assignment ban,
+  `__all__` snapshot lock, function and dataclass count caps, an import
+  allow-list, and `safety_policy` boundary alignment. The test file is the
+  template for future `*_service_boundaries.py` slices on `review_service` /
+  `approval_service` / `recall_service`, but those are **not** part of this
+  milestone unless evidence shows a concrete service is regressing.
 
 ### Definition of Done
 
