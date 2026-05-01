@@ -3,7 +3,9 @@
 本文档是当前代码分层地图，服务于 v0.7.x 架构治理。它描述真实仓库状态，不替代
 协议文档，也不承诺尚未实现的模块。治理脉络与验收标准见
 [ROADMAP.md](./ROADMAP.md) 的 *v0.7.20–v0.7.23 Architecture Quality
-Milestone* 段。
+Milestone* 段。产品形态与阶段目标见 ROADMAP.md 的
+*Product Shape & Phase Plan* 段（CLI 第一产品形态、Obsidian-centered
+workspace、SourceAdapter / KnowledgeStrategy 插件化等架构契约）。
 
 ## CLI / Command Layer
 

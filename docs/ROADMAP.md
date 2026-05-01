@@ -20,6 +20,212 @@ MindForge v0.x is a local-first CLI for personal learning memory:
 - Local Usability as a formal milestone.
 - packaged default prompts, templates, and configs.
 
+## Product Shape & Phase Plan
+
+This section is the **canonical product framing** for MindForge v0.x. The
+historical milestone sections below (v0.4.3 / v0.5.x / v0.6.x / v0.7.x) are
+preserved as audit trail and are summarized here through the Phase lens.
+
+### Product Shape
+
+MindForge v0.x is a **local-first, CLI-as-first-product personal learning
+memory tool** organized around an **Obsidian-centered knowledge workspace**.
+Concretely, this means the following statements are normative and must hold
+for every Phase 1 commit:
+
+- **CLI is the first product shape.** The CLI is not a debug entry point. It
+  is the only user-facing surface in v0.x. Web UI, TUI, and Obsidian plugin
+  are explicit non-goals for the entire v0.x line.
+- **Obsidian-centered workspace.** Obsidian is the central knowledge
+  workbench, not merely an export target. CLI-generated `ai_draft` /
+  `human_approved` artifacts and the review workspace must integrate
+  naturally with Obsidian's file workflow. Obsidian holds **only
+  human-readable knowledge assets**; runtime / state / cache / index / logs
+  / SQLite / vector / graph data are kept strictly outside Obsidian.
+- **Pluggable, configurable data ingestion.** The data entry point is the
+  `SourceAdapter` port. Cubox is a first-class adapter, but the system is
+  **not** Cubox-only. `LocalFolderAdapter` / `MarkdownInboxAdapter` /
+  `CuboxMarkdownAdapter` / `CuboxExportMockAdapter` (and future adapters)
+  are equal implementations of the same port. The processor depends on
+  `SourceDocument` and never on Cubox-specific details. Adapter discovery,
+  registry, and configuration are first-class Phase 1 capabilities.
+- **Pluggable, configurable knowledge strategies.** Different sources and
+  different intents must not be funneled through one mindless summarization
+  recipe. The Processing Pipeline depends on a strategy interface
+  (provisionally `KnowledgeStrategy` / `ExtractionStrategy` /
+  `MergeStrategy`), not on a hard-coded summarizer. The strategy set will
+  grow to cover reading-note, concept-card, project-context,
+  evidence-append, question-extraction, and claim-extraction shapes. Phase 1
+  may ship the minimum strategy set, but the architectural seam must be
+  reserved.
+- **Explicit human approval is the load-bearing wall.** The AI may only
+  produce `ai_draft`. The transition to `human_approved` is reachable only
+  via an explicit user `approve` command; auto-approval is permanently
+  forbidden. Merge semantics (approve-as-new-card / append-as-evidence /
+  link-to-existing-card / merge-candidate / reject / defer / split) must
+  be modeled as first-class outcomes of the review/approve flow, not as
+  ad-hoc CLI flags.
+- **Local-first safety by default.** Fake provider is the default; real LLM
+  is opt-in only. `.env` is read only through the dedicated env loader. No
+  network IO in the default path. No formal Obsidian note writes outside
+  the staged-export workflow.
+
+### The CLI closed loop (Phase 1 acceptance scenario)
+
+A v0.x user must be able to walk this loop end-to-end **using only the
+CLI**, on a disposable demo vault, with the fake provider, with zero `.env`
+reads, and with zero network IO:
+
+1. Configure at least one safe data source (default: `plain_markdown` over
+   `examples/demo-vault`).
+2. Load that source.
+3. Produce a `SourceDocument`.
+4. Choose / apply a knowledge strategy appropriate to the source and intent.
+5. Run the Processing Pipeline to generate `ai_draft`.
+6. Review / edit / approve the draft via explicit CLI commands.
+7. Produce `human_approved` only via that explicit approval path.
+8. Output the result into the Obsidian-centered workspace (staged where the
+   write-gate requires it).
+9. Use `recall` / `review` / project-context queries to retrieve the
+   approved knowledge locally.
+
+This loop is the Phase 1 acceptance scenario. `doctor` and `next` must
+guide the user along it; `commands` and `docs/` must make every step
+discoverable.
+
+### Phase 0 — Architecture Quality Milestone (CLOSED)
+
+**Status: closed 2026-05.** Service, presenter, and CLI-adapter boundaries
+are locked by 106 architecture fitness functions (5 boundary test files
+across `process_service` / `review_service` / `approval_service` / 3
+presenters / 2 CLI adapters). Detailed scope and closure summary are in the
+[v0.7.20–v0.7.23 Architecture Quality Milestone](#v0720v0723-architecture-quality-milestone)
+section below.
+
+Phase 0 deliverables that Phase 1 must continue to honor:
+
+- Reverse-dependency direction (CLI → presenter → service → data) is
+  one-way.
+- `ai_draft` is generated only by AI; `human_approved` is reachable only
+  via the explicit approve chain.
+- Fake provider remains the default; real LLM is opt-in only.
+- Services do not import Typer / Rich / `dotenv`; presenters do not mutate
+  state.
+- Real LLM SDKs / `dotenv` / RAG / vector store / UI-framework imports are
+  banned where they would represent boundary violations.
+
+### Phase 1 — CLI Product Shape Completion (CURRENT)
+
+**Status: in progress.** Goal: the CLI closed loop above is real, smooth,
+and discoverable end-to-end on a disposable demo vault with the fake
+provider.
+
+**Completion definition (11 criteria):**
+
+1. CLI is documented as the only v0.x user entry point; `doctor` and `next`
+   reflect that explicitly.
+2. The user can configure at least one safe data source through
+   `configs/mindforge.yaml`, with `plain_markdown` over the bundled
+   `examples/demo-vault` working out of the box.
+3. **Cubox is documented as a first-class adapter** in the Roadmap and
+   user-facing docs. Short-term, the Cubox adapter contract is validated
+   against Cubox export samples and a `CuboxExportMockAdapter`-style
+   fixture; real Cubox API integration is deferred to Phase 3.
+4. The adapter mechanism is pluggable and configurable: discovery via
+   `sources/registry.py`, enable/disable via
+   `configs/mindforge.yaml.sources.enabled`, no Cubox-only assumptions in
+   any non-adapter module.
+5. `SourceAdapter` → `SourceDocument` is documented as the product
+   backbone, not as a v0.1 implementation detail. The boundary is enforced
+   by `tests/test_process_service_boundaries.py` (Phase 0 deliverable).
+6. The Processing Pipeline depends only on `SourceDocument` (already true
+   at code level — must remain true through Phase 1).
+7. A `KnowledgeStrategy` / `ExtractionStrategy` / `MergeStrategy` seam is
+   reserved. Phase 1 may ship the minimum strategy set, but the strategy
+   interface must exist as a stable extension point and must be referenced
+   in the Processing Pipeline rather than written around.
+8. The fake provider produces `ai_draft` reliably and is the default in
+   every CLI command path.
+9. The user can list / show / approve / bulk-approve drafts. Merge
+   outcomes (approve-as-new-card / append-as-evidence /
+   link-to-existing-card / merge-candidate / reject / defer / split) are
+   modeled as first-class outcomes of the review/approve flow, even if
+   only a subset is implemented in the first Phase 1 cut.
+10. `human_approved` is produced only via the explicit approve chain;
+    boundary is enforced by `tests/test_approval_service_boundaries.py`
+    and `tests/test_cli_adapter_boundaries.py` (Phase 0 deliverables).
+11. The Obsidian-centered workspace output paths are explicit: where
+    `ai_draft` is shown, where the user reviews/edits, where
+    `human_approved` lands, and how `recall` / `review` / project-context
+    serve the Obsidian workflow are all documented and surfaced through
+    `doctor` / `next`.
+
+**Phase 1 Non-Goals (explicit):**
+
+- No Web UI, no TUI, no Obsidian plugin.
+- No real LLM in the default path; no automatic `.env` reads.
+- No real Cubox API (deferred to Phase 3).
+- No RAG / embedding / vector store / graph database.
+- No automatic approve, no automatic Obsidian vault rewrites, no automatic
+  formal-note edits.
+- No writing of formal Obsidian notes outside the staged-export workflow.
+- No remote telemetry, no cloud sync, no background daemon.
+- No file-count / line-count KPIs.
+- No mechanical splitting of cohesive modules.
+
+### Phase 2 — Repair & Polish
+
+**Status: planned.** Goal: harden the closed loop without expanding scope.
+
+Targets:
+
+- Patch any gap discovered while users walk the closed loop.
+- Improve adapter configuration UX (clearer errors, better defaults,
+  better `doctor` diagnostics).
+- Improve error messages and `next` recommendations along the loop.
+- Improve `doctor` coverage for adapter / strategy / approval / Obsidian
+  workspace health.
+- Improve the review / approve / merge UX, especially around the merge
+  outcomes listed in Phase 1 criterion 9.
+- Strengthen the Obsidian-centered file workflow (staged export polish,
+  manifest UX, write-gate ergonomics).
+- Documentation and tests follow the loop, not the file structure.
+- Fake provider remains the default safety path; nothing in Phase 2
+  weakens it.
+
+Phase 2 inherits all Phase 1 Non-Goals.
+
+### Phase 3 — Capability Expansion
+
+**Status: deferred.** Each item in Phase 3 requires its own scoping doc,
+its own safety review, and its own explicit authorization. None of these
+are blanket-approved.
+
+Candidate expansions (each independently gated):
+
+- Real Cubox API integration.
+- Real LLM opt-in (with hard safety gates around `.env`, network, cost,
+  and provider rotation).
+- Additional source adapters (PDF/DOCX hardening, ChatExport variants,
+  WebClip variants, etc.).
+- Richer knowledge strategies beyond the Phase 1 minimum set.
+- Web UI.
+- Obsidian plugin.
+- Disposable-vault dogfooding flows beyond `examples/demo-vault`.
+
+Phase 3 work may not begin until Phase 1 is complete and Phase 2 has
+addressed identified gaps. Re-opening any Phase 0 invariant (boundary
+tests, fake-default, explicit approval, no-`.env`-by-default) requires
+explicit Roadmap-level authorization.
+
+### Historical milestone sections
+
+The dated sections below (v0.4.3 follow-up through v0.7.20–v0.7.23
+Architecture Quality Milestone) are preserved as audit trail. They are
+**not** the canonical product framing — this Product Shape & Phase Plan
+section is. When the historical sections and this section disagree on
+direction, this section wins.
+
 ## Completed v0.4.3 Follow-Up
 
 The docs cleanup after v0.4.3 is complete: active docs were consolidated into
@@ -475,9 +681,11 @@ None of those directions are part of the Architecture Quality Milestone.
 
 ## Near-Term Priority
 
-After the v0.7.20–v0.7.23 Architecture Quality Milestone completes, return to
-validating real local-product usability on small, non-sensitive disposable
-vault copies before adding new feature classes.
+Phase 1 (CLI Product Shape Completion) is the active focus. See
+[Product Shape & Phase Plan](#product-shape--phase-plan) above for the
+canonical closed-loop scenario, the eleven completion criteria, and Phase 1
+Non-Goals. Validate progress on disposable, non-sensitive vault copies
+(default: `examples/demo-vault`) before adding new feature classes.
 
 ## Future Candidate Work
 
