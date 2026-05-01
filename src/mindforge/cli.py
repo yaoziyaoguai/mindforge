@@ -24,7 +24,8 @@ from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .obsidian_cli import obsidian_app
-from .processors import Pipeline
+from .processors import Pipeline  # noqa: F401  -- 保留向后兼容的 re-export，避免外部测试或脚本因 import 路径中断
+from .strategies import DEFAULT_STRATEGY_NAME, StrategyContext, build_strategy
 from .recall_service import (
     RecallQuery,
     RecallServiceError,
@@ -764,14 +765,15 @@ def process(
             template_text=runtime.assets.template_text,
         )
 
-    pipeline = Pipeline(
+    strategy_ctx = StrategyContext(
         client=client,
-        logger=None,  # type: ignore[arg-type]
         prompts_dir=resolved_prompts_dir,
         prompt_versions=cfg.prompts,
         triage_threshold=cfg.triage.value_score_threshold,
         learning_tracks_text=tracks_text,
+        logger=None,
     )
+    pipeline = build_strategy(DEFAULT_STRATEGY_NAME, strategy_ctx)
 
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
 
