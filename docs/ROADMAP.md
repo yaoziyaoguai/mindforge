@@ -112,6 +112,13 @@ cleanup. Detailed per-version notes live under `docs/V0_7_1_*.md` through
 
 ## v0.7.20–v0.7.23 Architecture Quality Milestone
 
+**Status: CLOSED 2026-05.** This milestone is now considered complete. All
+items in the Definition of Done have been satisfied, Stop Condition #9
+(default return to feature roadmap once v0.7.23 boundary tests pass) has
+been reached, and no in-flight follow-up slice is planned. The milestone
+is preserved here as an audit trail and as the contract that future feature
+work must continue to honor (see "Closure summary" below).
+
 This milestone is **technical debt repayment**, not feature stagnation. After
 the local-usable MVP (v0.5.x), the local product UX phase (v0.6.x), and the
 v0.7.0–v0.7.10 feature phase, `cli.py` had grown into a monolithic command
@@ -127,6 +134,165 @@ feature roadmap once v0.7.23 is complete.
 It is inserted **after the last user-visible feature phase (v0.7.0–v0.7.10)**
 and **before any new feature class** because the cost of new features goes up
 sharply when service / presenter / CLI adapter boundaries are unstable.
+
+### Closure summary (2026-05)
+
+This subsection is the canonical statement that the milestone is closed.
+
+**Why we are stopping here, deliberately and not by exhaustion.** The
+milestone declared in advance that v0.7.23 boundary tests would be the final
+scoped slice and that the default action upon their completion is to return
+to the feature roadmap rather than open a v0.7.24 governance slice (see Stop
+Condition 9 below). All four scoped commits have landed and pass quality
+gates; the next reasonable architectural slice (Layer 3: `policy` / `context`
+/ `workflow` boundary tests) has clearly diminishing marginal value relative
+to user-visible feature work, and there is no current evidence of a concrete
+component regressing. Continuing past this point would convert the milestone
+into open-ended optimization, which the milestone itself explicitly forbids.
+
+**Commits that constitute the milestone:**
+
+1. `0f9e8b0` — `docs(roadmap): add architecture quality milestone`. Roadmap
+   formalization: scoped this milestone with three optimization axes, ten
+   Definition-of-Done items, nine stop conditions, and an explicit
+   "return-to-feature-roadmap" trigger.
+2. `386df60` — `test(architecture): add process service boundary checks`.
+   Layer 1 (service) — `process_service` AST static boundary tests.
+3. `d0189d8` — `test(architecture): add review and approval service boundary
+   checks`. Layer 1 follow-up — `review_service` and `approval_service` AST
+   boundary tests, completing the service-layer triad.
+4. `b7b798c` — `test(architecture): add presenter and cli boundary checks`.
+   Layer 2 (presenter + CLI adapter) — parametrized AST boundary tests across
+   all three presenters and both CLI adapter modules.
+
+**Boundary test coverage at closure** (architecture fitness functions):
+
+- `tests/test_process_service_boundaries.py` — 15 tests
+- `tests/test_review_service_boundaries.py` — 16 tests
+- `tests/test_approval_service_boundaries.py` — 16 tests
+- `tests/test_presenter_boundaries.py` — 45 parametrized tests
+  (3 presenters × 15 checks)
+- `tests/test_cli_adapter_boundaries.py` — 14 tests
+  (5 parametrized × 2 CLI files + 4 standalone)
+
+Total: **106 AST boundary tests across 5 services + 3 presenters + 2 CLI
+adapters**. Plus the v0.7.20-era hybrid behavior + AST suite
+(`tests/test_process_service.py`) and `tests/test_safety_policy.py`, which
+remain in force.
+
+**Three optimization axes — closure assessment:**
+
+- **Module optimization (模块优化).** CLI is now a thin adapter (parameter
+  parsing + IO + service/presenter orchestration); use-case business semantics
+  live in `process_service` / `review_service` / `approval_service` /
+  `recall_service`; user-visible rendering lives in `approve_presenter` /
+  `recall_presenter` / `review_presenter`. Each component has a stable
+  surface area locked by an `__all__` snapshot or AST-derived public-name
+  snapshot, plus function and dataclass count caps to prevent silent
+  regrowth. Component responsibilities are explicit and small without being
+  fragmented into anemic helpers.
+- **Architecture optimization (架构优化).** Service / presenter / CLI
+  adapter boundaries are now enforced by AST tests rather than relying on
+  documentation alone. Reverse-dependency direction is enforced (services
+  cannot import CLI or presenters; presenters cannot import CLI or
+  cross-`use-case` services; `obsidian_cli` cannot reverse-import `cli`).
+  Real LLM SDK / `dotenv` / RAG / embedding / vector store / UI-framework
+  imports are explicitly banned where they would represent boundary
+  violations. The fake-provider default safety path is protected by both
+  behavior tests (`test_process_service.py`) and the `safety_policy`
+  alignment assertion in the boundary suite. The `ai_draft` /
+  `human_approved` boundary is locked at five layers (process, review,
+  approval, presenters, CLI), each with an appropriately-tuned literal
+  assignment rule.
+- **Programming art (编程艺术).** No production code was modified during
+  the four boundary-test commits. No file was split to reduce line count.
+  No anemic helper module was created. The five `*_boundaries.py` files are
+  intentionally structurally similar but **not** sharing fixtures — each
+  component's boundary declaration remains independently readable and
+  modifiable. CLI is intentionally **not** locked by line count or file size,
+  as a deliberate anti-KPI decision: "thin" is defined here as "business
+  semantics live in services," not as "few lines." Each test function carries
+  Chinese learning-style commentary explaining *why* the boundary matters,
+  not only what it checks.
+
+**Why we did not extend to Layer 3 (policy / context / workflow):**
+
+- `safety_policy.py` is already covered by `tests/test_safety_policy.py`
+  behavior tests, and is reverse-referenced by
+  `test_process_service_boundaries.py::test_safety_policy_declares_relevant_boundaries`,
+  which keeps three named safety boundaries (`fake_provider_default` /
+  `no_real_llm` / `no_env_read`) honest from the consumer side.
+- `app_context.py` / `project_context.py` / `multi_project_context.py` are
+  already covered by behavior tests.
+- `obsidian_workflow.py` is the v0.7.14 extracted workflow and has its own
+  behavior tests.
+- There is **no current evidence** that any of these components are
+  regressing toward monolith status, importing forbidden dependencies, or
+  bypassing safety boundaries. The marginal value of adding AST static
+  boundary tests for them now is substantially below the marginal value of
+  resuming user-visible feature work.
+- This is consistent with the earlier statement in this milestone:
+  "Future `*_boundaries.py` slices on `recall_service` / `policy` /
+  `context` / `workflow` are possible but **not** part of this milestone
+  unless evidence shows a concrete component is regressing."
+- Should a regression signal appear later (e.g., a forbidden import sneaks
+  into one of these modules during feature work), a small follow-up slice
+  can add the matching boundary file using the same template, without
+  reopening this milestone.
+
+**Residual risks honestly stated:**
+
+- AST boundary tests prevent **silent** boundary erosion — they do not
+  guarantee that the production code inside each module is maximally elegant
+  or fully refactored. Several modules (notably `cli.py` at ~4500 lines)
+  remain large by design choice; the milestone explicitly accepted this in
+  exchange for keeping all user-facing commands discoverable in one place.
+- The presenter and service layers are protected by snapshot locks and
+  count caps; these caps have +1 buffer and will require an intentional
+  test update when legitimate growth occurs. That is by design (force a
+  PR-level conversation), but it does mean that future contributors must
+  understand the boundary tests rather than treat them as inscrutable red.
+- The `human_approved` literal rule has different shapes per layer
+  (banned-everywhere in `approval_service`, `status=`-keyword-only in
+  services that read the status, plus `Compare` / `in` / f-string / Typer
+  Option allowances in CLI). Future contributors editing these files must
+  consult the boundary test docstring before adding a new literal.
+- Behavior tests outside the boundary suite were not refactored in this
+  milestone. Some legacy test files still mix concerns, but this is
+  deliberately out of scope: tests are protective, not architectural.
+
+**Return to feature roadmap — preserved invariants.**
+
+When user-visible feature work resumes, the following invariants — now
+encoded as boundary tests — must continue to hold and **must not be
+weakened to make a feature pass**:
+
+1. `ai_draft` is generated only by AI; `human_approved` is reachable only
+   via `approver.approve_card`, called only by
+   `approval_service.approve_explicit_card`, called only by an explicit
+   user `approve` command in `cli.py`. No new path is allowed to bypass
+   this chain.
+2. The fake provider remains the default; real LLM use is opt-in only,
+   gated by the `mindforge.llm.build_providers` factory and the
+   `requires_real_env` flag in `process_service`.
+3. `.env` loading flows only through `mindforge.env_loader.load_dotenv_silently`.
+   No other module — including any future feature module — may import
+   `dotenv` directly.
+4. No formal Obsidian note write is performed without the explicit dogfood
+   workflow boundary; presenters and services do not call `write_text`.
+5. No RAG / embedding / vector store / Obsidian plugin / Web UI / TUI
+   without an explicit roadmap-authorized scoping doc and a fresh review
+   of these boundary tests.
+6. Reverse-dependency direction (CLI → presenter → service → data /
+   helper modules) is one-way. New features may extend this chain but
+   may not create the reverse.
+
+If a planned feature would require relaxing any of these invariants, that
+is a roadmap-level decision and triggers a fresh planning round; it is
+not a license to weaken the boundary tests.
+
+**Next planning round.** The next planning round is explicitly **not** an
+extension of this milestone. See "Return to feature roadmap" below.
 
 ### Three optimization axes
 
