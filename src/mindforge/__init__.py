@@ -13,4 +13,11 @@
 所有契约的权威源是 ``docs/MINDFORGE_PROTOCOL.md``。
 """
 
-__version__ = "0.7.19"
+try:
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    __version__ = _pkg_version("mindforge")
+except PackageNotFoundError:  # pragma: no cover - 仅在未安装为 distribution 时触发
+    # 后备字面量：必须与 pyproject.toml 中 [project].version 严格一致；
+    # tests/test_version_consistency.py 会在 CI 中锁住这条边界，避免静默漂移。
+    __version__ = "0.7.22"
