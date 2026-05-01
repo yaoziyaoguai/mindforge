@@ -35,6 +35,7 @@
 - `src/mindforge/recall_service.py`
 - `src/mindforge/approval_service.py`
 - `src/mindforge/review_service.py`
+- `src/mindforge/process_service.py`
 - `src/mindforge/obsidian_workflow.py`
 - `src/mindforge/obsidian_stage.py`
 - `src/mindforge/obsidian.py`
@@ -52,6 +53,11 @@
 - `approval_service.py` 负责 approve workflow 边界，单卡写入原语仍在
   `approver.py`；
 - `review_service.py` 负责 weekly review 只读聚合；
+- `process_service.py` 负责 process use-case 的 fake-safety provider 选择、
+  prompts/tracks/template 资源解析、outcome 三分流的结构化映射、
+  unsupported-provider/missing-source/malformed-input 的结构化错误；
+  不读 .env、不实例化真实 provider、不依赖 Typer/Rich/RunLogger，
+  实际 dotenv 加载与 console/writer/logger 副作用仍在 CLI；
 - `obsidian_workflow.py` 负责 Obsidian dogfooding next-plan；
 - `obsidian_stage.py` 负责 staged export / manifest / diff / preflight display
   plan；

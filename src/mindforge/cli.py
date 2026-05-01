@@ -772,28 +772,46 @@ def process(
     """
     cfg = _load_cfg(config, read_env=False)
     cfg = _override_active_profile(cfg, profile)
-    if cfg.llm.active_profile != "fake":
+
+    # v0.7.20：把 fake-safety / 资源解析下沉到 process_service，CLI 只做
+    # IO 副作用编排（dotenv / RunLogger / console / writer / checkpoint）。
+    # service 不读 .env、不实例化真实 provider；CLI 根据 requires_real_env 决定。
+    from .process_service import (
+        ProcessError,
+        ProcessRequest,
+        resolve_process_runtime,
+        summarize_outcome,
+    )
+
+    runtime_or_err = resolve_process_runtime(
+        ProcessRequest(
+            cfg=cfg,
+            file=file,
+            limit=limit,
+            dry_run=dry_run,
+            prompts_dir=prompts_dir,
+            tracks=tracks,
+            template=template,
+        )
+    )
+    if isinstance(runtime_or_err, ProcessError):
+        console.print(f"[red]✗ {runtime_or_err.message}[/red]")
+        raise typer.Exit(code=2)
+    runtime = runtime_or_err
+
+    if runtime.provider.requires_real_env:
         # 中文学习型注释：v0.5.1 把本地 smoke 路径收紧为“不读 .env”。
         # 只有用户显式切到真实 provider 时，才加载 .env 以解析 base_url /
         # api_key 等环境变量；fake provider 必须保持完全离线、无 secret 依赖。
+        # v0.7.20：fake-safety 判断已下沉到 process_service.requires_real_env，
+        # CLI 只负责实际 IO（load_dotenv），保持 service 无副作用。
         load_dotenv_silently(Path.cwd())
     if dry_run:
         console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
     console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
 
-    from .assets_runtime import asset_root, bundled_text
-
-    # 中文学习型说明：v0.5.2 起默认 prompts/tracks/template 来自 package
-    # resources，而不是当前工作目录或仓库根。用户显式传入路径时仍然优先，
-    # 这保证了自定义 prompt 实验不受影响，同时让 wheel 安装后可运行。
-    resolved_prompts_dir = (
-        prompts_dir.expanduser() if prompts_dir is not None else asset_root().joinpath("prompts")
-    )
-    tracks_text = (
-        tracks.expanduser().read_text("utf-8")
-        if tracks is not None
-        else bundled_text("configs", "learning_tracks.yaml")
-    )
+    resolved_prompts_dir = runtime.assets.prompts_dir
+    tracks_text = runtime.assets.tracks_text
 
     scanner = Scanner(cfg)
     cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)
@@ -801,17 +819,17 @@ def process(
     providers = build_providers(cfg.llm)
     client = LLMClient(llm_config=cfg.llm, providers=providers)
 
-    if template is not None:
+    if runtime.assets.template_path is not None:
         writer = CardWriter(
             vault_root=cfg.vault.root,
             cards_dir=cfg.vault.cards_dir,
-            template_path=template.expanduser(),
+            template_path=runtime.assets.template_path,
         )
     else:
         writer = CardWriter(
             vault_root=cfg.vault.root,
             cards_dir=cfg.vault.cards_dir,
-            template_text=bundled_text("templates", "knowledge_card.md.j2"),
+            template_text=runtime.assets.template_text,
         )
 
     pipeline = Pipeline(
@@ -858,6 +876,13 @@ def process(
 
             outcome = pipeline.run(doc)
 
+            # v0.7.20：把 outcome 三分流的字段提取下沉到 process_service.summarize_outcome
+            # 这是纯函数；CLI 仍负责 RunLogger.emit / console.print / writer.write
+            # / checkpoint 写回，保持时序耦合在 CLI 端。
+            item_result = summarize_outcome(
+                outcome, doc, result.adapter_name, dry_run=dry_run
+            )
+
             now = datetime.now()
             item.status = outcome.status  # type: ignore[assignment]
             item.last_run_id = logger.run_id
@@ -879,9 +904,8 @@ def process(
 
             if outcome.status == "skipped":
                 counts["skipped"] += 1
-                triage_parsed = outcome.triage.parsed if outcome.triage else {}
-                item.track = triage_parsed.get("track")
-                item.value_score = triage_parsed.get("value_score")
+                item.track = item_result.track
+                item.value_score = item_result.value_score
                 logger.emit(
                     "source_processed",
                     source_id=doc.source_id,
@@ -913,18 +937,9 @@ def process(
                 )
             else:  # processed
                 counts["processed"] += 1
-                triage_parsed = outcome.triage.parsed if outcome.triage else {}
-                item.track = triage_parsed.get("track")
-                item.value_score = triage_parsed.get("value_score")
-                # 渲染并写卡片
-                source_dict = {
-                    "source_id": doc.source_id,
-                    "source_type": doc.source_type,
-                    "adapter_name": result.adapter_name,
-                    "source_path": doc.source_path,
-                    "source_url": doc.source_url or "",
-                    "title": doc.title or "",
-                }
+                item.track = item_result.track
+                item.value_score = item_result.value_score
+                source_dict = item_result.source_dict
                 run_dict = {
                     "created_at": now.isoformat(timespec="seconds"),
                     "prompts": {"distill_version": cfg.prompts.distill},  # type: ignore[attr-defined]
@@ -935,7 +950,7 @@ def process(
                     },
                     "run_id": logger.run_id,
                 }
-                if dry_run:
+                if item_result.would_write_only:
                     console.print(
                         f"[cyan]dry-run[/cyan] would-write {doc.source_path}"
                         f" → {cfg.vault.cards_path / (item.track or 'unrouted')}"
