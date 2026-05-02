@@ -56,16 +56,16 @@ from .registry import (
     StrategyMetadata,
     UnknownStrategyError,
     available_strategies,
-    build_strategy,
     get_strategy_metadata,
     list_strategies,
 )
+from .registry import build_strategy as _build_builtin_strategy
 
 
 def discover_strategies(
     custom_path: Path | None = None,
 ) -> tuple[StrategyMetadata, ...]:
-    """统一的策略**发现**入口（v0.12 Slice 3 Green）。
+    """统一的策略**发现**入口（v0.12 Slice 3 Green / Slice 4 Green）。
 
     职责（高内聚 / 单一）
     ====================
@@ -88,6 +88,11 @@ def discover_strategies(
     - 不允许 ``custom_path`` 默认指向用户主目录或 vault —— 必须由
       调用方显式传入。
 
+    Slice 4 Green 新增：``strategy_id`` 撞名（custom 与 built-in 同名）
+    会立刻 fail-loud 抛 :class:`InvalidStrategyDefinitionError`，避免
+    "悄悄覆盖"或"两个同名条目并列"造成调用方歧义 —— 见
+    :func:`_reject_duplicate_strategy_ids`。
+
     参数
     ====
 
@@ -103,13 +108,103 @@ def discover_strategies(
     :func:`available_strategies` 字典序），再 custom（按文件名字典序）。
     """
 
-    metas: list[StrategyMetadata] = list(list_strategies())
-    if custom_path is not None:
+    builtin = list(list_strategies())
+    if custom_path is None:
+        return tuple(builtin)
+
+    from .custom_loader import load_strategy_definitions_from_directory
+
+    custom_definitions = load_strategy_definitions_from_directory(custom_path)
+    custom_metas = [d.to_metadata() for d in custom_definitions]
+    _reject_duplicate_strategy_ids(builtin, custom_metas)
+    return tuple(builtin + custom_metas)
+
+
+def _reject_duplicate_strategy_ids(
+    builtin: list[StrategyMetadata],
+    custom: list[StrategyMetadata],
+) -> None:
+    """custom strategy_id 不能与 built-in 撞名，也不能彼此撞名。
+
+    - **为什么 fail-loud**：discovery 是 *元数据合并*，调用方拿到的元
+      组在 UX 与 ``build_strategy`` 中都按"名字"做唯一索引；同名条目
+      会让调用方无法分辨该跑哪个，进而把 custom preview 误当 built-in
+      执行。
+    - **错误形态**：抛 :class:`InvalidStrategyDefinitionError`（数据级
+      错误的统一根类），消息包含撞名 ``strategy_id`` 与字面量 ``duplicate
+      strategy_id`` —— 让 CLI / 未来 UI 直接展示而无需自己拼装。
+    """
+
+    from .custom import InvalidStrategyDefinitionError
+
+    builtin_ids = {m.strategy_id for m in builtin}
+    seen_custom: set[str] = set()
+    for meta in custom:
+        if meta.strategy_id in builtin_ids:
+            raise InvalidStrategyDefinitionError(
+                f"duplicate strategy_id: custom definition declares "
+                f"{meta.strategy_id!r} which already exists as a built-in "
+                "strategy; rename the custom definition (custom strategy_id "
+                "must not conflict with built-in)."
+            )
+        if meta.strategy_id in seen_custom:
+            raise InvalidStrategyDefinitionError(
+                f"duplicate strategy_id: two custom definitions declare "
+                f"{meta.strategy_id!r}; rename one of them so each custom "
+                "strategy_id is unique."
+            )
+        seen_custom.add(meta.strategy_id)
+
+
+def build_strategy(
+    name: str,
+    ctx: StrategyContext,
+    *,
+    custom_path: Path | None = None,
+) -> KnowledgeStrategy:
+    """按名字派发策略工厂；可选地把 custom_path 一并解析为 preview-only
+    友好分流（v0.12 Slice 4 Green）。
+
+    包装 :func:`registry.build_strategy`：
+
+    - 名字命中 built-in → 走 registry 的实现 / planned 守护路径；
+    - 名字未命中 built-in 但 ``custom_path`` 给出且 custom 目录中存在
+      该 strategy_id → 抛 :class:`NotYetImplementedStrategyError`，
+      消息含 ``preview`` + ``discovery`` 两个字面量，让用户立刻明白
+      这不是 typo，而是"已被 discovery 看到，但尚不可执行"；
+    - 名字未命中 built-in 且未在 custom 目录出现 → 仍抛
+      :class:`UnknownStrategyError`（与 ``custom_path=None`` 路径一致）；
+    - custom 目录加载错误（非法定义 / 路径穿越 / symlink-escape） →
+      :class:`InvalidStrategyDefinitionError` 子类直接传播。
+
+    本函数**不**调 provider / 不读 ``.env`` / 不写 workspace / 不
+    把 custom 注入 ``_FACTORIES``。preview-only 分流仅借助 discovery
+    元数据视图判断"该名字是否被发现过"。
+    """
+
+    if custom_path is None:
+        return _build_builtin_strategy(name, ctx)
+    try:
+        return _build_builtin_strategy(name, ctx)
+    except UnknownStrategyError:
+        # discovery 元数据视图查表：若该名字属于 custom preview，则
+        # 改抛 NotYet 而不是 Unknown —— UX 友好分流。
         from .custom_loader import load_strategy_definitions_from_directory
 
-        for definition in load_strategy_definitions_from_directory(custom_path):
-            metas.append(definition.to_metadata())
-    return tuple(metas)
+        custom_metas = [
+            d.to_metadata()
+            for d in load_strategy_definitions_from_directory(custom_path)
+        ]
+        if any(m.strategy_id == name for m in custom_metas):
+            raise NotYetImplementedStrategyError(
+                f"strategy {name!r} was found via discovery (custom preview); "
+                "discovery is not execution. Custom preview strategies are "
+                "registered as metadata only and cannot be executed yet. "
+                "Run `mindforge strategies list --custom-path <DIR>` to see "
+                "all preview definitions; pick a built-in implemented "
+                "strategy to actually run `mindforge process`."
+            ) from None
+        raise
 
 
 __all__ = [

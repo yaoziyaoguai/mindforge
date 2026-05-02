@@ -275,3 +275,70 @@ the single source the CLI list command consumes. It never constructs
 an `LLMClient`, never calls a provider, never reads `.env`, never
 writes anywhere; it merely combines built-in metadata with the
 custom-path metadata produced by Slice 2's loader.
+
+## 8. From Preview to Future Implementation (v0.12 Slice 4 Green)
+
+A custom declarative definition is registered as **metadata only**.
+Its `status` is forced to `preview` or `planned` at parse time, and
+`build_strategy(name, ctx, custom_path=DIR)` refuses to instantiate
+it with a `NotYetImplementedStrategyError` whose message contains
+both the literals `preview` and `discovery is not execution`. This
+prevents two failure modes at once: (a) a confusing
+`UnknownStrategyError` when the user *can clearly see* the name in
+`mindforge strategies list --custom-path DIR`; (b) a custom
+definition silently activating a real or default strategy under a
+familiar id.
+
+### 8.1 The path from preview to implementation
+
+There is exactly one safe route from "discovered preview" to "really
+runnable":
+
+1. The declarative definition stays the source of truth for
+   metadata (`strategy_id`, `provider_mode`, `safety_policy`,
+   `output_schema_id`, `description`, `structured_payload_schema`,
+   `prompt_template`).
+2. A future, project-shipped, **explicitly opted-in** Python module
+   provides a deterministic factory bound to that `strategy_id`. The
+   factory is reviewed and merged into the project source tree —
+   never auto-loaded from disk, never imported from the user's
+   `--custom-path`.
+3. The factory is registered in `strategies/registry.py`'s
+   `_FACTORIES` dict by an explicit code change (visible in PRs and
+   git blame). The `status` field on the corresponding metadata
+   module is then promoted from `preview` to `implemented`.
+
+Steps 2 and 3 are deliberately code changes, not user actions. The
+project will never:
+
+- accept a Python entry point or callable from a `--custom-path`
+  YAML/JSON file;
+- accept a shell or script field in a custom definition;
+- import or `exec`/`eval` user-supplied code based on a declarative
+  field;
+- enable real LLM calls without an additional explicit opt-in
+  switch beyond `--custom-path`.
+
+This means a custom preview can never become executable through the
+discovery surface alone — which is exactly the property that lets
+users safely point `--custom-path` at any directory.
+
+### 8.2 What remains forbidden
+
+- **No arbitrary python**: declarative custom strategies cannot
+  reference Python callables, modules, entry points, or import
+  paths. Loading is parse + validate only.
+- **No shell** strategy, no subprocess, no `os.system`, no script
+  execution.
+- **No real LLM by default**: even after a strategy moves from
+  preview to implementation, real-LLM calls remain off unless the
+  caller passes a separate, documented opt-in flag (`UPSTAGE_API_KEY`
+  is never read implicitly).
+- **No auto-approval**: `human_approved` is owned by the explicit
+  approver chain. A custom (or built-in) strategy can only emit
+  `ai_draft`. The schema validator rejects any `human_approved` key
+  inside `structured_payload_schema`.
+- **No registry mutation from discovery**: `discover_strategies()`
+  never writes into `_FACTORIES` or `available_strategies()`.
+  Custom previews are a metadata view; built-in factories remain
+  the single source of "what is executable today".

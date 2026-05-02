@@ -111,6 +111,20 @@ def test_strategy_init_reexports_protocol_and_factory() -> None:
         if isinstance(node, ast.ImportFrom) and node.level >= 1:
             for alias in node.names:
                 names.add(alias.asname or alias.name)
+        # v0.12 Slice 4 Green：``build_strategy`` 在 package 层从纯 re-export
+        # 演化为薄包装函数（仍委派给 :func:`registry.build_strategy`，新增
+        # ``custom_path`` 关键字以便 preview-only 友好分流）。语义契约
+        # 不变 —— 名字仍由 ``mindforge.strategies`` 公开导出 ——
+        # 因此这里把"模块顶层 def / class / 赋值"也视为合法的公开导出
+        # 证据，避免把"实现策略"误绑死成"必须 import 别人"。
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
     must_export = {
         "KnowledgeStrategy",
         "StrategyContext",
