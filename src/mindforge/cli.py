@@ -24,6 +24,7 @@ from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .obsidian_cli import obsidian_app
+from .provider_cli import provider_app
 from .processors import Pipeline  # noqa: F401  -- 保留向后兼容的 re-export，避免外部测试或脚本因 import 路径中断
 from .strategies import (
     DEFAULT_STRATEGY_NAME,
@@ -80,6 +81,7 @@ app.add_typer(config_app, name="config")
 dogfood_app = typer.Typer(add_completion=False, help="非敏感本地 dogfooding 计划与 checklist")
 app.add_typer(dogfood_app, name="dogfood")
 app.add_typer(obsidian_app, name="obsidian")
+app.add_typer(provider_app, name="provider")
 console = Console()
 
 
