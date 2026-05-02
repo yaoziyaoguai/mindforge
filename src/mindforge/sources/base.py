@@ -149,6 +149,41 @@ class SourceDocument:
                 "请在 adapter.load() 中调用 compute_content_hash()"
             )
 
+    # ------------------------------------------------------------------
+    # v0.9 Slice 1：provenance-completeness 查询面（仅查询，不抛错）。
+    #
+    # 为什么不在 ``__post_init__`` 里强制 ``adapter_name`` 非空？
+    # ----------------------------------------------------------
+    # 历史决策（v0.4.2，见 ``src/mindforge/scanner.py`` L80-86 与本文件
+    # ``adapter_name`` 字段 docstring）：adapter 自身可以省略 adapter_name，
+    # 由 Scanner 在派发后统一回填。这把"我是谁"的样板代码集中在框架，
+    # 是 Information Hiding 的体现，不是疏漏。
+    #
+    # v0.9 Slice 1 的契约升格因此采用**查询接口**而非构造期断言：
+    # - 构造仍允许空 ``adapter_name``，保留 Scanner-backfill 的优雅；
+    # - 但任何对外发出（emit / persist / state.json 写入 / 下游消费）
+    #   的 ``SourceDocument`` 必须能通过 ``is_provenance_complete()``，
+    #   否则说明 backfill 链路出 bug，应在 Scanner 出口做校验，而不是
+    #   倒逼每个 adapter 重复同一行 ``adapter_name=self.name``。
+    #
+    # 这同时避免了"为加一行校验而修改 7 个 adapter + 5 个测试 fixture"
+    # 的机械搬运式扩散，保住了 Slice 1 "最小、聚焦、不制造新巨石" 原则。
+    # ------------------------------------------------------------------
+    def is_provenance_complete(self) -> bool:
+        """provenance 是否齐全到可以对外发出。
+
+        v0.9 Slice 1 契约：齐全 = ``adapter_name`` 非空字符串。
+
+        其余 provenance 字段（``title`` / ``author`` / ``source_url`` /
+        ``created_at`` / ``captured_at``）属于"尽力而为" 元信息，**不**
+        纳入 completeness 判定 —— 例如手写 ``manual_note`` 通常没有
+        ``source_url``，强制要求会让正常路径失败。
+
+        返回 ``True`` 表示 ``adapter_name`` 已被填入；否则 ``False``。
+        本方法不抛异常、不修改状态、不做 IO，是纯函数。
+        """
+        return bool(self.adapter_name)
+
 
 def compute_content_hash(raw_text: str, key_metadata: dict[str, Any] | None = None) -> str:
     """计算 SourceDocument.content_hash 的标准实现。

@@ -156,27 +156,46 @@ def test_source_document_is_frozen() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Provenance 必填：source_id / source_type / source_path 已被 __post_init__
-#    强制；adapter_name 也属于 provenance，必须可追溯"这条记录是谁解析的"。
-#    这是**预期 Red**：当前实现没有强制 adapter_name 非空。
+# 4. Provenance completeness：source_id / source_type / source_path 已被
+#    __post_init__ 强制；adapter_name 也属于 provenance，但**构造期不强制**
+#    ——历史上 Scanner 在派发后统一回填，让 adapter 不必重复 ``adapter_name
+#    =self.name``。Slice 1 契约因此通过查询接口 ``is_provenance_complete()``
+#    钉死边界：
+#    - 构造期允许 adapter_name 为空（Scanner-backfill 友好）；
+#    - 但对外 emit 前必须 ``is_provenance_complete()`` 为真，否则 Scanner
+#      / 下游消费者应拒绝该文档。
+#
+#    Slice 1 Red 阶段曾把这条契约错放在 ``__post_init__`` 上（DID NOT RAISE
+#    Red）；审计后发现那种实现会强迫修改 7 个 adapter + 多个 fixture，
+#    属于机械搬运。现按"查询接口 + Scanner 出口校验"重新表达契约。
 # ---------------------------------------------------------------------------
 
 
-def test_adapter_name_must_be_provided() -> None:
-    """adapter_name 是 provenance 的一部分，不允许为空字符串。
+def test_is_provenance_complete_returns_false_when_adapter_name_missing() -> None:
+    """空 adapter_name 的 SourceDocument 必须 is_provenance_complete() = False。
 
     背景：``state.json`` 用 adapter_name 反向追溯"这条 SourceDocument 是
-    哪个 adapter 解析出来的"。如果允许空，多 adapter 共存时再现 bug 几乎
-    无法定位。
-
-    **预期 Red**：当前 ``__post_init__`` 只校验 source_id / source_type /
-    source_path / content_hash 四个字段，没有把 adapter_name 列入必填。
-    Slice 1 Green 阶段应在 ``__post_init__`` 加一条
-    ``if not self.adapter_name: raise ValueError(...)`` 让本测试转 Green。
+    哪个 adapter 解析出来的"。空字符串意味着 Scanner 还没回填或 backfill
+    链路出 bug —— 此时下游不应消费这条记录。
     """
-    kwargs = _minimal_kwargs(adapter_name="")
-    with pytest.raises(ValueError, match="adapter_name"):
-        SourceDocument(**kwargs)
+    doc = SourceDocument(**_minimal_kwargs(adapter_name=""))
+    assert doc.is_provenance_complete() is False
+
+
+def test_is_provenance_complete_returns_true_when_adapter_name_present() -> None:
+    """填好 adapter_name 的 SourceDocument 必须 is_provenance_complete() = True。"""
+    doc = SourceDocument(**_minimal_kwargs(adapter_name="PlainMarkdownAdapter"))
+    assert doc.is_provenance_complete() is True
+
+
+def test_is_provenance_complete_is_pure_query() -> None:
+    """is_provenance_complete 是纯查询：不抛异常、不改状态、可重复调用。"""
+    doc = SourceDocument(**_minimal_kwargs(adapter_name="X"))
+    first = doc.is_provenance_complete()
+    second = doc.is_provenance_complete()
+    assert first is True and second is True
+    # frozen 守卫已确保 doc 不可变；这里再次确认调用未触发任何属性写入。
+    assert doc.adapter_name == "X"
 
 
 # ---------------------------------------------------------------------------
