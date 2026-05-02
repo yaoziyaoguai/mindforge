@@ -50,6 +50,7 @@ from .concept_extraction import build_concept_extraction_strategy
 from .five_stage import build_five_stage_strategy
 from .registry import (
     DEFAULT_STRATEGY_NAME,
+    NotYetImplementedStrategyError,
     StrategyMetadata,
     UnknownStrategyError,
     available_strategies,
@@ -61,6 +62,7 @@ from .registry import (
 __all__ = [
     "DEFAULT_STRATEGY_NAME",
     "KnowledgeStrategy",
+    "NotYetImplementedStrategyError",
     "StrategyContext",
     "StrategyMetadata",
     "UnknownStrategyError",

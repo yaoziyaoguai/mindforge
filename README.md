@@ -37,9 +37,23 @@ mindforge strategies list
 ```
 
 输出会列出每个内建策略的 `strategy_id` / `display_name` /
-`provider_mode` / `safety_policy` / `output_schema_id` / 描述。当前内建
-两个策略：`default_knowledge_card`（离线确定性）与 `five_stage`（LLM
-驱动，默认走 fake provider，真实 LLM 仅显式 opt-in 时启用）。
+`status` / `provider_mode` / `safety_policy` / `output_schema_id` /
+描述。当前内建策略：
+
+- `default_knowledge_card`（**implemented**，离线确定性）
+- `five_stage`（**implemented**，LLM 驱动，默认走 fake provider，真实
+  LLM 仅显式 opt-in 时启用）
+- `concept_extraction`（**preview**，离线确定性骨架；可执行但语义仍在演化）
+- `action_item`（**planned**，仅登记元数据，调用 `mindforge process
+  --strategy action_item` 会礼貌拒绝并提示可执行替代）
+
+`status` 三态约定：
+
+- `implemented`：生产可用，可执行；
+- `preview`：可执行，但语义/字段集合仍在演化，不要按生产质量要求；
+- `planned`：仅登记元数据，**不可执行**；执行会抛
+  `NotYetImplementedStrategyError`，并明确建议 implemented 替代，绝
+  不会偷偷 fallback 到 default 策略。
 
 To try the product without using your own data:
 

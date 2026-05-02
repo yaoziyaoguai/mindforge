@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from . import action_item as _action_item_mod
 from . import default_knowledge_card as _default_knowledge_card_mod
 from . import concept_extraction as _concept_extraction_mod
 from . import five_stage as _five_stage_mod
@@ -42,11 +43,48 @@ def _format_unknown_strategy_message(name: str) -> str:
     )
 
 
+def _format_planned_strategy_message(name: str) -> str:
+    """统一拼装 NotYetImplementedStrategyError 的可读消息。
+
+    包含四段：策略名、planned/not-yet-implemented 字面量、可执行替代
+    （implemented 状态的 ID 列表）、CLI discovery 入口提示。让用户立刻
+    知道"它存在但没做完"且"我可以用这些代替"。
+
+    严格不放 Python repr / stack trace —— 错误消息是用户主界面的一部分，
+    不能泄漏内部对象地址或调用栈。
+    """
+
+    implemented = tuple(
+        m.strategy_id for m in list_strategies() if m.status == "implemented"
+    )
+    return (
+        f"strategy {name!r} is planned (not yet implemented); "
+        f"implemented alternatives: {implemented}; "
+        "run `mindforge strategies list` to see all strategies."
+    )
+
+
 class UnknownStrategyError(ValueError):
     """请求了未注册的策略名。
 
     使用结构化异常而不是返回 None，让调用方在静默拿到错误策略前就 crash —
     fake-default 安全路径不允许悄悄回退。
+    """
+
+
+class NotYetImplementedStrategyError(ValueError):
+    """请求执行了一个已登记元数据但 ``status="planned"`` 的策略。
+
+    与 :class:`UnknownStrategyError` 严格区分（**不**继承它），目的是让
+    上层调用站点能分别处理两种语义：
+
+    - unknown：用户拼错了名字 → 提示拼写正确的可选项；
+    - planned：用户拼对了名字，但此策略只是"已登记尚未实现" → 提示
+      implemented 替代 + 解释为什么这次不能跑。
+
+    选择继承 :class:`ValueError` 而不是新发明一棵异常树，是为了让既有
+    顶层 broad except 仍能 catch；同时保证两个错误类彼此不互为子类，
+    防止一个 ``except UnknownStrategyError`` 把 planned 一并吞掉。
     """
 
 
@@ -67,7 +105,7 @@ class StrategyMetadata:
       告诉用户该策略默认是否离线安全；
     - ``safety_policy``：固定为 ``ai_draft_only`` —— 与项目"不自动 approve"
       硬约束对齐；
-    - ``output_schema_id``：``<strategy_id>@<envelope_schema_version>``，
+    - ``output_schema_id``：``<strategy_id>@<envelope_schema_version>``,
       让消费方一眼看到 envelope schema 标识。
 
     生命周期字段（v0.11 Slice 3 引入）：
@@ -88,6 +126,10 @@ class StrategyMetadata:
     status: str
 
 
+# 中文学习型注释：``_FACTORIES`` 只登记 *可执行* 策略；planned 策略
+# **故意不**出现在这里，从源头上就没有可被偷调用的工厂。这样即便未来
+# build_strategy 的 status 守护被破坏，planned 路径也不会回退到默认
+# 策略 —— 因为根本不存在 factory。
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
     DEFAULT_STRATEGY_NAME: build_five_stage_strategy,
     "default_knowledge_card": build_default_knowledge_card_strategy,
@@ -98,29 +140,57 @@ _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
 # 中文学习型注释：metadata 不在 registry 里硬编码字符串，而是从各 strategy
 # 模块顶层常量按名字映射读取 —— 这样 strategy 模块仍是元数据的"作者"，
 # registry 只负责"汇总展示"，避免 registry 变成 prompt / metadata 巨石。
+#
+# v0.11 Slice 4：``_METADATA_MODULES`` 是策略**注册**的事实来源（包含
+# planned 在内的所有可被发现的策略），而 ``_FACTORIES`` 只登记可执行
+# 工厂。两者解耦让 planned 策略可以"可见但不可执行"。
 _METADATA_MODULES = {
     DEFAULT_STRATEGY_NAME: _five_stage_mod,
     "default_knowledge_card": _default_knowledge_card_mod,
     "concept_extraction": _concept_extraction_mod,
+    "action_item": _action_item_mod,
 }
 
 
 def available_strategies() -> tuple[str, ...]:
-    """已注册策略名的稳定快照（按名字字典序）。"""
+    """已注册策略名的稳定快照（按名字字典序）。
 
-    return tuple(sorted(_FACTORIES))
+    包含 implemented / preview / planned 全部三态 —— UX 上 planned 策略
+    必须能被发现，否则用户根本不知道"它存在但还不能跑"。可执行性由
+    :func:`build_strategy` 在调用时根据 ``status`` 守护。
+    """
+
+    return tuple(sorted(_METADATA_MODULES))
 
 
 def build_strategy(name: str, ctx: StrategyContext) -> KnowledgeStrategy:
-    """按名字派发策略工厂。
+    """按名字派发策略工厂，并在 ``status="planned"`` 时礼貌拒绝。
 
-    未知名字会抛 :class:`UnknownStrategyError`，由调用方决定如何向用户
-    呈现 —— registry 不做 console 输出。
+    错误分流：
+
+    - **未注册名** → :class:`UnknownStrategyError`，建议拼写正确的可选项；
+    - **planned 状态** → :class:`NotYetImplementedStrategyError`，建议
+      implemented 替代；
+    - **已注册但缺工厂**（防御）→ 同样抛 NotYet，避免 silent KeyError；
+    - **正常路径** → 调用工厂返回策略实例。
+
+    任何分支都不读 ``.env``、不调 LLM、不写 workspace。
     """
 
+    if name not in _METADATA_MODULES:
+        raise UnknownStrategyError(_format_unknown_strategy_message(name))
+    status = _METADATA_MODULES[name].STRATEGY_STATUS
+    if status == "planned":
+        raise NotYetImplementedStrategyError(
+            _format_planned_strategy_message(name)
+        )
     factory = _FACTORIES.get(name)
     if factory is None:
-        raise UnknownStrategyError(_format_unknown_strategy_message(name))
+        # 防御分支：metadata 已注册但 _FACTORIES 没有对应项，且 status
+        # 不是 planned —— 这是一个内部不一致。仍然拒绝执行而不是回退。
+        raise NotYetImplementedStrategyError(
+            _format_planned_strategy_message(name)
+        )
     return factory(ctx)
 
 

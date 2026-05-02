@@ -29,6 +29,7 @@ from .strategies import (
     DEFAULT_STRATEGY_NAME,
     StrategyContext,
     UnknownStrategyError,
+    NotYetImplementedStrategyError,
     available_strategies,
     build_strategy,
     list_strategies,
@@ -796,6 +797,14 @@ def process(
     # source / adapter / SourcePlugin 反推。
     try:
         pipeline = build_strategy(strategy, strategy_ctx)
+    except NotYetImplementedStrategyError as e:
+        # planned strategy 与 unknown 严格区分：消息措辞不同，但都
+        # 以非零退出码退出，避免上层流水线把它当成 success 继续。
+        console.print(
+            f"[yellow]✗ 策略 {strategy!r} 尚未实现（planned / not yet "
+            f"implemented）；{e}[/yellow]"
+        )
+        raise typer.Exit(code=2) from None
     except UnknownStrategyError:
         console.print(
             f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}；"
