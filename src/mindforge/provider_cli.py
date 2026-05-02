@@ -47,11 +47,29 @@ def provider_readiness_cmd(
         "-c",
         help="MindForge 配置文件路径",
     ),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        "-f",
+        help="输出格式: 'text' (人类可读, 默认) 或 'json' (脚本化消费)",
+    ),
 ) -> None:
     """打印 provider readiness 报告 (无网络, 无 secret 打印)。"""
     app_cfg = load_app_config(config)
     report = build_readiness_report(app_cfg.llm)
-    typer.echo(render_readiness_report(report))
+    if output_format == "json":
+        import json
+        # JSON 模式仍然不含任何 env value; 只是把同一 dict 序列化, 便于
+        # 脚本/CI 集成 (例如 "doctor" check 解析 opt_in_state 字段)。
+        typer.echo(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    elif output_format == "text":
+        typer.echo(render_readiness_report(report))
+    else:
+        typer.echo(
+            f"unknown --format {output_format!r}; expected 'text' or 'json'",
+            err=True,
+        )
+        raise typer.Exit(code=2)
 
 
 @provider_app.command("smoke")
