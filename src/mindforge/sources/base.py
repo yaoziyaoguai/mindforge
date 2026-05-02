@@ -48,6 +48,7 @@ from typing import Any, Literal
 # ---------------------------------------------------------------------------
 SourceType = Literal[
     "cubox_markdown",
+    "cubox_api",
     "plain_markdown",
     "webclip_markdown",
     "pdf",

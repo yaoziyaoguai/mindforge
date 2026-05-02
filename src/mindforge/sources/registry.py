@@ -15,6 +15,7 @@ from typing import Type
 from ..config import SourcesConfig
 from .base import SourceAdapter
 from .chat_export import ChatExportAdapter
+from .cubox_api import CuboxApiAdapter
 from .cubox_markdown import CuboxMarkdownAdapter
 from .docx import DocxAdapter
 from .obsidian_vault import ObsidianVaultSourceAdapter
@@ -25,6 +26,7 @@ from .webclip_markdown import WebClipMarkdownAdapter
 # adapter 类名 → 类。新增 adapter 在此处加一行即可。
 _BUILTIN_ADAPTERS: dict[str, Type[SourceAdapter]] = {
     "CuboxMarkdownAdapter": CuboxMarkdownAdapter,
+    "CuboxApiAdapter": CuboxApiAdapter,
     "PlainMarkdownAdapter": PlainMarkdownAdapter,
     "WebClipMarkdownAdapter": WebClipMarkdownAdapter,
     "PdfAdapter": PdfAdapter,

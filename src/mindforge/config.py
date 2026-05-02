@@ -38,6 +38,7 @@ REQUIRED_STAGES: tuple[str, ...] = (
 KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
     {
         "cubox_markdown",
+        "cubox_api",
         "plain_markdown",
         "webclip_markdown",
         "pdf",

@@ -1,0 +1,31 @@
+[
+  {
+    "id": "cbx-001",
+    "title": "Designing Token Budgets for Long-Context Agents",
+    "url": "https://example.com/posts/agent-token-budget",
+    "author": "Sample Author",
+    "tags": ["agent", "context-engineering"],
+    "created_at": "2026-05-01T10:00:00Z",
+    "saved_at": "2026-05-01T22:30:00Z",
+    "content": "# Designing Token Budgets\n\nWhen agents have to work over long horizons, the dominant cost driver is not raw model price but **context refresh frequency**.\n\n## Why budgets matter\n\nBuilders who skip explicit budgets end up rebuilding the same observation/action history every turn.\n\n## Two strategies\n\n1. Sliding window with eviction\n2. Episodic checkpoint with rehydration\n",
+    "highlights": [
+      {"text": "the dominant cost driver is not raw model price but context refresh frequency"},
+      {"text": "Builders who skip explicit budgets end up rebuilding the same observation/action history every turn", "note": "私人批注：这里和 ReAct 的 step-level checkpoint 一致。"},
+      {"text": "Episodic checkpoint with rehydration"}
+    ]
+  },
+  {
+    "id": "cbx-002",
+    "title": "Approval Outcomes as First-Class Domain Objects",
+    "url": "https://example.com/posts/approval-outcomes",
+    "author": "Another Author",
+    "tags": ["domain-modeling"],
+    "created_at": "2026-05-02T08:15:00Z",
+    "saved_at": "2026-05-02T20:00:00Z",
+    "content": "# Approval Outcomes\n\nMost knowledge tools collapse human review into a single yes/no flag.\nFirst-class outcomes (reject, defer, append, link, merge, split) preserve user intent for later compaction.\n",
+    "highlights": [
+      {"text": "Most knowledge tools collapse human review into a single yes/no flag"},
+      {"text": "First-class outcomes preserve user intent for later compaction"}
+    ]
+  }
+]
