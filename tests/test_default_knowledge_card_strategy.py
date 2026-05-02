@@ -154,7 +154,14 @@ def test_run_returns_pipeline_outcome_with_card_payload() -> None:
     assert outcome.card_payload is not None
 
 
-def test_card_payload_has_exactly_10_contract_keys() -> None:
+def test_card_payload_structured_payload_has_exactly_10_contract_keys() -> None:
+    """v0.10 Slice 4 起 10 字段 schema 装入 envelope 的 ``structured_payload``。
+
+    Envelope 顶层（strategy_id / strategy_version / schema_version / status /
+    source_evidence / structured_payload / review_hints）由
+    ``test_card_payload_envelope_contract.py`` 守护；本测试守护
+    strategy-specific 的 10 字段 schema 不变（不增不减）。
+    """
     from mindforge.strategies.default_knowledge_card import (
         build_default_knowledge_card_strategy,
     )
@@ -162,7 +169,9 @@ def test_card_payload_has_exactly_10_contract_keys() -> None:
     strat = build_default_knowledge_card_strategy(_strategy_context())
     outcome = strat.run(_doc())
     assert outcome.card_payload is not None
-    actual_keys = set(outcome.card_payload.keys())
+    structured = outcome.card_payload.get("structured_payload")
+    assert isinstance(structured, dict)
+    actual_keys = set(structured.keys())
     assert actual_keys == set(CARD_PAYLOAD_KEYS), (
         f"missing: {CARD_PAYLOAD_KEYS - actual_keys}; "
         f"extra: {actual_keys - CARD_PAYLOAD_KEYS}"
