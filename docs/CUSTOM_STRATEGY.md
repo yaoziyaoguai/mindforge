@@ -120,10 +120,7 @@ stack trace as primary UX.
 
 ## 5. Roadmap Beyond Slice 1
 
-- **v0.12 Slice 2 (planned):** safe loading source — explicit path,
-  no implicit home-directory or vault scanning, path-traversal /
-  symlink defenses, malformed-file user-friendly validation errors.
-  Loading is **not** execution.
+- **v0.12 Slice 2 (✅ Green):** safe loading source (this section).
 - **v0.12 Slice 3+ (planned):** safe runtime that consumes
   `StrategyDefinition` via a strict prompt-template executor with
   schema-enforced output and `ai_draft`-only guarantees. No arbitrary
@@ -131,3 +128,81 @@ stack trace as primary UX.
 
 Each of those slices will land as its own TDD Red → Green pair with
 the same strict boundary contract.
+
+## 6. Loading Source (v0.12 Slice 2)
+
+`mindforge.strategies.custom_loader` lets you read a declarative
+strategy definition from a file you point at explicitly. **Loading is
+not execution** — loading is not execution, period. A loaded definition
+is still subject to v0.11 Slice 4's planned-execution guard until a
+future slice opts it into a safe runtime.
+
+### 6.1 Explicit path only — no implicit scanning
+
+The loader **only** opens paths the caller passes in. It does **not**:
+
+- scan your home directory,
+- scan an Obsidian vault,
+- scan any private workspace,
+- read `.env`,
+- recurse into subdirectories.
+
+There is no `~/.config/mindforge/strategies/`-style auto-discovery.
+Implicit discovery would mean reading user files without explicit
+consent — that is a privacy and safety regression we refuse to ship.
+
+### 6.2 Whitelist file extensions
+
+Only `.yaml`, `.yml`, and `.json` are accepted. Anything else
+(`.py`, `.sh`, `.txt`, `.bin`, no extension at all) is rejected before
+the file is opened. This makes "execute Python under
+`/strategies/`" impossible by design, not by audit.
+
+### 6.3 Path-traversal and symlink defense
+
+- Paths containing `..` segments are rejected at the loader entry,
+  even if the resolved file exists and would otherwise pass validation.
+- Inside a directory load, any symlink that resolves *outside* the
+  explicit base directory is rejected, so a hostile symlink to
+  `~/.ssh/config` or `~/.env` cannot be smuggled into the load set.
+
+### 6.4 User-friendly errors
+
+All failures raise `StrategyDefinitionFileError` (a subclass of
+`InvalidStrategyDefinitionError`). The message always includes the
+offending file path and a short reason. The loader never lets a raw
+`FileNotFoundError`, `OSError`, `yaml.YAMLError`, or `json.JSONDecodeError`
+bubble up as primary UX, and the message never contains a Python repr
+or stack-trace fragment.
+
+### 6.5 API
+
+```python
+from pathlib import Path
+from mindforge.strategies.custom_loader import (
+    StrategyDefinitionFileError,
+    load_strategy_definition_from_file,
+    load_strategy_definitions_from_directory,
+)
+
+definition = load_strategy_definition_from_file(Path("./my_strategy.yaml"))
+all_defs   = load_strategy_definitions_from_directory(Path("./strategies/"))
+```
+
+Both functions delegate validation to `parse_strategy_definition`, so
+all Slice 1 guarantees (whitelist fields, `ai_draft_only`, status ∈
+{`planned`, `preview`}, no `human_approved` schema field, no arbitrary
+Python / shell / FS-write fields) still apply uniformly to both
+hand-built dicts and file-loaded definitions.
+
+### 6.6 What loading still does **not** do
+
+- Loaded definitions are **not** registered in `StrategyRegistry`
+  automatically. `mindforge strategies list` will show them only after
+  a later, explicit slice wires the registry surface.
+- Loaded definitions are **not** executable. Even if registered, v0.11
+  Slice 4's planned-execution guard refuses to run them because their
+  status is forced to `planned` or `preview`.
+- Loading does not call any provider, read `.env`, write to a vault,
+  or generate `human_approved`. Approval remains owned by the
+  approver chain.
