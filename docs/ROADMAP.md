@@ -1106,6 +1106,227 @@ work (each independently authorized), and the coding-agent
 collaboration chain implementation. None of these are pre-approved by
 v0.9.x.
 
+## v0.9.x KnowledgeStrategy Customization Readiness (PLANNED)
+
+**Status: planned, planning + boundary tests only.** This milestone
+clarifies what `KnowledgeStrategy` actually means as a **product
+differentiation surface**, separate from `SourceAdapter` (which solves
+"where material comes from"). It is **docs + boundary tests only**: no
+new production module, no new dependency, no real LLM, no schema-bound
+runtime validation library, no replacement of the existing `five_stage`
+strategy.
+
+### Why this milestone exists
+
+The existing `KnowledgeStrategy` Protocol + `StrategyContext` +
+`build_strategy` registry give MindForge a structural seam, but the
+Roadmap does not yet articulate **what users can customize**, **what
+the default strategy should produce for generic learning material**,
+or **how strategy selection will stay deterministic and auditable**.
+Without this clarification, future contributors are likely to either
+(a) collapse `KnowledgeStrategy` into "just a prompt template", or
+(b) over-grow it into a RAG pipeline. Both drift away from the
+positioning locked by v0.9.x Product Differentiation.
+
+`SourceAdapter` and `KnowledgeStrategy` are deliberately split:
+
+- `SourceAdapter` solves **where material comes from** (Cubox export,
+  manual file, future plugin) and normalizes it into `SourceDocument`.
+- `KnowledgeStrategy` solves **how that material is understood,
+  extracted, and turned into a structured `ai_draft` knowledge card
+  candidate**. It never decides whether the result becomes
+  `human_approved` — that is always the explicit approve chain.
+
+### KnowledgeStrategy contract (positive framing)
+
+A `KnowledgeStrategy`:
+
+- accepts a single `SourceDocument` (already normalized by a
+  `SourceAdapter`);
+- produces a single `PipelineOutcome` whose `card_payload` is an
+  in-memory `ai_draft` candidate;
+- never reads `.env`, never opens sockets, never writes to the
+  Obsidian / OPS workspace, never calls `approver.approve_card`,
+  never produces `status = human_approved`;
+- never imports `cubox_*`, `source_mux`, `scanner`, `sources.cubox_*`,
+  or `obsidian` modules (already enforced by AST boundary tests in
+  `tests/test_strategy_seam_boundary.py`);
+- accepts any `LLMProvider` via `StrategyContext.client`, and stays
+  fake-default safe (no real provider activation by virtue of being
+  selected).
+
+A `KnowledgeStrategy` is **not** a prompt string repository. Prompts
+are one input to a strategy; the strategy also owns its output
+contract, its evidence-collection rules, its safety policy, and its
+review-readiness criteria.
+
+### Customization dimensions (what "灵活可自定义" actually means)
+
+A future strategy author can vary, independently of every other
+strategy and without touching CLI / processor / approval / review:
+
+1. **Extraction goal** — what the strategy is *for*: generic learning
+   notes, paper-style structured summary, code-snippet capture,
+   meeting transcript distill, etc.
+2. **Card family / card type** — which card family the output belongs
+   to; family is a stable label for review/recall filters.
+3. **Output schema** — the typed shape of `card_payload` (which keys
+   are required, which are optional, what each means). Schema lives
+   with the strategy, not with the CLI or the processor.
+4. **Prompt / instruction surface** — the prompt template(s) the
+   strategy uses; treated as one input, not as the contract itself.
+5. **Strategy selection rule** — how this strategy is chosen (by
+   `source_type`, by `content_type`, by `user_goal`, by
+   `project_context`, or by explicit config). Selection must remain
+   deterministic and auditable; no LLM-based black-box selection.
+6. **Provider policy** — which provider profiles the strategy is
+   allowed to run under (default: `fake` only; any real-LLM path is
+   explicit opt-in per profile).
+7. **Safety policy** — what the strategy refuses to do (e.g. never
+   echo source body verbatim past a length cap, never include
+   credentials, never embed external URLs without redaction).
+8. **Evaluation criteria** — how the strategy decides whether its own
+   output is good enough to be a review candidate vs. a triage-only
+   record.
+9. **Review-readiness criteria** — whether the produced `ai_draft` is
+   marked as ready for human review, or as low-confidence triage.
+10. **Project-context usage boundary** — whether and how the strategy
+    is allowed to consume already-`human_approved` cards as input
+    context (read-only; never silently merging `ai_draft` material).
+
+### Strategy selection (planned, not implemented)
+
+A future selector layer must be:
+
+- **deterministic** — same `(SourceDocument, config)` always selects
+  the same strategy;
+- **auditable** — every selection decision is reproducible from the
+  CLI invocation + repo state, with no hidden network call;
+- **local-first** — selection runs without any provider / LLM call;
+- **testable** — selection is a pure function over `SourceDocument`
+  metadata + explicit config;
+- **never default to a real LLM** — fake-default safety is preserved
+  by the selector, not relied on at the leaf;
+- **never delegated to an LLM** — strategy selection itself must not
+  ask a model "which strategy to use".
+
+The selector is **not** part of this milestone. This milestone only
+locks the contract.
+
+### Default strategy proposal — `DefaultKnowledgeCardStrategy`
+
+The current registered default `five_stage` strategy is shaped around
+the existing 5-stage prompt pipeline. The next planned addition (its
+own future implementation milestone, not v0.9.x) is
+`DefaultKnowledgeCardStrategy` (final name TBD;
+`DefaultLearningKnowledgeStrategy` is the alternative under
+discussion):
+
+- **Input**: a single `SourceDocument` (web clipping / manual text
+  fixture / generic learning material).
+- **Output**: a structured `ai_draft` `card_payload` containing:
+  - `title`
+  - `one_sentence_summary`
+  - `key_takeaways` (list)
+  - `concepts` (list)
+  - `questions_for_review` (list)
+  - `source_evidence` (list of provenance pointers)
+  - `tags` (list)
+  - `confidence` (numeric or qualitative)
+  - `limitations` (free text — known weak spots, missing context)
+  - `status = "ai_draft"` (constant; never `human_approved`)
+- **Provider policy**: fake-default; real-LLM provider only via
+  explicit opt-in profile.
+- **Safety policy**: never writes a vault, never approves, never
+  imports source / approval / writer modules; produced payload is
+  pure in-memory `dict`.
+- **Schema discipline**: schema lives in the strategy module; the
+  strategy is the **only** writer of its own schema. CLI / processor
+  / approval / review treat the payload as opaque structured data and
+  do not redefine its keys.
+- **Not in scope**: no JSON-schema validation library dependency, no
+  pydantic dependency, no embedding, no semantic merge, no auto
+  approval, no project-context coding-agent prompt support.
+
+`DefaultKnowledgeCardStrategy` is not implemented in this milestone.
+This milestone only locks its contract so any future implementation
+PR has a stable target.
+
+### Boundary test candidates (planning-only)
+
+When `DefaultKnowledgeCardStrategy` (or any new strategy) is later
+implemented, the following invariants must be enforced by AST or
+runtime tests (extending the existing
+`tests/test_strategy_seam_boundary.py` family):
+
+- a strategy's only declared input type is `SourceDocument`;
+- a strategy module does not import `cubox_*`, `source_mux`,
+  `scanner`, `sources.cubox_*`, `obsidian`, `vault_writer`,
+  `approver`, `approval_service`, `review_service`, `recall_service`;
+- a strategy never produces a payload with `status == "human_approved"`;
+- a strategy never returns a payload that already carries the
+  `human_approved` field;
+- the registry default never resolves to a real-LLM provider strategy
+  unless explicitly opted in;
+- swapping the strategy name in `build_strategy(name, ctx)` does not
+  require any change in CLI / processor / approval / review;
+- selecting any strategy with the default fake provider produces a
+  deterministic fixture-shaped payload;
+- approval remains the **only** path that promotes `ai_draft` to
+  `human_approved`;
+- a strategy module does not import any embedding / vector / RAG
+  library, and does not import `httpx` / network clients directly.
+
+### Definition of Done (v0.9.x KnowledgeStrategy Customization Readiness)
+
+- This Roadmap section explicitly distinguishes `SourceAdapter`
+  ("where material comes from") from `KnowledgeStrategy` ("how
+  material is understood and turned into structured `ai_draft`").
+- The ten customization dimensions above are documented as the
+  contract for "flexible, customizable" strategy.
+- The `DefaultKnowledgeCardStrategy` contract (input / output schema
+  / provider policy / safety policy / non-goals) is documented as
+  planned, not implemented.
+- Strategy-selection guarantees (deterministic / auditable /
+  local-first / testable / never default real LLM / never
+  LLM-decided) are documented.
+- Boundary test candidates are listed for the future implementation
+  PR.
+- ruff / pytest / `git diff --check` green.
+- No production code change. No new dependency. No `.env` read. No
+  network. No real LLM. No real Cubox API. No real vault write.
+
+### Stop conditions (v0.9.x KnowledgeStrategy Customization Readiness)
+
+- Any sub-stage tries to implement `DefaultKnowledgeCardStrategy` →
+  STOP, that is a separate implementation milestone with its own
+  authorization.
+- Any sub-stage tries to add JSON-schema validation, pydantic, or
+  any typed-output runtime dependency → STOP, schema discipline is
+  enforced by tests, not by a new library.
+- Any sub-stage tries to add embedding / RAG / semantic merge to
+  satisfy "structured extraction" framing → STOP, that is a
+  different product shape rejected by v0.9.x Product Differentiation.
+- Any sub-stage tries to let an LLM decide which strategy to apply
+  → STOP, selection must be deterministic and auditable.
+- Any sub-stage tries to bind `KnowledgeStrategy` to a specific
+  `SourceAdapter` (e.g. CuboxAdapter) → STOP, the seam is meant to
+  stay source-agnostic.
+
+### Return to feature roadmap
+
+Once this milestone closes (contract documented; selection
+guarantees documented; default-strategy contract documented; boundary
+test candidates enumerated), the next candidate implementation
+milestones become independently authorizable:
+
+- `DefaultKnowledgeCardStrategy` implementation (its own milestone);
+- strategy selector / registry config surface (its own milestone);
+- per-source-type strategy mapping (its own milestone).
+
+None of these are pre-approved by v0.9.x KnowledgeStrategy
+Customization Readiness.
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
