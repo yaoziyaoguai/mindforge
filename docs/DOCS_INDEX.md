@@ -25,6 +25,7 @@ Milestone reviews, superseded design notes, and narrow smoke/completion notes we
 1. [User Guide](./USER_GUIDE.md)
 2. [LLM Provider Config](./LLM_PROVIDER_CONFIG.md), only when switching away from `fake`
 3. [Testing](./TESTING.md), for smoke and troubleshooting
+4. [Cubox Dry-Run](./CUBOX_DRY_RUN.md), local preflight for Cubox JSON exports (no network, no real API)
 
 ## Developers
 

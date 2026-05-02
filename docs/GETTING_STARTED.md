@@ -156,3 +156,9 @@ mindforge project update-evidence my-first-agent --dry-run
 
 详见 [`USER_GUIDE.md`](./USER_GUIDE.md)、[`SECURITY.md`](./SECURITY.md)、
 [`M5_7_TELEMETRY_PROTOCOL.md`](./M5_7_TELEMETRY_PROTOCOL.md)。
+
+## 10. Cubox 本地 export 预检（dogfood）
+
+想用本地 Cubox JSON export 文件做一次只读预检（不联网、不调真实 API、
+不写 vault、不调 LLM、不生成 `human_approved`），见
+[`CUBOX_DRY_RUN.md`](./CUBOX_DRY_RUN.md)。
