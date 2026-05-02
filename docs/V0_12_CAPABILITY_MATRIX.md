@@ -101,3 +101,44 @@ Adding a new lifecycle stage or new custom subsystem? Add a row to §2
 **before** writing production code. If the new row would require an ❌
 column to flip to ✅ for custom, raise it as an explicit RFC, not as an
 incremental PR.
+
+## 8. v0.13 Stage 1 — Real-Capable Opt-in Readiness Rows (additive)
+
+v0.13 Stage 1 把 provider 路径从 fake-only 升级为 fake-default +
+real-opt-in。本节为 capability matrix 增量, 不修改前 7 节内容。
+
+| 能力 | 默认 | 显式 opt-in | 输出 artifact 类型 | 可成为 `human_approved`? |
+| --- | --- | --- | --- | --- |
+| Fake provider | ✅ 启用 | — | `preview_packet` / `ai_draft_preview` | ❌ 永远不能 |
+| Real provider skeleton 存在 | ✅ (`llm/openai_compatible.py` 等) | — | — | — |
+| Real provider opt-in (profile 切换) | ❌ 默认 | `mindforge.yaml.llm.active_profile` | — | — |
+| Real provider 可被触发 (api_key + profile + flag) | ❌ 默认 | + `--allow-real` | `ai_draft_preview` | ❌ 永远不能 |
+| Synthetic real-LLM smoke | ❌ 默认拒绝 | `mindforge provider smoke --allow-real` | `ai_draft_preview` (audit-trail dict) | ❌ 永远不能 |
+| Provider readiness report | ✅ 可任意运行 (无网络) | — | `readiness_report` | ❌ 永远不能 |
+| Cubox fake / dry-run | ✅ 启用 | — | `cubox_preview` | ❌ 永远不能 |
+| Cubox real-API ingestion | ❌ deferred | 见 deferred gates §3 | (未实现) | — |
+| Obsidian preview / dry-run | ✅ 启用 (显式 vault 路径) | — | `obsidian_preview` | ❌ 永远不能 |
+| Obsidian vault 真实写入 | ❌ deferred | 见 deferred gates §4 | (未实现) | — |
+
+### 8.1 触发者 (who-can-trigger) 矩阵
+
+| 能力 | CLI 用户 | 自动化脚本 | 真实 LLM 输出本身 |
+| --- | --- | --- | --- |
+| 升格为 `human_approved` | ✅ 显式 `mindforge approve` | ❌ 不允许 | ❌ 不允许 |
+| 写入 Obsidian vault | ❌ deferred | ❌ deferred | ❌ 不允许 |
+| Ingest 真实 Cubox 内容 | ❌ deferred | ❌ deferred | ❌ 不允许 |
+| 运行 fake / synthetic smoke | ✅ 默认允许 | ✅ 默认允许 | — |
+| 运行 real synthetic smoke | ✅ `--allow-real` | ✅ `--allow-real` (在受控环境) | — |
+
+### 8.2 与 §6 "Excluded" 列表的一致性
+
+§6 的 ❌ 列表语义在 v0.13 Stage 1 后保持:
+
+- ❌ Custom strategy runtime execution — 仍未启用;
+- ❌ Real LLM provider activation **by default** — 仍未默认启用; opt-in
+  路径出现, 但默认仍是 fake;
+- ❌ Auto-approval — 仍未启用;
+- ❌ Real vault writes — 仍未启用 (deferred gates 文档已记录前置条件);
+- ❌ Cubox real-API ingestion — 仍未启用 (同上)。
+
+§6 不需要修改。
