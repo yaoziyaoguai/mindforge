@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .base import KnowledgeStrategy, StrategyContext
+from .default_knowledge_card import build_default_knowledge_card_strategy
 from .five_stage import build_five_stage_strategy
 
 DEFAULT_STRATEGY_NAME = "five_stage"
@@ -32,6 +33,7 @@ class UnknownStrategyError(ValueError):
 
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
     DEFAULT_STRATEGY_NAME: build_five_stage_strategy,
+    "default_knowledge_card": build_default_knowledge_card_strategy,
 }
 
 

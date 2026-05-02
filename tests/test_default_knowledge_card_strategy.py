@@ -36,8 +36,6 @@ from pathlib import Path
 
 import pytest
 
-from mindforge.llm.client import LLMClient
-from mindforge.llm.fake import FakeProvider
 from mindforge.sources.base import SourceDocument, compute_content_hash
 
 
@@ -81,17 +79,17 @@ def _doc(text: str = "Title: Sample\n\nThis is a paragraph about agent runtimes.
 
 
 def _strategy_context():
-    """构造一个最小 StrategyContext，使用 FakeProvider 作为 LLM 后端。
+    """构造一个最小 StrategyContext。
 
-    StrategyContext.prompts_dir / prompt_versions / learning_tracks_text
-    是 five_stage 策略需要的；DefaultKnowledgeCardStrategy 不必使用它们，
-    但 context 形态保持一致以便 registry 工厂统一。
+    本策略不消费 ``client`` / ``prompts_dir`` / ``prompt_versions`` /
+    ``learning_tracks_text``；context 只是为了维持工厂签名一致。把
+    client 设为 None 以避免在测试里组装真实 LLMClient（其 __init__
+    需要 llm_config + providers，超出策略契约关注范围）。
     """
     from mindforge.strategies.base import StrategyContext
 
-    client = LLMClient(provider=FakeProvider(), model="fake-default")
     return StrategyContext(
-        client=client,
+        client=None,  # type: ignore[arg-type]
         prompts_dir=None,
         prompt_versions=None,
         triage_threshold=0,
