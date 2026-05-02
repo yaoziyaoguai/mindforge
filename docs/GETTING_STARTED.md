@@ -162,3 +162,29 @@ mindforge project update-evidence my-first-agent --dry-run
 想用本地 Cubox JSON export 文件做一次只读预检（不联网、不调真实 API、
 不写 vault、不调 LLM、不生成 `human_approved`），见
 [`CUBOX_DRY_RUN.md`](./CUBOX_DRY_RUN.md)。
+
+## 11. 验证你的安装是 fake-default + 安全的真实 opt-in (v0.13)
+
+v0.13 Stage 1 引入 `mindforge provider` 子命令, 让你**不调网络、不读
+secret value** 就能确认本地路径仍然是 fake-default, 并在显式 opt-in
+时跑一次最小 synthetic real-LLM smoke。
+
+```bash
+# 报告当前 provider 状态 (active_profile / 各 alias api_key 是否存在)
+# 输出包含 fake-default / real provider opt-in / human approval required 等固定 token,
+# 永远不会打印 api_key value。
+mindforge provider readiness --config configs/mindforge.yaml
+
+# 默认拒绝触发真实 LLM (无 --allow-real)
+mindforge provider smoke --config configs/mindforge.yaml
+
+# 显式 opt-in 触发 synthetic real-LLM smoke (仅当你已切换 active_profile 且 api_key 存在)
+# 输入是硬编码 synthetic prompt, 输出仅落 ai_draft_preview, 永不写 vault/cards,
+# 永远不会成为 human_approved。
+mindforge provider smoke --config configs/mindforge.yaml --allow-real
+```
+
+完整的安全契约见
+[`LOCAL_FIRST_PRIVACY_CONTRACT.md`](./LOCAL_FIRST_PRIVACY_CONTRACT.md);
+推迟项 (Cubox 真实 ingestion / Obsidian 真实写入) 的启用前置见
+[`V0_13_REAL_INGESTION_DEFERRED_GATES.md`](./V0_13_REAL_INGESTION_DEFERRED_GATES.md)。

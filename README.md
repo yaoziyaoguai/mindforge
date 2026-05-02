@@ -122,6 +122,10 @@ Start here:
 - [docs/SOURCE_ADAPTER_PROTOCOL.md](docs/SOURCE_ADAPTER_PROTOCOL.md) - adding or auditing source adapters
 - [docs/OBSIDIAN_BINDING.md](docs/OBSIDIAN_BINDING.md) - v0.5 Obsidian source/staging boundary
 - [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md) - real provider setup
+- [docs/LOCAL_FIRST_PRIVACY_CONTRACT.md](docs/LOCAL_FIRST_PRIVACY_CONTRACT.md) - canonical fake-default + real-opt-in privacy contract (v0.13)
+- [docs/V0_13_DOGFOODING_READINESS.md](docs/V0_13_DOGFOODING_READINESS.md) - v0.13 dogfooding readiness scaffolding
+- [docs/V0_13_INDUSTRY_PATTERN_MAP.md](docs/V0_13_INDUSTRY_PATTERN_MAP.md) - offline industry pattern map (OpenAI Agents SDK / LangGraph / Dify / Obsidian / Readwise / ...)
+- Provider readiness CLI: `mindforge provider readiness` (no network, no secret print) and `mindforge provider smoke --allow-real` (gated synthetic real-LLM smoke)
 - [docs/TESTING.md](docs/TESTING.md) - smoke tests and quality gates
 - [docs/ROADMAP_PROGRESS.md](docs/ROADMAP_PROGRESS.md) - current completion snapshot
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) - version history

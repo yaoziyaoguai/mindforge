@@ -2335,3 +2335,78 @@ See [M5_BACKLOG.md](./M5_BACKLOG.md) for current spike candidates. The active fu
 ## When To Update This Roadmap
 
 Update this file when a future direction changes. Use [CHANGELOG.md](./CHANGELOG.md) for completed version history and `docs/archive/` for detailed historical reviews.
+
+## v0.13 Stage 1 — Real-Capable Opt-in Readiness (Completed Locally)
+
+**Status**: local-only commits, not yet pushed, no tag. Default path remains
+fake-safe; real LLM provider becomes an explicit opt-in path with
+secret-safe handling, synthetic-only smoke input, and approval-boundary
+protection (real output ≠ `human_approved`).
+
+### Delivered
+
+- `src/mindforge/provider_readiness.py` — pure-data report module
+  (`build_readiness_report`, `render_readiness_report`,
+  `classify_real_opt_in`); presence-only env check, never returns or
+  prints any value.
+- `src/mindforge/real_smoke.py` — gated `run_synthetic_real_smoke`
+  helper; refuses unless `allow_real=True` AND `active_profile != fake`
+  AND target alias `api_key` present; output is `ai_draft_preview`
+  only; `human_approved` and `written` fields are constants `False`.
+- `src/mindforge/provider_cli.py` + `mindforge provider {readiness, smoke}`
+  Typer commands; `--allow-real` flag, `--alias` selector, no secret
+  printing.
+- `docs/V0_13_INDUSTRY_PATTERN_MAP.md` — offline industry distillation
+  (OpenAI Agents SDK / LangChain · LangGraph / Dify / Obsidian /
+  Readwise · Cubox · Tana · Logseq · Notion AI · Mem · Anytype) +
+  adopted / rejected / future + MindForge differentiation.
+- `docs/LOCAL_FIRST_PRIVACY_CONTRACT.md` — canonical fake-default +
+  real-opt-in privacy contract; cross-linked from
+  `V0_13_DOGFOODING_READINESS.md` §5.
+- `docs/PROPOSAL_REVIEWABLE_ARTIFACT.md` — docs-only sketch unifying
+  `preview_packet` / `ai_draft_preview` / `readiness_report` /
+  `real_smoke_result` / `recall_hit` / `weekly_review_packet` under one
+  optional protocol; explicitly **NOT authorized for implementation**.
+- `docs/V0_13_REAL_INGESTION_DEFERRED_GATES.md` — Cubox / Obsidian
+  real-ingestion / real-write启用前置 (test-account-required /
+  sample-folder-only / item-cap / no-persist / preview-only /
+  `--allow-real` / `--allow-write`).
+- `docs/V0_12_CAPABILITY_MATRIX.md` §8 — readiness rows added (fake /
+  real-skeleton / real-opt-in / real-active / synthetic real smoke /
+  Cubox / Obsidian); §6 "Excluded" semantics preserved.
+- README + GETTING_STARTED §11 — pointers and verification recipe.
+- 5 new test files (62 new tests):
+  `test_v013_provider_readiness.py`, `test_v013_real_smoke_safety.py`,
+  `test_v013_industry_pattern_map.py`, `test_v013_privacy_contract.py`,
+  `test_v013_cli_provider_surface.py`. Includes AST import-boundary
+  guards on the 3 new src files (no reverse imports of cli / approval /
+  writer / cards / obsidian* / cubox* / scanner / dotenv / requests /
+  httpx / subprocess).
+- `tests/test_review_approval_boundary.py` allowed-set extended to
+  cover the 3 new files (they reference the `human_approved` literal
+  only as a reverse-direction safety claim, never as an automatic
+  promotion path — same pattern as `strategies/custom.py`).
+
+### Reaffirmed Non-Goals (deferred, with explicit gates)
+
+- **Real Cubox real-API ingestion** — deferred;启用前置见
+  `V0_13_REAL_INGESTION_DEFERRED_GATES.md` §3.
+- **Real Obsidian vault 写入** — deferred; 启用前置见同文档 §4.
+- **`ReviewableArtifact` protocol implementation** — proposal-only;
+  启动 RFC 前置见 `PROPOSAL_REVIEWABLE_ARTIFACT.md` §4.
+- **Custom strategy runtime / arbitrary plugin / shell strategy** —
+  仍然禁止。
+- **RAG / embedding / semantic merge** — 仍然不引入。
+- **Auto-approval / `human_approved` 机器生成** — 永久禁止。
+- **真实私人资料 dogfooding** — 在 Cubox + Obsidian 真实 gate 全部
+  就绪前不进行。
+- **真实 home 目录扫描** — 永久禁止。
+
+### Quality Gates (local)
+
+- `ruff check .`: clean.
+- `pytest --no-header -q`: 1236 passed, 3 skipped.
+- `git diff --check`: clean.
+- Sensitive-token rg sweep on new src files: only docstring mentions
+  of the ban list itself; no `Path.home()` / `requests.` / `httpx.` /
+  `subprocess` / `dotenv` / `human_approved = True` etc.
