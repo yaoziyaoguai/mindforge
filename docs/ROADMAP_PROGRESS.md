@@ -6,6 +6,97 @@
 > 文档入口见 [`DOCS_INDEX.md`](./DOCS_INDEX.md)，版本历史见
 > [`CHANGELOG.md`](./CHANGELOG.md)。
 
+---
+
+## 0. v0.8 Local AI Knowledge Loop — Progress（追加于 v0.7.22 之后）
+
+> 仅在主干（`main`）上有 commit，**未 push、未 tag**。本节聚焦本轮
+> dogfood + governance 工作的真实状态。**不夸大能力**：所有 LLM 调用
+> 仍走 `FakeProvider`；**未**调用真实 Cubox API；**未**写真实 Obsidian
+> vault；**未**自动 approve；**未**生成任何 `human_approved`。
+
+### 0.1 完成阶段
+
+| Stage | 主题 | 状态 | 主 commit |
+| --- | --- | --- | --- |
+| Stage 0 | Roadmap 对齐审计 | ✅ done | — |
+| Stage 1 | Cubox dry-run dogfood docs | ✅ done | `d76372f` |
+| Stage 2 | `cubox preview-ai-draft` no-op persistence | ✅ done | `9e81115` |
+| Stage 3 | review/approval boundary 12 tests | ✅ done | `27a4da1` |
+| Stage 4 | Real LLM provider opt-in 9 tests | ✅ done | `b0c8c4c` |
+| Stage 5 | KnowledgeStrategy seam 6 补充 tests | ✅ done | `cf83242` |
+| Stage 6 | presenter 家族 11 invariant tests | ✅ done | `69b2bac` |
+| Stage 7 | Workspace human-approved merge 规划文档 | ✅ done | `1639437` |
+| Stage 8 | Roadmap / docs 状态更新（本节） | ✅ done | _本 commit_ |
+
+### 0.2 已落地的真实能力（用户可见）
+
+- ✅ `mindforge cubox dry-run --export <path>`：本地 Cubox JSON
+  export 去重预检，**不联网**、**不调 Cubox API**、**不调 LLM**、
+  **不写 vault**。
+- ✅ `mindforge cubox preview-ai-draft --export <path> [--limit N] [--json]`：
+  把本地 Cubox export 跑通 fake KnowledgeStrategy，**仅在内存中**生成
+  ai_draft，并打印观测 summary（`status / track / value_score /
+  has_card_payload`）。**不写** `.mindforge/runs/*.jsonl`、**不写**
+  vault、**不暴露** `card_payload` 正文 / token / author / url。
+- ✅ `docs/CUBOX_DRY_RUN.md` dogfood 教学文档。
+- ✅ `docs/WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md` 未来 workspace
+  writer 规划文档（仅规划，未实现）。
+
+### 0.3 已落地的架构契约（仅 boundary tests）
+
+本轮 Stage 3-6 共新增 **38 个 boundary characterization tests**，
+零 production 改动，把以下契约固化：
+
+- `ApprovalDecision` 不含 source-specific 值；除 `APPROVE` 外其余
+  decision 仍由 `NotImplementedDecisionError` 拦截；
+- `approver` / `approval_service` / `reviewer` / `review_service` 不
+  import cubox / source_mux / scanner / env_loader / 真实 LLM SDK；
+- `cubox_cli` / `cubox_preview_presenter` 不 import approve / review
+  / vault_writer / workspace / env_loader；
+- card 模板默认 `status: ai_draft`，永不渲染为 `human_approved`；
+- `'human_approved'` literal 出现位置受 allowlist 守护；
+- 默认 bundled 配置 `active_profile: fake`；fake profile 下
+  `build_providers` 不实例化真实 provider、不读 secret env；
+- `FakeProvider.generate` 不开 socket；
+- `OpenAICompatibleProvider` / `AnthropicCompatibleProvider` 默认
+  `repr()` 不泄漏 `api_key`；
+- LLM provider 模块不 import source / vault / approval / review /
+  dotenv；
+- `StrategyContext.client` 注解必须包含 `LLMClient`，不绑定具体
+  provider；`KnowledgeStrategy.run` 参数注解必须是 `SourceDocument`；
+- 所有 5 个 `*_presenter.py` 文件遵守同一组家族级 forbidden imports
+  与源码 pattern（无文件 IO、无业务动作、无网络、无 env）。
+
+### 0.4 仍未实现 / 仍未承诺的事
+
+- ❌ **真实 Cubox API 调用** —— 仅本地 export dogfood；
+- ❌ **真实 LLM 激活路径** —— skeleton 仍在 v0.7.x 既有 provider 层
+  之内，opt-in 边界由测试守护，但默认始终走 fake；
+- ❌ **PDF / Doc / 云盘 SourceAdapter 新增** —— 仍是 v0.5.x 既有最小
+  落地；
+- ❌ **真实 Obsidian vault 写入** —— `obsidian` 命令仍是 read-only +
+  staging；workspace writer 仅有 `WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md`
+  规划；
+- ❌ **真实 human_approved 自动晋升** —— 永远不做；仍只能由
+  `mindforge approve` 显式触发；
+- ❌ **RAG / embedding / semantic merge** —— 不在本 milestone；
+- ❌ **Web UI / TUI / Obsidian plugin** —— 不在本 milestone；
+- ❌ **跨设备 / 云端同步** —— 不在本 milestone。
+
+### 0.5 下一阶段候选（不在本 milestone 内）
+
+按用户 review 决定后再选其一：
+
+1. 人工 review v0.8 Local AI Knowledge Loop（推荐）；
+2. 真实 Cubox API opt-in（需要 token + 网络 + secret 管理）；
+3. 真实 LLM provider activation（需要 .env / api_key + 网络）；
+4. Obsidian / OPS human-approved merge implementation（按
+   `WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md` TDD）；
+5. PDF / Doc / 云盘 SourceAdapter planning。
+
+---
+
 ## 1. 当前最新版本：**v0.5.2**
 
 - tag: `v0.5.2`（本地）
