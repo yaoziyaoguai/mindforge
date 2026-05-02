@@ -1278,6 +1278,32 @@ its own milestone with its own authorization):
   stance; would be its own dedicated milestone if ever
   proposed.
 
+### v0.9 Slice 1–5 implementation status (recorded after the fact)
+
+| Slice | Status | Production change | Test commits | Production commits |
+|---|---|---|---|---|
+| 1 SourceDocument contract freeze | ✅ done | `sources/base.py`: `is_provenance_complete()` query method (+35) | `bdfc7a5` | `774b62c` |
+| 2 SourceAdapter capabilities | ✅ done | `sources/base.py` default `capabilities()` (+45); `cubox_api.py` `real_api` override (+11) | `29a1885` | `957edee` |
+| 3 SourceMux audit-trail | ✅ done | `source_mux.py`: `DedupAuditEntry` + `MuxStats.audit_trail` (+47/-9) | `3d6bd37` | `2aa1b34` |
+| 4 Cubox boundary lockdown | ✅ done — test-only | none (current code already complies) | `9135483` | n/a |
+| 5 Consumption boundary | ✅ done — test-only | none (current code already complies) | `e0fd78c` | n/a |
+
+What v0.9 ingestion does **not** include after Slices 1–5:
+
+- real Cubox API activation (still NotImplementedError under both
+  credential states; locked by Slice 4 tests);
+- real LLM activation;
+- Upstage / RAG / embedding / semantic merge;
+- Obsidian writer / automatic approve / human_approved
+  auto-generation;
+- new source adapter (PDF / Doc / cloud / Notion / Readwise);
+- Web UI / TUI;
+- new heavy dependency (no network library imported by Cubox
+  modules — Slice 4 AST guard);
+- KnowledgeStrategy production implementation (only the
+  `strategies/base.py` seam is consumed; production
+  KnowledgeStrategy is a separate v0.9.x milestone).
+
 ## v0.9.x Product Differentiation & Knowledge Lifecycle Guardrails (PLANNED)
 
 **Status: planned, planning + boundary tests only.** v0.9.x is not a new
