@@ -58,3 +58,4 @@ These documents remain active because source files, tests, or error messages ref
 - [Project Context Protocol](./M5_3_PROJECT_CONTEXT_PROTOCOL.md)
 - [Lexical Recall Protocol](./M5_4_LEXICAL_RECALL_PROTOCOL.md)
 - [Telemetry Protocol](./M5_7_TELEMETRY_PROTOCOL.md)
+- [Workspace Human-Approved Merge Plan](./WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md) - planning-only design for future workspace writer; no production code, no real vault writes.
