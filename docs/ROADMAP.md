@@ -690,6 +690,222 @@ candidate directions including (each requires its own scoping doc and is
 
 None of those directions are part of the Architecture Quality Milestone.
 
+## v0.8 Local AI Knowledge Loop (CLOSED, planning closure)
+
+**Status: stage-closed.** v0.8 ran as an autonomous 8-stage milestone built
+on Phase 1 (CLI Product Shape Completion). It did **not** activate any real
+LLM, did **not** call any real Cubox API, and did **not** write any real
+Obsidian vault. The full loop ran on the bundled fake provider, on offline
+Cubox export fixtures, and on disposable demo-vault paths only. v0.8 is
+**not yet pushed and not yet tagged**; closure is gated on human review of
+the v0.8 commits before any push or tag is performed.
+
+What v0.8 delivered (planning-stage, not user-visible behavior change):
+
+- KnowledgeStrategy seam (Protocol + StrategyContext + registry) with
+  21 AST guard tests; `build_strategy(...)` is the single seam used by
+  `process` and by the closed-loop e2e test.
+- ApprovalDecision first-class enum (7 members) + `apply_decision`
+  dispatcher; only `APPROVE` is wired (byte-identical to existing
+  `approve_card`); the other 6 raise `NotImplementedDecisionError`.
+- `CuboxApiAdapter` skeleton with `parse_export` (offline) only;
+  `fetch_inbox` is **explicitly** `NotImplementedError`. Credential
+  redaction is enforced by `__repr__` overrides + tests; metadata never
+  carries the credential.
+- `SourceMux` + `MuxStats` for cross-source deterministic dedup
+  (first-seen wins); not wired into the default Scanner / CLI path
+  (boundary enforced by AST tests). Dedup is **not** semantic merge.
+- `mindforge cubox dry-run --export` and `mindforge cubox preview-ai-draft`
+  as opt-in offline dogfood entries; preview forces `active_profile=fake`
+  and uses a `_NoOpRunLogger` so no run-state, no card payload, and no
+  vault write can leak from the preview path.
+- Boundary tests: `test_provider_opt_in_boundary.py` (fake-default,
+  no-secret-env, no-network, no-source-import, redacted repr/str) and
+  `test_review_approval_boundary.py` (only the explicit approve chain
+  produces `human_approved`; cubox CLI cannot import approve/review/vault).
+- Active-safety promotion of provider `__repr__` / `__str__` in
+  `OpenAICompatibleProvider` and `AnthropicCompatibleProvider`: explicit
+  safe repr exposes only `name` and `credential_present`, never `api_key`
+  or `base_url`. `tests/test_provider_opt_in_boundary.py` §9 enforces
+  this as an active invariant rather than relying on Python's default
+  `object.__repr__`.
+- `docs/WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md` writes the workspace
+  writer / human-approved merge boundary down as a **planning** doc with
+  no production code; the writer remains a stub.
+
+v0.8 explicit non-goals (preserved):
+
+- No real LLM activation.
+- No real Cubox API call.
+- No real Obsidian vault write.
+- No automatic `human_approved` promotion.
+- No automatic approve.
+- No RAG / embedding / semantic merge.
+- No Web UI / TUI / Obsidian plugin.
+- No PDF / Doc / cloud-drive source adapter.
+- No new heavy dependency.
+- No `.env` read in any default path.
+
+v0.8 closure rule: closure means "stage-locally complete and ready for
+human review"; it does **not** mean tagged or pushed. Tagging and pushing
+require explicit human authorization.
+
+## v0.9 Data Source & Plugin Architecture Readiness (PLANNED)
+
+**Status: planned, planning-only.** v0.9 is the **planning** milestone that
+moves MindForge from "Cubox-first with one offline adapter" toward a
+**multi-source-ready** architecture **without** changing user-visible
+behavior, **without** implementing new sources, and **without** activating
+any real provider or API. v0.9 is plan-on-paper plus boundary tests; any
+new adapter implementation is its own follow-up milestone with its own
+safety review.
+
+### Goal
+
+Make `SourceAdapter` → `SourceDocument` strong enough as a contract that:
+
+- a future PDF / DOCX / cloud-drive / new-vendor adapter can be added
+  without touching `processor` / `KnowledgeStrategy` / `review` /
+  `approval`;
+- the absence of such adapters today is an honest design choice, not a
+  hidden coupling;
+- Cubox is and remains **one** `SourceAdapter`, not the architectural
+  center.
+
+### Core principles (12, inherited and tightened)
+
+1. Cubox is a `SourceAdapter`, not a core architectural concept.
+2. Sources are pluggable; the current stage stays Cubox-first in
+   dogfooding.
+3. `Processor` and `KnowledgeStrategy` depend only on `SourceDocument` —
+   never on `CuboxApiAdapter`, never on `CuboxMarkdownAdapter`.
+4. Every new source adapter must emit `SourceDocument` (no parallel data
+   path, no Cubox-shaped shortcut).
+5. `SourceMux` + deterministic dedup is the only multi-source merge
+   primitive; semantic merge is explicitly out of scope.
+6. v0.9 does **not** implement PDF / DOCX / cloud-drive `SourceAdapter`.
+7. v0.9 does **not** read or process real private corpora.
+8. v0.9 does **not** add RAG / embedding / vector store / semantic merge.
+9. v0.9 does **not** add an Obsidian plugin.
+10. v0.9 does **not** write real Obsidian vault content.
+11. v0.9 does **not** introduce a new heavy dependency.
+12. v0.9 does **not** rewrite the architecture; existing seams
+    (`SourceAdapter`, `SourceMux`, `KnowledgeStrategy`, `ApprovalDecision`)
+    are the foundation.
+
+### Sub-stages (planning-only)
+
+#### A. SourceAdapter interface hardening
+
+- Document the **minimum** `SourceAdapter` interface (load / can_handle /
+  parse semantics, error contract, where credential lives, where it
+  must not leak).
+- Document `SourceDocument` as the **only** cross-adapter data contract.
+- Add AST/boundary tests asserting `processor.py`, `pipeline.py`,
+  `strategies/*`, `review_service.py`, `approval_service.py`,
+  `approver.py` do not import any concrete `*_adapter` / source-specific
+  module (extending the existing `cubox_api` / `cubox_markdown` guards
+  to a generic invariant: "no concrete source name appears in any
+  non-source module").
+- This is **tests + docs only**; no new production code.
+
+#### B. Source plugin registry planning
+
+- Plan a lightweight, **explicit** local plugin registry (single
+  `sources/registry.py` extension; no dynamic class loading; no entry
+  points; no plugin discovery from `sys.path`).
+- Plugins must be enumerable, auditable, and disable-able from
+  `configs/mindforge.yaml`.
+- Out of scope: dynamic loading, plugin entry points, third-party plugin
+  install paths, package-discovery hooks.
+- This stage produces only a planning doc + boundary tests asserting
+  the registry never reaches network, never reads `.env`, never imports
+  unlisted modules.
+
+#### C. SourceMux / deterministic dedup readiness
+
+- Document who owns dedup across sources, when it runs in the pipeline,
+  and what the keying contracts are (default `content_hash`; alternate
+  `key_fn` injection point; first-seen wins).
+- Document the explicit boundary: `SourceMux` is **not** a
+  knowledge-merge layer and **not** a semantic-merge layer. Anything
+  beyond byte-level dedup belongs to a future explicit milestone with
+  its own safety review.
+- No embedding. No vector similarity. No LLM-mediated merge.
+
+#### D. Cubox-first dogfood continuation
+
+- Cubox stays the **first** real adapter for dry-run / preview-ai-draft
+  dogfood scenarios.
+- No real Cubox API call. No real private corpus. Fixture-first,
+  fake-provider-first, dry-run-first.
+- The existing offline `parse_export` path is the only Cubox path
+  exercised in v0.9.
+
+#### E. Future source candidates (docs only)
+
+- It is allowed to **list** candidate future source types that already
+  fit the offline-fixture-first model: local Markdown vaults (already
+  supported), exported web clippings, manually imported notes,
+  exported chat transcripts.
+- It is **not** allowed to implement PDF / DOCX / cloud-drive / Obsidian
+  auto-organization in v0.9.
+- It is **not** allowed to add a new heavy dependency to satisfy any
+  future source candidate.
+
+#### F. Architecture guardrails (tests-first)
+
+- Boundary tests enforce, statically and at runtime:
+  - `processor.py` does not import any concrete `*_adapter`;
+  - `strategies/*` does not import any concrete `*_adapter`;
+  - `approval_service.py` / `approver.py` do not import source modules;
+  - `review_service.py` / `recall_service.py` do not import source
+    modules;
+  - `ai_draft` / `human_approved` boundary cannot be bypassed by any
+    source plugin (the explicit `approve_card` chain remains the only
+    promotion path);
+  - no source plugin can write outside `staged/` / `runs/` / `state/`
+    boundaries documented in
+    `docs/WORKSPACE_HUMAN_APPROVED_MERGE_PLAN.md`.
+- Information Hiding remains the design north star: each module exposes
+  the minimum public surface needed to satisfy the contract.
+- No mechanical file splitting. No new monolith. No anemic abstraction.
+  Every new module must have a clear responsibility, a stable I/O
+  surface, and independent test value.
+
+### Definition of Done (v0.9)
+
+- `SourceAdapter` minimum interface is documented and frozen for v0.9.
+- `SourceDocument` is documented as the unique cross-adapter contract.
+- Boundary tests for "no concrete source name in non-source modules"
+  pass for `processor`, `pipeline`, `strategies`, `review`, `approval`.
+- A planning doc (`docs/SOURCE_PLUGIN_READINESS.md` or equivalent)
+  records the registry / mux / dogfood / future-candidates / guardrails
+  decisions in one place.
+- No new source adapter is implemented.
+- No `.env` read. No real LLM call. No real Cubox API call. No real
+  vault write. No new heavy dependency.
+- ruff / pytest / `git diff --check` green.
+
+### Stop conditions (v0.9)
+
+- Any sub-stage starts implementing a real new adapter → STOP, move to
+  a dedicated milestone.
+- Any sub-stage requires a heavy dependency → STOP, scope to a separate
+  decision.
+- Any sub-stage requires touching the explicit-approval chain → STOP,
+  human authorization required.
+- Any sub-stage drifts into RAG / embedding / semantic merge → STOP,
+  out of v0.9 scope by definition.
+
+### Return to feature roadmap
+
+After v0.9 closes (planning + guardrails complete), candidate next
+milestones — each independently scoped, gated, and authorized — include
+real Cubox API opt-in, real LLM provider activation, workspace writer
+TDD, additional `SourceAdapter` implementations. None of these are
+implied or pre-approved by v0.9.
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
