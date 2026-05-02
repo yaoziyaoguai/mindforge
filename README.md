@@ -10,7 +10,10 @@ staging/review and machine runtime state stays outside formal notes. v0.5.1
 promotes Local Usability as a roadmap milestone: the local fake-provider path
 should feel like a usable product loop, not just a set of developer commands.
 
-Current version: **v0.5.2** (Packaging / Install Readiness: default prompts,
+Current version: **v0.7.22** — Architecture Quality Milestone in progress
+(monolith decomposition: `process_service`, `approve_presenter`,
+`review_presenter`; CLI adapter kept thin; presenters never mutate business
+state). v0.5.2 Packaging / Install Readiness remains active (default prompts,
 templates, and configs are bundled as package assets and resolved with
 `importlib.resources`, while user override paths remain supported).
 

@@ -168,8 +168,9 @@ class CuboxApiAdapter(SourceAdapter):
 
         raise NotImplementedError(
             "CuboxApiAdapter.fetch_inbox 是 opt-in 真实 HTTP 路径，"
-            "当前 bundle 仅支持 parse_export 离线路径。请先按 docs/PROVIDER_ARCHITECTURE.md "
-            "完成 opt-in 流程后再启用。"
+            "当前 bundle 仅支持 parse_export 离线路径。请先在专门的 Cubox API "
+            "opt-in milestone 中完成 opt-in 流程（dry-run 模式 / contract test / "
+            "explicit credential / CLI flag）后再启用。"
         )
 
     # -- Internals --------------------------------------------------------------

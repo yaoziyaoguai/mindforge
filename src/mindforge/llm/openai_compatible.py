@@ -38,6 +38,16 @@ class OpenAICompatibleProvider(LLMProvider):
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
 
+    def __repr__(self) -> str:
+        # 主动安全 repr：只暴露 name 与 credential_present 标记，
+        # 不暴露 api_key 与 base_url（base_url 可能含内网/代理细节）。
+        return (
+            f"OpenAICompatibleProvider(name={self.name!r}, "
+            f"credential_present={bool(self.api_key)})"
+        )
+
+    __str__ = __repr__
+
     @classmethod
     def from_model_config(cls, mc: Any) -> OpenAICompatibleProvider:
         # base_url：优先 env，再回落 yaml；与 anthropic provider 对齐

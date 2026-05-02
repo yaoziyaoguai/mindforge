@@ -241,3 +241,120 @@ def test_provider_error_str_does_not_leak_api_key_when_constructed_with_one() ->
     err = ProviderError("auth failed")
     assert "sk-" not in str(err)
     assert "Bearer" not in str(err)
+
+
+# ---------------------------------------------------------------------------
+# 9. provider repr 主动安全（risk #11）
+#
+# 既有 test_openai/anthropic_provider_repr_does_not_leak_api_key 是负面断言：
+# 只检查 "SUPERSECRET" / "sk-" 不在 repr 中。它们当前能通过是因为 Python
+# 默认 ``object.__repr__`` 不打印实例属性 —— 这是**被动安全**：一旦有人给
+# provider 类加 ``@dataclass`` 装饰器或写自定义 ``__repr__``，默认行为就会
+# 把 ``self.api_key`` / ``self._api_key`` 露出。
+#
+# 下面的正面断言要求 provider 类**显式**实现 ``__repr__`` 并明确包含可观测
+# 但安全的字段（provider name + credential_present 标记），把"安全 repr"
+# 这一不变量从被动转主动。
+# ---------------------------------------------------------------------------
+
+
+def test_openai_provider_has_explicit_repr_with_safe_fields() -> None:
+    """OpenAI provider 必须显式实现 __repr__，包含 name + credential_present；
+    不得包含 api_key 明文或 base_url 完整值。
+    """
+    from mindforge.llm.openai_compatible import OpenAICompatibleProvider
+
+    p = OpenAICompatibleProvider(
+        name="openai_test",
+        base_url="https://example.invalid/v1/path/that/should/not/leak",
+        api_key="sk-SUPERSECRET-shouldnotleak-zzz",
+        timeout_seconds=1,
+    )
+    text = repr(p)
+    # 安全：禁止 token 明文
+    assert "SUPERSECRET" not in text
+    assert "sk-" not in text
+    # 安全：禁止 base_url 完整路径泄漏（避免内网/代理 URL 被打到日志）
+    assert "/path/that/should/not/leak" not in text
+    # 主动：必须显式实现，而非默认 object repr
+    assert "object at 0x" not in text, (
+        "OpenAICompatibleProvider 必须显式实现 __repr__，不可依赖默认 object repr"
+    )
+    # 主动：可观测字段
+    assert "openai_test" in text  # name
+    assert "credential_present" in text  # 显式 redact 标记
+
+
+def test_openai_provider_str_is_safe_alias_of_repr() -> None:
+    from mindforge.llm.openai_compatible import OpenAICompatibleProvider
+
+    p = OpenAICompatibleProvider(
+        name="openai_test",
+        base_url="https://example.invalid",
+        api_key="sk-SUPERSECRET-shouldnotleak",
+        timeout_seconds=1,
+    )
+    assert "SUPERSECRET" not in str(p)
+    assert "sk-" not in str(p)
+
+
+def test_anthropic_provider_has_explicit_repr_with_safe_fields() -> None:
+    from mindforge.llm.anthropic_compatible import AnthropicCompatibleProvider
+
+    p = AnthropicCompatibleProvider(
+        name="anthropic_test",
+        base_url="https://example.invalid/v1/path/that/should/not/leak",
+        api_key="sk-SUPERSECRET-shouldnotleak-zzz",
+        anthropic_version="2023-06-01",
+        timeout_seconds=1,
+    )
+    text = repr(p)
+    assert "SUPERSECRET" not in text
+    assert "sk-" not in text
+    assert "/path/that/should/not/leak" not in text
+    assert "object at 0x" not in text, (
+        "AnthropicCompatibleProvider 必须显式实现 __repr__，不可依赖默认 object repr"
+    )
+    assert "anthropic_test" in text
+    assert "credential_present" in text
+
+
+def test_anthropic_provider_str_is_safe_alias_of_repr() -> None:
+    from mindforge.llm.anthropic_compatible import AnthropicCompatibleProvider
+
+    p = AnthropicCompatibleProvider(
+        name="anthropic_test",
+        base_url="https://example.invalid",
+        api_key="sk-SUPERSECRET-shouldnotleak",
+        anthropic_version="2023-06-01",
+        timeout_seconds=1,
+    )
+    assert "SUPERSECRET" not in str(p)
+    assert "sk-" not in str(p)
+
+
+def test_provider_repr_does_not_read_dotenv_or_open_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """构造 provider + 调 repr/str 不应读 .env、不应联网。"""
+    from mindforge.llm.anthropic_compatible import AnthropicCompatibleProvider
+    from mindforge.llm.openai_compatible import OpenAICompatibleProvider
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("provider repr 不应建立网络连接")
+
+    monkeypatch.setattr(socket.socket, "connect", _boom)
+    monkeypatch.setattr(socket.socket, "connect_ex", _boom)
+
+    p1 = OpenAICompatibleProvider(
+        name="o", base_url="https://example.invalid", api_key="sk-x", timeout_seconds=1
+    )
+    p2 = AnthropicCompatibleProvider(
+        name="a",
+        base_url="https://example.invalid",
+        api_key="sk-y",
+        anthropic_version="2023-06-01",
+        timeout_seconds=1,
+    )
+    # 任意调用都不能联网；不依赖 .env（若依赖会在构造时就读）
+    _ = repr(p1) + str(p1) + repr(p2) + str(p2)

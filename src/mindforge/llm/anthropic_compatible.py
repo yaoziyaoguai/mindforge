@@ -84,6 +84,16 @@ class AnthropicCompatibleProvider(LLMProvider):
         self._anthropic_version = anthropic_version or _DEFAULT_VERSION
         self.timeout_seconds = timeout_seconds
 
+    def __repr__(self) -> str:
+        # 主动安全 repr：只暴露 name 与 credential_present 标记，
+        # 不暴露 api_key 与 base_url（base_url 可能含内网/代理细节）。
+        return (
+            f"AnthropicCompatibleProvider(name={self.name!r}, "
+            f"credential_present={bool(self._api_key)})"
+        )
+
+    __str__ = __repr__
+
     # ------------------------------------------------------------------
     # 工厂
     # ------------------------------------------------------------------
