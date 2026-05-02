@@ -1327,6 +1327,123 @@ milestones become independently authorizable:
 None of these are pre-approved by v0.9.x KnowledgeStrategy
 Customization Readiness.
 
+### External research alignment (research addendum)
+
+This addendum records the public-domain landscape consulted while
+shaping the `KnowledgeStrategy` contract above, and locks the
+deliberate **borrow / do-not-copy** stance MindForge takes against
+each pattern. None of these references introduces a dependency, a
+runtime call, or a default behavior change; this is purely a
+documentation alignment to prevent "is it just a LangChain wrapper?"
+drift.
+
+**Industry references consulted**:
+
+1. **OpenAI structured outputs / function calling + Pydantic typed
+   schemas** — the dominant production pattern for "LLM emits typed
+   JSON validated against a schema". Source: OpenAI structured
+   output docs + Pydantic docs (publicly indexed).
+2. **LangChain `with_structured_output(schema)`** — wraps a chat
+   model so its return is parsed into a typed object (Pydantic /
+   dict) instead of free text. Source: LangChain docs
+   (`python.langchain.com`).
+3. **DSPy signatures + declarative LM pipelines** — describe a task
+   as `inputs → outputs` (a "signature") rather than as a prompt
+   string; let the framework optimize prompts. Source: Stanford
+   DSPy documentation.
+4. **LlamaIndex metadata extractors / Pydantic metadata extractor**
+   — per-document structured metadata extraction with a typed
+   schema. Source: LlamaIndex docs.
+5. **Anki + spaced-repetition + LLM-generated flashcards** — the
+   widespread "auto-generate Q&A cards from notes" workflow used in
+   PKM communities (incl. Obsidian-to-Anki plugins).
+6. **Strategy pattern (GoF) for pluggable extraction** — the
+   classic OO pattern of "one interface, many algorithms,
+   selectable at runtime". Already structurally present in
+   MindForge as the `KnowledgeStrategy` Protocol + registry.
+
+**What MindForge borrows (selectively)**:
+
+- The **typed I/O contract** idea (DSPy signatures / Pydantic
+  schemas / LangChain `with_structured_output`): a strategy is
+  defined by its **input contract + output schema**, not by a
+  prompt string. This is already locked above as customization
+  dimension #3 (output schema) and the `DefaultKnowledgeCardStrategy`
+  10-field payload.
+- The **strategy pattern** of one Protocol + many concrete
+  implementations selectable through a registry: already structurally
+  present (`build_strategy(name, ctx)`), already enforced by
+  boundary tests.
+- The **idea of separating extraction goal from prompt phrasing**
+  (DSPy): captured by customization dimension #1 (extraction goal)
+  and the explicit statement "prompt is one input to a strategy,
+  not the contract".
+- The PKM insight that **review-ready cards (flashcards / atomic
+  notes) are a unit of value distinct from raw clippings**: locked
+  by `status = "ai_draft"` + `questions_for_review` + explicit
+  approve gate.
+
+**What MindForge deliberately does NOT copy**:
+
+- **No new schema-validation runtime dependency** (Pydantic / JSON
+  Schema validator / `instructor` / similar). Schema discipline is
+  enforced by the strategy module owning its own payload shape and
+  by AST/runtime boundary tests, not by importing a typed-output
+  library. Pydantic-style models can be written as plain
+  `@dataclass` if needed; this is already the project's idiom.
+- **No LangChain / LlamaIndex / DSPy wrapper.** MindForge is not
+  positioned as "yet another LLM orchestrator". The
+  `KnowledgeStrategy` Protocol is intentionally minimal
+  (`run(doc) -> PipelineOutcome`, plus a settable `logger`), so
+  swapping in a different orchestrator is a strategy implementation
+  detail, not an architectural commitment.
+- **No automatic "summarize everything you read" pipeline.** The
+  PKM-LLM-flashcard workflow that generates and *commits* cards
+  without human review is explicitly rejected; MindForge requires
+  explicit human approve to promote `ai_draft → human_approved`.
+  This stance is already locked by v0.9.x Product Differentiation
+  Anti-positioning #1.
+- **No RAG / embedding / vector store** as the recall surface. The
+  industry default in PKM-AI products is vector recall; MindForge
+  defaults to lexical recall (BM25 + hybrid ranking) and keeps
+  vector recall out of the default product shape (Anti-positioning
+  #2).
+- **No LLM-decided strategy selection.** Some LangChain / DSPy
+  patterns let a model pick the next step; MindForge's selector is
+  required to be deterministic, auditable, and pure over
+  `SourceDocument` metadata + explicit config (Strategy selection
+  guarantees above).
+- **No prompt-template registry framing.** `KnowledgeStrategy` is
+  not a prompt repository; prompt phrasing is just one input to a
+  strategy, alongside output schema, evaluation criteria, safety
+  policy, etc.
+
+**Differentiation summary** (why this still ships even though the
+industry has many extraction frameworks):
+
+MindForge is not "LLM extraction-as-a-service". It is a **local-first,
+personal, reviewable knowledge compiler** in which:
+
+- the **input** is heterogeneous personal sources, normalized by a
+  pluggable `SourceAdapter` (not a retrieval connector);
+- the **transformation** is a pluggable `KnowledgeStrategy` that
+  emits structured `ai_draft` candidates with a strategy-owned
+  schema;
+- the **trust boundary** is explicit human approve — `human_approved`
+  is the only state consumed by recall and project-context
+  injection; `ai_draft` is always explicitly labeled when surfaced;
+- the **workspace** (Obsidian / OPS) is the human review surface,
+  not a machine cache, runtime, log, or vector store;
+- the **defaults** never call a real LLM, never read `.env`, never
+  open a network socket, never write a real vault.
+
+Industry typed-extraction frameworks solve "give me JSON I can
+parse"; MindForge solves "give me a reviewable knowledge artifact I
+can later trust as approved memory". The first is a building block;
+the second is a product shape. The `KnowledgeStrategy` seam is the
+specific architectural surface where MindForge expresses that
+difference.
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
