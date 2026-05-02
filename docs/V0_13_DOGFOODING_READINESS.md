@@ -126,6 +126,13 @@ gate by accident.
 
 ## 5. Local-first privacy contract
 
+> **v0.13 Stage 1 update**: 这一节的 canonical 版本已迁移至
+> [`LOCAL_FIRST_PRIVACY_CONTRACT.md`](./LOCAL_FIRST_PRIVACY_CONTRACT.md);
+> 该文档新增了 fake-default + real-opt-in 的细化条款 (例如
+> `--allow-real` flag 语义、Real ≠ Approved 硬隔离、Human Decision Gate
+> Map、testable invariants)。本节保留为历史背景, 与 canonical 文档
+> 出现差异时以 canonical 文档为准。
+
 Inspired by Obsidian's "your notes live on your disk in plain markdown"
 stance and the Readwise / Cubox capture-side products' opt-in sync
 model. MindForge promises:
