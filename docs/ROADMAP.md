@@ -906,6 +906,206 @@ real Cubox API opt-in, real LLM provider activation, workspace writer
 TDD, additional `SourceAdapter` implementations. None of these are
 implied or pre-approved by v0.9.
 
+## v0.9.x Product Differentiation & Knowledge Lifecycle Guardrails (PLANNED)
+
+**Status: planned, planning + boundary tests only.** v0.9.x is not a new
+feature class. It is a **product positioning lock** + **knowledge lifecycle
+guardrail** layer that runs alongside (or just after) v0.9 Data Source &
+Plugin Architecture Readiness. Its sole purpose is to prevent MindForge
+from drifting into shapes it explicitly is **not**:
+
+- not a generic AI second brain;
+- not a RAG knowledge base / multi-source retrieval middleware;
+- not an Obsidian AI plugin / vault auto-organizer;
+- not a multi-source RAG connector hub;
+- not a coding-agent context server with mixed `ai_draft` /
+  `human_approved` state.
+
+This milestone is **docs + boundary tests only**. It introduces no new
+production module, no new dependency, no new user-visible feature.
+
+### Positioning (normative)
+
+MindForge is a **local-first, personal, reviewable knowledge compiler**:
+
+> It compiles multi-source raw material into **auditable, reviewable,
+> recallable, and project-context-injectable human-approved knowledge
+> cards**, with explicit human approval as the load-bearing wall.
+
+Each clause is load-bearing:
+
+- **local-first** — defaults never leave the machine; no cloud sync, no
+  remote telemetry, no background daemon.
+- **personal** — single-user, single-machine workflow; no multi-tenant
+  features, no shared workspace abstractions.
+- **reviewable** — every promotion, every approval, every recall query
+  is human-inspectable and auditable from CLI + workspace artifacts.
+- **knowledge compiler** — the system **compiles** raw sources into
+  cards through an explicit pipeline (source → SourceDocument → strategy
+  → ai_draft → explicit approve → human_approved). It is not a chat
+  surface, not a retrieval surface, not an embedding surface.
+- **human-approved knowledge cards as the unit of value** — recall,
+  review, and project-context injection consume `human_approved` cards
+  (or **explicitly labeled** `ai_draft` previews); never silently mix
+  the two states.
+
+### Anti-positioning (explicit non-shapes)
+
+The following framings are explicitly rejected and must not creep into
+production code, CLI surface, docs, prompts, templates, or default
+configs:
+
+1. **Not a generic AI second brain.** MindForge does not auto-summarize
+   everything you read. Every card requires explicit human approval.
+2. **Not a RAG knowledge base.** No embeddings, no vector store, no
+   semantic similarity search in the default product shape. Lexical
+   recall (BM25 + hybrid ranking) is the only built-in recall path.
+3. **Not a multi-source RAG connector hub.** `SourceAdapter` is an
+   **ingestion normalization** boundary, not a retrieval connector.
+   Adding a `SourceAdapter` does **not** add a new retrieval backend.
+4. **Not an Obsidian AI plugin.** MindForge runs as a local CLI;
+   Obsidian is its human workspace, not its embed target. Obsidian
+   plugin shape is permanently out of scope for v0.x.
+5. **Not a coding-agent context server with mixed state.** Project
+   context packets must declare provenance and approval state per card;
+   `ai_draft` and `human_approved` cannot be silently merged into one
+   "context" blob.
+
+### Source plugin contract (positive framing)
+
+Tightening v0.9 §A: every `SourceAdapter` exists to **normalize**
+heterogeneous inputs into a single `SourceDocument` shape. This is an
+input-side normalization contract, **not** a retrieval-side connector
+contract:
+
+- A `SourceAdapter` produces `SourceDocument`s that the Processing
+  Pipeline can consume offline; it does **not** open retrieval channels,
+  vector stores, or live external queries during recall.
+- `SourceMux` deduplicates equivalent `SourceDocument`s deterministically
+  (default key: `content_hash`); it is not a semantic merge layer and
+  does not consult any LLM or embedding model.
+- A future "RAG-flavored" recall path, if ever proposed, would be its
+  own dedicated milestone with its own safety review; it does not enter
+  through the `SourceAdapter` plugin door.
+
+### Coding agent collaboration chain (normative)
+
+The intended downstream chain — to be **planned, not implemented** in
+this milestone — is:
+
+```
+human_approved card
+  → project context packet (filtered, labeled, source-attributed)
+    → review packet (recently changed / due for review / explicitly pinned)
+      → coding agent prompt support (read-only context; never executes)
+```
+
+Hard rules that this chain must obey before it is implemented:
+
+- Every card surfaced into a coding-agent prompt must carry its
+  approval state (`human_approved`, or **explicitly labeled**
+  `ai_draft` preview) and source attribution.
+- The prompt-support path must never silently mix `ai_draft` and
+  `human_approved` cards into a single unattributed blob.
+- The prompt-support path is **read-only**; it cannot promote, edit,
+  reject, or merge cards. Only the explicit approve chain can mutate
+  card state.
+- The prompt-support path must be auditable: every selection decision
+  (which cards entered the packet, why) must be reproducible from
+  CLI invocation + repo state.
+
+### Architecture quality principles (first-class)
+
+These principles are already executed in commit history; v0.9.x
+promotes them to first-class Roadmap principles so they survive
+contributor turnover:
+
+1. **High cohesion (高内聚).** Each module has one clear reason to
+   change.
+2. **Low coupling (低耦合).** Modules depend on stable contracts
+   (`SourceDocument`, `KnowledgeStrategy`, `ApprovalDecision`,
+   `LLMProvider`), not on each other's internals.
+3. **Information Hiding.** Each module exposes the minimum public
+   surface needed by its callers; secrets, IO seams, and domain
+   internals stay private. Examples already in code: provider
+   `__repr__` redacts credentials; `CuboxApiCredential.__repr__`
+   never prints token; `_item_to_source_document` error messages
+   expose only keys, never bodies.
+4. **CLI is a thin adapter.** Parameter parsing, IO, and side-effect
+   orchestration only; business semantics live in services.
+5. **Service / strategy / provider / presenter / approval / workspace
+   boundaries are stable and tested.** AST and runtime boundary tests
+   are the load-bearing enforcement, not code review alone.
+6. **Reuse existing logic.** New seams must compose existing services
+   rather than parallel-implement them.
+7. **No mechanical file splitting.** File count and line count are not
+   KPIs; cohesion is.
+8. **No new monolith.** New service/seam additions must not become the
+   next `cli.py`.
+9. **No anemic abstraction.** A new module must have a clear
+   responsibility, a stable I/O surface, and independent test value;
+   otherwise it should not exist.
+10. **Tests固化架构意图 (tests freeze architectural intent).**
+    Architectural decisions (no source name in non-source modules,
+    no LLM SDK in default path, no `.env` read in default path,
+    fake-default, explicit-approve-only) are AST + runtime tests,
+    not policy memos.
+11. **中文学习型注释/docstring (Chinese pedagogical
+    comments/docstrings) for load-bearing seams.** Key modules,
+    boundary classes, and boundary tests carry Chinese docstrings
+    that explain **why** the boundary exists and **what** it
+    forbids, not just **what** the code does. Examples already in
+    code: `tests/test_provider_opt_in_boundary.py` §9 docstring;
+    `src/mindforge/cubox_preview_presenter.py` 职责边界段;
+    `src/mindforge/strategies/registry.py` UnknownStrategyError
+    rationale.
+12. **编程的艺术 (programming as craft).** Solutions should be the
+    smallest correct change that preserves the principles above. A
+    sloppier shortcut that violates a principle is worse than a
+    cleaner change that takes longer.
+
+### Definition of Done (v0.9.x)
+
+- Positioning + anti-positioning sections are present in this Roadmap
+  and reflected (in summary form) in `README.md` so external readers
+  cannot mistake MindForge for a RAG KB / second brain / Obsidian
+  plugin.
+- Source plugin contract clarification (input-side normalization, not
+  retrieval connector) is documented in this Roadmap and in the v0.9
+  source plugin readiness milestone.
+- Coding-agent collaboration chain is documented as **planned**, with
+  the four hard rules above written down before any implementation
+  begins.
+- Architecture quality principles are first-class in this Roadmap.
+- Boundary test candidates are listed (planning-only): which
+  invariants would be enforced by AST/runtime tests in the
+  implementation milestone (e.g., "project context packet must record
+  per-card approval state", "recall path does not import any
+  embedding/vector library", "coding-agent prompt support module
+  cannot import `approver.approve_card` or `approval_service`").
+- ruff / pytest / `git diff --check` green.
+- No production code change. No new dependency. No `.env` read. No
+  network. No real LLM. No real Cubox API. No real vault write.
+
+### Stop conditions (v0.9.x)
+
+- Any sub-stage tries to implement project-context coding-agent prompt
+  support → STOP, that is a separate implementation milestone.
+- Any sub-stage tries to add embeddings / vector store / semantic
+  recall to satisfy the "coding agent" framing → STOP, this milestone
+  is positioning + guardrails only.
+- Any sub-stage tries to write or auto-organize a real Obsidian vault
+  → STOP, workspace writer is its own milestone.
+
+### Return to feature roadmap
+
+Once v0.9.x closes (positioning + guardrails documented; boundary test
+candidates enumerated), the next implementation milestones may include
+v0.9 source plugin readiness completion, source adapter implementation
+work (each independently authorized), and the coding-agent
+collaboration chain implementation. None of these are pre-approved by
+v0.9.x.
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
