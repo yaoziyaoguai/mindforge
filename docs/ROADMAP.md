@@ -2197,6 +2197,94 @@ The v0.10 KnowledgeStrategy milestone (Slices 1–4 above) ships:
 deterministic built-ins, declarative custom files, or real provider
 opt-in — those are the v0.11 / v0.12 / v0.13 surfaces above.
 
+## v0.12 Declarative Custom Strategy Preview Completed
+
+> **Status:** v0.12 closed locally (commits ad99707 + 4a38a50 ahead of
+> origin pre-final-push); 5 TDD slices Red→Green; 1153 tests passing,
+> 3 skipped; no tag, fake-first preserved, no real LLM, no `.env`,
+> no vault writes, no auto-approve, no custom strategy runtime.
+
+### What v0.12 delivers
+
+| Slice | Subject | Outcome |
+| --- | --- | --- |
+| 1 | `StrategyDefinition` declarative dataclass + validation | done |
+| 2 | Safe loading from explicit path (no implicit scanning) | done |
+| 3 | CLI discovery via `--custom-path` (no execution) | done |
+| 4 | Registry integration: build_strategy refuses custom + duplicate-id rejection | done |
+| 5 | Review-only `preview_packet` data + presenter | done |
+
+Plus two innovations:
+
+- **Capability matrix** (`docs/V0_12_CAPABILITY_MATRIX.md`) — explicit
+  per-stage allowed/forbidden table inspired by OpenAI Agents SDK
+  guardrails, LangGraph interrupt, Dify Knowledge Pipeline node
+  isolation.
+- **AST import-boundary tests**
+  (`tests/test_custom_strategy_import_boundaries.py`) — hard-fail when
+  custom-strategy files reverse-import CLI / approval / writer / llm /
+  IO modules.
+
+### Boundaries held throughout v0.12
+
+- Loading is not execution.
+- Discovery is not execution.
+- Preview packet is **review-only** (`kind=preview_only`,
+  `executable=False`); it is **not** ai_draft, **not** human_approved,
+  and never touches `ApprovalService` / `CardWriter`.
+- Custom strategies cannot register a factory; `build_strategy` raises
+  `NotYetImplementedStrategyError` with friendly preview tokens.
+- Source-scan + AST tests pin: no subprocess / eval / dotenv /
+  `.obsidian` / network / approved-flag literal in custom paths.
+- No tag created. Final closure commits remain local pending explicit
+  push approval.
+
+### What v0.12 deliberately does **not** ship
+
+- No custom strategy runtime execution.
+- No real LLM provider activation by default.
+- No arbitrary Python plugin / shell / script strategy.
+- No RAG / embedding / semantic merge.
+- No real vault writes / real `.env` reads / real Cubox API.
+- No auto-approval of any kind.
+
+### Industry-research distillation
+
+| Source | Pattern adopted | Pattern explicitly rejected |
+| --- | --- | --- |
+| OpenAI Agents SDK | Guardrail invariants as tests | Auto-approve LLM output |
+| LangGraph | Interrupt = preview-only checkpoint | Implicit state mutation |
+| Dify | Knowledge pipeline node isolation, capability matrix UX | Visual editor / marketplace plugin runtime |
+| Obsidian + local-first AI tools | Local-first ownership, no implicit scan | Community plugin sandbox (we go stricter) |
+| Second-brain (Readwise / Logseq / Cubox / Tana) | capture → process → review → approve → recall loop | Vendor lock-in, hidden background sync |
+
+### v0.12 → v0.13 hand-off (planning only, no implementation)
+
+v0.13 candidates (see also "Real provider opt-in" block above):
+
+1. Non-sensitive dogfooding readiness (demo fixtures + dry-run
+   examples; still fake-first; no real private data).
+2. Packaging / install readiness polish (`pip install` smoke, README
+   onboarding sweep).
+3. Explicit-approval UX review (terminal wording, JSON shape stability).
+4. v0.12 capability matrix kept in sync as new strategies land.
+
+**v0.13 explicit non-goals** (carried over): no real LLM by default,
+no real Obsidian writes, no Cubox real API, no custom runtime, no
+arbitrary plugin, no shell strategy, no RAG, no semantic merge.
+
+### Stop conditions for closing v0.12
+
+All satisfied as of `4a38a50`:
+
+- ✅ Slices 1–5 Green; targeted + full test suite pass.
+- ✅ ruff clean; `git diff --check` clean.
+- ✅ Capability matrix doc exists.
+- ✅ AST import-boundary guard exists.
+- ✅ No tag, no force push, no remote modification beyond reviewed
+  baseline pushes (a3bf24e..ad99707 already pushed; 4a38a50 + closure
+  commits await explicit push approval).
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
