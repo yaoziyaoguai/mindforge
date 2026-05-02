@@ -906,6 +906,144 @@ real Cubox API opt-in, real LLM provider activation, workspace writer
 TDD, additional `SourceAdapter` implementations. None of these are
 implied or pre-approved by v0.9.
 
+### External research alignment — Source ingestion (research addendum)
+
+This addendum records the public-domain landscape consulted while
+shaping the `SourceAdapter` / `SourceMux` / `SourceDocument` contract
+above, and locks the deliberate **borrow / do-not-copy** stance
+MindForge takes against each pattern. None of these references
+introduces a dependency, a runtime call, or a default behavior
+change; this is purely a documentation alignment to prevent future
+drift toward "MindForge is just a connector hub / MCP wrapper /
+LangChain-loader registry / Obsidian importer".
+
+**Industry references consulted**:
+
+1. **Model Context Protocol (MCP) — Resources / Tools / Prompts**
+   distinction. MCP frames *resources* as passive context the model
+   can read, *tools* as active actions the model can invoke, and
+   *prompts* as templated instructions. Source: MCP architecture
+   discussions (publicly indexed, 2024).
+2. **Airbyte source connector specification** — `spec` (config
+   schema) + `discover` (capability discovery: streams, sync modes,
+   primary keys, CDC support) + sync-mode contract (Full Refresh /
+   Incremental / Deduped / CDC). Source: Airbyte connector docs
+   (`docs.airbyte.com/connector-development/`).
+3. **LangChain document loaders / LlamaIndex readers** — broad
+   "load anything into a document object" surface, with documented
+   limitations: weak provenance, no sandboxing, third-party API
+   coupling, limited input validation, rate-limit fragility. Source:
+   LangChain + LlamaIndex documentation (publicly indexed).
+4. **Content-addressable storage + content-hash deduplication**
+   (CAS / SHA-256 / BLAKE3) — the standard pattern of
+   "fingerprint → key-value lookup → store-once". Source: classic
+   CAS literature + cloud-storage best practices.
+5. **Local-first software principles** — data-on-device, no cloud
+   round-trip required for read/write, explicit user agency over
+   sync, auditable local state. Source: Ink & Switch local-first
+   essay + downstream PKM-tool design discussions.
+6. **PKM second-brain ingestion patterns** — "send-to-app" (Obsidian
+   Web Clipper, Readwise Reader, Cubox), file-watch import (Obsidian
+   sync), API pull (Notion / Readwise integrations). Source: tool
+   docs + community write-ups.
+
+**What MindForge borrows (selectively)**:
+
+- The **MCP "resource vs tool vs prompt" boundary**: MindForge's
+  `SourceAdapter` lives strictly on the **resource / ingestion**
+  side. It produces normalized `SourceDocument`s; it never exposes
+  itself as a *tool* the LLM can invoke, and it never doubles as a
+  *prompt* surface. (Adapters expose `load(...)` that the
+  `SourceMux` / processor calls deterministically, not LLM-decided
+  invocations.)
+- The **Airbyte-style explicit capability declaration**: each
+  `SourceAdapter` declares its capabilities (`can_handle`, sync
+  surface, dry-run support, credential requirements) as part of
+  the v0.9 §A "minimum interface" so the runtime knows what the
+  adapter is allowed to do **before** invoking it. Capability
+  declarations are local-first config; no remote registry is
+  consulted to discover them.
+- The **content-addressable dedup pattern**: `SourceMux` uses
+  `content_hash` (SHA-256 over a normalized representation) as the
+  default dedup key — the canonical CAS pattern, applied
+  in-process and offline. This is already documented in v0.9 §C.
+- The **local-first data-on-device principle**: defaults read
+  exports / files / fixtures already on disk; any real network
+  pull is opt-in per adapter, per profile, with an explicit
+  credential surface.
+- The **PKM "send-to-app then review" model**: the canonical user
+  workflow is "save / export / drop a file locally → MindForge
+  ingests → review → approve". MindForge does **not** reach into
+  cloud accounts by default.
+
+**What MindForge deliberately does NOT copy**:
+
+- **MindForge is not an MCP wrapper.** `SourceAdapter` is not an
+  MCP server; it does not expose itself as a tool surface for an
+  LLM to call. Adapters are called by the deterministic processing
+  pipeline, not by model decisions. (A future "MindForge as MCP
+  resource provider" milestone, if ever proposed, would be its
+  own dedicated milestone with its own safety review and would
+  not change this layer.)
+- **No LangChain document-loader registry framing.** LangChain
+  loaders advertise breadth ("we load anything"); MindForge keeps
+  the input surface small, owned, and provenance-preserving. Each
+  adapter is a deliberate, audited integration, not a discovered
+  pip package.
+- **No LlamaIndex reader-as-RAG-frontend framing.** LlamaIndex
+  readers feed an embedding/index pipeline; MindForge readers
+  feed `SourceDocument` → `KnowledgeStrategy` → `ai_draft` →
+  explicit approve. There is no embedding step on the default
+  ingestion path.
+- **No silent credential or `.env` consumption inside an
+  adapter.** Real-API adapters must declare an explicit credential
+  surface (e.g. `CuboxApiCredential`); they must never read
+  `.env` implicitly during normal operation, must never print
+  secrets in `__repr__`, and must default to a fake / dry-run
+  path that requires no credential at all.
+- **No "auto-sync everything" connector framing.** Airbyte's full
+  sync-mode matrix (CDC / dedup-history / full-refresh-overwrite)
+  is intentionally **not** ported. The v0.9 ingestion contract
+  is single-shot, idempotent, dry-run-first; continuous-sync
+  semantics belong to a different product shape.
+- **No "auto-organize Obsidian" framing.** PKM tools that reach
+  into the user's vault and rewrite files are explicitly
+  rejected; Obsidian / OPS is the human review workspace, not a
+  machine target. (Already locked by v0.9.x Anti-positioning #4.)
+- **No global / cloud plugin registry.** Adapters live in-tree or
+  are loaded from a local config; there is no remote discovery
+  service that can introduce a new ingestion path without an
+  explicit code review and explicit user opt-in.
+- **No adapter that bypasses `KnowledgeStrategy`.** A
+  `SourceAdapter` produces `SourceDocument`s; it must never
+  generate `ai_draft` directly, must never approve, must never
+  promote to `human_approved`, and must never write the human
+  workspace. Each of these boundaries is already a v0.9 §B / §C /
+  §D constraint and is enforced by AST + runtime boundary tests.
+
+**Differentiation summary**:
+
+Industry source-ingestion frameworks solve "give me a document
+object I can feed to an LLM / index / chat surface". MindForge
+solves "give me an `auditable, provenance-carrying` `SourceDocument`
+that downstream `KnowledgeStrategy` can compile into a
+`reviewable ai_draft`, gated by explicit human approve before any
+state becomes `human_approved`". The distinction is:
+
+- **MindForge's input layer** is a small, owned, audited adapter
+  set with explicit capability declarations, fake / dry-run
+  defaults, content-addressable dedup, and zero workspace-write
+  authority.
+- **Industry's input layer** is typically a large, discoverable,
+  pip-installable connector marketplace optimized for breadth, not
+  for personal-knowledge auditability.
+
+The architectural surface where this difference lives is the
+combination of `SourceAdapter` (input boundary), `SourceDocument`
+(normalized contract), and `SourceMux` (deterministic dedup) —
+each kept deliberately small, source-agnostic downstream, and
+upstream of the explicit approve chain.
+
 ## v0.9.x Product Differentiation & Knowledge Lifecycle Guardrails (PLANNED)
 
 **Status: planned, planning + boundary tests only.** v0.9.x is not a new
