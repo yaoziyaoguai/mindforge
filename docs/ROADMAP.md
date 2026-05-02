@@ -1327,6 +1327,220 @@ milestones become independently authorizable:
 None of these are pre-approved by v0.9.x KnowledgeStrategy
 Customization Readiness.
 
+### Implementation execution slices (planning-only, awaits human authorization)
+
+When `DefaultKnowledgeCardStrategy` implementation is later
+authorized, it must be split into the following slices. Slices are
+intentionally **few and large** (not many small file moves) to
+preserve cohesion and to make each slice independently reviewable
+and revertable. Each slice ends with a hard stop until the next
+slice is explicitly authorized.
+
+**Audit baseline (informs the slicing)**:
+
+- `src/mindforge/strategies/{base,registry,five_stage}.py` already
+  exists; `KnowledgeStrategy` Protocol + `StrategyContext` +
+  `build_strategy(name, ctx)` already in place. `DEFAULT_STRATEGY_NAME
+  = "five_stage"` today.
+- `src/mindforge/processors/pipeline.py` already produces a
+  `PipelineOutcome.card_payload` (a fixed-shape dict for the
+  `five_stage` strategy). The new strategy emits a **different**
+  payload shape (the 10-field knowledge-card schema above), so it
+  must be registered as an **additional** strategy alongside
+  `five_stage`, not as a replacement.
+- `src/mindforge/sources/base.py` defines `SourceDocument` (the only
+  permitted strategy input).
+- `src/mindforge/llm/fake.py` provides `FakeProvider`
+  (deterministic, no socket, no `.env`, no LLM SDK).
+- `src/mindforge/approver.py` is the only `human_approved`
+  promotion path; `ApprovalDecision` enum lives there.
+- `tests/test_strategy_seam_boundary.py` already enforces
+  source-agnostic / no-`.env` / no-socket / no-`human_approved` /
+  no-vault-write invariants; the new slices extend, not replace,
+  this test family.
+
+#### Slice 1 — Strategy contract + payload schema TDD (Red → Green)
+
+- **Goal**: lock the 10-field `DefaultKnowledgeCardStrategy`
+  payload contract in tests **before** any production code exists.
+- **Allowed scope**:
+  - new `tests/test_default_knowledge_card_strategy.py` (Red
+    initially);
+  - new `tests/test_default_knowledge_card_strategy_boundary.py`
+    extending the existing `test_strategy_seam_boundary.py` AST
+    invariants for the new strategy module path;
+  - no production code in this slice; the production module is
+    introduced by Slice 2.
+- **Forbidden scope**:
+  - no change to `Pipeline` / `five_stage` / `processors/`;
+  - no change to `approver.py` / `approval_service.py`;
+  - no change to `cli.py` / any presenter;
+  - no change to `configs/mindforge.yaml`;
+  - no new dependency.
+- **Tests** (each is a strict invariant; not a smoke):
+  - the strategy module's only declared input type is
+    `SourceDocument`;
+  - the strategy module does not import `cubox_*`, `source_mux`,
+    `scanner`, `sources.cubox_*`, `obsidian`, `vault_writer`,
+    `approver`, `approval_service`, `review_service`,
+    `recall_service`;
+  - the strategy module does not import any embedding / vector /
+    `httpx` / `requests` library;
+  - calling the (yet-to-be-implemented) strategy with a fixture
+    `SourceDocument` + `FakeProvider` returns a payload whose
+    keys are exactly the 10 contract keys and whose `status` is
+    `"ai_draft"`;
+  - the payload never carries `human_approved`, `approved_by`,
+    `approved_at`, or any Obsidian path;
+  - calling the strategy never opens a socket and never writes
+    any file under repo root.
+- **Quality gate**: `git diff --check` / `ruff` / `pytest -q`. Tests
+  in this slice are expected to be Red until Slice 2 lands.
+- **Stop conditions**:
+  - any slice instinct to "just inline the production module here
+    to make tests green" → STOP, that is Slice 2;
+  - any test that requires a real provider / `.env` / network →
+    STOP, fake-default is the only allowed path.
+- **Human authorization required**: yes, before slice begins.
+
+#### Slice 2 — `DefaultKnowledgeCardStrategy` minimal implementation + registry
+
+- **Goal**: implement the smallest production module that turns
+  Slice-1 tests green, while keeping `five_stage` as the existing
+  default and adding the new strategy as a second registered name.
+- **Allowed scope**:
+  - new `src/mindforge/strategies/default_knowledge_card.py`
+    containing:
+    - one `@dataclass` for the typed payload (or a typed `dict`
+      builder — whichever is cleaner with the existing project
+      idiom; do **not** introduce Pydantic);
+    - one `class DefaultKnowledgeCardStrategy` exposing
+      `run(doc: SourceDocument) -> PipelineOutcome` with a
+      mutable `logger` attribute (so it satisfies the existing
+      `KnowledgeStrategy` Protocol structurally);
+    - one `build_default_knowledge_card_strategy(ctx)` factory;
+  - registry update in
+    `src/mindforge/strategies/registry.py`: add
+    `"default_knowledge_card"` (final name TBD during slice) to
+    `_FACTORIES`; do **not** change `DEFAULT_STRATEGY_NAME`;
+  - any docstring additions are written as 中文学习型 docstrings
+    explaining (a) what boundary the module sits on, (b) why
+    the strategy never produces `human_approved`, (c) why the
+    schema lives with the strategy rather than with the CLI /
+    processor.
+- **Forbidden scope**:
+  - no change to `cli.py` / any presenter / any service;
+  - no change to `configs/mindforge.yaml`;
+  - no change to `Pipeline` or `five_stage`;
+  - no `LLMProvider` change; if the strategy needs a real LLM
+    later, that is its own opt-in milestone;
+  - no Pydantic / JSON-schema validator dependency;
+  - no new top-level package; the new file lives inside the
+    existing `strategies/` package.
+- **Tests**: Slice-1 tests must turn fully green; no new tests
+  added in this slice (all behavior was specified in Slice 1).
+- **Quality gate**: `git diff --check` / `ruff` / `pytest -q` all
+  green; `tests/test_strategy_seam_boundary.py` must remain green
+  unchanged.
+- **Stop conditions**:
+  - Slice 2 grows beyond ~150 SLOC of production code → STOP and
+    re-evaluate; the strategy should be small;
+  - any temptation to wire the new strategy into CLI / processor
+    in this slice → STOP, that is Slice 3.
+- **Human authorization required**: yes, after Slice 1 review.
+
+#### Slice 3 — Optional CLI / processor opt-in seam (deferred by default)
+
+- **Goal**: only if explicitly authorized, expose the new strategy
+  to the CLI as an opt-in choice, **without changing the default
+  user-visible behavior**.
+- **Allowed scope** (only with explicit human authorization):
+  - extend `processor` invocation to accept a strategy name
+    parameter (which it can already do via `build_strategy`); CLI
+    surface remains unchanged unless explicitly extended;
+  - if CLI extension is authorized: a single new `--strategy`
+    flag on the existing `process` command, defaulting to the
+    current behavior (no behavioral default change);
+  - tests: a single end-to-end test with `--strategy
+    default_knowledge_card` against the example fixture vault,
+    confirming `ai_draft` payload shape and confirming nothing
+    is approved automatically.
+- **Forbidden scope**:
+  - no removal or rename of existing CLI commands / flags;
+  - no change to `configs/mindforge.yaml` defaults;
+  - no change to `approver` / `approval_service` /
+    `review_service` semantics;
+  - no auto-approval, no auto-merge, no workspace write
+    behavior change.
+- **Tests**: one CLI integration test with the new flag; existing
+  CLI / approval / review tests stay green unchanged.
+- **Quality gate**: `git diff --check` / `ruff` / `pytest -q` all
+  green; `mindforge --help` / `mindforge process --help` smoke shows
+  the new flag is opt-in, not default.
+- **Stop conditions**:
+  - the CLI flag changes default behavior in any way → STOP;
+  - the slice attempts to add a "selector" beyond by-name → STOP,
+    selector is its own milestone;
+  - the slice grows beyond a single new flag + one integration
+    test → STOP and split.
+- **Human authorization required**: yes, separate from Slice 2.
+  This slice is the **first** time anything user-visible changes,
+  and may legitimately be deferred indefinitely.
+
+#### Slice 4 — Docs + boundary-test consolidation
+
+- **Goal**: update `docs/ARCHITECTURE_MAP.md` and the relevant
+  checkpoint doc to reflect the new strategy module; freeze the new
+  invariants as first-class architecture boundary tests next to
+  the existing `test_strategy_seam_boundary.py` family.
+- **Allowed scope**:
+  - `docs/ARCHITECTURE_MAP.md` add one entry for the new strategy
+    module and its boundary;
+  - one new architecture-boundary test file (or extension to
+    `tests/test_strategy_boundaries.py`) consolidating the
+    Slice-1 invariants into a permanent regression net;
+  - one checkpoint doc under the existing `docs/` checkpoint
+    convention summarizing the implementation milestone.
+- **Forbidden scope**:
+  - no production code change;
+  - no change to existing tests' semantics (only additions);
+  - no `pyproject.toml` change; no new dependency.
+- **Tests**: full suite green; no flake.
+- **Quality gate**: `git diff --check` / `ruff` / `pytest -q`.
+- **Stop conditions**:
+  - any urge to "also fix something unrelated while I am in
+    docs" → STOP, separate milestone.
+- **Human authorization required**: yes, after Slice 3 (or after
+  Slice 2 if Slice 3 is deferred).
+
+### Architecture quality reminders for implementation
+
+These are not new principles; they are reminders specific to the
+above slices, drawn from the v0.9.x §Architecture quality
+principles 1-12:
+
+- The new strategy module must own its own payload schema; no
+  other module (CLI, processor, approval, review, presenter,
+  workspace) is allowed to redefine or read schema-internal keys.
+- The new strategy must be independently testable with a
+  fixture `SourceDocument` + `FakeProvider`, with no test
+  scaffolding requiring a real provider, a real vault, or a real
+  Cubox export.
+- Adding the new strategy must not require any change to
+  `cli.py`, `Pipeline`, `approver.py`, `approval_service.py`,
+  `review_service.py`, `recall_service.py`, or any presenter; if
+  any such change feels necessary, the design has drifted and the
+  slice should stop.
+- 中文学习型 docstrings are required on the new production
+  module and on the boundary tests, explaining **why** the
+  boundary exists and **what** it forbids — not just what the
+  code does. Examples to match in tone:
+  `src/mindforge/strategies/registry.py` `UnknownStrategyError`
+  rationale, `tests/test_provider_opt_in_boundary.py` §9.
+- File / line-count is not a goal. Cohesion is. If splitting a
+  slice produces an anemic helper module, fold it back into the
+  strategy module.
+
 ### External research alignment (research addendum)
 
 This addendum records the public-domain landscape consulted while
