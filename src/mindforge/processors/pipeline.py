@@ -267,24 +267,58 @@ def _build_card_payload(
     review_questions: dict[str, Any],
     action_extraction: dict[str, Any],
 ) -> dict[str, Any]:
-    """组装写入 ``knowledge_card.md.j2`` 的字段树。"""
+    """组装五段策略的 ``ai_draft`` envelope。
+
+    v0.10 Slice 5 起，本函数返回**公共 envelope**而非历史扁平
+    ``{"card": {...}}``。设计意图：
+
+    - 让 writer / presenter / approval 只需理解 envelope 顶层 + 公共
+      ``review_hints``，**不需要**理解 five_stage 17 字段细节；
+    - 让 ``DefaultKnowledgeCardStrategy`` 与 ``five_stage`` 共用同一条
+      下游链路；
+    - 为未来 v0.11 StrategyRegistry / v0.12 custom strategy 留出向后
+      兼容入口（任何新策略只需产出同形 envelope）。
+
+    五段卡片 17 字段全部装入 ``structured_payload.card``；这条嵌套路
+    径是 writer 模板与 envelope 的稳定 contact point。
+    """
+    card = {
+        "id": distill.get("slug") or "untitled",
+        "title": distill.get("title") or doc.title or "Untitled",
+        "track": track,
+        "projects": [],
+        "tags": distill.get("tags") or [],
+        "value_score": value_score,
+        "confidence": distill.get("confidence", 0.0),
+        "source_excerpt": distill.get("source_excerpt") or "",
+        "ai_summary_bullets": distill.get("ai_summary_bullets") or [],
+        "ai_inference_bullets": distill.get("ai_inference_bullets") or [],
+        "reusable_prompts_or_principles": distill.get("reusable_prompts_or_principles") or [],
+        "project_hooks": link_suggestion.get("project_hooks") or [],
+        "review_questions": review_questions.get("review_questions") or [],
+        "action_items": action_extraction.get("action_items") or [],
+        "suggested_links": link_suggestion.get("suggested_links") or [],
+    }
+    summary_bullets = card["ai_summary_bullets"]
+    one_line = (
+        str(summary_bullets[0]) if summary_bullets else (distill.get("source_excerpt") or "")
+    )
     return {
-        "card": {
-            "id": distill.get("slug") or "untitled",
-            "title": distill.get("title") or doc.title or "Untitled",
-            "track": track,
-            "projects": [],
-            "tags": distill.get("tags") or [],
-            "value_score": value_score,
-            "confidence": distill.get("confidence", 0.0),
-            "source_excerpt": distill.get("source_excerpt") or "",
-            "ai_summary_bullets": distill.get("ai_summary_bullets") or [],
-            "ai_inference_bullets": distill.get("ai_inference_bullets") or [],
-            "reusable_prompts_or_principles": distill.get("reusable_prompts_or_principles") or [],
-            "project_hooks": link_suggestion.get("project_hooks") or [],
-            "review_questions": review_questions.get("review_questions") or [],
-            "action_items": action_extraction.get("action_items") or [],
-            "suggested_links": link_suggestion.get("suggested_links") or [],
+        "strategy_id": "five_stage",
+        "strategy_version": "0.10.0",
+        "schema_version": "1",
+        "status": "ai_draft",
+        "source_evidence": {
+            "source_id": doc.source_id,
+            "source_type": doc.source_type,
+            "content_hash": doc.content_hash,
+            "source_path": doc.source_path,
+            "adapter_name": doc.adapter_name or "",
+        },
+        "structured_payload": {"card": card},
+        "review_hints": {
+            "title": card["title"],
+            "one_line": one_line,
         },
     }
 

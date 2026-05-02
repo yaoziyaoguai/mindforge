@@ -283,11 +283,13 @@ def test_card_writer_accepts_envelope_payload(tmp_path) -> None:
 
     vault = tmp_path / "vault"
     vault.mkdir()
-    cards_dir = vault / "cards"
-    cards_dir.mkdir()
-    (vault / "templates").mkdir()
-    # 使用项目内既有模板（writer 内部默认 template 即 knowledge_card.md.j2）
-    writer = CardWriter(vault_root=vault)
+    (vault / "cards").mkdir()
+    template_text = "{{ card.title }}\n{{ card.id }}\n{{ card.track }}\n"
+    writer = CardWriter(
+        vault_root=vault,
+        cards_dir="cards",
+        template_text=template_text,
+    )
     payload = _make_envelope_payload()
     # 不应抛 KeyError；应能定位到 vault/cards/learning/<date>--slice5-writer.md
     result = writer.write(

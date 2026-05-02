@@ -68,8 +68,21 @@ class CardWriter:
         now: datetime | None = None,
     ) -> WriteResult:
         now = now or datetime.now()
-        track = str(card_payload["card"]["track"])
-        slug = str(card_payload["card"]["id"])
+        # v0.10 Slice 5：所有 strategy 输出统一公共 envelope，writer 通过
+        # ``structured_payload.card`` 读取写入路径与模板字段。writer 不
+        # 理解 strategy-specific keys，也不分发 strategy_id —— 这条边
+        # 界由 ``test_card_writer_does_not_read_envelope_top_level_strategy_keys``
+        # 守护，防止 writer 演化为多策略巨石。
+        try:
+            structured = card_payload["structured_payload"]
+            card = structured["card"]
+        except (KeyError, TypeError) as exc:
+            raise KeyError(
+                "CardWriter 期望公共 envelope 形态 "
+                "(structured_payload.card)；收到的 card_payload 不符合契约"
+            ) from exc
+        track = str(card["track"])
+        slug = str(card["id"])
         date_prefix = now.strftime("%Y%m%d")
         filename = f"{date_prefix}--{slug}.md"
 
@@ -79,7 +92,7 @@ class CardWriter:
 
         template = self._env.get_template(self.template_name)
         rendered = template.render(
-            card=card_payload["card"],
+            card=card,
             source=source,
             run=run,
         )
