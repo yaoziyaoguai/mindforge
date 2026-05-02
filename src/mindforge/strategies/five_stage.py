@@ -25,7 +25,18 @@ def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
 
     返回值是 ``Pipeline`` 实例本身 —— 它结构性满足
     :class:`KnowledgeStrategy` Protocol，无需 wrap。
+
+    five_stage 真正调用 LLM，因此显式校验 ``ctx.client``：StrategyContext
+    把 client 设为 Optional 是为了让无 LLM 策略也能干净构造，但 LLM 策略
+    必须在工厂入口拒掉缺失，避免 None 沿调用栈渗透到 prompt 调用处再以
+    AttributeError 形式爆炸。
     """
+
+    if ctx.client is None:
+        raise ValueError(
+            "build_five_stage_strategy 需要 StrategyContext.client，但收到 None；"
+            "请在 context 中传入 LLMClient（或选择不依赖 LLM 的策略）。"
+        )
 
     pipeline = Pipeline(
         client=ctx.client,

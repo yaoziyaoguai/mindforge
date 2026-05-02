@@ -111,3 +111,42 @@ def test_pipeline_outcome_type_imported_from_strategy_run_signature() -> None:
     assert callable(strat.run)
     annotations = getattr(strat.run, "__annotations__", {})
     assert annotations.get("return") in (PipelineOutcome, "PipelineOutcome")
+
+
+# ---------------------------------------------------------------------------
+# v0.10 fake-first seam 回归保护
+#
+# 这些测试把"StrategyContext 不强制依赖真实 LLMClient"这条架构契约固化为
+# 可执行检查。一旦未来有人给 ``client`` 移除默认值，或在工厂里偷偷读取
+# os.environ 启动真实 provider，这里就会红灯。
+# ---------------------------------------------------------------------------
+
+
+def test_strategy_context_can_be_built_with_no_arguments() -> None:
+    """StrategyContext 必须能零参构造。
+
+    无 LLM 策略（``DefaultKnowledgeCardStrategy``）和测试 fixture 都依赖
+    这一点；任何使其变成必填的改动都会破坏 fake-first seam。
+    """
+    ctx = StrategyContext()
+    assert ctx.client is None
+    assert ctx.logger is None
+
+
+def test_strategy_context_client_is_optional_in_annotations() -> None:
+    """``StrategyContext.client`` 的注解必须包含 None。
+
+    防止后续重构把 ``Optional`` 静默去掉。注解是字符串（PEP 563），
+    简单子串匹配即可。
+    """
+    annotation = StrategyContext.__dataclass_fields__["client"].type
+    assert "None" in str(annotation), (
+        f"StrategyContext.client 注解必须为 Optional，实际：{annotation!r}"
+    )
+
+
+def test_five_stage_factory_rejects_missing_client_loudly() -> None:
+    """LLM 策略缺 client 时必须立即失败，不能静默走到 None.attribute 才崩。"""
+    ctx = StrategyContext()  # client=None
+    with pytest.raises(ValueError, match="client"):
+        build_five_stage_strategy(ctx)

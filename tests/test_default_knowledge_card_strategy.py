@@ -82,20 +82,13 @@ def _strategy_context():
     """构造一个最小 StrategyContext。
 
     本策略不消费 ``client`` / ``prompts_dir`` / ``prompt_versions`` /
-    ``learning_tracks_text``；context 只是为了维持工厂签名一致。把
-    client 设为 None 以避免在测试里组装真实 LLMClient（其 __init__
-    需要 llm_config + providers，超出策略契约关注范围）。
+    ``learning_tracks_text``。``StrategyContext`` 在 v0.10 中已把 ``client``
+    定义为 ``Optional`` 并默认 ``None`` —— 无 LLM 策略不再需要发明占位
+    LLMClient，这是 fake-first seam 的明确形态。
     """
     from mindforge.strategies.base import StrategyContext
 
-    return StrategyContext(
-        client=None,  # type: ignore[arg-type]
-        prompts_dir=None,
-        prompt_versions=None,
-        triage_threshold=0,
-        learning_tracks_text="",
-        logger=None,
-    )
+    return StrategyContext()
 
 
 # ---------------------------------------------------------------------------
