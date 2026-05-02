@@ -291,6 +291,13 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # structured_payload_schema 的 custom 定义；这是反方向的
         # 边界守护，与"自动晋升路径"恰好相反，因此显式纳入白名单。
         "custom.py",
+        # v0.13 Stage 1 — provider readiness / synthetic real-LLM smoke /
+        # provider CLI 三件套以 human_approved 字面量明确声明
+        # "real provider 输出永远不能成为 human_approved"，是反向
+        # 边界守护（同 custom.py 模式）。
+        "provider_readiness.py",
+        "real_smoke.py",
+        "provider_cli.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
