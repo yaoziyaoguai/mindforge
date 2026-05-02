@@ -134,11 +134,21 @@ Start here:
 
 - Latest local usability milestone: `v0.5.1`.
 - Latest packaging/install readiness milestone: `v0.5.2`.
+- Latest architecture governance milestones (cli/presenter/service boundary
+  hardening): `v0.7.20` – `v0.7.23`.
+- Latest source-plugin / strategy registry / declarative custom-strategy
+  milestones: `v0.10` – `v0.12`.
+- Latest real-capable opt-in readiness milestone: `v0.13 Stage 1` (real
+  provider opt-in is gated; default path stays fake; `human_approved`
+  cannot be machine-generated). See
+  [docs/LOCAL_FIRST_PRIVACY_CONTRACT.md](docs/LOCAL_FIRST_PRIVACY_CONTRACT.md)
+  and `mindforge provider readiness --help`.
 - Latest v0.5.1 smoke: full `examples/demo-vault` local path, including
   doctor / commands / next / scan / fake process / approve list / index /
   recall / review / project context / Obsidian dry-run.
 - Latest v0.5.1 quality gate is recorded in
   [docs/V0_5_1_LOCAL_USABILITY_REVIEW.md](docs/V0_5_1_LOCAL_USABILITY_REVIEW.md).
 
-Recommended next step after v0.5.2: keep patching local usability and install
-readiness from non-sensitive dogfooding before adding new feature classes.
+Recommended next step after v0.13 Stage 1: keep treating real provider /
+Cubox / Obsidian as opt-in surfaces; use `mindforge provider readiness`
+before any opt-in attempt; never bypass approval.

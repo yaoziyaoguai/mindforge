@@ -2410,3 +2410,29 @@ protection (real output ≠ `human_approved`).
 - Sensitive-token rg sweep on new src files: only docstring mentions
   of the ban list itself; no `Path.home()` / `requests.` / `httpx.` /
   `subprocess` / `dotenv` / `human_approved = True` etc.
+
+## v0.13 Stage 2 — Onboarding Consolidation (Completed Locally)
+
+继续 Stage 1 的 real-capable opt-in 路径, 但本轮**不新增任何 opt-in
+表面**, 只做一致性、可观察性、文档同步与回归保护:
+
+- `mindforge provider readiness --format json` 新增脚本化输出 (schema
+  含 `provider` / `opt_in` / `invariants` 三段, 五个 invariants 字段
+  全部 True)。
+- `tests/test_v013_stage2_consistency.py` 守住:
+  - `configs/mindforge.yaml` 默认 `active_profile: fake` 不被静默改;
+  - `mindforge llm ping` 与 `mindforge provider readiness` 在
+    fake-default 下给出语义一致结论 (无 MISSING / `fake_default` /
+    `can_run_real_smoke=False`);
+  - capability matrix §6 "Excluded" 列表与 §8 real-opt-in 行不漂移;
+  - readiness JSON schema 稳定。
+- `docs/LLM_PROVIDER_CONFIG.md` 顶部加入 v0.13 Stage 1 安全契约升级
+  说明 (cross-link 到 canonical privacy contract)。
+- `docs/CHANGELOG.md` 新增 v0.13 Stage 1 + Stage 2 章节。
+- `README.md` "Development Status" 从 v0.5.1 同步到 v0.13 Stage 1。
+
+仍然不变的非目标 (与 Stage 1 一致): 真实 dogfooding, 真实 LLM 调用,
+真实 Cubox API 调用, 真实 Obsidian 写入, `human_approved` 自动生成,
+auto-approve, custom strategy runtime, arbitrary Python plugin,
+shell/script strategy, RAG / embedding / semantic merge, 大重构 / 目录
+重组 / CLI rewrite。

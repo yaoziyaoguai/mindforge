@@ -6,6 +6,14 @@
 
 > 阅读对象：本人（学习与复盘用）。所有命令默认在仓库根目录执行。
 
+> **v0.13 Stage 1 起的安全契约升级**: 切换 `active_profile` 到非
+> fake 之后, 真实 provider 路径仍然只能通过显式 opt-in 触发
+> (`mindforge provider smoke --allow-real`); 真实 provider 输出永远
+> 是 `ai_draft_preview`, 永远不会自动变成 `human_approved`, 永远不会
+> 写入 vault。详见
+> [LOCAL_FIRST_PRIVACY_CONTRACT.md](LOCAL_FIRST_PRIVACY_CONTRACT.md)
+> 和 `mindforge provider readiness --help`。
+
 ---
 
 ## 1. 三种 Provider 类型

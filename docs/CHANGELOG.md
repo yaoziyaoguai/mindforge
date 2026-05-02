@@ -2,6 +2,29 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.13 Stage 1 — Real-Capable Opt-in Readiness (local)
+
+- Added `mindforge provider readiness` (`--format text|json`) and
+  `mindforge provider smoke [--allow-real]` 命令; both 默认安全, 拒绝
+  在未显式 opt-in 的前提下接触真实 provider。
+- Added `src/mindforge/provider_readiness.py`: 纯数据 readiness 报告
+  (presence-only env 检查, 永远不返回 secret value)。
+- Added `src/mindforge/real_smoke.py`: 受 `allow_real` + active profile
+  ≠ fake + api_key 在环境中三重 gate 控制的合成 smoke; 输出仅作为
+  `ai_draft_preview`, 永远不会变成 `human_approved`, 永远不写入 vault。
+- Added canonical privacy doc
+  [docs/LOCAL_FIRST_PRIVACY_CONTRACT.md](LOCAL_FIRST_PRIVACY_CONTRACT.md)
+  (v2: fake-default + real-opt-in)。
+- Added [docs/V0_13_INDUSTRY_PATTERN_MAP.md](V0_13_INDUSTRY_PATTERN_MAP.md)
+  和 [docs/V0_13_REAL_INGESTION_DEFERRED_GATES.md](V0_13_REAL_INGESTION_DEFERRED_GATES.md);
+  Cubox / Obsidian 真实接入仍 deferred。
+- Capability matrix §8 新增 real-opt-in 矩阵 (与 §6 "Excluded" 一致, §6 不变)。
+- v0.13 Stage 2 (consolidation): readiness JSON 输出 + 默认 fake profile
+  完整性测试 + ping/readiness 一致性测试 + matrix §6/§8 一致性测试。
+- 不变: SourceAdapter / SourceDocument / processor / approval / recall /
+  Obsidian write / RAG / embedding / Cubox real ingestion / custom strategy
+  runtime 默认全部禁用; 默认路径仍是 fake provider。
+
 ## v0.5.2
 
 - Added Packaging / Install Readiness design documentation.
