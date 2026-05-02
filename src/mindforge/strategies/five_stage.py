@@ -28,6 +28,12 @@ STRATEGY_DESCRIPTION = (
     " → action_extraction 五段链路，输出 17 字段 Knowledge Card；"
     "通过 fake provider 默认离线可跑，真实 LLM 仅在显式 opt-in 时启用。"
 )
+# v0.11 Slice 2：UX 元数据。provider_mode=real_opt_in 表示该策略可调真实
+# LLM，但默认走 fake provider；safety_policy 锁定 ai_draft，不会自动 approve；
+# output_schema_id 与 envelope.strategy_id@schema_version 对齐。
+STRATEGY_PROVIDER_MODE = "real_opt_in"
+STRATEGY_SAFETY_POLICY = "ai_draft_only"
+STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@1"
 
 
 def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
@@ -63,6 +69,9 @@ __all__ = [
     "STRATEGY_DESCRIPTION",
     "STRATEGY_DISPLAY_NAME",
     "STRATEGY_ID",
+    "STRATEGY_OUTPUT_SCHEMA_ID",
+    "STRATEGY_PROVIDER_MODE",
+    "STRATEGY_SAFETY_POLICY",
     "STRATEGY_VERSION",
     "build_five_stage_strategy",
 ]

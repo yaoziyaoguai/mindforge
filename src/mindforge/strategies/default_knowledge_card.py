@@ -75,6 +75,11 @@ STRATEGY_DESCRIPTION = (
     "离线确定性策略：从 source 文本派生 10 字段 structured_payload，"
     "全程不依赖 LLM / .env / 网络；适合作为 fake-first 默认策略与回退路径。"
 )
+# v0.11 Slice 2：UX 元数据。三项常量帮助 CLI strategies list 向用户解释
+# "我能在离线跑吗 / 我会自动 approve 吗 / 我吐什么 envelope"。
+STRATEGY_PROVIDER_MODE = "deterministic"
+STRATEGY_SAFETY_POLICY = "ai_draft_only"
+STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +261,9 @@ __all__ = [
     "STRATEGY_DESCRIPTION",
     "STRATEGY_DISPLAY_NAME",
     "STRATEGY_ID",
+    "STRATEGY_OUTPUT_SCHEMA_ID",
+    "STRATEGY_PROVIDER_MODE",
+    "STRATEGY_SAFETY_POLICY",
     "STRATEGY_VERSION",
     "build_default_knowledge_card_strategy",
 ]

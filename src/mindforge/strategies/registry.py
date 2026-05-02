@@ -26,6 +26,20 @@ from .five_stage import build_five_stage_strategy
 DEFAULT_STRATEGY_NAME = "five_stage"
 
 
+def _format_unknown_strategy_message(name: str) -> str:
+    """统一拼装 UnknownStrategyError 的可读消息。
+
+    包含三段：未知名字、可选项元组、CLI discovery 入口提示
+    （``mindforge strategies list``）—— 让终端用户立即拿到下一步动作。
+    """
+
+    return (
+        f"unknown knowledge strategy: {name!r}; "
+        f"available: {available_strategies()}; "
+        "run `mindforge strategies list` to see all strategies."
+    )
+
+
 class UnknownStrategyError(ValueError):
     """请求了未注册的策略名。
 
@@ -44,12 +58,24 @@ class StrategyMetadata:
 
     frozen 防止调用方事后篡改，确保元数据是 strategy 模块定义的
     单一事实来源。
+
+    UX 三字段（v0.11 Slice 2 引入）：
+
+    - ``provider_mode``：``fake_only`` / ``deterministic`` / ``real_opt_in``，
+      告诉用户该策略默认是否离线安全；
+    - ``safety_policy``：固定为 ``ai_draft_only`` —— 与项目"不自动 approve"
+      硬约束对齐；
+    - ``output_schema_id``：``<strategy_id>@<envelope_schema_version>``，
+      让消费方一眼看到 envelope schema 标识。
     """
 
     strategy_id: str
     strategy_version: str
     display_name: str
     description: str
+    provider_mode: str
+    safety_policy: str
+    output_schema_id: str
 
 
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
@@ -82,10 +108,7 @@ def build_strategy(name: str, ctx: StrategyContext) -> KnowledgeStrategy:
 
     factory = _FACTORIES.get(name)
     if factory is None:
-        raise UnknownStrategyError(
-            f"unknown knowledge strategy: {name!r}; "
-            f"available: {available_strategies()}"
-        )
+        raise UnknownStrategyError(_format_unknown_strategy_message(name))
     return factory(ctx)
 
 
@@ -98,15 +121,15 @@ def get_strategy_metadata(name: str) -> StrategyMetadata:
 
     mod = _METADATA_MODULES.get(name)
     if mod is None:
-        raise UnknownStrategyError(
-            f"unknown knowledge strategy: {name!r}; "
-            f"available: {available_strategies()}"
-        )
+        raise UnknownStrategyError(_format_unknown_strategy_message(name))
     return StrategyMetadata(
         strategy_id=mod.STRATEGY_ID,
         strategy_version=mod.STRATEGY_VERSION,
         display_name=mod.STRATEGY_DISPLAY_NAME,
         description=mod.STRATEGY_DESCRIPTION,
+        provider_mode=mod.STRATEGY_PROVIDER_MODE,
+        safety_policy=mod.STRATEGY_SAFETY_POLICY,
+        output_schema_id=mod.STRATEGY_OUTPUT_SCHEMA_ID,
     )
 
 

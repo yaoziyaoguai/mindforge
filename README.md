@@ -30,6 +30,17 @@ mindforge commands
 mindforge next
 ```
 
+发现可用知识归纳策略（不调真实 LLM、不读 `.env`、不写 vault）：
+
+```bash
+mindforge strategies list
+```
+
+输出会列出每个内建策略的 `strategy_id` / `display_name` /
+`provider_mode` / `safety_policy` / `output_schema_id` / 描述。当前内建
+两个策略：`default_knowledge_card`（离线确定性）与 `five_stage`（LLM
+驱动，默认走 fake provider，真实 LLM 仅显式 opt-in 时启用）。
+
 To try the product without using your own data:
 
 ```bash

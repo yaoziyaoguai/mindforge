@@ -798,7 +798,8 @@ def process(
         pipeline = build_strategy(strategy, strategy_ctx)
     except UnknownStrategyError:
         console.print(
-            f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}[/red]"
+            f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}；"
+            "运行 `mindforge strategies list` 查看所有策略。[/red]"
         )
         raise typer.Exit(code=2) from None
 
@@ -1100,12 +1101,22 @@ def strategies_list() -> None:
 
     本命令是纯查询：不构造 LLMClient、不读 ``.env``、不写 vault、不
     approve、不调用 strategy 本身的 ``run()``。
+
+    输出包含每个策略的 ``strategy_id`` / ``strategy_version`` /
+    ``display_name`` / ``provider_mode`` / ``safety_policy`` /
+    ``output_schema_id`` / ``description`` —— 让用户在终端就能区分
+    "我能离线跑吗"、"我会自动 approve 吗"、"我吐什么 envelope schema"。
     """
 
     for meta in list_strategies():
         console.print(
             f"[bold]{meta.strategy_id}[/bold]@{meta.strategy_version}  "
             f"[cyan]{meta.display_name}[/cyan]"
+        )
+        console.print(
+            f"  provider_mode: {meta.provider_mode}  "
+            f"safety_policy: {meta.safety_policy}  "
+            f"output_schema_id: {meta.output_schema_id}"
         )
         console.print(f"  {meta.description}")
 
