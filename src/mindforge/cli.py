@@ -25,7 +25,13 @@ from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
 from .obsidian_cli import obsidian_app
 from .processors import Pipeline  # noqa: F401  -- 保留向后兼容的 re-export，避免外部测试或脚本因 import 路径中断
-from .strategies import DEFAULT_STRATEGY_NAME, StrategyContext, build_strategy
+from .strategies import (
+    DEFAULT_STRATEGY_NAME,
+    StrategyContext,
+    UnknownStrategyError,
+    available_strategies,
+    build_strategy,
+)
 from .recall_service import (
     RecallQuery,
     RecallServiceError,
@@ -697,6 +703,16 @@ def process(
         "--template",
         help="Knowledge Card 模板路径；未传时使用 package 内置模板。",
     ),
+    strategy: str = typer.Option(
+        DEFAULT_STRATEGY_NAME,
+        "--strategy",
+        help=(
+            "Knowledge strategy 名称（opt-in）。默认沿用 five_stage（LLM 驱动，"
+            "通过 fake provider 离线可跑）。可选 default_knowledge_card 走"
+            "离线确定性策略。策略选择只依赖此显式选项，绝不从 source/adapter "
+            "反推。"
+        ),
+    ),
 ) -> None:
     """对 inbox 中已 scan 的文件跑 5 stage pipeline，落地 Knowledge Card。
 
@@ -773,7 +789,17 @@ def process(
         learning_tracks_text=tracks_text,
         logger=None,
     )
-    pipeline = build_strategy(DEFAULT_STRATEGY_NAME, strategy_ctx)
+    # v0.10 Slice 3：把 --strategy 作为 explicit opt-in seam 接入 build_strategy。
+    # 未知名字时把 UnknownStrategyError 翻译成用户可读的退出（含已注册可选项），
+    # 避免 stack trace 直接吐到终端。strategy 选择只依赖此 CLI flag；不从
+    # source / adapter / SourcePlugin 反推。
+    try:
+        pipeline = build_strategy(strategy, strategy_ctx)
+    except UnknownStrategyError:
+        console.print(
+            f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}[/red]"
+        )
+        raise typer.Exit(code=2) from None
 
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
 
