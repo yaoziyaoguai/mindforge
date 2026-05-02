@@ -342,3 +342,68 @@ users safely point `--custom-path` at any directory.
   never writes into `_FACTORIES` or `available_strategies()`.
   Custom previews are a metadata view; built-in factories remain
   the single source of "what is executable today".
+
+## 9. Review-Only Preview Packet (v0.12 Slice 5 Green)
+
+到 Slice 4 为止，custom strategy 已经能被安全 *parse / load / discover*，
+``build_strategy`` 也能在 registry 边界友好地拒绝执行。但用户写完
+YAML 后仍缺最后一段桥梁：**用户在终端到底应该看到什么样的"review
+卡片"，才能既看清自己写了什么、又绝不会误以为这是已批准的知识卡？**
+
+Slice 5 Green 给出答案 —— ``mindforge.strategies.preview_packet``
+模块，提供一个稳定、只读、纯数据的 **preview packet** 与配套渲染。
+
+### 9.1 What the preview packet *is*
+
+- 一份纯 ``dict``（11 个字段，valid 形态；5 个字段，invalid 形态）；
+- 通过 ``build_custom_preview_packet(definition)`` 或
+  ``build_invalid_preview_packet(path, error)`` 构造；
+- 通过 ``render_custom_preview_packet(packet)`` 渲染成纯文本，可直接
+  print 或写入日志；
+- 始终包含 ``kind="preview_only"`` 与 ``executable=False`` 两个稳定
+  discriminator，便于下游消费方判别。
+
+### 9.2 What the preview packet *is not*
+
+| 维度 | preview packet | ai_draft KnowledgeCard | human_approved card |
+| --- | --- | --- | --- |
+| 是策略数据吗 | 是（定义元数据） | 否 | 否 |
+| 是知识卡吗 | **否** | 是（草稿） | 是（已批准） |
+| 由 LLM 生成吗 | 否（声明 + 校验产物） | 是 | 是 + 人工 |
+| 会进入 ApprovalService 吗 | **永远不会** | 进入待审 | 已审 |
+| 会进入 CardWriter 吗 | **永远不会** | 写 staging | 写 vault |
+| 字段含 `human_approved` 吗 | **永远不含** | 否 | 是 |
+| 是否可执行 | **executable=false** | 取决于策略 | 已生效 |
+
+> Preview packet 是 review-only。它显式地 not ai_draft，显式地
+> not human_approved。任何把 preview packet 当作 ai_draft 或
+> approved card 消费的下游路径，都属于安全契约违反。
+
+### 9.3 Explicit approval is still required
+
+- preview packet 出现 ≠ 用户接受这个策略；
+- 即便未来 v0.13+ 真正实现 custom strategy execution，**explicit
+  approval** 仍是必须步骤，preview 只承担"展示给人看"的职责；
+- preview packet 永远不写入 vault、不调用 provider、不读取 ``.env``。
+
+### 9.4 Public API
+
+```python
+from mindforge.strategies.preview_packet import (
+    build_custom_preview_packet,
+    build_invalid_preview_packet,
+    render_custom_preview_packet,
+)
+```
+
+- ``build_custom_preview_packet(definition: StrategyDefinition) -> dict``
+- ``build_invalid_preview_packet(source_path, error: InvalidStrategyDefinitionError) -> dict``
+- ``render_custom_preview_packet(packet) -> str``
+
+### 9.5 Boundary tests
+
+``tests/test_custom_preview_packet_contract.py`` 用 5 个 family
+（packet shape / no-execution / presenter UX / boundary docs / sanity
+baselines）固化上述契约。源码 source-scan 同时覆盖：preview_packet.py
+不允许出现 subprocess / eval / LLMClient( / load_dotenv / .obsidian /
+CardWriter( / ApprovalService( / human_approved 等 17 个越界 token。
