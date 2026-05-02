@@ -35,15 +35,25 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from .assets_runtime import asset_root
+from .config import load_mindforge_config
 from .cubox_dryrun_presenter import (
     DryRunSampleItem,
     DryRunSummary,
     render_json,
     render_text,
 )
+from .cubox_preview_presenter import (
+    AiDraftPreviewItem,
+    AiDraftPreviewSummary,
+)
+from .cubox_preview_presenter import render_json as preview_render_json
+from .cubox_preview_presenter import render_text as preview_render_text
+from .llm import LLMClient, build_providers
 from .scanner import ScanResult
 from .source_mux import SourceMux
 from .sources.cubox_api import CuboxApiAdapter
+from .strategies import DEFAULT_STRATEGY_NAME, StrategyContext, build_strategy
 
 console = Console()
 
@@ -122,3 +132,177 @@ def cubox_dry_run(
 
 
 __all__ = ["cubox_app"]
+
+
+# ---------------------------------------------------------------------------
+# preview-ai-draft：本地 export → fake KnowledgeStrategy → in-memory preview
+# ---------------------------------------------------------------------------
+
+
+class _NoOpRunLogger:
+    """与 ``RunLogger`` 鸭子类型兼容的占位 logger。
+
+    ``Pipeline``/``run_stage`` 只通过 ``logger.emit(event, **fields)``
+    与 logger 交互；preview 命令必须**永不**写 ``.mindforge/runs/*.jsonl``，
+    因此这里提供一个零副作用实现。``run_id`` 仅用于满足可能的字段访问；
+    不返回真实路径，避免任何下游误用拼接出磁盘路径。
+    """
+
+    run_id = "cubox-preview-noop"
+
+    def emit(self, event: str, **fields: object) -> None:  # noqa: D401 - 简单接口
+        """丢弃所有事件；preview 不持久化。"""
+        return None
+
+    def open(self) -> "_NoOpRunLogger":
+        return self
+
+    def close(self) -> None:
+        return None
+
+
+def _load_default_config_path() -> Path:
+    """优先 cwd 的 ``configs/mindforge.yaml``；否则用 package 内置 asset。
+
+    preview 命令的设计目标是 ``cd 任何目录 → 跑就能看 fake ai_draft``，
+    不需要项目用户先建配置文件。包内 ``configs/mindforge.yaml`` 已经把
+    ``active_profile`` 设为 ``fake``，与本命令的安全语义天然吻合。
+    """
+    local = Path.cwd() / "configs" / "mindforge.yaml"
+    if local.exists():
+        return local
+    bundled = asset_root().joinpath("configs", "mindforge.yaml")
+    # importlib.resources Traversable → 实际是仓库内文件；直接 read 即可。
+    # load_mindforge_config 接受 Path，因此这里若不是 Path 就落到临时文件。
+    if isinstance(bundled, Path):
+        return bundled
+    # Fallback：写到临时缓存（不污染 cwd）。
+    import tempfile
+
+    cache = Path(tempfile.gettempdir()) / "mindforge-bundled-config.yaml"
+    cache.write_text(bundled.read_text(encoding="utf-8"), encoding="utf-8")
+    return cache
+
+
+@cubox_app.command("preview-ai-draft")
+def cubox_preview_ai_draft(
+    export: Path = typer.Option(
+        ..., "--export", help="本地 Cubox JSON export 文件路径"
+    ),
+    limit: int | None = typer.Option(
+        None, "--limit", help="最多处理多少条 yielded 文档（None=全跑）", min=1
+    ),
+    json_out: bool = typer.Option(
+        False, "--json", help="输出机器可读 JSON 一行"
+    ),
+) -> None:
+    """对 Cubox export 走 fake KnowledgeStrategy，**仅在内存中**生成
+    ai_draft 预览，并打印观测 summary。
+
+    安全边界：永不读 ``.env``、不联网、不调真实 LLM、不调真实 Cubox API、
+    不写 ``.mindforge/runs/*.jsonl``、不写 Obsidian vault、不生成
+    ``human_approved``、不自动 approve、不展示 ai_draft 正文。
+    """
+
+    if not export.exists():
+        console.print(f"[red]Cubox export 文件不存在：{export}[/red]")
+        raise typer.Exit(code=2)
+
+    adapter = CuboxApiAdapter()
+    try:
+        docs = adapter.parse_export(export)
+    except json.JSONDecodeError as exc:
+        console.print(
+            f"[red]Cubox export JSON 解析失败：{export}"
+            f"（{exc.msg} @ line {exc.lineno}）[/red]"
+        )
+        raise typer.Exit(code=2) from exc
+    except ValueError as exc:
+        console.print(f"[red]Cubox export 内容非法：{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    # 去重（与 dry-run 同一 seam）
+    mux = SourceMux()
+    yielded_docs = []
+    for d in docs:
+        kept = mux.feed(
+            ScanResult(
+                source_type=d.source_type,
+                adapter_name=adapter.name,
+                path=export,
+                document=d,
+            )
+        )
+        if kept is not None and kept.document is not None:
+            yielded_docs.append(kept.document)
+
+    if limit is not None:
+        yielded_docs = yielded_docs[:limit]
+
+    # 构造 fake-only KnowledgeStrategy：复用既有 build_strategy，但强制
+    # active_profile=fake，确保 build_providers 不需要真实 API key。
+    cfg = load_mindforge_config(_load_default_config_path())
+    # LLMConfig 是 frozen dataclass：用 ``replace`` 而非赋值，强制 fake profile。
+    from dataclasses import replace as _replace
+
+    safe_llm = _replace(cfg.llm, active_profile="fake")
+    providers = build_providers(safe_llm)
+    client = LLMClient(llm_config=safe_llm, providers=providers)
+
+    prompts_dir = asset_root().joinpath("prompts")
+    tracks_text = asset_root().joinpath("configs", "learning_tracks.yaml").read_text(
+        encoding="utf-8"
+    )
+    ctx = StrategyContext(
+        client=client,
+        prompts_dir=prompts_dir,
+        prompt_versions=cfg.prompts,
+        triage_threshold=cfg.triage.value_score_threshold,
+        learning_tracks_text=tracks_text,
+        logger=None,
+    )
+    pipeline = build_strategy(DEFAULT_STRATEGY_NAME, ctx)
+    pipeline.logger = _NoOpRunLogger()  # type: ignore[assignment]
+
+    outcomes: list[AiDraftPreviewItem] = []
+    by_status: dict[str, int] = {}
+    for d in yielded_docs:
+        outcome = pipeline.run(d)
+        status = outcome.status
+        by_status[status] = by_status.get(status, 0) + 1
+        track: str | None = None
+        value_score: int | None = None
+        if outcome.triage is not None:
+            parsed = outcome.triage.parsed
+            if isinstance(parsed, dict):
+                t = parsed.get("track")
+                if isinstance(t, str):
+                    track = t
+                v = parsed.get("value_score")
+                if isinstance(v, int):
+                    value_score = v
+        outcomes.append(
+            AiDraftPreviewItem(
+                title=d.title,
+                source_id_short=d.source_id.split(":", 1)[-1][:12],
+                status=status,
+                track=track,
+                value_score=value_score,
+                has_card_payload=outcome.card_payload is not None,
+                skip_reason=outcome.skip_reason,
+                error_message=outcome.error_message,
+            )
+        )
+
+    summary = AiDraftPreviewSummary(
+        items_seen=len(docs),
+        yielded=len(yielded_docs),
+        deduped=mux.stats.deduped,
+        by_status=by_status,
+        outcomes=outcomes,
+    )
+
+    if json_out:
+        typer.echo(preview_render_json(summary))
+    else:
+        typer.echo(preview_render_text(summary))
