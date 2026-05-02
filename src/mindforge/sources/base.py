@@ -248,6 +248,51 @@ class SourceAdapter(ABC):
         由 Scanner 决定是否将此条目标记为 ``failed`` 并继续后续文件。
         """
 
+    # ------------------------------------------------------------------
+    # v0.9 Slice 2：capability 自我声明（Airbyte spec/discover 模式的本地化）
+    #
+    # 为什么是普通方法而非抽象方法？
+    # ------------------------------
+    # 抽象方法会强迫 8 个 adapter 全部 override，等价于"为加 capability
+    # 而把同一行复制 8 遍"——这正是机械搬运反模式。提供一个安全的
+    # 默认实现 ``frozenset({"local_file", "fake_safe", "dry_run"})``：
+    # - 7 个本地文件 adapter 用默认即可（它们都是读本地文件、无网络、
+    #   fake-default 安全）；
+    # - ``CuboxApiAdapter`` override 后追加 ``"real_api"``，显式标记自己
+    #   持有真实 API 路径（实际真实调用仍由 ``fetch_inbox`` 的
+    #   ``NotImplementedError`` opt-in 闸门把守，capability 只是声明）。
+    #
+    # capability 词表（v0.9 Slice 2 起锁定）
+    # --------------------------------------
+    # - ``local_file``：从本地文件 / 目录 / 导出包读取，**不**触网络。
+    # - ``fake_safe``：实例化 / can_handle / capabilities 三个调用必定
+    #   不做副作用（无文件写、无网络、无 .env 读、无 secret 暴露）。
+    # - ``dry_run``：可在不消费真实凭据的前提下端到端跑通"扫描 → 解析
+    #   → 输出 SourceDocument"，便于 CLI ``--dry-run`` 链路。
+    # - ``real_api``：**显式 opt-in** 的真实远端 API 路径；声明此能力
+    #   不等于默认调用，只意味着该 adapter 持有真实 API 入口（且必须
+    #   通过单独的凭据注入才能真正打开）。
+    #
+    # 设计边界
+    # --------
+    # capabilities() 必须是**纯查询**：不打开文件、不发网络、不读 env。
+    # ``tests/test_source_adapter_capabilities.py::test_capabilities_does_no_io``
+    # 用 monkeypatch 把 ``builtins.open`` / ``socket.socket`` 替换为抛错
+    # 哨兵以静态守卫这条契约。
+    # ------------------------------------------------------------------
+    def capabilities(self) -> frozenset[str]:
+        """返回 adapter 自我声明的能力标签集合（不可变 frozenset[str]）。
+
+        默认实现覆盖所有"本地文件、fake-default 安全、可 dry-run"的
+        adapter；持有真实 API 路径的 adapter（目前只有
+        ``CuboxApiAdapter``）应 override 并 union 进 ``"real_api"``。
+
+        本方法**不得**触发任何 IO / 网络 / .env 读取，调用方可以在
+        runtime 早期廉价获取所有 adapter 的能力集合，做"先 spec 再
+        invoke"的安全检查。
+        """
+        return frozenset({"local_file", "fake_safe", "dry_run"})
+
     def __repr__(self) -> str:  # pragma: no cover - 仅调试可读性
         return (
             f"<{self.__class__.__name__} "

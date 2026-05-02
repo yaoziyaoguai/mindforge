@@ -133,6 +133,17 @@ class CuboxApiAdapter(SourceAdapter):
     def can_handle(self, path: str) -> bool:
         return path.lower().endswith(".json")
 
+    def capabilities(self) -> frozenset[str]:
+        """声明：本 adapter 既能 fake/dry-run（``parse_export`` 离线），
+        也持有真实 API 路径（``fetch_inbox``，opt-in）。
+
+        注意：声明 ``"real_api"`` 不等于默认调用真实 API。真实调用仍由
+        ``fetch_inbox`` 内部的 ``NotImplementedError`` opt-in 闸门把守；
+        capability 只是让上层在 invoke 之前就能知道"这个 adapter 持有
+        真实远端入口"，从而做出策略决定（例如默认禁用）。
+        """
+        return super().capabilities() | frozenset({"real_api"})
+
     def load(self, path: str) -> SourceDocument:
         items = self.parse_export(Path(path))
         if not items:
