@@ -46,6 +46,7 @@ card、project context、evidence append、question/claim extraction）会需要
 """
 
 from .base import KnowledgeStrategy, StrategyContext
+from .concept_extraction import build_concept_extraction_strategy
 from .five_stage import build_five_stage_strategy
 from .registry import (
     DEFAULT_STRATEGY_NAME,
@@ -64,6 +65,7 @@ __all__ = [
     "StrategyMetadata",
     "UnknownStrategyError",
     "available_strategies",
+    "build_concept_extraction_strategy",
     "build_five_stage_strategy",
     "build_strategy",
     "get_strategy_metadata",

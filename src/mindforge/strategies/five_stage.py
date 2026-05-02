@@ -34,6 +34,10 @@ STRATEGY_DESCRIPTION = (
 STRATEGY_PROVIDER_MODE = "real_opt_in"
 STRATEGY_SAFETY_POLICY = "ai_draft_only"
 STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@1"
+# v0.11 Slice 3：生命周期状态。five_stage 是 v0.7.x 起就跑通的生产路径，
+# 永远是 implemented；本常量用于 CLI strategies list 的 status 标签，
+# 与 Slice 3 Red 不变量"已跑通策略不可降级 preview/planned"对齐。
+STRATEGY_STATUS = "implemented"
 
 
 def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
@@ -72,6 +76,7 @@ __all__ = [
     "STRATEGY_OUTPUT_SCHEMA_ID",
     "STRATEGY_PROVIDER_MODE",
     "STRATEGY_SAFETY_POLICY",
+    "STRATEGY_STATUS",
     "STRATEGY_VERSION",
     "build_five_stage_strategy",
 ]

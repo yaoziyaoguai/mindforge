@@ -18,8 +18,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import default_knowledge_card as _default_knowledge_card_mod
+from . import concept_extraction as _concept_extraction_mod
 from . import five_stage as _five_stage_mod
 from .base import KnowledgeStrategy, StrategyContext
+from .concept_extraction import build_concept_extraction_strategy
 from .default_knowledge_card import build_default_knowledge_card_strategy
 from .five_stage import build_five_stage_strategy
 
@@ -67,6 +69,13 @@ class StrategyMetadata:
       硬约束对齐；
     - ``output_schema_id``：``<strategy_id>@<envelope_schema_version>``，
       让消费方一眼看到 envelope schema 标识。
+
+    生命周期字段（v0.11 Slice 3 引入）：
+
+    - ``status``：``implemented`` / ``preview`` / ``planned`` 三态，让
+      multi-strategy discovery UX 直接告诉用户某策略当前是"生产可用"、
+      "可跑但语义在演化"、还是"仅登记元数据未实现"。Slice 4 将基于该
+      字段在执行边界做 planned strategy guard。
     """
 
     strategy_id: str
@@ -76,11 +85,13 @@ class StrategyMetadata:
     provider_mode: str
     safety_policy: str
     output_schema_id: str
+    status: str
 
 
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
     DEFAULT_STRATEGY_NAME: build_five_stage_strategy,
     "default_knowledge_card": build_default_knowledge_card_strategy,
+    "concept_extraction": build_concept_extraction_strategy,
 }
 
 
@@ -90,6 +101,7 @@ _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
 _METADATA_MODULES = {
     DEFAULT_STRATEGY_NAME: _five_stage_mod,
     "default_knowledge_card": _default_knowledge_card_mod,
+    "concept_extraction": _concept_extraction_mod,
 }
 
 
@@ -130,6 +142,7 @@ def get_strategy_metadata(name: str) -> StrategyMetadata:
         provider_mode=mod.STRATEGY_PROVIDER_MODE,
         safety_policy=mod.STRATEGY_SAFETY_POLICY,
         output_schema_id=mod.STRATEGY_OUTPUT_SCHEMA_ID,
+        status=mod.STRATEGY_STATUS,
     )
 
 

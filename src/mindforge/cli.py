@@ -1103,18 +1103,21 @@ def strategies_list() -> None:
     approve、不调用 strategy 本身的 ``run()``。
 
     输出包含每个策略的 ``strategy_id`` / ``strategy_version`` /
-    ``display_name`` / ``provider_mode`` / ``safety_policy`` /
+    ``display_name`` / ``status`` / ``provider_mode`` / ``safety_policy`` /
     ``output_schema_id`` / ``description`` —— 让用户在终端就能区分
-    "我能离线跑吗"、"我会自动 approve 吗"、"我吐什么 envelope schema"。
+    "我能离线跑吗"、"我会自动 approve 吗"、"我吐什么 envelope schema"、
+    "这个策略当前是 implemented / preview / planned"。
     """
 
     for meta in list_strategies():
         console.print(
             f"[bold]{meta.strategy_id}[/bold]@{meta.strategy_version}  "
-            f"[cyan]{meta.display_name}[/cyan]"
+            f"[cyan]{meta.display_name}[/cyan]  "
+            f"[magenta][{meta.status}][/magenta]"
         )
         console.print(
-            f"  provider_mode: {meta.provider_mode}  "
+            f"  status: {meta.status}  "
+            f"provider_mode: {meta.provider_mode}  "
             f"safety_policy: {meta.safety_policy}  "
             f"output_schema_id: {meta.output_schema_id}"
         )

@@ -80,6 +80,10 @@ STRATEGY_DESCRIPTION = (
 STRATEGY_PROVIDER_MODE = "deterministic"
 STRATEGY_SAFETY_POLICY = "ai_draft_only"
 STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
+# v0.11 Slice 3：生命周期状态。受控集合 {implemented, preview, planned}。
+# 本策略已是生产路径默认 fake-first 的事实承担者，标记为 implemented，
+# 与 Slice 3 Red 不变量（"已跑通的两个策略不可被降级"）对齐。
+STRATEGY_STATUS = "implemented"
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +268,7 @@ __all__ = [
     "STRATEGY_OUTPUT_SCHEMA_ID",
     "STRATEGY_PROVIDER_MODE",
     "STRATEGY_SAFETY_POLICY",
+    "STRATEGY_STATUS",
     "STRATEGY_VERSION",
     "build_default_knowledge_card_strategy",
 ]
