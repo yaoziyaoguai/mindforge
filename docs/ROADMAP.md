@@ -1044,6 +1044,240 @@ combination of `SourceAdapter` (input boundary), `SourceDocument`
 each kept deliberately small, source-agnostic downstream, and
 upstream of the explicit approve chain.
 
+### Implementation execution slices — Source ingestion (planning-only, awaits human authorization)
+
+This subsection records how the v0.9 Source ingestion guardrails will
+be **hardened into code**, given that an extensive source layer
+already exists in-tree (`src/mindforge/sources/` with 8 adapters,
+`src/mindforge/sources/registry.py`, `src/mindforge/source_mux.py`
+with `MuxStats`, `tests/test_source_interface_contract.py`,
+`tests/test_source_mux.py`, `tests/test_sources_base.py`, etc.).
+
+The work is therefore **contract hardening, boundary-test extension,
+and explicit capability surfaces** — not a greenfield rebuild. Each
+slice is large, self-contained, has its own DoD, Stop conditions, and
+requires human authorization to start.
+
+**Repository baseline (as of f92fff1)**:
+
+- `src/mindforge/sources/base.py` — `SourceDocument` (frozen, 13
+  fields), `Highlight` (frozen), `SourceAdapter` (ABC with `name`,
+  `source_type`, `can_handle`, `load`), `compute_content_hash`.
+- `src/mindforge/sources/registry.py` — `_BUILTIN_ADAPTERS` dict +
+  `build_active_adapters(SourcesConfig)` driver.
+- 8 in-tree adapters: `cubox_markdown`, `cubox_api` (raises
+  `NotImplementedError` on real fetch), `plain_markdown`,
+  `webclip_markdown`, `pdf`, `docx`, `chat_export`,
+  `obsidian_vault`.
+- `src/mindforge/source_mux.py` — `SourceMux` with
+  `content_hash`-keyed first-seen-wins dedup + `MuxStats`.
+- 4 boundary-test files already covering the source interface,
+  the mux, base contracts, and the Cubox export mapping.
+
+#### Slice 1 — `SourceDocument` contract freeze + provenance / fingerprint hardening
+
+- **Goal**: Promote the existing 13-field `SourceDocument` to a
+  frozen, documented v0.9 contract. Add explicit boundary tests
+  that pin: (a) field set is closed, (b) `content_hash` is
+  deterministic over a documented normalized representation,
+  (c) provenance fields (`source_id`, `source_type`,
+  `source_path`, `adapter_name`, `captured_at`) are required to
+  be set on every produced doc by every adapter, (d) no
+  `human_approved` / no draft / no card payload field can leak
+  into `SourceDocument`.
+- **In-scope files** (test additions / docs only):
+  `tests/test_sources_base.py` (extend), new
+  `tests/test_source_document_contract.py`, optional doc note
+  in `docs/MINDFORGE_PROTOCOL.md` reaffirming the freeze.
+- **Out-of-scope**: changing `SourceDocument` field set; touching
+  any adapter implementation; touching `SourceMux`; touching
+  `KnowledgeStrategy`; renaming fields; adding new fields.
+- **Tests**: schema-shape pinning; `content_hash` determinism on
+  identical inputs; `content_hash` divergence on differing
+  `raw_text` / key metadata; provenance-presence checks per
+  adapter; AST guard preventing `SourceDocument` from gaining
+  approval / card / draft fields.
+- **Quality gate**: `git diff --check`, `ruff check .`,
+  `pytest --no-header -q`. New tests added but no production
+  change → test count grows by ~10–15.
+- **Stop conditions**: any test would require changing
+  `SourceDocument` shape → STOP, escalate; any adapter is found
+  not to set required provenance → STOP, do **not** silently
+  patch the adapter, escalate as a separate slice.
+- **Human authorization required**: yes, before Slice 1 starts.
+- **Why high-cohesion / low-coupling**: the slice owns one
+  concern (input contract) and protects it without expanding
+  it; downstream layers depend on the contract, not on adapter
+  internals; Information Hiding is preserved because adapter
+  metadata stays in the open `metadata` dict.
+
+#### Slice 2 — `SourceAdapter` capability declaration + fake-default boundary
+
+- **Goal**: Introduce an explicit, additive `capabilities()`
+  method on `SourceAdapter` (default returns a `frozenset`
+  describing `{"local_file", "fake_safe", "dry_run"}` etc.)
+  so callers can ask "what is this adapter authorized to do"
+  before invoking it. Borrows the Airbyte capability-declaration
+  pattern; rejects the LangChain "loader registry" pattern by
+  keeping registration in-tree only. Pin via boundary tests
+  that no adapter declares a capability it cannot satisfy with
+  fake / dry-run data alone, and that real-API capabilities
+  (e.g. `cubox_api` real fetch) are gated behind explicit
+  opt-in (the existing `NotImplementedError` is the lock).
+- **In-scope files**: `src/mindforge/sources/base.py` (add
+  `capabilities` method with safe default), each adapter (only
+  if it needs to override — most use the default), new
+  `tests/test_source_adapter_capabilities.py`. May extend
+  `tests/test_source_interface_contract.py` for AST guards.
+- **Out-of-scope**: changing `load(...)` / `can_handle(...)`
+  signatures; introducing real network calls; adding
+  credential surfaces; introducing a remote registry.
+- **Tests**: every adapter declares a `capabilities()` set;
+  capabilities are a `frozenset[str]` (no mutation); no
+  adapter declares `real_api` without an explicit gate; AST
+  guard preventing `capabilities()` from doing IO.
+- **Quality gate**: as Slice 1; production change is small
+  (~30 SLOC in `base.py`, ≤5 SLOC per adapter override). If
+  the slice grows beyond ~150 SLOC of production code → STOP.
+- **Stop conditions**: any adapter requires reading `.env` to
+  declare its capabilities → STOP; any capability requires
+  network access to enumerate → STOP.
+- **Human authorization required**: yes, after Slice 1 review.
+- **Why high-cohesion / low-coupling**: capability is metadata
+  about the adapter itself, locally cohesive with the adapter;
+  callers depend on a small declarative surface, not on
+  internal IO.
+
+#### Slice 3 — `SourceMux` dedup audit-trail hardening + non-semantic pin
+
+- **Goal**: Extend `MuxStats` with an explicit dedup
+  audit-trail that records, for each dropped `ScanResult`,
+  `(kept_source_id, dropped_source_id, dedup_key)` so the
+  user can answer "why was this Cubox markdown skipped" from
+  a single artifact. Add boundary tests that pin: (a) dedup
+  is content-hash-based by default, (b) dedup never invokes
+  any embedding / semantic similarity API, (c) dedup never
+  modifies the `ScanResult.document`, (d) failed
+  `ScanResult`s pass through untouched.
+- **In-scope files**: `src/mindforge/source_mux.py` (extend
+  `MuxStats` with optional audit list, default empty for
+  back-compat); `tests/test_source_mux.py` (extend); new
+  AST guard test ensuring `source_mux.py` does not import any
+  `embedding` / `vector` / `transformer` / `numpy` symbol.
+- **Out-of-scope**: semantic merge; near-duplicate detection;
+  changing the default dedup key from `content_hash`;
+  introducing per-source priority configuration.
+- **Tests**: audit trail records correct `(kept, dropped,
+  key)`; first-seen-wins still holds; failed results still
+  pass through; AST import-guard green.
+- **Quality gate**: as Slice 1; production change small
+  (≤ ~80 SLOC).
+- **Stop conditions**: any test would require changing the
+  default key → STOP; any dedup decision starts depending on
+  similarity → STOP.
+- **Human authorization required**: yes, after Slice 2 review
+  (or in parallel — Slice 3 is independent of Slice 2).
+- **Why high-cohesion / low-coupling**: audit trail is a
+  read-only addition to `MuxStats`, fully internal to the
+  mux layer; downstream code depends only on the public
+  `iter_deduped` / `feed` surface, unchanged.
+
+#### Slice 4 — Cubox adapter boundary lockdown (no real-API drift)
+
+- **Goal**: Lock the existing `cubox_api` adapter's
+  fake-default / `NotImplementedError` real-fetch boundary
+  with explicit boundary tests so future contributors cannot
+  silently flip it on. Pin: (a) instantiating `CuboxApiAdapter`
+  reads no env / no network, (b) calling `fetch_inbox` (or
+  equivalent real-API method) without explicit credential
+  injection raises `NotImplementedError`, (c) `__repr__` /
+  `__str__` never expose secret material, (d)
+  `CuboxMarkdownAdapter` has no real-network code path at all.
+- **In-scope files**: new
+  `tests/test_cubox_adapter_safety_boundary.py`. May extend
+  `tests/test_cubox_api_adapter.py`. **No** production change
+  unless a leak is discovered (in which case STOP and
+  escalate as a separate slice — do not bundle a fix into a
+  test-only slice).
+- **Out-of-scope**: implementing real Cubox API fetch; adding
+  a credential surface; rewriting Cubox export mapping.
+- **Tests**: import-time safety; instantiation safety;
+  real-API call gated; secrets-in-repr guard mirroring the
+  LLM provider repr invariants from `23af47e`.
+- **Quality gate**: as Slice 1; ideally **zero** production
+  change.
+- **Stop conditions**: any production fix is needed → STOP,
+  escalate.
+- **Human authorization required**: yes, after Slice 3 review
+  (or in parallel — Slice 4 is independent).
+- **Why high-cohesion / low-coupling**: this slice owns one
+  adapter's safety boundary, mirrors the LLM-provider
+  safety pattern already in `tests/test_provider_opt_in_boundary.py`,
+  and adds zero coupling between the adapter and any new
+  module.
+
+#### Slice 5 — CLI / processor consumption boundary tests
+
+- **Goal**: Pin via AST + behavioral tests that: (a) no CLI
+  command imports a concrete adapter class directly (only the
+  registry), (b) no `KnowledgeStrategy` implementation imports
+  any adapter module, (c) no adapter is reachable from
+  `approval_service` / `review_service` / `recall_service`
+  import graphs, (d) no CLI command can write to a real
+  Obsidian vault path that wasn't explicitly passed via
+  `--vault`. Closes the v0.9 §B "approve chain remains the
+  only writer" guarantee with static + runtime guards.
+- **In-scope files**: new
+  `tests/test_source_consumption_boundary.py`. May extend
+  existing CLI boundary tests if the same guard already lives
+  there.
+- **Out-of-scope**: refactoring CLI; refactoring services;
+  changing the registry surface; changing the strategy seam.
+- **Tests**: AST scan over `src/mindforge/cli.py`,
+  `src/mindforge/strategies/*.py`,
+  `src/mindforge/{approval,review,recall}_service.py`;
+  vault-path guard test using a fake vault under `tmp_path`.
+- **Quality gate**: as Slice 1; ideally **zero** production
+  change.
+- **Stop conditions**: any CLI command genuinely needs a
+  direct adapter import → STOP, escalate as a CLI registry
+  cleanup slice; any service is found to import an adapter
+  → STOP, escalate as a service-layer remediation slice.
+- **Human authorization required**: yes, after Slices 1–4
+  review (or in parallel — Slice 5 is independent of all
+  others).
+- **Why high-cohesion / low-coupling**: the slice owns one
+  concern (consumption boundary integrity); it adds no
+  production code; it makes existing implicit boundaries
+  explicit, raising the cost of accidental future drift.
+
+**Slice independence summary**: Slices 1, 2, 3, 4, 5 are
+mutually independent in terms of code changes (different files,
+different test areas). They can be authorized in any order or
+in parallel by separate reviews. None of them implements a
+new feature; none changes CLI external behavior; none reads
+`.env`; none calls a real LLM, real Cubox API, or writes a
+real Obsidian vault; none introduces a new dependency.
+
+**What this planning explicitly does NOT cover** (each would be
+its own milestone with its own authorization):
+
+- Real Cubox API opt-in — separate `v0.9 → v0.10` milestone.
+- Cubox API credential surface (`CuboxApiCredential`,
+  `.env` opt-in) — separate milestone.
+- New adapter implementations (Notion, Readwise, RSS, etc.)
+  — each its own milestone.
+- `SourcePlugin` as a plugin-loading mechanism (entry-points,
+  pip-installable adapters) — explicitly **not** in v0.9 per
+  the do-not-copy stance above; would be a separate
+  product-shape decision.
+- Semantic dedup / near-duplicate detection — explicitly
+  rejected by Slice 3 Stop conditions.
+- MCP-resource exposure of MindForge content — explicitly
+  rejected by the External research alignment do-not-copy
+  stance; would be its own dedicated milestone if ever
+  proposed.
+
 ## v0.9.x Product Differentiation & Knowledge Lifecycle Guardrails (PLANNED)
 
 **Status: planned, planning + boundary tests only.** v0.9.x is not a new
