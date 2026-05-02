@@ -2056,6 +2056,147 @@ the second is a product shape. The `KnowledgeStrategy` seam is the
 specific architectural surface where MindForge expresses that
 difference.
 
+## v0.11–v0.13 Strategy Flexibility Forward Plan (PLANNED)
+
+**Status: planned, no production work authorized yet.** This section
+records the **forward sequencing** of strategy flexibility after the
+v0.10 KnowledgeStrategy milestone (Slices 1–4 above) closes. It exists
+because the product judgement evolved past v0.10:
+
+> MindForge cannot ship with a single fixed `KnowledgeStrategy`.
+> Users will need **multiple built-in strategies** and, eventually,
+> **declarative custom strategies** — but every step must remain
+> fake-first, schema-disciplined, and approval-gated.
+
+This section does **not** authorize any implementation. It locks the
+*shape* of the next three milestones so that contributors do not (a)
+collapse the seam into "just another prompt", (b) jump straight to
+arbitrary user Python plugins, or (c) light up real providers by
+default to make customization "easier".
+
+### Product judgement (locked)
+
+1. `KnowledgeStrategy` is the **product differentiation seam**, not a
+   prompt template repository. Multiple strategies must be selectable
+   without changing the CLI surface beyond the existing opt-in flag.
+2. Strategy selection is **always explicit and deterministic**: by CLI
+   flag, by config, or by source-type policy — never by an LLM
+   choosing its own next step.
+3. Custom strategies are first **declarative** (YAML/JSON metadata +
+   prompt template + output schema + safety policy). Arbitrary
+   user-supplied Python is out of scope for the foreseeable future.
+4. `ai_draft` remains the only state any strategy may emit.
+   `human_approved` stays an explicit `approver.approve_card` action.
+5. `StrategyContext.client` stays Optional (v0.10 seam stabilization).
+   Real LLM activation remains an explicit, separately-authorized
+   provider opt-in — never a side effect of selecting a strategy.
+
+### v0.11 StrategyRegistry & multiple built-ins (PLANNED)
+
+**Goal**: introduce a richer `StrategyRegistry` surface and ship one
+or two additional **deterministic, fake-first** built-in strategies so
+users see real choice from the CLI.
+
+- **Allowed**:
+  - `StrategyDefinition` dataclass (id / display_name / description /
+    accepted source_types / output_schema reference / safety_policy /
+    provider_mode ∈ {fake, deterministic, real_opt_in} / version);
+  - `StrategyRegistry.list()` returning ordered `StrategyDefinition`s
+    for `mindforge process --help` and a future `mindforge strategy
+    list` subcommand;
+  - additional built-in strategies, each its own module under
+    `strategies/`, each independently fake-first testable;
+  - per-source-type strategy mapping (config-driven, not LLM-driven).
+- **Forbidden**:
+  - no real LLM provider activation by virtue of selecting a strategy;
+  - no embedded Pydantic / JSON-schema validator runtime dependency;
+  - no LangChain / LlamaIndex / DSPy import;
+  - no automatic approve, no automatic merge, no workspace write
+    semantics change;
+  - no anemic helper modules: each new strategy must own its payload
+    schema and have boundary tests in the
+    `test_strategy_seam_boundary.py` family.
+- **Definition of done**:
+  - at least one additional deterministic strategy ships alongside
+    `five_stage` and `default_knowledge_card`;
+  - `StrategyRegistry.list()` is consumed by `--help` and tested;
+  - boundary tests forbid any new strategy from importing source
+    adapters / `.env` / network libraries.
+
+### v0.12 Declarative custom strategy preview (PLANNED)
+
+**Goal**: let users define a strategy via a YAML/JSON file plus a
+prompt template + output schema, run it in `--dry-run`, and review
+the resulting `ai_draft` — without writing Python.
+
+- **Allowed**:
+  - `StrategyDefinition` loadable from a user-supplied file path with
+    explicit opt-in flag (e.g. `--strategy-file path.yaml`);
+  - schema validation done by hand-rolled checker (no new dependency)
+    against the same shape as built-in strategies;
+  - dry-run preview command that prints the would-be `ai_draft`
+    without writing anything.
+- **Forbidden**:
+  - no arbitrary user Python execution;
+  - no shell / script invocation from a strategy file;
+  - no network access initiated by loading a strategy file;
+  - no `.env` read triggered by a custom strategy;
+  - no automatic approve; no workspace write from preview;
+  - no real provider activation triggered by a custom strategy;
+    real-provider use must still be a separately-authorized opt-in.
+- **Definition of done**:
+  - a sample declarative strategy ships under `examples/`;
+  - boundary tests pin "loading a custom file does not import Python
+    modules outside `strategies/`" and "preview never writes vault";
+  - clear, friendly error messages on schema violation (registry-level
+    UX consistency with `UnknownStrategyError`).
+
+### v0.13 Real provider opt-in (PLANNED)
+
+**Goal**: allow strategies (built-in or declarative) to call a real
+LLM provider via an explicit, audited opt-in. Default behavior remains
+fake-first.
+
+- **Allowed**:
+  - explicit provider activation flag with audit log entry;
+  - structured-output use of provider-native features when available,
+    still validated by the strategy's own schema;
+  - safe fallback to `ai_draft` skip / clearly-failed status on
+    provider error — never a silent partial card.
+- **Forbidden**:
+  - no default-on real provider;
+  - no implicit `.env` read (user must opt in to the env-loading path);
+  - no auto-approve of LLM-emitted drafts;
+  - no streaming side-effects to vault;
+  - no provider SDK imported at module top-level — gate behind the
+    activation flag so fake-default suite remains import-clean.
+- **Definition of done**:
+  - opting in produces a clearly logged provider call, fake-default
+    suite continues to pass with provider SDK uninstalled;
+  - provider activation cannot be set inside a `StrategyDefinition`
+    file (separation of concerns: file = what to extract, CLI/config
+    = whether to use real provider).
+
+### Stop conditions (forward plan)
+
+- Any milestone tries to let an LLM pick the strategy → STOP.
+- Any milestone proposes arbitrary user Python plugins before v0.13
+  closes → STOP, declarative-only is the contract.
+- Any milestone proposes a Pydantic / JSON-schema runtime dependency
+  → STOP, schema discipline stays test-enforced.
+- Any milestone tries to bind a strategy to a `SourceAdapter` concrete
+  class → STOP, the seam stays source-agnostic.
+- Any milestone tries to make real provider opt-in default-on → STOP.
+
+### Position relative to v0.10
+
+The v0.10 KnowledgeStrategy milestone (Slices 1–4 above) ships:
+`DefaultKnowledgeCardStrategy` + `--strategy` opt-in CLI flag +
+`StrategyContext` fake-first stabilization. v0.10 deliberately stops
+**before** introducing `StrategyRegistry.list()`, multiple new
+deterministic built-ins, declarative custom files, or real provider
+opt-in — those are the v0.11 / v0.12 / v0.13 surfaces above.
+
 ## Near-Term Priority
 
 Phase 1 (CLI Product Shape Completion) is the active focus. See
