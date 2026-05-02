@@ -286,6 +286,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # strategies/__init__.py 暴露 KnowledgeStrategy seam，docstring 中
         # 提及 human_approved 边界
         "__init__.py",
+        # strategies/custom.py（v0.12 declarative custom strategy）以
+        # human_approved 字面量在 parse 阶段拒绝任何把它放进
+        # structured_payload_schema 的 custom 定义；这是反方向的
+        # 边界守护，与"自动晋升路径"恰好相反，因此显式纳入白名单。
+        "custom.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
