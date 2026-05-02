@@ -303,9 +303,17 @@ def _build_card_payload(
     one_line = (
         str(summary_bullets[0]) if summary_bullets else (distill.get("source_excerpt") or "")
     )
+    # 中文学习型注释：strategy_id / strategy_version 必须从 strategy 模块的
+    # 元数据常量读取，而不是在 pipeline 里硬编码字符串字面量 —— 否则
+    # envelope 的 "我是谁" 与 strategy 模块的 "我是谁" 会出现双源漂移，
+    # 给未来 v0.11/v0.12 多策略 / custom strategy 留下隐性 bug。
+    # 使用函数内 lazy import 是为了打破 strategies.five_stage → processors
+    # .pipeline 的循环 import。
+    from ..strategies import five_stage as _five_stage_meta
+
     return {
-        "strategy_id": "five_stage",
-        "strategy_version": "0.10.0",
+        "strategy_id": _five_stage_meta.STRATEGY_ID,
+        "strategy_version": _five_stage_meta.STRATEGY_VERSION,
         "schema_version": "1",
         "status": "ai_draft",
         "source_evidence": {

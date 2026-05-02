@@ -49,17 +49,23 @@ from .base import KnowledgeStrategy, StrategyContext
 from .five_stage import build_five_stage_strategy
 from .registry import (
     DEFAULT_STRATEGY_NAME,
+    StrategyMetadata,
     UnknownStrategyError,
     available_strategies,
     build_strategy,
+    get_strategy_metadata,
+    list_strategies,
 )
 
 __all__ = [
     "DEFAULT_STRATEGY_NAME",
     "KnowledgeStrategy",
     "StrategyContext",
+    "StrategyMetadata",
     "UnknownStrategyError",
     "available_strategies",
     "build_five_stage_strategy",
     "build_strategy",
+    "get_strategy_metadata",
+    "list_strategies",
 ]

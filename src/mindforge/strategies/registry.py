@@ -15,7 +15,10 @@ config schema"的过度设计。
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
+from . import default_knowledge_card as _default_knowledge_card_mod
+from . import five_stage as _five_stage_mod
 from .base import KnowledgeStrategy, StrategyContext
 from .default_knowledge_card import build_default_knowledge_card_strategy
 from .five_stage import build_five_stage_strategy
@@ -31,9 +34,36 @@ class UnknownStrategyError(ValueError):
     """
 
 
+@dataclass(frozen=True)
+class StrategyMetadata:
+    """策略自描述元数据。
+
+    本 dataclass 是 v0.11 StrategyRegistry 的"用户可见面"统一类型：
+    CLI ``strategies list`` / 文档生成 / 未来 v0.12 custom strategy 都
+    通过同一形状消费，避免每个消费方各自从字符串字面量去拼。
+
+    frozen 防止调用方事后篡改，确保元数据是 strategy 模块定义的
+    单一事实来源。
+    """
+
+    strategy_id: str
+    strategy_version: str
+    display_name: str
+    description: str
+
+
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
     DEFAULT_STRATEGY_NAME: build_five_stage_strategy,
     "default_knowledge_card": build_default_knowledge_card_strategy,
+}
+
+
+# 中文学习型注释：metadata 不在 registry 里硬编码字符串，而是从各 strategy
+# 模块顶层常量按名字映射读取 —— 这样 strategy 模块仍是元数据的"作者"，
+# registry 只负责"汇总展示"，避免 registry 变成 prompt / metadata 巨石。
+_METADATA_MODULES = {
+    DEFAULT_STRATEGY_NAME: _five_stage_mod,
+    "default_knowledge_card": _default_knowledge_card_mod,
 }
 
 
@@ -57,3 +87,34 @@ def build_strategy(name: str, ctx: StrategyContext) -> KnowledgeStrategy:
             f"available: {available_strategies()}"
         )
     return factory(ctx)
+
+
+def get_strategy_metadata(name: str) -> StrategyMetadata:
+    """返回单个策略的 :class:`StrategyMetadata`。
+
+    未知名字复用 :class:`UnknownStrategyError`，保持错误类型与
+    :func:`build_strategy` 一致 —— CLI 只需要 catch 一种。
+    """
+
+    mod = _METADATA_MODULES.get(name)
+    if mod is None:
+        raise UnknownStrategyError(
+            f"unknown knowledge strategy: {name!r}; "
+            f"available: {available_strategies()}"
+        )
+    return StrategyMetadata(
+        strategy_id=mod.STRATEGY_ID,
+        strategy_version=mod.STRATEGY_VERSION,
+        display_name=mod.STRATEGY_DISPLAY_NAME,
+        description=mod.STRATEGY_DESCRIPTION,
+    )
+
+
+def list_strategies() -> tuple[StrategyMetadata, ...]:
+    """所有内建策略的元数据元组（顺序与 :func:`available_strategies` 一致）。
+
+    这是 CLI ``strategies list`` 的数据源；纯查询，无副作用 —— 不会触发
+    LLM、不会读 ``.env``、不会写 workspace。
+    """
+
+    return tuple(get_strategy_metadata(name) for name in available_strategies())

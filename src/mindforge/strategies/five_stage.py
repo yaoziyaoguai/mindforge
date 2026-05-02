@@ -20,6 +20,16 @@ from ..processors.pipeline import Pipeline
 from .base import KnowledgeStrategy, StrategyContext
 
 
+STRATEGY_ID = "five_stage"
+STRATEGY_VERSION = "0.10.0"
+STRATEGY_DISPLAY_NAME = "Five-Stage Pipeline"
+STRATEGY_DESCRIPTION = (
+    "默认 LLM 驱动策略：triage → distill → link_suggestion → review_questions"
+    " → action_extraction 五段链路，输出 17 字段 Knowledge Card；"
+    "通过 fake provider 默认离线可跑，真实 LLM 仅在显式 opt-in 时启用。"
+)
+
+
 def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
     """根据 :class:`StrategyContext` 构造默认五段策略。
 
@@ -47,3 +57,12 @@ def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
         learning_tracks_text=ctx.learning_tracks_text,
     )
     return pipeline
+
+
+__all__ = [
+    "STRATEGY_DESCRIPTION",
+    "STRATEGY_DISPLAY_NAME",
+    "STRATEGY_ID",
+    "STRATEGY_VERSION",
+    "build_five_stage_strategy",
+]

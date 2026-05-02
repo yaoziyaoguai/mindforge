@@ -70,6 +70,11 @@ from .base import StrategyContext
 STRATEGY_ID = "default_knowledge_card"
 STRATEGY_VERSION = "0.10.0"
 ENVELOPE_SCHEMA_VERSION = "1"
+STRATEGY_DISPLAY_NAME = "Default Knowledge Card"
+STRATEGY_DESCRIPTION = (
+    "离线确定性策略：从 source 文本派生 10 字段 structured_payload，"
+    "全程不依赖 LLM / .env / 网络；适合作为 fake-first 默认策略与回退路径。"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +253,8 @@ __all__ = [
     "DefaultKnowledgeCardStrategy",
     "ENVELOPE_SCHEMA_VERSION",
     "KnowledgeCardPayload",
+    "STRATEGY_DESCRIPTION",
+    "STRATEGY_DISPLAY_NAME",
     "STRATEGY_ID",
     "STRATEGY_VERSION",
     "build_default_knowledge_card_strategy",
