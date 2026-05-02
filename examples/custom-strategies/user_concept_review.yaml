@@ -1,0 +1,15 @@
+strategy_id: user_concept_review
+strategy_version: "0.0.1"
+display_name: User Concept Review
+description: >
+  Synthetic, non-sensitive demo of a declarative custom strategy.
+  Review-only — never executed by MindForge.
+provider_mode: deterministic
+safety_policy: ai_draft_only
+output_schema_id: user_concept_review@1
+status: preview
+structured_payload_schema:
+  title: string
+  concepts: list[string]
+prompt_template: |
+  Extract concepts from: {raw_text}
