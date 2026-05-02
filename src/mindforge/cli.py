@@ -4531,5 +4531,17 @@ def next_cmd(
     )
 
 
+# ---------------------------------------------------------------------------
+# `mindforge cubox` — Cubox export 本地预检入口（dry-run）
+#
+# adapter 实现位于 ``cubox_cli.py``，独立成文件以保持本模块对
+# source-specific adapter 与跨源 mux 模块的零静态依赖（由既有 AST
+# 边界测试守护）。
+# ---------------------------------------------------------------------------
+from .cubox_cli import cubox_app  # noqa: E402
+
+app.add_typer(cubox_app, name="cubox")
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()
