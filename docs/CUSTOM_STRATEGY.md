@@ -206,3 +206,72 @@ hand-built dicts and file-loaded definitions.
 - Loading does not call any provider, read `.env`, write to a vault,
   or generate `human_approved`. Approval remains owned by the
   approver chain.
+
+## 7. Discovery UX (v0.12 Slice 3 Green)
+
+Slice 3 wires the loaded definitions into the **discovery surface** —
+i.e. `mindforge strategies list`. This is purely a presentation slice:
+discovery is not execution.
+
+### 7.1 The `--custom-path` opt-in flag
+
+```
+mindforge strategies list                       # built-ins only
+mindforge strategies list --custom-path ./defs  # built-ins + custom
+```
+
+`--custom-path` is the **only** way the CLI is allowed to look at user
+definitions. There is no implicit scan of `~`, `~/.config`,
+`~/.mindforge`, an Obsidian vault, or any "magic" directory. If you
+do not pass the flag, the output is byte-identical to v0.11 — exactly
+the four built-ins.
+
+### 7.2 Custom entries are clearly marked
+
+For every definition under `--custom-path` the CLI prints an extra
+`(custom) not executable` badge alongside the built-in metadata
+(`status` is always `preview` or `planned` for custom definitions).
+The intent is that a user reading the terminal can never confuse a
+custom preview with a project-shipped, runnable strategy.
+
+### 7.3 Discovery is not execution
+
+Loading a definition only parses + validates data; it does not invoke
+any provider, never reads `.env`, never writes to a vault, never
+generates `human_approved`, never auto-approves anything. There is
+no arbitrary python plugin entry point. There is no shell strategy,
+no script strategy, no subprocess. A custom definition stays a static
+description until a future slice — explicitly opted into per call —
+wires real execution behind a separate flag.
+
+### 7.4 Validation error UX
+
+If any file under `--custom-path` fails validation the CLI prints a
+single human-readable `validation error` line containing the file
+name plus the underlying field/value problem. It never prints a raw
+Python `Traceback`, object repr (`<object …>`), or class repr
+(`<class …>`). Other valid files in the same directory continue to be
+listed; the built-in list is always shown first and is never affected
+by a custom-side validation error.
+
+A custom definition that failed validation is **not** registered into
+`available_strategies()`. That is, a name only appears in the listing
+when the definition fully passed `parse_strategy_definition` —
+preventing the trap of "name visible → user runs `process` → only
+then learns the file was malformed".
+
+### 7.5 Public discovery API
+
+```python
+from pathlib import Path
+from mindforge.strategies import discover_strategies
+
+builtin_only = discover_strategies()
+combined     = discover_strategies(custom_path=Path("./defs"))
+```
+
+`discover_strategies()` returns `tuple[StrategyMetadata, ...]` and is
+the single source the CLI list command consumes. It never constructs
+an `LLMClient`, never calls a provider, never reads `.env`, never
+writes anywhere; it merely combines built-in metadata with the
+custom-path metadata produced by Slice 2's loader.

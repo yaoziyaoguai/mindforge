@@ -45,6 +45,8 @@ card、project context、evidence append、question/claim extraction）会需要
   CLI 可直接把名字传入 :func:`build_strategy`，无需再改组合根。
 """
 
+from pathlib import Path
+
 from .base import KnowledgeStrategy, StrategyContext
 from .concept_extraction import build_concept_extraction_strategy
 from .five_stage import build_five_stage_strategy
@@ -59,6 +61,57 @@ from .registry import (
     list_strategies,
 )
 
+
+def discover_strategies(
+    custom_path: Path | None = None,
+) -> tuple[StrategyMetadata, ...]:
+    """统一的策略**发现**入口（v0.12 Slice 3 Green）。
+
+    职责（高内聚 / 单一）
+    ====================
+
+    把"内建策略 metadata"与"用户提供的 custom declarative metadata"
+    合并成一条只读元数据流，作为 ``mindforge strategies list`` 与未来
+    其它 UX 调用方的统一来源。
+
+    本函数明确**不**承担
+    ====================
+
+    - 不构造任何 :class:`KnowledgeStrategy` 实例 → discovery 不是
+      execution；
+    - 不把 custom 定义注册进可执行 :data:`registry._FACTORIES` →
+      v0.11 Slice 4 planned guard 顺势保护：custom metadata 的
+      ``status`` 在 :func:`parse_strategy_definition` 阶段已被钉死为
+      ``planned`` / ``preview``，因此即便有调用方误把名字传给
+      :func:`build_strategy`，也会被 planned guard 拒绝；
+    - 不读 ``.env`` / 不调 LLM / 不写 workspace / 不隐式扫描；
+    - 不允许 ``custom_path`` 默认指向用户主目录或 vault —— 必须由
+      调用方显式传入。
+
+    参数
+    ====
+
+    - ``custom_path`` —— 显式 custom strategy 目录。``None`` 时只返回
+      内建 metadata，与 :func:`list_strategies` 完全等价；非 ``None``
+      时使用 :func:`load_strategy_definitions_from_directory` 的相同
+      安全边界（白名单扩展名 / 路径穿越 / symlink-escape 全部沿用）。
+
+    返回
+    ====
+
+    ``tuple[StrategyMetadata, ...]`` —— 顺序：先 built-in（按
+    :func:`available_strategies` 字典序），再 custom（按文件名字典序）。
+    """
+
+    metas: list[StrategyMetadata] = list(list_strategies())
+    if custom_path is not None:
+        from .custom_loader import load_strategy_definitions_from_directory
+
+        for definition in load_strategy_definitions_from_directory(custom_path):
+            metas.append(definition.to_metadata())
+    return tuple(metas)
+
+
 __all__ = [
     "DEFAULT_STRATEGY_NAME",
     "KnowledgeStrategy",
@@ -70,6 +123,7 @@ __all__ = [
     "build_concept_extraction_strategy",
     "build_five_stage_strategy",
     "build_strategy",
+    "discover_strategies",
     "get_strategy_metadata",
     "list_strategies",
 ]

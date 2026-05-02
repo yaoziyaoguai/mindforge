@@ -179,6 +179,48 @@ def load_strategy_definition_from_file(path: Path) -> StrategyDefinition:
         raise _file_error(path, str(exc)) from exc
 
 
+def iter_strategy_definition_files(directory: Path) -> tuple[Path, ...]:
+    """返回 ``directory`` 下符合 declarative 规则的候选文件路径。
+
+    与 :func:`load_strategy_definitions_from_directory` 共享同一套筛选与
+    安全策略 —— 抽出独立函数是为了让 CLI / 未来 UI 在做"逐文件友好错误
+    展示"时不必自己重复白名单与 symlink-escape 检查（避免规则双源不
+    一致）。
+
+    规则：
+
+    - **不**递归子目录；
+    - 只保留白名单扩展名（``.yaml`` / ``.yml`` / ``.json``）；
+    - symlink 必须仍位于 ``directory`` 内，否则抛
+      :class:`StrategyDefinitionFileError`；
+    - 输出按文件名字典序稳定排序。
+
+    任何分支都不读 ``.env`` / 不调 provider / 不写 workspace。
+    """
+
+    if not directory.exists() or not directory.is_dir():
+        raise _file_error(directory, "directory does not exist")
+
+    base_resolved = directory.resolve()
+    candidates: list[Path] = []
+    for entry in sorted(directory.iterdir()):
+        if entry.suffix.lower() not in _DECLARATIVE_EXTENSIONS:
+            continue
+        if entry.is_symlink():
+            real = entry.resolve()
+            try:
+                real.relative_to(base_resolved)
+            except ValueError as exc:
+                raise _file_error(
+                    entry,
+                    "symlink escapes the explicit loading directory; "
+                    "loader refuses to follow links pointing outside "
+                    "the requested base.",
+                ) from exc
+        candidates.append(entry)
+    return tuple(candidates)
+
+
 def load_strategy_definitions_from_directory(
     directory: Path,
 ) -> tuple[StrategyDefinition, ...]:
@@ -198,35 +240,15 @@ def load_strategy_definitions_from_directory(
     扫描用户其它目录。
     """
 
-    if not directory.exists() or not directory.is_dir():
-        raise _file_error(directory, "directory does not exist")
-
-    base_resolved = directory.resolve()
-    candidates: list[Path] = []
-    for entry in sorted(directory.iterdir()):
-        if entry.suffix.lower() not in _DECLARATIVE_EXTENSIONS:
-            continue
-        # symlink-escape 防御：把 entry resolve 后必须仍位于 directory
-        # 之内；否则拒绝整个加载（保守 fail-loud，避免把目录之外的文件
-        # 悄悄读进来）。
-        if entry.is_symlink():
-            real = entry.resolve()
-            try:
-                real.relative_to(base_resolved)
-            except ValueError as exc:
-                raise _file_error(
-                    entry,
-                    "symlink escapes the explicit loading directory; "
-                    "loader refuses to follow links pointing outside "
-                    "the requested base.",
-                ) from exc
-        candidates.append(entry)
-
-    return tuple(load_strategy_definition_from_file(p) for p in candidates)
+    return tuple(
+        load_strategy_definition_from_file(p)
+        for p in iter_strategy_definition_files(directory)
+    )
 
 
 __all__ = [
     "StrategyDefinitionFileError",
+    "iter_strategy_definition_files",
     "load_strategy_definition_from_file",
     "load_strategy_definitions_from_directory",
 ]
