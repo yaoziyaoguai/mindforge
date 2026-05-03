@@ -2,6 +2,24 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## Roadmap Completion Pack — v0.14 Future Gate Specifications (local)
+
+- 新增 docs/V0_14_FUTURE_GATES.md — 6 个 future gate (G1 real Cubox /
+  G2 real Obsidian write / G3 human_approved UX / G4 custom executable
+  runtime / G5 RAG-embedding-semantic-merge / G6 public release-tag),
+  每个有 6 段标准规格 (Capability / Why deferred / Pre-conditions /
+  Boundary contract / Closure criteria / Test surface)。
+- 新增 docs/EVIDENCE_COMMANDS.md — 10-section copy-paste cookbook;
+  quality gates / 默认 fake / real 拒绝 / real opt-in / preflight /
+  approval / regex sweep / boundary tests / roadmap state / push
+  status; 显式 "Does NOT" 清单。
+- 新增 tests/test_v014_future_gates_spec.py (10 cases) — 把 future
+  gate 6-section 规格 / cookbook 必备 section / cookbook 不教
+  forbidden action / preflight UX hint, 全部仓库级固化。
+- `dogfood_safety.render_preflight_report` 增加 UX hint: allowed
+  → 建议 fake-safe 下一步; refused → 给 examples/demo-vault 备选;
+  永不默认建议 `--allow-real`。
+
 ## v0.13 Stage 5 — Roadmap Finalization & Release Readiness Evidence (local)
 
 - 新增 docs/V0_13_CLOSURE_LEDGER.md — 6 个状态桶定位每项 v0.13 能力,

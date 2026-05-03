@@ -236,6 +236,21 @@ def render_preflight_report(report: dict[str, Any]) -> str:
         f"{report['output_contract']['artifact_type']}, "
         f"human_approved=False, writes_vault=False"
     )
+    # 友好提示: 当 preflight 通过时, 给一条最安全的下一步建议命令; 当
+    # 拒绝时, 提示 dogfood plan 仍可作为只读 checklist 使用。这里只输
+    # 出字符串, 不真正执行任何命令; 不读 input 内容; 不调 LLM。
+    if report["decision"]["allowed"]:
+        lines.append("")
+        lines.append("Suggested next (manual, fake-safe):")
+        lines.append(
+            f"  mindforge process --profile fake --limit 1 "
+            f"--vault {report['input']['path']}"
+        )
+    else:
+        lines.append("")
+        lines.append("Refused. Safe alternatives:")
+        lines.append("  - mindforge dogfood plan --vault examples/demo-vault")
+        lines.append("  - mindforge dogfood preflight examples/demo-vault")
     return "\n".join(lines)
 
 

@@ -2537,3 +2537,40 @@ Stage 5 不再做新功能, 也不退回 fake-only。它做的是**收口**:
 **v0.13 是 stage-complete (locally)**。1257 → 1270 passed (Stage 5
 新增 13)。tag/release 的实际触发仍需人工授权; 本仓库内不会自动 tag
 也不会自动 release。
+
+## v0.14 / v1.0 — Future Gate Specifications (Locally Drafted)
+
+v0.13 已经 stage-complete; 后续能力交付**必须先过 gate**。每个 gate
+都有明确的 6 段规格 (Capability / Why deferred / Pre-conditions /
+Boundary contract / Closure criteria / Test surface), 见
+[V0_14_FUTURE_GATES.md](V0_14_FUTURE_GATES.md):
+
+- **G1 Real Cubox Ingestion** — 必须 sample-folder + item-cap +
+  dry-run-first + no-persist; 永远走 ai_draft → human approval 路径。
+- **G2 Real Obsidian Formal-Note Write** — 必须 --commit-write +
+  --diff-preview + per-write 确认 + 自动 backup。
+- **G3 `human_approved` Production UX** — 仅 ergonomics; 永远不变更
+  `approver.approve_card` 是唯一晋升路径的不变量。
+- **G4 Custom Executable Strategy Runtime** — 必须 out-of-process
+  sandbox + capability-based env restriction + 不能 produce
+  human_approved。
+- **G5 RAG / Embedding / Semantic Merge** — local-only 是默认; remote
+  embedding 需 explicit opt-in; semantic merge 只 produce suggestion。
+- **G6 Public Release / Git Tag** — 必须 named human authorizer +
+  CHANGELOG freeze + signed marker; 任何自动化都不能创建 tag。
+
+并行交付:
+
+- [EVIDENCE_COMMANDS.md](EVIDENCE_COMMANDS.md) — copy-paste
+  cookbook (10 sections) 给用户/审计员一组可重复的取证命令; 显式列
+  出 "Does NOT" 清单。
+- 新增 boundary tests `test_v014_future_gates_spec.py` (10 cases) —
+  把 future-gate 6-section 规格 / cookbook 必备 section / cookbook 不
+  教 forbidden action / preflight UX hint 不引导用户走 real 路径,
+  全部固化为仓库级断言。
+- `dogfood_safety.render_preflight_report` 在 allowed 时给出 fake-
+  safe 下一步建议命令; 在 refused 时给出 examples/demo-vault 备选
+  路径; 永不默认建议 `--allow-real`。
+
+**当前状态**: v0.13 + 上述 v0.14 规格 + 取证 cookbook + 边界守卫
+全部 local commits, 未 tag, 未 push (本轮)。
