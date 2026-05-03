@@ -2,6 +2,21 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.13 Stage 4 — Controlled Dogfood Preflight (local)
+
+- 新增 `mindforge dogfood preflight <path>` 子命令; 静态分类 input
+  路径 (synthetic / non_sensitive_local / private_real_data_forbidden /
+  obsidian_vault_forbidden / home_scan_forbidden / path_does_not_exist),
+  组合 provider readiness, 输出 allowed/refused 决策。
+- 新增 `src/mindforge/dogfood_safety.py` 纯模块: 不读 input 内容、
+  不调用 LLM、不写 vault、不会产生 `human_approved`; AST 守卫纳入
+  现有 `_GUARDED` 列表。
+- 新增 `tests/test_v013_stage4_dogfood_preflight.py` (14 cases) 覆盖
+  分类规则、Obsidian / home / 不存在路径拒绝、CLI exit code、
+  无 LLM/无文件读取断言。
+- 新增 `docs/V0_13_DOGFOOD_PREFLIGHT.md` 工作流文档。
+- 默认仍然 fake-safe; 真实 provider 仍是 explicit opt-in。
+
 ## v0.13 Stage 3 — Real LLM Smoke Closure (local)
 
 - 修复 P1 接口错配: `real_smoke` 之前用 `.complete/.chat` 而真实

@@ -2466,3 +2466,42 @@ Stage 1 报告 "real-LLM smoke not exercised end-to-end" 的真实根因:
 synthetic prompt, 44/72 tokens, 1434ms); 输出严格停留在
 `ai_draft_preview`, `human_approved=False`, `written=False`,
 approval boundary 完整。
+
+## v0.13 Stage 4 — Controlled Dogfood Preflight (Completed Locally)
+
+Stage 3 跑通了真实 LLM smoke; Stage 4 关闭"用户可能把家目录 / 真实
+Obsidian vault / 真实 Cubox dump 当作 dogfood 输入"的相邻风险, 但
+**不**通过文件扫描或 AI 分类, 而是用一个**纯静态的路径分类器** + 既
+有 `provider readiness` 的组合, 给出 allowed/refused 决策。
+
+新增能力 (无新依赖, 无 CLI 重构):
+
+- `mindforge dogfood preflight <path>` (~30 LOC glue 加进现有
+  `dogfood_app`); 业务全部在 `src/mindforge/dogfood_safety.py`。
+- 静态分类器: `synthetic` (whitelist `examples/demo-vault` /
+  `examples/custom-strategies`) → `obsidian_vault_forbidden` (路径自身
+  / parent 名字 `.obsidian`, 或 parent 含 `.obsidian/`) →
+  `home_scan_forbidden` (在 `Path.home()` 下且不在 cwd 下) →
+  `non_sensitive_local` (需 `--declare-non-sensitive` 显式声明) →
+  `private_real_data_forbidden` (默认拒绝)。
+- 永久 output_contract: `human_approved=False` / `writes_vault=False` /
+  `writes_cards=False` / `approves=False` (是文档化承诺, 不是开关)。
+- AST 守卫扩展: `dogfood_safety.py` 加入 `_GUARDED` 列表, 禁止 import
+  cli / approval / writer / cards / obsidian / cubox / scanner / dotenv
+  / 网络。
+- 测试 `test_v013_stage4_dogfood_preflight.py` (14 cases) 覆盖分类
+  规则 / Obsidian 检测 / home 拒绝 / 不存在路径 / declared override
+  不能绕过更高优先级拒绝 / classify 不读 file 内容 / CLI 不调用 LLM
+  factory。
+- 文档 [V0_13_DOGFOOD_PREFLIGHT.md](V0_13_DOGFOOD_PREFLIGHT.md)。
+
+**仍然 deferred** (Stage 4 不实现, 待未来更强 gate):
+
+- 真实 Cubox ingestion (要 sample-folder / item-cap / dry-run-first
+  / no-persist gate);
+- 真实 Obsidian 写入 (要 explicit per-write 确认);
+- `human_approved` 自动晋升 (永远只能 `approver.approve_card` +
+  人工);
+- 自动化 dogfood runner (preflight 只做决策, 实际命令仍由用户走
+  `dogfood plan` 列出的 checklist 手动触发);
+- 输入内容分类 / RAG / embedding / semantic merge。
