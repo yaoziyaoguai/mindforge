@@ -3989,6 +3989,12 @@ def _doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, s
     rows.append(("ok" if cards_dir.is_dir() else "error", "cards dir", str(cards_dir)))
     if not cards_dir.is_dir():
         actions.append(("critical", "Knowledge Cards 目录缺失 → 运行: mindforge init --interactive"))
+        # 用户友好性 polish：在要求 init 之前先告诉新用户有零配置 demo 可选；
+        # 这是 ``mindforge demo`` 60 秒 tour 的入口提示，不替换 init 的 critical 性。
+        actions.append((
+            "recommended",
+            "想先跑零配置 tour（无需 vault / API key / 网络）→ 运行: mindforge demo",
+        ))
 
     index_path = cfg.state.workdir / "index" / "bm25.json"
     rows.append(("ok" if index_path.exists() else "warn", "bm25 index", str(index_path) if index_path.exists() else "missing"))
@@ -4534,6 +4540,17 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
 
     # 1. vault 是否完整
     if not vault_root.exists():
+        # 用户友好性 polish：vault 缺失时，先把零配置 demo tour 推到最前。
+        # 这样新用户不必先执行 ``mindforge init`` 也能 60 秒看到 fake/safe path
+        # 跑通的效果；``mindforge init`` 仍然是 vault 真正落地前的必经一步，
+        # 所以保留为 critical。
+        suggestions.append(
+            NextSuggestion(
+                "mindforge demo",
+                "60 秒零配置 tour（不需要 API key、不联网、不写 vault）",
+                "recommended",
+            )
+        )
         suggestions.append(
             NextSuggestion(
                 f"mindforge init --vault {vault_root}",

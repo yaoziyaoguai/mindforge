@@ -19,11 +19,23 @@ templates, and configs are bundled as package assets and resolved with
 
 ## Quick Start
 
+The fastest way to see MindForge work end-to-end is the zero-config
+60-second demo tour. It uses the bundled fixture, the fake provider, and
+read-only probes — **no API key, no network, no real Cubox HTTP, no
+Obsidian vault writes, no `human_approved` records**:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
+mindforge demo            # 60s tour: SourceDocument → ai_draft → review packet
+```
+
+Once you want to bring your own vault and inbox, continue with the full
+init flow:
+
+```bash
 mindforge init --interactive
 mindforge doctor
 mindforge commands
