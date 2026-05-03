@@ -312,6 +312,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # "demo 永远不产生 human_approved", 反向边界守护 (与 dogfood_safety
         # / cubox_readiness 同款模式)。
         "demo_tour.py",
+        # Architecture Quality Pack — next_suggestions.py 是从 cli.py 巨石
+        # 拆出的纯逻辑层。它只在 *只读* 路径上用 "human_approved" 字面量来
+        # 过滤"已由人类审核过、可参与 review/recall 调度"的卡片，从未把任何
+        # 卡片晋升到 human_approved。与 cli.py 内的同名查询同语义、同安全约束。
+        "next_suggestions.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
