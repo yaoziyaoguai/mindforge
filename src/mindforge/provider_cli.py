@@ -27,8 +27,26 @@ from pathlib import Path
 import typer
 
 from .app_context import load_app_config
+from .env_loader import load_dotenv_silently
 from .provider_readiness import build_readiness_report, render_readiness_report
 from .real_smoke import run_synthetic_real_smoke
+
+
+def _load_cfg_with_dotenv(config: Path):
+    """与 cli.py::_load_cfg 一致的 .env 注入语义。
+
+    没有这一步时, ``provider readiness`` / ``provider smoke`` 只能看
+    见用户已经 ``export`` 到 shell 的 env (常常是空的); 这与 ``llm
+    ping`` / ``doctor`` / ``process`` 的行为不一致, 也是 v0.13 Stage 1
+    "real LLM smoke 没有 end-to-end 跑通" 的根因。
+
+    ``load_dotenv_silently`` 本身是 once-only / non-overriding / 无第
+    三方依赖 / 不打印任何 value 的安全载入器 (见 env_loader.py); 这里
+    复用同一机制, 不引入新的 secret 路径。
+    """
+    load_dotenv_silently(Path.cwd())
+    return load_app_config(config)
+
 
 provider_app = typer.Typer(
     add_completion=False,
@@ -55,7 +73,7 @@ def provider_readiness_cmd(
     ),
 ) -> None:
     """打印 provider readiness 报告 (无网络, 无 secret 打印)。"""
-    app_cfg = load_app_config(config)
+    app_cfg = _load_cfg_with_dotenv(config)
     report = build_readiness_report(app_cfg.llm)
     if output_format == "json":
         import json
@@ -93,15 +111,39 @@ def provider_smoke_cmd(
         "--alias",
         help="指定 active profile 中的 alias; 默认取第一个非 fake alias",
     ),
+    profile: str = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help=(
+            "临时覆盖 active_profile (与 'mindforge llm ping --profile' "
+            "一致); 不修改 configs/mindforge.yaml 文件。"
+        ),
+    ),
 ) -> None:
     """运行 synthetic real-LLM smoke (gated by --allow-real)。
 
     无论运行与否, 输出都是 audit-trail 摘要, 不包含 secret value,
     不写入任何文件, ``human_approved`` 永远为 False。
     """
-    app_cfg = load_app_config(config)
+    app_cfg = _load_cfg_with_dotenv(config)
+    if profile is not None:
+        # 与 llm ping 的覆盖语义保持一致: 只调整内存中的 LLMConfig 副本,
+        # 不持久化, 不影响其他命令。LLMConfig 是 frozen dataclass, 必须
+        # 走 dataclasses.replace, 不能直接赋值。
+        if profile not in app_cfg.llm.profiles:
+            typer.echo(
+                f"unknown --profile {profile!r}; available: "
+                f"{sorted(app_cfg.llm.profiles)}",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        from dataclasses import replace
+        new_llm = replace(app_cfg.llm, active_profile=profile)
+    else:
+        new_llm = app_cfg.llm
     result = run_synthetic_real_smoke(
-        app_cfg.llm,
+        new_llm,
         allow_real=allow_real,
         alias=alias,
     )
@@ -115,6 +157,12 @@ def provider_smoke_cmd(
     typer.echo(f"human_approved        : {result['human_approved']}")
     typer.echo(f"written               : {result['written']}")
     typer.echo(f"synthetic_input_only  : {result['synthetic_input_only']}")
+    if result.get("tokens_in") is not None or result.get("tokens_out") is not None:
+        typer.echo(
+            f"tokens_in/out         : {result.get('tokens_in')}/{result.get('tokens_out')}"
+        )
+    if result.get("latency_ms") is not None:
+        typer.echo(f"latency_ms            : {result['latency_ms']}")
     if result["blocker"]:
         typer.echo(f"blocker               : {result['blocker']}")
     if result["output_excerpt_safe"]:

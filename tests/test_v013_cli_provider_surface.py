@@ -99,23 +99,34 @@ def _collect_imports(path: Path) -> list[str]:
                 out.append(alias.name)
         elif isinstance(node, ast.ImportFrom):
             if node.level:
-                # 相对 import 视为同包; 不在 forbidden 范围
+                # 相对 import: 规范化成 mindforge.<module> 以便 forbidden
+                # 列表也能覆盖 (避免 'from .env_loader import X' 绕过守卫)。
+                if node.module:
+                    out.append(f"mindforge.{node.module}")
                 continue
             if node.module:
                 out.append(node.module)
     return out
 
 
+# provider_cli 显式允许 env_loader (与 cli.py 的 .env 注入语义一致);
+# real_smoke / provider_readiness 仍然禁止。
+_PER_FILE_ALLOWLIST = {
+    Path("src/mindforge/provider_cli.py"): {"mindforge.env_loader"},
+}
+
+
 @pytest.mark.parametrize("path", _GUARDED, ids=lambda p: p.name)
 def test_provider_files_do_not_reverse_import_runtime(path: Path):
     assert path.exists(), path
     imports = _collect_imports(path)
+    allow = _PER_FILE_ALLOWLIST.get(path, set())
     bad = sorted(
         {
             n
             for n in imports
             for prefix in _FORBIDDEN_PREFIXES
-            if n == prefix or n.startswith(prefix + ".")
+            if (n == prefix or n.startswith(prefix + ".")) and n not in allow
         }
     )
     assert not bad, (
