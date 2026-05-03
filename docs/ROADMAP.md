@@ -2505,3 +2505,35 @@ Obsidian vault / 真实 Cubox dump 当作 dogfood 输入"的相邻风险, 但
 - 自动化 dogfood runner (preflight 只做决策, 实际命令仍由用户走
   `dogfood plan` 列出的 checklist 手动触发);
 - 输入内容分类 / RAG / embedding / semantic merge。
+
+## v0.13 Stage 5 — Roadmap Finalization & Release Readiness Evidence (Completed Locally)
+
+Stage 5 不再做新功能, 也不退回 fake-only。它做的是**收口**:
+
+- 新增 [V0_13_CLOSURE_LEDGER.md](V0_13_CLOSURE_LEDGER.md) — 用 6 个
+  状态桶 (`available` / `fake-only` / `real-opt-in` / `review-only` /
+  `future-gated` / `forbidden`) 把每个 v0.13 能力定位; 列出 v0.13
+  closure criteria 全部 ✅; 把仍然危险的能力 (real Cubox / real
+  Obsidian write / 自动晋升 / 自定义可执行 strategy / RAG/embedding/
+  semantic merge / public release) 显式标 future-gated 或 forbidden。
+- 新增 [V0_13_RELEASE_READINESS_EVIDENCE.md](V0_13_RELEASE_READINESS_EVIDENCE.md)
+  — 不是 release notes, 而是 evidence pack: quality gates / safety
+  invariants / provider boundary table / dogfooding gates / approval
+  gates / known limitations / manual smoke 列表 / rollback 路径 /
+  future gates。**no tag, no release** 显式声明; 决定权交给 human
+  authorization。
+- 新增 [V0_13_REAL_SAFE_JOURNEY.md](V0_13_REAL_SAFE_JOURNEY.md) —
+  从 install 到 approve 的完整 10 分钟用户旅程; 每一步都是手动命令;
+  最后明确列出 "你 NOT 做了什么" (NOT 扫 home / NOT 扫 Obsidian /
+  NOT 拉 Cubox / NOT 写 Obsidian / NOT 自动 approve / NOT 打印 key /
+  NOT 提交 .env / NOT RAG/embedding / NOT 自定义 plugin)。
+- 新增 [test_v013_stage5_closure_boundaries.py](../tests/test_v013_stage5_closure_boundaries.py)
+  — 13 cases 把上述三份文档与源码契约固化为仓库级断言: state
+  buckets 完整 / future-gated 项不漏 / no-tag 承诺一致 / 默认
+  active_profile=fake / dogfood_safety+real_smoke 的 output_contract
+  字面量 ``human_approved=False`` 不漂移 / v0.13 doc 不能出现 ``git
+  tag v0.13`` 字面操作承诺。
+
+**v0.13 是 stage-complete (locally)**。1257 → 1270 passed (Stage 5
+新增 13)。tag/release 的实际触发仍需人工授权; 本仓库内不会自动 tag
+也不会自动 release。

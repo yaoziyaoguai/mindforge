@@ -2,6 +2,21 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.13 Stage 5 — Roadmap Finalization & Release Readiness Evidence (local)
+
+- 新增 docs/V0_13_CLOSURE_LEDGER.md — 6 个状态桶定位每项 v0.13 能力,
+  v0.13 closure criteria 全部 ✅; future-gated / forbidden 项显式列出。
+- 新增 docs/V0_13_RELEASE_READINESS_EVIDENCE.md — quality gates /
+  safety invariants / provider boundary / dogfooding gates / approval
+  gates / known limitations / manual smoke / rollback / future gates。
+  **no tag, no release** 显式声明。
+- 新增 docs/V0_13_REAL_SAFE_JOURNEY.md — 0→1 用户旅程, 每步手动,
+  最后列出 "你 NOT 做了什么"。
+- 新增 tests/test_v013_stage5_closure_boundaries.py (13 cases) — 仓库
+  级闭包断言: 状态桶完整 / future-gated 不漏 / no-tag 一致 / 默认
+  fake / output_contract 字面量不漂移 / docs 不出现 tag 操作承诺。
+- v0.13 **stage-complete locally**。1270 passed, 3 skipped。
+
 ## v0.13 Stage 4 — Controlled Dogfood Preflight (local)
 
 - 新增 `mindforge dogfood preflight <path>` 子命令; 静态分类 input
