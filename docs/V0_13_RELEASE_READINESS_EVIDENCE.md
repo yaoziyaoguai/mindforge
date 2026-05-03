@@ -103,6 +103,7 @@ All enforced by `tests/test_v013_cli_provider_surface.py` (AST walk).
 
 ## 10. Verdict
 
-v0.13 is **locally stage-complete and audit-ready**. A tag/release
-decision is **explicitly deferred** to human authorization. This pack
-provides the evidence trail that decision would consult.
+v0.13 is **locally stage-complete and RFC-ready**. **No tag and no
+release have been created.** A tag/release decision is **explicitly
+deferred** to human authorization (G6 future gate); this pack provides
+the evidence trail that decision would consult.

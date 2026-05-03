@@ -1,7 +1,7 @@
 # MindForge v0.13 Closure Ledger
 
-> Status: **stage-complete locally** (Stage 1–5 delivered, all pushed
-> through Stage 4; Stage 5 evidence pack local). **No tag, no release.**
+> Status: **stage-complete locally and pushed** (Stage 1–5 delivered
+> and on `origin/main`). **No tag, no release.**
 > Companion to [ROADMAP.md](./ROADMAP.md), [CHANGELOG.md](./CHANGELOG.md),
 > [V0_13_RELEASE_READINESS_EVIDENCE.md](./V0_13_RELEASE_READINESS_EVIDENCE.md),
 > [V0_13_REAL_SAFE_JOURNEY.md](./V0_13_REAL_SAFE_JOURNEY.md).
