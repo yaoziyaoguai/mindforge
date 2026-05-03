@@ -3472,6 +3472,58 @@ def _dogfood_command_snippets(vault: Path) -> list[tuple[str, str]]:
     ]
 
 
+@dogfood_app.command("preflight")
+def dogfood_preflight(
+    input_path: Path = typer.Argument(
+        ...,
+        help=(
+            "要 dogfood 的输入路径; 不会被读取或遍历, 只做静态分类。"
+            "推荐 examples/demo-vault 下的 synthetic 路径。"
+        ),
+    ),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="MindForge 配置文件路径",
+    ),
+    declare_non_sensitive: bool = typer.Option(
+        False,
+        "--declare-non-sensitive",
+        help=(
+            "用户明确声明此路径为 non-sensitive local 数据 (非 home / "
+            "非 Obsidian vault / 非真实 Cubox dump); 由用户为该声明负责。"
+        ),
+    ),
+    allow_real: bool = typer.Option(
+        False,
+        "--allow-real",
+        help="opt-in 校验真实 LLM 路径是否就绪 (不发起任何调用)",
+    ),
+) -> None:
+    """v0.13 Stage 4 — 静态 dogfood preflight; 只做分类决策, 不读 input。
+
+    中文学习型说明: 这是一个**纯静态**的安全闸门。它不会列举 input
+    目录、不会读取任何文件、不会调用 LLM、不会写 vault。它只回答:
+    "如果你现在以这条 path + 这组开关跑 dogfood, 是否安全。" 真正的
+    执行仍由用户走 ``dogfood plan`` 中列出的命令逐条手动触发。
+    """
+    from .dogfood_safety import build_preflight_report, render_preflight_report
+    from .env_loader import load_dotenv_silently
+
+    load_dotenv_silently(Path.cwd())
+    app_cfg = load_app_config(config)
+    report = build_preflight_report(
+        input_path,
+        declared_non_sensitive=declare_non_sensitive,
+        allow_real=allow_real,
+        llm_config=app_cfg.llm,
+    )
+    print(render_preflight_report(report))
+    if not report["decision"]["allowed"]:
+        raise typer.Exit(code=2)
+
+
 @app.command()
 def doctor(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),

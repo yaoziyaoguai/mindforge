@@ -1,0 +1,250 @@
+"""v0.13 Stage 4 — controlled dogfood preflight safety tests.
+
+覆盖 ``dogfood_safety`` 模块 + ``mindforge dogfood preflight`` 命令的
+关键安全契约:
+
+- synthetic 路径 → allowed;
+- non-existent / private / Obsidian / home 路径 → refused;
+- declared_non_sensitive 不能绕过更高优先级拒绝;
+- preflight 永远不读取 input 目录内容 (静态分类);
+- 输出 contract 永远 ``human_approved=False`` / ``writes_vault=False``;
+- CLI 命令对 refused 退出码非 0; allowed 退出码 0;
+- 不依赖真实 secret, 不发起任何网络调用。
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from typer.testing import CliRunner
+
+from mindforge.cli import app
+from mindforge.config import LLMConfig
+from mindforge.dogfood_safety import (
+    CLASS_HOME_SCAN_FORBIDDEN,
+    CLASS_NON_SENSITIVE_LOCAL,
+    CLASS_OBSIDIAN_VAULT_FORBIDDEN,
+    CLASS_PATH_DOES_NOT_EXIST,
+    CLASS_PRIVATE_REAL_DATA_FORBIDDEN,
+    CLASS_SYNTHETIC,
+    build_preflight_report,
+    classify_input_path,
+)
+
+
+@pytest.fixture
+def fake_llm_config() -> LLMConfig:
+    """加载仓库默认 fake-only 配置 — 与项目默认对齐, 无 secret 依赖。"""
+    from mindforge.app_context import load_app_config
+
+    repo_root = Path(__file__).resolve().parents[1]
+    return load_app_config(repo_root / "configs" / "mindforge.yaml").llm
+
+
+def test_synthetic_examples_path_classified_as_synthetic(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    synthetic = repo_root / "examples" / "demo-vault"
+    assert classify_input_path(synthetic) == CLASS_SYNTHETIC
+
+
+def test_obsidian_vault_path_is_forbidden(tmp_path):
+    """带 .obsidian 目录的路径必须被拒绝, 即使声明 non-sensitive。"""
+    vault = tmp_path / "myvault"
+    (vault / ".obsidian").mkdir(parents=True)
+    note = vault / "note.md"
+    note.write_text("hi", encoding="utf-8")
+    # 路径在 .obsidian 标记的 vault 内 → 拒绝
+    assert (
+        classify_input_path(note, declared_non_sensitive=True)
+        == CLASS_OBSIDIAN_VAULT_FORBIDDEN
+    )
+
+
+def test_home_path_outside_cwd_is_forbidden(tmp_path, monkeypatch):
+    """模拟用户把家目录的子路径作为 input — 必须拒绝。"""
+    fake_home = tmp_path / "home"
+    fake_cwd = tmp_path / "work"
+    target = fake_home / "private" / "doc.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("x", encoding="utf-8")
+    fake_cwd.mkdir()
+    assert (
+        classify_input_path(
+            target,
+            declared_non_sensitive=True,
+            home=fake_home,
+            cwd=fake_cwd,
+        )
+        == CLASS_HOME_SCAN_FORBIDDEN
+    )
+
+
+def test_nonexistent_path_is_refused(tmp_path):
+    assert (
+        classify_input_path(tmp_path / "does_not_exist.md")
+        == CLASS_PATH_DOES_NOT_EXIST
+    )
+
+
+def test_local_path_without_declaration_is_forbidden(tmp_path):
+    """普通本地路径未声明 non-sensitive → 默认按 private 拒绝。"""
+    f = tmp_path / "doc.md"
+    f.write_text("x", encoding="utf-8")
+    assert (
+        classify_input_path(f, declared_non_sensitive=False, home=tmp_path / "h")
+        == CLASS_PRIVATE_REAL_DATA_FORBIDDEN
+    )
+
+
+def test_local_path_with_declaration_becomes_non_sensitive(tmp_path):
+    f = tmp_path / "doc.md"
+    f.write_text("x", encoding="utf-8")
+    cls = classify_input_path(
+        f,
+        declared_non_sensitive=True,
+        home=tmp_path / "h",
+        cwd=tmp_path,
+    )
+    assert cls == CLASS_NON_SENSITIVE_LOCAL
+
+
+def test_classify_does_not_read_file_contents(tmp_path, monkeypatch):
+    """关键安全断言: classify_input_path 不应触发 ``open`` / ``read_*``。"""
+    f = tmp_path / "doc.md"
+    f.write_text("SECRET-CONTENT-MUST-NOT-BE-READ", encoding="utf-8")
+
+    real_open = open
+
+    def _fail_open(*args, **kwargs):
+        # 测试自身在 fixture 阶段已经写过文件; 在 classify 阶段如果再
+        # 调到 open() 就会直接失败。
+        raise AssertionError(f"classify_input_path opened a file: {args}")
+
+    monkeypatch.setattr("builtins.open", _fail_open)
+    try:
+        classify_input_path(f, declared_non_sensitive=True, home=tmp_path / "h", cwd=tmp_path)
+    finally:
+        monkeypatch.setattr("builtins.open", real_open)
+
+
+def test_preflight_report_synthetic_path_allowed(fake_llm_config):
+    repo_root = Path(__file__).resolve().parents[1]
+    report = build_preflight_report(
+        repo_root / "examples" / "demo-vault",
+        declared_non_sensitive=False,
+        allow_real=False,
+        llm_config=fake_llm_config,
+    )
+    assert report["decision"]["allowed"] is True
+    assert report["decision"]["blockers"] == []
+    assert report["input"]["classification"] == CLASS_SYNTHETIC
+    # 永久 contract: 即使 allowed, 也不能产生 human_approved / 写 vault
+    assert report["output_contract"]["human_approved"] is False
+    assert report["output_contract"]["writes_vault"] is False
+    assert report["output_contract"]["approves"] is False
+
+
+def test_preflight_report_refuses_obsidian(tmp_path, fake_llm_config):
+    vault = tmp_path / "v"
+    (vault / ".obsidian").mkdir(parents=True)
+    note = vault / "n.md"
+    note.write_text("x", encoding="utf-8")
+    report = build_preflight_report(
+        note,
+        declared_non_sensitive=True,
+        allow_real=False,
+        llm_config=fake_llm_config,
+    )
+    assert report["decision"]["allowed"] is False
+    assert any("obsidian_vault_forbidden" in b for b in report["decision"]["blockers"])
+    assert report["output_contract"]["human_approved"] is False
+
+
+def test_preflight_allow_real_blocked_when_fake_default(fake_llm_config):
+    repo_root = Path(__file__).resolve().parents[1]
+    report = build_preflight_report(
+        repo_root / "examples" / "demo-vault",
+        declared_non_sensitive=False,
+        allow_real=True,
+        llm_config=fake_llm_config,
+    )
+    # path 是 synthetic, 但 allow_real 命中 fake-default → 加 blocker
+    assert any("allow_real" in b for b in report["decision"]["blockers"])
+    assert report["decision"]["allowed"] is False
+    # 仍然不会写 vault, 不会 human_approved
+    assert report["output_contract"]["human_approved"] is False
+
+
+def test_cli_dogfood_preflight_synthetic_exits_zero(tmp_path):
+    """CLI smoke: synthetic 路径 → exit 0, 输出包含分类。"""
+    runner = CliRunner()
+    repo_root = Path(__file__).resolve().parents[1]
+    synthetic = repo_root / "examples" / "demo-vault"
+    result = runner.invoke(
+        app,
+        [
+            "dogfood",
+            "preflight",
+            str(synthetic),
+            "--config",
+            str(repo_root / "configs" / "mindforge.yaml"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "synthetic" in result.output
+    assert "decision.allowed     : True" in result.output
+    # 输出绝不能含 human_approved=True / api_key 字面值
+    assert "human_approved=True" not in result.output
+    assert "api_key" not in result.output.lower() or "api_key_present" in result.output.lower()
+
+
+def test_cli_dogfood_preflight_obsidian_exits_nonzero(tmp_path, monkeypatch):
+    runner = CliRunner()
+    repo_root = Path(__file__).resolve().parents[1]
+    vault = tmp_path / "v"
+    (vault / ".obsidian").mkdir(parents=True)
+    note = vault / "n.md"
+    note.write_text("x", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "dogfood",
+            "preflight",
+            str(note),
+            "--config",
+            str(repo_root / "configs" / "mindforge.yaml"),
+            "--declare-non-sensitive",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    assert "obsidian_vault_forbidden" in result.output
+
+
+def test_cli_dogfood_preflight_does_not_invoke_llm(tmp_path, monkeypatch):
+    """CLI 路径必须**不**调用 llm.factory.build_providers / provider.generate。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    import mindforge.llm.factory as factory_mod
+
+    real_build = factory_mod.build_providers
+
+    def _fail_build(*args, **kwargs):
+        raise AssertionError("dogfood preflight must not build any LLM provider")
+
+    monkeypatch.setattr(factory_mod, "build_providers", _fail_build)
+    try:
+        runner = CliRunner()
+        synthetic = repo_root / "examples" / "demo-vault"
+        result = runner.invoke(
+            app,
+            [
+                "dogfood",
+                "preflight",
+                str(synthetic),
+                "--config",
+                str(repo_root / "configs" / "mindforge.yaml"),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+    finally:
+        monkeypatch.setattr(factory_mod, "build_providers", real_build)

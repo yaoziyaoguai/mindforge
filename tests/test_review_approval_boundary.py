@@ -298,6 +298,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         "provider_readiness.py",
         "real_smoke.py",
         "provider_cli.py",
+        # v0.13 Stage 4 — dogfood preflight 的 output_contract 用
+        # human_approved=False 字面量声明 "preflight 永远不会产生
+        # human_approved", 同样是反向边界守护。
+        "dogfood_safety.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
