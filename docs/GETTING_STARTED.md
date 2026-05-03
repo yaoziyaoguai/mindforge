@@ -1,5 +1,15 @@
 # Getting Started — MindForge v0.5.2
 
+> **🚀 Real-data dogfood quickstart (10 min, 0 sensitive data, 0 network):**
+> ```bash
+> mindforge dogfood quickstart --vault /path/to/project-vault
+> ```
+> Prints a 10-step copy-paste runbook that takes you from install →
+> Cubox JSON-export preview → ai_draft → project-vault dry-run, **all
+> on the fake-default + dry-run path**. No real LLM. No real Cubox API.
+> No formal vault write. No `human_approved` produced. Full guide:
+> [`REAL_DOGFOOD_QUICKSTART.md`](REAL_DOGFOOD_QUICKSTART.md).
+
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。
 > 全程使用 `fake` provider；**不读取 `.env`**。
 >

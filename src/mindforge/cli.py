@@ -3524,6 +3524,158 @@ def dogfood_preflight(
         raise typer.Exit(code=2)
 
 
+@dogfood_app.command("cubox-readiness")
+def dogfood_cubox_readiness(
+    token_env: str = typer.Option(
+        "MINDFORGE_CUBOX_TOKEN",
+        "--token-env",
+        help=(
+            "Cubox API token 环境变量名 (presence-only 检查; 永不打印 value)。"
+            "默认 MINDFORGE_CUBOX_TOKEN; 用户可显式传任意名字。"
+        ),
+    ),
+    allow_real: bool = typer.Option(
+        False,
+        "--allow-real",
+        help=(
+            "opt-in 校验未来 G1 真实 Cubox HTTP 路径解锁条件 (不发起任何调用)。"
+            "G1 在本仓库内仍然 future-gated; 此命令永远不会真实拉取 Cubox。"
+        ),
+    ),
+) -> None:
+    """Cubox 真实路径 readiness 诊断 — presence-only, 不联网, 永不打印 token。
+
+    中文学习型说明: 这是 readiness 报告, 不是真实拉取入口。它只回答:
+    "如果你想用真实 Cubox 路径, 你的 env / 配置是否就绪。" 真实 dogfood
+    数据路径 (今天就能跑) 是 ``mindforge cubox dry-run --export <file.json>``
+    —— 用 Cubox web Settings → Export 导出的官方 JSON 文件做完全离线
+    的预检 + ai_draft 生成, 不需要 token, 不联网。真实 HTTP API 路径
+    被 future G1 gate 把守, 永远不会被本命令自动触发。
+    """
+    from .cubox_readiness import (
+        classify_cubox_real_opt_in,
+        inspect_cubox_config,
+        render_cubox_readiness_report,
+    )
+
+    report = inspect_cubox_config(token_env_var=token_env)
+    classification = classify_cubox_real_opt_in(report, allow_real=allow_real)
+    print(render_cubox_readiness_report(report, classification))
+
+
+@dogfood_app.command("quickstart")
+def dogfood_quickstart(
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help=(
+            "项目专用 / demo vault 路径; 省略时使用 examples/demo-vault。"
+            "新用户应**只**指定项目专用 vault, 永不指定真实 home Obsidian vault。"
+        ),
+    ),
+    cubox_export: Path | None = typer.Option(
+        None,
+        "--cubox-export",
+        help=(
+            "可选: 本地 Cubox JSON export 文件路径 (Cubox web → Settings → "
+            "Export 导出); 命令只渲染建议命令, 不读取该文件。"
+        ),
+    ),
+) -> None:
+    """新用户 10 分钟跑通 MindForge 的 quickstart 命令导航 (不执行命令)。
+
+    中文学习型说明: 这是 **runbook 渲染器**, 不是自动化 runner。它列
+    出新用户从安装 → fake provider smoke → Cubox JSON export 预检 →
+    ai_draft → Obsidian 项目 vault dry-run 的完整路径, 让用户自己复制
+    粘贴执行, 避免工具误改正式资料。永不调用真实 LLM / Cubox API /
+    Obsidian write / human_approved 路径。
+    """
+    import os as _os
+
+    chosen_vault = vault or Path(
+        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault")
+    )
+    print("MindForge real dogfooding quickstart (read-only runbook)")
+    print("=========================================================")
+    print(f"vault: {chosen_vault}")
+    if cubox_export:
+        print(f"cubox export: {cubox_export}")
+    print("")
+    print("Safety: this command renders commands only; it does NOT execute")
+    print("them. Commands below stay on the fake-default + dry-run path.")
+    print("No .env content is read. No token is printed. No real LLM is")
+    print("called. No formal Obsidian write. No human_approved is produced.")
+    print("")
+    print("Steps:")
+    for idx, (command, note) in enumerate(
+        _dogfood_quickstart_steps(chosen_vault, cubox_export), start=1
+    ):
+        print(f"  {idx:>2}. {command}")
+        print(f"      {note}")
+    print("")
+    print("Full guide: docs/REAL_DOGFOOD_QUICKSTART.md")
+
+
+def _dogfood_quickstart_steps(
+    vault: Path, cubox_export: Path | None
+) -> list[tuple[str, str]]:
+    """集中维护 quickstart 命令, 供 CLI 与测试共同使用, 减少文档漂移。
+
+    Cubox 步骤分两条路径:
+    - 用户提供 ``--cubox-export`` 时, 给出针对该文件的具体命令;
+    - 否则给出"如何从 Cubox web 导出"的提示 + 通用占位命令。
+    """
+    v = str(vault)
+    cubox_path = str(cubox_export) if cubox_export else "<file.json>"
+    cubox_hint = (
+        "替换 <file.json> 为 Cubox web → Settings → Export 导出的 JSON 文件"
+        if cubox_export is None
+        else "已使用你提供的 Cubox export 文件"
+    )
+    return [
+        (
+            "mindforge doctor --paths",
+            "确认本地路径与安全边界 (确认 active_profile=fake)",
+        ),
+        (
+            "mindforge provider readiness --config configs/mindforge.yaml",
+            "确认 LLM provider 是 fake-default; api_key value 永不打印",
+        ),
+        (
+            "mindforge dogfood cubox-readiness --token-env MINDFORGE_CUBOX_TOKEN",
+            "确认 Cubox 真实路径 readiness; 不联网, 不打印 token",
+        ),
+        (
+            f"mindforge cubox dry-run --export {cubox_path}",
+            f"Cubox JSON export 离线预检 (真实数据, 零网络)。{cubox_hint}",
+        ),
+        (
+            f"mindforge cubox preview-ai-draft --export {cubox_path} --limit 3",
+            "对前 3 条用 fake provider 生成 ai_draft (review-only)",
+        ),
+        (
+            "mindforge dogfood preflight examples/demo-vault --declare-non-sensitive",
+            "静态 dogfood 路径分类; 不读输入, 不调 LLM, 不写 vault",
+        ),
+        (
+            f"mindforge obsidian doctor --vault {v}",
+            "确认项目 vault 安全 (only the path you pass, no home scan)",
+        ),
+        (
+            f"mindforge obsidian scan --vault {v} --limit 5",
+            "扫描项目 vault 中的非敏感 Markdown",
+        ),
+        (
+            f"mindforge obsidian stage --vault {v} --source <note.md> --dry-run",
+            "项目 vault staging dry-run (默认 --dry-run; --write 才真写)",
+        ),
+        (
+            "mindforge approve list",
+            "查看待人工 approve 的 ai_draft (永远只能由 approver.approve_card 晋升)",
+        ),
+    ]
+
+
 @app.command()
 def doctor(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),

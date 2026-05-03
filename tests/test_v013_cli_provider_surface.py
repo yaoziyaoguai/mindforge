@@ -57,6 +57,7 @@ _GUARDED = (
     Path("src/mindforge/real_smoke.py"),
     Path("src/mindforge/provider_cli.py"),
     Path("src/mindforge/dogfood_safety.py"),
+    Path("src/mindforge/cubox_readiness.py"),
 )
 
 # real_smoke 允许 import mindforge.llm.factory; provider_cli 允许 import

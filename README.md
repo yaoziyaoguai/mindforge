@@ -116,6 +116,7 @@ Start here:
 
 - [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) - documentation map
 - [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) - first successful run
+- [docs/REAL_DOGFOOD_QUICKSTART.md](docs/REAL_DOGFOOD_QUICKSTART.md) - 10-minute new-user real-data dogfood loop (Cubox JSON export + project-vault dry-run; fake-default + dry-run path only)
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - daily commands and workflows
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - system shape and data flow
 - [docs/SECURITY.md](docs/SECURITY.md) - boundaries and invariants

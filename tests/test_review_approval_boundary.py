@@ -302,6 +302,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # human_approved=False 字面量声明 "preflight 永远不会产生
         # human_approved", 同样是反向边界守护。
         "dogfood_safety.py",
+        # MindForge real dogfooding readiness — cubox readiness 报告 module
+        # 与 provider_readiness.py 同款反向边界: 明确声明 "human approval
+        # required for any human_approved record" 来固化 readiness 路径
+        # 永不产生 human_approved 的不变量。
+        "cubox_readiness.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
