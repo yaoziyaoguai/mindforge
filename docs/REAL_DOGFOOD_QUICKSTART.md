@@ -100,3 +100,151 @@ Open an RFC for the future gate you want to cross. RFC = design
 review only; not implementation, not authorization, not release.
 The current open RFC is
 [`RFC_G1_CUBOX_REAL_INGESTION.md`](RFC_G1_CUBOX_REAL_INGESTION.md).
+
+---
+
+## Explicit limit guidance (read this before you run anything Cubox-related)
+
+MindForge **does not support full Cubox account sync**. Today the only
+real-Cubox-data path is the JSON-export route; there is no automatic
+"pull everything" command.
+
+For your **first** dogfood run we strongly recommend:
+
+- **`--limit 5`** for `mindforge cubox preview-ai-draft`. Five items
+  is enough to see the loop end-to-end without burning attention.
+- **Do not exceed `--limit 20`** on your first 2–3 runs. The fake
+  provider is fast, but reviewing 20+ ai_draft items by hand at once
+  is exhausting and tends to short-circuit careful review.
+- **Never** target a non-curated, full export. If your Cubox account
+  has hundreds of items, do `Settings → Export` of a *specific
+  folder* (or hand-trim the JSON to the 5–20 items you actually want
+  to dogfood). The whole point of the JSON-export route is that
+  *you* control which items enter MindForge.
+- **There is no `--all` flag.** If you find yourself asking "how do I
+  process everything", that is a signal you are at the boundary of
+  what this quickstart is designed for. Stop and read
+  [`RFC_G1_CUBOX_REAL_INGESTION.md`](RFC_G1_CUBOX_REAL_INGESTION.md)
+  before going further.
+
+`mindforge cubox dry-run` has its own `--limit` flag (default 3) but
+that one only controls *how many sample titles are printed* — the
+underlying scan is whole-file. Use `dry-run` first to confirm the
+file is well-formed; then use `preview-ai-draft --limit 5` for the
+ai_draft loop.
+
+## Rollback and cleanup guidance
+
+Every step in the runbook above is **safe by default**:
+
+| Step | Writes anything? | How to roll back |
+|---|---|---|
+| `doctor`, `provider readiness`, `cubox-readiness`, `quickstart` | No | Nothing to roll back |
+| `cubox dry-run`, `cubox preview-ai-draft` | **In-memory only.** No Cubox state changes, no vault writes. | Nothing to roll back |
+| `dogfood preflight` | No | Nothing to roll back |
+| `obsidian doctor`, `obsidian scan`, `obsidian links` | Read-only | Nothing to roll back |
+| `obsidian stage --dry-run` | **No** (this is what `--dry-run` means) | Nothing to roll back |
+| `obsidian stage --write` | **Yes — writes to staging/ inside the vault** | See below |
+| `approve list` | Read-only | Nothing to roll back |
+
+**If you accidentally ran `obsidian stage --write` on a vault you did
+not mean to write to:**
+
+1. **Stop.** Do not run any further `mindforge` commands until you
+   have cleaned up.
+2. The write target is a `staging/` directory inside the vault you
+   passed to `--vault`. List what was created:
+   ```bash
+   ls -la <your-vault>/staging/
+   ```
+3. If the vault is git-tracked (recommended for project vaults),
+   `git status` and `git restore .` / `git clean -fd staging/` will
+   undo the write.
+4. If the vault is not git-tracked, delete the specific files
+   listed in step 2. **Do not** `rm -rf` the whole vault.
+5. MindForge **does not** modify your `.obsidian/` directory,
+   existing notes, or links. The blast radius is confined to
+   `staging/` plus any new Markdown files MindForge created.
+
+**Strong recommendations to make rollback trivial:**
+
+- Use a **disposable** project vault for your first runs (e.g.,
+  `cp -r examples/demo-vault /tmp/dogfood-vault` and pass
+  `--vault /tmp/dogfood-vault`).
+- Keep your project vault **under git** so any unwanted write is one
+  `git restore` away.
+- **Do not** use your real personal Obsidian vault until after at
+  least 5 successful project-vault dry-runs.
+
+## Token safety guidance
+
+Your Cubox API token (and any future LLM API key) is a **secret**.
+MindForge enforces this in code via `cubox_readiness` (presence-only
+check, never reads the value) and via test-pinned literals
+(`token value not printed`). You must enforce it on your side too.
+
+**Never:**
+
+- Paste your token into a chat with any AI agent (including this
+  one).
+- Commit a token to git, even temporarily, even in a branch you
+  "plan to delete".
+- Put a token in a docs file, README, GETTING_STARTED, runbook,
+  comment, commit message, or test fixture.
+- Print a token via `echo $MINDFORGE_CUBOX_TOKEN`, `printenv`, or
+  `env | grep CUBOX` in a recorded session.
+- Paste a `mindforge` log line that *might* contain a token into a
+  GitHub issue, gist, or screenshot.
+
+**Always:**
+
+- Set the token via your shell's environment (e.g., a `.env` file
+  read by your shell startup, or `export MINDFORGE_CUBOX_TOKEN=...`
+  typed by hand). MindForge **does not** read `.env` content; it
+  only checks env-var presence.
+- Treat `mindforge dogfood cubox-readiness` as the *only* sanctioned
+  way to ask "is my token wired up?" — it returns `token_present:
+  True/False` and a literal `token value not printed`, never the
+  value.
+- If you suspect a leak (you pasted it somewhere by mistake, or
+  it ended up in shell history that was synced), **rotate it
+  immediately** in Cubox web (`Settings → API`) and update the env
+  var. The leaked token must be considered burned.
+
+## Boundary guidance — what this quickstart guarantees and what it does NOT do
+
+**This quickstart guarantees** (verified by tests):
+
+- Default `provider readiness` shows `fake-default` (no real LLM).
+- `cubox-readiness` returns `g1_gate_open: False` always.
+- `cubox dry-run` and `preview-ai-draft` run on a local JSON file
+  only; **no Cubox HTTP API call is made**.
+- `obsidian stage` defaults to `--dry-run`; `--write` is opt-in and
+  only ever writes to `staging/` inside the `--vault` you pass.
+- All ai_draft outputs are **review-only**. They cannot become
+  `human_approved` automatically.
+- No background indexing, no RAG, no embedding, no semantic merge.
+- No data ever leaves your machine via this quickstart.
+
+**This quickstart does NOT and cannot:**
+
+- Bulk-sync your full Cubox account. (No such command exists.)
+- Write to your real personal Obsidian vault. (Only the path you
+  pass to `--vault` is touched, and only `staging/` within it.)
+- Auto-approve any item. (`approver.approve_card` requires explicit
+  per-item invocation by you.)
+- Produce a `human_approved` record. (Forbidden by design across
+  every code path in this quickstart.)
+- Scan your `$HOME` directory or any path you did not pass on the
+  command line.
+- Read or print the *value* of any env var, including your Cubox
+  token and any LLM api_key.
+- Tag a release, push to origin, or modify the remote. (MindForge
+  itself never runs `git tag` or `git push`; you do.)
+- Constitute a release. There is **no v1.0 tag**, no PyPI publish,
+  no "stable" promise yet. This is dogfood readiness — you are an
+  early user, not a v1.0 customer.
+
+If any of the above appear to be happening, **stop immediately** and
+file an issue: that would be a hard-boundary violation, not a UX
+question.

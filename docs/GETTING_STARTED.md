@@ -2,12 +2,18 @@
 
 > **🚀 Real-data dogfood quickstart (10 min, 0 sensitive data, 0 network):**
 > ```bash
-> mindforge dogfood quickstart --vault /path/to/project-vault
+> mindforge dogfood quickstart --vault /path/to/disposable-project-vault
 > ```
 > Prints a 10-step copy-paste runbook that takes you from install →
 > Cubox JSON-export preview → ai_draft → project-vault dry-run, **all
 > on the fake-default + dry-run path**. No real LLM. No real Cubox API.
-> No formal vault write. No `human_approved` produced. Full guide:
+> No formal vault write. No `human_approved` produced. **No release / no
+> tag / no v1.0.** Recommended first-run limit is **`--limit 5`**; never
+> exceed `--limit 20` on early runs; there is **no full-Cubox-sync**
+> command. Use a disposable project vault (e.g.,
+> `cp -r examples/demo-vault /tmp/dogfood-vault`) so rollback = delete
+> the directory. Full guide, including rollback / token-safety /
+> boundary-guarantee sections, in
 > [`REAL_DOGFOOD_QUICKSTART.md`](REAL_DOGFOOD_QUICKSTART.md).
 
 > 目标：从零跑通 MindForge 的本地主链路，不调用真实 LLM、不接触私人数据。

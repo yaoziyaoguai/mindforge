@@ -3613,6 +3613,14 @@ def dogfood_quickstart(
         print(f"  {idx:>2}. {command}")
         print(f"      {note}")
     print("")
+    print("Limits: start with --limit 5; never exceed --limit 20 first run;")
+    print("        no full Cubox sync exists — JSON export is opt-in per item.")
+    print("Rollback: every step above is dry-run by default; obsidian stage")
+    print("        --write only touches <vault>/staging/. Use a disposable")
+    print("        project vault (cp -r examples/demo-vault /tmp/dogfood-vault).")
+    print("Token: Cubox API token is a secret. Never paste, never commit,")
+    print("        never print. cubox-readiness only ever returns a bool.")
+    print("")
     print("Full guide: docs/REAL_DOGFOOD_QUICKSTART.md")
 
 
@@ -3650,8 +3658,8 @@ def _dogfood_quickstart_steps(
             f"Cubox JSON export 离线预检 (真实数据, 零网络)。{cubox_hint}",
         ),
         (
-            f"mindforge cubox preview-ai-draft --export {cubox_path} --limit 3",
-            "对前 3 条用 fake provider 生成 ai_draft (review-only)",
+            f"mindforge cubox preview-ai-draft --export {cubox_path} --limit 5",
+            "对前 5 条用 fake provider 生成 ai_draft (review-only; 永远不要 --limit > 20 第一次跑)",
         ),
         (
             "mindforge dogfood preflight examples/demo-vault --declare-non-sensitive",
