@@ -60,6 +60,11 @@ _PRESENTER_FILES = [
     _SRC / "recall_presenter.py",
     _SRC / "cubox_dryrun_presenter.py",
     _SRC / "cubox_preview_presenter.py",
+    # CLI Monolith Decomposition Pack 2 — process / init 命令的展示层
+    # 已经从 cli.py 抽出。它们必须遵守家族契约：不依赖 service / processor /
+    # provider / vault writer / dotenv / RunLogger / 网络。
+    _SRC / "process_presenter.py",
+    _SRC / "init_presenter.py",
 ]
 
 

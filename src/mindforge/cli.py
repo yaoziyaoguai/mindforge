@@ -27,6 +27,13 @@ from .next_suggestions import (
 )
 from .presenters.doctor import doctor_icon as _pres_doctor_icon
 from .presenters.doctor import ok_dir as _pres_ok_dir
+
+# CLI Monolith Decomposition Pack 2 — process / init 命令的展示层。
+# CLI 仍持有 RunLogger / CardWriter / Checkpoint / typer.prompt 的副作用编排
+# 权；presenter 只负责"用户看到的话"。导入用 `_pp_` / `_ip_` 别名，明确这
+# 是 presenter（presentation）依赖，不是 service / runtime 依赖。
+from . import init_presenter as _ip
+from . import process_presenter as _pp
 from .services.doctor import (
     compute_doctor_hints as _svc_compute_doctor_hints,
 )
@@ -972,7 +979,9 @@ def process(
                     value_score=item.value_score or 0,
                     skip_reason=outcome.skip_reason or "",
                 )
-                console.print(f"[yellow]skipped[/yellow] {doc.source_path} :: {outcome.skip_reason}")
+                console.print(_pp.format_skipped(
+                    source_path=doc.source_path, skip_reason=outcome.skip_reason
+                ))
             elif outcome.status == "failed":
                 counts["failed"] += 1
                 logger.emit(
@@ -986,9 +995,11 @@ def process(
                     stage_failed=outcome.error_stage or "",
                     error_message=outcome.error_message or "",
                 )
-                console.print(
-                    f"[red]failed[/red] {doc.source_path} @ stage={outcome.error_stage}: {outcome.error_message}"
-                )
+                console.print(_pp.format_failed(
+                    source_path=doc.source_path,
+                    error_stage=outcome.error_stage,
+                    error_message=outcome.error_message,
+                ))
             else:  # processed
                 counts["processed"] += 1
                 item.track = item_result.track
@@ -1005,10 +1016,10 @@ def process(
                     "run_id": logger.run_id,
                 }
                 if item_result.would_write_only:
-                    console.print(
-                        f"[cyan]dry-run[/cyan] would-write {doc.source_path}"
-                        f" → {cfg.vault.cards_path / (item.track or 'unrouted')}"
-                    )
+                    console.print(_pp.format_processed_dry_run(
+                        source_path=doc.source_path,
+                        target_dir=cfg.vault.cards_path / (item.track or "unrouted"),
+                    ))
                     logger.emit(
                         "source_processed",
                         source_id=doc.source_id,
@@ -1044,8 +1055,11 @@ def process(
                         value_score=item.value_score or 0,
                         output_file=str(wr.path),
                     )
-                    tag = "[yellow]conflict[/yellow]" if wr.conflict else "[green]processed[/green]"
-                    console.print(f"{tag} {doc.source_path} → {wr.path}")
+                    console.print(_pp.format_processed_real(
+                        source_path=doc.source_path,
+                        output_path=wr.path,
+                        conflict=wr.conflict,
+                    ))
 
             if limit is not None and counts["seen"] >= limit:
                 break
@@ -1058,15 +1072,9 @@ def process(
                 items_count=len(list(cp.all_items())),
             )
 
-    console.print(
-        f"\n[bold]process 完成[/bold]：seen={counts['seen']} "
-        f"processed={counts['processed']} skipped={counts['skipped']} failed={counts['failed']}"
-    )
-    if counts["processed"] > 0:
-        console.print("Next: mindforge approve list", markup=False)
-        console.print("Boundary: generated cards remain ai_draft until explicit human approval.", markup=False)
-    elif counts["skipped"] > 0 and counts["processed"] == 0:
-        console.print("Next: mindforge scan or mindforge approve list", markup=False)
+    console.print(_pp.format_summary(counts))
+    for hint in _pp.format_next_hint(counts):
+        console.print(hint, markup=False)
 
 
 # ---------------------------------------------------------------------------
@@ -3139,43 +3147,29 @@ def init(
         target_vault, project_root=project_root, repo_root=repo_root, force=force
     )
 
-    console.print("[bold]MindForge init[/bold]")
-    console.print(f"- vault.root  : {plan.vault_root}")
-    console.print(f"- project root: {plan.project_root}")
-    if force:
-        console.print("- mode        : [yellow]--force (will overwrite templates)[/yellow]")
-    if dry_run:
-        console.print("- mode        : [yellow]--dry-run (no files written)[/yellow]")
-    if interactive:
-        console.print("- mode        : [cyan]--interactive[/cyan]")
-        console.print(
-            f"- telemetry   : enabled={interactive_telemetry_enabled} (local_only=True)"
-        )
-        console.print(f"- profile     : {interactive_active_profile}")
+    for line in _ip.format_plan_header(plan):
+        console.print(line)
+    for line in _ip.format_mode_lines(force=force, dry_run=dry_run, interactive=interactive):
+        console.print(line)
+    for line in _ip.format_interactive_summary(
+        interactive=interactive,
+        telemetry_enabled=interactive_telemetry_enabled,
+        active_profile=interactive_active_profile,
+    ):
+        console.print(line)
 
     summary = plan.summary()
-    console.print(
-        f"- plan: create_dir={summary.get('create_dir', 0)} "
-        f"copy_file={summary.get('copy_file', 0)} "
-        f"overwrite_force={summary.get('overwrite_force', 0)} "
-        f"skip_exists={summary.get('skip_exists', 0)}"
-    )
+    console.print(_ip.format_plan_summary(summary))
 
     if dry_run:
         for it in plan.items:
-            tag = {
-                "create_dir": "[green]+ DIR [/green]",
-                "copy_file": "[green]+ FILE[/green]",
-                "overwrite_force": "[yellow]! OVR [/yellow]",
-                "skip_exists": "[dim]= keep[/dim]",
-            }.get(it.action, "?")
-            console.print(f"  {tag} {it.target}  [dim]{it.note}[/dim]")
-        console.print("[dim]--dry-run 完成；未写任何文件。[/dim]")
+            console.print(_ip.format_dry_run_item(it.action, target=it.target, note=it.note))
+        console.print(_ip.format_dry_run_completion())
         return
 
     actions = execute_plan(plan)
     for line in actions:
-        console.print(f"  {line}")
+        console.print(_ip.format_execute_action(line))
 
     cfg_dst = (project_root / "configs" / "mindforge.yaml").resolve()
     _rewrite_init_config(
@@ -3185,13 +3179,9 @@ def init(
         active_profile=interactive_active_profile,
     )
 
-    console.print("\n[bold green]✓ MindForge initialized.[/bold green]")
-    console.print("[bold]Next steps:[/bold]")
-    for step in next_steps_hint():
-        console.print(f"  {step}")
-    console.print(
-        "[dim]说明：init 不创建真实 .env、不读取 .env、不调用 LLM、不修改原始资料。[/dim]"
-    )
+    for line in _ip.format_next_steps(next_steps_hint()):
+        console.print(line)
+    console.print(_ip.format_safety_footer())
 
 
 def _available_profile_names(project_root: Path, repo_root: Path) -> list[str]:
