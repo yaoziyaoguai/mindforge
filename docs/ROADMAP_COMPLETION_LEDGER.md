@@ -4,7 +4,7 @@
 > 能开始做 X"的贡献者请先看这里。规则: **本仓库内不会自动越过任
 > 何 future gate。**
 
-最近一次更新: v0.14 future-gate Pack push 之后 (HEAD = `dc14b8c`)。
+最近一次更新: Roadmap closure declaration push 之后 (HEAD = `b99b9a6`)。
 
 ## Status buckets
 
@@ -75,8 +75,8 @@
 - **v0.14 future-gate Pack pushed**: future gate 规格 + evidence
   cookbook + 仓库级守卫已经在 `origin/main` (HEAD = `dc14b8c`)。
 - **Roadmap closure pushed**: ledger + G1-G6 forbidden-impl guard +
-  README/GETTING_STARTED/cookbook cross-links 已经在 `origin/main`
-  (HEAD = `c052cc1`)。
+  README/GETTING_STARTED/cookbook cross-links + closure declaration
+  已经在 `origin/main` (HEAD = `b99b9a6`)。
 - **Safe-completable scope is exhausted**: 没有任何进一步动作可以
   在不打开 future gate / release gate 的前提下推进 Roadmap。详见
   [ROADMAP.md](ROADMAP.md) §Roadmap Completion Status 段落。
