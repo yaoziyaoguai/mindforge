@@ -317,6 +317,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # 过滤"已由人类审核过、可参与 review/recall 调度"的卡片，从未把任何
         # 卡片晋升到 human_approved。与 cli.py 内的同名查询同语义、同安全约束。
         "next_suggestions.py",
+        # Architecture Quality Pack 2 — services/doctor.py 同样是从 cli.py
+        # 抽出的纯逻辑层。只在 *只读* 路径用 "human_approved" 字面量过滤
+        # 卡片以做诊断统计与 BM25 / overdue 推断，从未做晋升动作。
+        "doctor.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

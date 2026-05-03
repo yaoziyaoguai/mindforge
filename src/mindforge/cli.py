@@ -25,6 +25,23 @@ from .next_suggestions import (
     compact_next_suggestions,
     next_suggestions,
 )
+from .presenters.doctor import doctor_icon as _pres_doctor_icon
+from .presenters.doctor import ok_dir as _pres_ok_dir
+from .services.doctor import (
+    compute_doctor_hints as _svc_compute_doctor_hints,
+)
+from .services.doctor import (
+    config_doctor_rows as _svc_config_doctor_rows,
+)
+from .services.doctor import (
+    dir_state as _svc_dir_state,
+)
+from .services.doctor import (
+    doctor_paths as _svc_doctor_paths,
+)
+from .services.doctor import (
+    doctor_recovery_checks as _svc_doctor_recovery_checks,
+)
 from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
@@ -3408,50 +3425,8 @@ def _print_config_ux_payload(title: str, payload: dict[str, object]) -> None:
     console.print(f"Next: {payload['next']}", markup=False)
 
 
-def _config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
-    """配置诊断行；只做路径和 package asset 可读性检查。
-
-    这些检查不会创建目录，不会读取 `.env`，也不会调用 provider。路径可写性用
-    父目录检查表示“setup 是否可恢复”，避免为了诊断而写探针文件。
-    """
-    rows: list[tuple[str, str, str, str]] = []
-    rows.append((
-        "ok" if cfg.vault.root.exists() else "warn",
-        "vault.root",
-        str(cfg.vault.root),
-        "mindforge init --vault <path>" if not cfg.vault.root.exists() else "",
-    ))
-    for label, path in (
-        ("cards dir", cfg.vault.cards_path),
-        ("state parent", cfg.state.state_path.parent),
-        ("index parent", (cfg.state.workdir / "index")),
-        ("backup parent", (cfg.state.workdir / "backups")),
-    ):
-        parent = path if path.exists() else path.parent
-        rows.append((
-            "ok" if parent.exists() else "warn",
-            label,
-            str(path),
-            "mindforge init --interactive" if not parent.exists() else "",
-        ))
-    profile_ok = cfg.llm.active_profile in cfg.llm.profiles
-    rows.append((
-        "ok" if profile_ok else "error",
-        "active_profile",
-        cfg.llm.active_profile,
-        "edit mindforge.yaml llm.active_profile" if not profile_ok else "",
-    ))
-    try:
-        from .assets_runtime import bundled_text
-
-        bundled_text("configs", "mindforge.yaml")
-        bundled_text("templates", "knowledge_card.md.j2")
-        rows.append(("ok", "package assets", "configs/templates readable", ""))
-    except Exception as e:  # noqa: BLE001
-        rows.append(("error", "package assets", f"{type(e).__name__}: {e}", "reinstall MindForge"))
-    rows.append(("ok", "env policy", "config UX does not read .env", ""))
-    rows.append(("ok", "llm policy", "setup defaults to fake / no real LLM call", ""))
-    return rows
+def _config_doctor_rows(cfg):
+    return _svc_config_doctor_rows(cfg)
 
 
 def _build_config_init_plan(*, output: Path, vault: Path, force: bool) -> dict[str, object]:
@@ -3883,81 +3858,11 @@ def doctor(
         for label, value in _doctor_paths(cfg):
             console.print(f"  {label:<18}: {value}")
 
-    # ── v0.2.6: actionable hints ──────────────────────────────────────
-    hints: list[tuple[str, str]] = []
-    hints.extend(recovery_hints["actions"])
-    if not cards_dir.exists():
-        hints.append(("critical", "vault 目录缺失 → 运行: mindforge init --interactive"))
-    if cfg.llm.active_profile not in cfg.llm.profiles:
-        hints.append(
-            ("critical", f"active_profile={cfg.llm.active_profile!r} 未在 llm.profiles 中定义 → 检查 mindforge.yaml")
-        )
-    elif cfg.llm.active_profile != "fake":
-        hints.append(
-            ("critical", "active_profile 非 fake：真实跑 process 前请先 `mindforge llm ping` 校验环境变量")
-        )
-    if cards_dir.exists():
-        try:
-            from .cards import iter_cards as _iter
-            from . import lexical_index as _lx
-
-            res = _iter(cfg.vault.root, cfg.vault.cards_dir)
-            n_drafts = sum(1 for c in res.cards if c.status == "ai_draft")
-            n_approved = sum(1 for c in res.cards if c.status == "human_approved")
-            if not res.cards:
-                hints.append(("recommended", "尚无 Knowledge Cards → 运行: mindforge scan && mindforge process"))
-            elif n_drafts > 0:
-                hints.append(
-                    ("recommended", f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list")
-                )
-            # v0.3.2: 没有 human_approved 但有 ai_draft → 提示 recall --include-drafts
-            if res.cards and n_approved == 0 and n_drafts > 0:
-                hints.append(
-                    ("info", "暂无 human_approved 卡片 → 检索时加: mindforge recall --include-drafts")
-                )
-            # v0.4.1: 检测 overdue / due 复习并给出建议
-            if n_approved > 0:
-                _now_doc = datetime.now().astimezone()
-                _overdue = 0
-                _due_7 = 0
-                for _c in res.cards:
-                    if _c.status != "human_approved" or _c.review_after is None:
-                        continue
-                    _ra = _c.review_after if _c.review_after.tzinfo else _c.review_after.replace(tzinfo=_now_doc.tzinfo)
-                    if _ra <= _now_doc:
-                        _overdue += 1
-                    elif _ra <= _now_doc + timedelta(days=7):
-                        _due_7 += 1
-                if _overdue:
-                    hints.append(
-                        ("recommended", f"{_overdue} 张卡片已 overdue → 运行: mindforge review backlog")
-                    )
-                elif _due_7:
-                    hints.append(
-                        ("recommended", f"{_due_7} 张卡片本周内到期 → 运行: mindforge review schedule --days 7")
-                    )
-            # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
-            idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
-            if not idx_path.exists():
-                if res.cards:
-                    hints.append(("recommended", "BM25 索引缺失 → 运行: mindforge index rebuild"))
-            else:
-                try:
-                    idx = _lx.BM25Index.load(idx_path)
-                    fw_cur = _lx.resolve_field_weights(cfg.search.bm25.fields)
-                    cur_h = _lx.compute_config_hash(
-                        field_weights=fw_cur, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b,
-                    )
-                    if idx.config_hash and idx.config_hash != cur_h:
-                        hints.append(("recommended", "BM25 索引与 search 配置不一致 → 运行: mindforge index rebuild"))
-                    else:
-                        diff = _lx.diff_index(idx, res.cards)
-                        if not diff.fresh:
-                            hints.append(("recommended", "BM25 索引 stale（卡片有变更） → 运行: mindforge index rebuild"))
-                except Exception:  # noqa: BLE001
-                    hints.append(("recommended", "BM25 索引读取失败 → 运行: mindforge index rebuild"))
-        except Exception:  # noqa: BLE001
-            pass
+    # ── v0.2.6: actionable hints — service 层完成全部业务推断 ─────────
+    # 中文学习：cards / BM25 / overdue / due 等业务推断已搬到
+    # ``services.doctor.compute_doctor_hints``。CLI 在这里只做"取数 + 排序
+    # + 渲染"三步，符合 thin adapter 边界。
+    hints = _svc_compute_doctor_hints(cfg, list(recovery_hints["actions"]))
 
     if hints:
         hints = list(dict.fromkeys(hints))
@@ -3972,105 +3877,27 @@ def doctor(
     )
 
 
-def _doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, str, str]]]:
-    """doctor plus 的本地恢复检查。
-
-    中文学习型说明：这些检查只读路径存在性、JSON/YAML 可读性和 package asset
-    可访问性；不会读取 `.env`，不会调用 LLM，也不会写 vault 或 Obsidian notes。
-    """
-    rows: list[tuple[str, str, str]] = []
-    actions: list[tuple[str, str]] = []
-
-    state_path = cfg.state.state_path
-    if state_path.exists():
-        try:
-            Checkpoint.load(state_path, backup=False)
-            rows.append(("ok", "state.json", f"readable · {state_path}"))
-        except Exception as e:  # noqa: BLE001
-            rows.append(("error", "state.json", f"unreadable · {type(e).__name__}: {e}"))
-            actions.append(("critical", "state.json 读取失败 → 先备份 .mindforge，再检查 JSON 或从 state.json.bak 恢复"))
-    else:
-        rows.append(("warn", "state.json", f"missing · {state_path}"))
-        actions.append(("recommended", "state.json 缺失 → 运行: mindforge scan"))
-
-    cards_dir = cfg.vault.cards_path
-    rows.append(("ok" if cards_dir.is_dir() else "error", "cards dir", str(cards_dir)))
-    if not cards_dir.is_dir():
-        actions.append(("critical", "Knowledge Cards 目录缺失 → 运行: mindforge init --interactive"))
-        # 用户友好性 polish：在要求 init 之前先告诉新用户有零配置 demo 可选；
-        # 这是 ``mindforge demo`` 60 秒 tour 的入口提示，不替换 init 的 critical 性。
-        # UX completion: 用 try_first 优先级保证 demo 在 doctor Action items 列表
-        # 第一行出现，让新用户在被多条 critical 提示劝退之前先看到安全演示路径。
-        actions.append((
-            "try_first",
-            "想先跑零配置 tour（无需 vault / API key / 网络）→ 运行: mindforge demo",
-        ))
-
-    index_path = cfg.state.workdir / "index" / "bm25.json"
-    rows.append(("ok" if index_path.exists() else "warn", "bm25 index", str(index_path) if index_path.exists() else "missing"))
-    if not index_path.exists():
-        actions.append(("recommended", "BM25 索引缺失 → 运行: mindforge index rebuild"))
-
-    try:
-        from .assets_runtime import bundled_text
-
-        bundled_text("configs", "mindforge.yaml")
-        bundled_text("templates", "knowledge_card.md.j2")
-        rows.append(("ok", "package assets", "configs/templates readable"))
-    except Exception as e:  # noqa: BLE001
-        rows.append(("error", "package assets", f"unreadable · {type(e).__name__}: {e}"))
-        actions.append(("critical", "package assets 不可读 → 检查安装包或重新安装 MindForge"))
-
-    demo = Path("examples/demo-vault")
-    rows.append(("ok" if demo.is_dir() else "info", "demo vault", str(demo) if demo.is_dir() else "not in current cwd"))
-    try:
-        from .cards import filter_cards, iter_cards
-
-        approved = filter_cards(iter_cards(cfg.vault.root, cfg.vault.cards_dir).cards, status="human_approved")
-        schedule = _build_review_schedule_export(list(approved), generated_at=datetime.now().astimezone(), days=7)
-        rows.append(("ok" if schedule["total"] else "info", "review schedule", f"{schedule['total']} item(s) in next 7 days"))
-        if not schedule["total"]:
-            actions.append(("info", "未来 7 天无复习任务 → 运行: mindforge review weekly 查看整体状态"))
-    except Exception as e:  # noqa: BLE001
-        rows.append(("warn", "review schedule", f"unavailable · {type(e).__name__}: {e}"))
-    return {"rows": rows, "actions": actions}
+# Historical doctor pure-logic helpers extracted to services/doctor.py.
+# Aliases preserved so existing imports (e.g. test_user_friendly_polish)
+# keep working. Display helpers moved to presenters/doctor.py.
+def _doctor_recovery_checks(cfg):
+    return _svc_doctor_recovery_checks(cfg)
 
 
-def _doctor_paths(cfg: MindForgeConfig) -> list[tuple[str, str]]:
-    return [
-        ("reads inbox", str(cfg.vault.inbox_path)),
-        ("reads cards", str(cfg.vault.cards_path)),
-        ("reads state", str(cfg.state.state_path)),
-        ("writes state", str(cfg.state.state_path)),
-        ("writes runs", str(cfg.state.runs_path)),
-        ("writes index", str(cfg.state.workdir / "index" / "bm25.json")),
-        ("writes backups", str(cfg.state.workdir / "backups")),
-        ("dry-run only", "obsidian stage defaults to --dry-run"),
-        ("never writes", "formal Obsidian notes unless user explicitly writes staging/review"),
-    ]
+def _doctor_paths(cfg):
+    return _svc_doctor_paths(cfg)
 
 
-def _doctor_icon(state: str) -> str:
-    return {
-        "ok": "[green]✓[/green]",
-        "warn": "[yellow]⚠[/yellow]",
-        "error": "[red]✗[/red]",
-        "info": "[dim]·[/dim]",
-    }.get(state, "[dim]·[/dim]")
+def _doctor_icon(state):
+    return _pres_doctor_icon(state)
 
 
-def _dir_state(p: Path) -> str:
-    if not p.exists() or not p.is_dir():
-        return "error"
-    return "ok"
+def _dir_state(p):
+    return _svc_dir_state(p)
 
 
-def _ok_dir(p: Path) -> str:
-    if not p.exists():
-        return "[red]missing[/red]"
-    if not p.is_dir():
-        return "[red]not a dir[/red]"
-    return "[green]ok[/green]"
+def _ok_dir(p):
+    return _pres_ok_dir(p)
 
 
 _COMMANDS_WITH_LOCAL_VAULT_OPTION = {"init", "obsidian", "setup"}
