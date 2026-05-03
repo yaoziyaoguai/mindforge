@@ -32,6 +32,20 @@ from .obsidian_stage import (
     staged_export_dir,
 )
 from .obsidian_workflow import build_obsidian_next_plan, obsidian_dogfood_command_snippets
+from .obsidian_cli_presenter import (
+    build_skipped_notes_table,
+    build_stage_preview_table,
+    diff_preview_header,
+    diff_preview_inspection_hint,
+    diff_preview_missing_lines,
+    diff_preview_no_changes,
+    diff_preview_truncated,
+    extract_stage_preview_fields as _stage_preview_fields,
+    format_copy_warning,
+    format_doctor_icon as _doctor_icon,
+    format_dry_run_safety_footer,
+    stage_preview_next_command,
+)
 
 
 obsidian_app = typer.Typer(
@@ -112,28 +126,15 @@ def _obsidian_options(
 
 
 def _obsidian_copy_warning() -> None:
-    console.print(
-        "[yellow]安全提示：请只对可丢弃、非敏感的 Obsidian vault 副本做 dry-run；"
-        "MindForge 不会自动整理正式 notes。[/yellow]"
-    )
+    console.print(format_copy_warning())
 
 
 def _print_obsidian_issues(vault_root: Path, issues: list[object]) -> None:
     """打印单文件跳过原因，不输出 note 正文。"""
 
-    if not issues:
+    table = build_skipped_notes_table(vault_root, list(issues))
+    if table is None:
         return
-    table = Table(title="Skipped notes", show_lines=False)
-    table.add_column("path", overflow="fold")
-    table.add_column("reason", overflow="fold")
-    for issue in issues:
-        path = getattr(issue, "path")
-        reason = getattr(issue, "reason")
-        try:
-            rel = Path(path).resolve().relative_to(vault_root).as_posix()
-        except ValueError:
-            rel = str(path)
-        table.add_row(rel, str(reason))
     console.print(table)
 
 
@@ -154,57 +155,29 @@ def _print_stage_preview(
 ) -> None:
     """输出 Obsidian stage dry-run preview，且不写文件。"""
 
-    if source_exists is None:
-        source_exists = source.exists()
-    if source_in_vault is None:
-        source_in_vault = safe_relative_to(source, vault_root) is not None
-    table = Table(title="Obsidian stage preview", show_lines=False)
-    table.add_column("field", style="bold")
-    table.add_column("value", overflow="fold")
-    table.add_row("mode", "dry-run")
-    table.add_row("vault", str(vault_root))
-    table.add_row("vault exists", "yes" if vault_root.exists() and vault_root.is_dir() else "no")
-    table.add_row("source file", str(source))
-    table.add_row("source exists", "yes" if source_exists else "no")
-    table.add_row("source in vault", "yes" if source_in_vault else "no")
-    table.add_row("proposed path", str(target) if target is not None else "-")
-    table.add_row("proposed title", title or "-")
-    table.add_row("detected wikilinks", ", ".join(wikilinks or []) or "-")
-    table.add_row("frontmatter keys", ", ".join(frontmatter_keys or []) or "-")
-    table.add_row("detected source type", source_type or "-")
-    table.add_row("action type", action)
-    table.add_row("skipped reason", skipped_reason or "-")
-    table.add_row("source hash", content_hash)
-    table.add_row("risk warning", "只对可丢弃、非敏感 vault 副本试跑；不修改正式 notes。")
-    source_hint = safe_relative_to(source, vault_root) or str(source)
-    table.add_row(
-        "next command",
-        f"mindforge obsidian stage --vault {vault_root} --source {source_hint} --staged-export --diff --write --confirm",
+    table = build_stage_preview_table(
+        vault_root=vault_root,
+        source=source,
+        target=target,
+        action=action,
+        skipped_reason=skipped_reason,
+        content_hash=content_hash,
+        title=title,
+        wikilinks=wikilinks,
+        frontmatter_keys=frontmatter_keys,
+        source_type=source_type,
+        source_exists=source_exists,
+        source_in_vault=source_in_vault,
     )
-    table.add_row("manual check", "Use --diff, inspect staged markdown + manifest, then run obsidian preflight.")
     console.print(table)
+    source_hint = safe_relative_to(source, vault_root) or str(source)
     print(
         "next command: "
-        f"mindforge obsidian stage --vault {vault_root} --source {source_hint} "
-        "--staged-export --diff --write --confirm"
+        + stage_preview_next_command(vault_root=vault_root, source_hint=source_hint)
     )
     if skipped_reason:
         print(f"skipped reason: {skipped_reason}")
-    console.print("[yellow]dry-run：未写任何文件，未移动 source note，未重写 wikilinks。[/yellow]")
-
-
-def _stage_preview_fields(doc: Any) -> dict[str, object]:
-    """提取 stage preview 可展示的 note 结构摘要，不读取/打印正文。"""
-
-    frontmatter = doc.metadata.get("frontmatter") if isinstance(doc.metadata, dict) else {}
-    if not isinstance(frontmatter, dict):
-        frontmatter = {}
-    return {
-        "title": doc.title or Path(doc.source_path).stem,
-        "wikilinks": list(doc.metadata.get("wikilinks") or []),
-        "frontmatter_keys": sorted(str(k) for k in frontmatter.keys()),
-        "source_type": doc.source_type,
-    }
+    console.print(format_dry_run_safety_footer())
 
 
 def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
@@ -212,18 +185,18 @@ def _print_staged_diff_preview(existing: Path, proposed_content: str) -> None:
 
     plan = build_staged_diff_preview_plan(existing, proposed_content)
     if not plan.exists:
-        console.print("[dim]diff preview: staged target 不存在，将创建新文件。[/dim]")
-        console.print(f"[dim]{plan.manual_inspection_hint}[/dim]")
+        for line in diff_preview_missing_lines(plan.manual_inspection_hint):
+            console.print(line)
         return
-    console.print("[bold]diff preview[/bold] · staged directory only")
+    console.print(diff_preview_header())
     if not plan.has_changes:
-        console.print("[dim]无差异。[/dim]")
+        console.print(diff_preview_no_changes())
         return
     for line in plan.diff_lines:
         console.print(line, markup=False)
     if plan.truncated_count:
-        console.print(f"[dim]... diff truncated, {plan.truncated_count} more lines[/dim]")
-    console.print(f"[dim]{plan.manual_inspection_hint}[/dim]")
+        console.print(diff_preview_truncated(plan.truncated_count))
+    console.print(diff_preview_inspection_hint(plan.manual_inspection_hint))
 
 
 def _write_obsidian_staged_export(
@@ -730,17 +703,6 @@ def obsidian_doctor(
     console.print("  [info] mindforge obsidian preflight --vault <path> --manifest <export.manifest.json>", markup=False)
     console.print("  [info] mindforge obsidian next --vault <path>", markup=False)
     console.print("[dim]不建议、也不会直接修改正式 Obsidian notes。[/dim]")
-
-
-def _doctor_icon(state: str) -> str:
-    """本地复制 doctor 图标映射，避免 obsidian_cli 反向导入 cli.py。"""
-
-    return {
-        "ok": "[green]✓[/green]",
-        "warn": "[yellow]⚠[/yellow]",
-        "error": "[red]✗[/red]",
-        "info": "[dim]·[/dim]",
-    }.get(state, "[dim]·[/dim]")
 
 
 __all__ = ["obsidian_app"]

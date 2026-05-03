@@ -65,6 +65,11 @@ _PRESENTER_FILES = [
     # provider / vault writer / dotenv / RunLogger / 网络。
     _SRC / "process_presenter.py",
     _SRC / "init_presenter.py",
+    # Repo-Wide Monolith Decomposition Pack — obsidian 命令的展示层从
+    # obsidian_cli.py 抽出。它必须遵守家族契约：不依赖 obsidian / obsidian_cli /
+    # service / writer / RunLogger / Typer。允许使用 obsidian_stage 里的
+    # 纯 path 工具 ``safe_relative_to``。
+    _SRC / "obsidian_cli_presenter.py",
 ]
 
 
