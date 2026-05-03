@@ -2,6 +2,25 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
+## v0.13 Stage 3 — Real LLM Smoke Closure (local)
+
+- 修复 P1 接口错配: `real_smoke` 之前用 `.complete/.chat` 而真实
+  `LLMProvider` ABC 是 `.generate(LLMRequest) -> LLMResult`; 修正为
+  严格走标准契约, 测试改用真正符合契约的 stub。
+- 修复 `provider_cli` 未走 `.env` 注入的不一致: 新增
+  `_load_cfg_with_dotenv` 与 `cli.py::_load_cfg` 一致语义 (silent /
+  non-overriding / once-only)。
+- `mindforge provider smoke` 新增 `--profile` 临时覆盖 active_profile,
+  与 `llm ping --profile` 行为一致, 不写 yaml。
+- audit-trail 新增 `tokens_in` / `tokens_out` / `latency_ms`;
+  `ProviderError` 单独捕获, message 不回显。
+- AST 守卫 `_PER_FILE_ALLOWLIST` 显式允许 `provider_cli` 使用
+  `env_loader` (其它两个守卫文件仍禁止)。
+- 新增 docs/V0_13_REAL_LLM_SMOKE_SAFETY.md 完整工作流。
+- **真实 LLM smoke 已端到端运行成功** (DashScope Coding Plan,
+  synthetic prompt, 44/72 tokens, 1434ms); 输出停留在
+  `ai_draft_preview`, `human_approved=False`, `written=False`。
+
 ## v0.13 Stage 1 — Real-Capable Opt-in Readiness (local)
 
 - Added `mindforge provider readiness` (`--format text|json`) and

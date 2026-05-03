@@ -2436,3 +2436,33 @@ protection (real output ≠ `human_approved`).
 auto-approve, custom strategy runtime, arbitrary Python plugin,
 shell/script strategy, RAG / embedding / semantic merge, 大重构 / 目录
 重组 / CLI rewrite。
+
+## v0.13 Stage 3 — Real LLM Smoke Closure (Completed Locally)
+
+Stage 1 报告 "real-LLM smoke not exercised end-to-end" 的真实根因:
+
+1. **P1 接口错配**: `real_smoke` 用 `.complete/.chat` 而 `LLMProvider`
+   ABC 是 `.generate(LLMRequest) -> LLMResult`; 修复为严格走标准契约。
+2. **`.env` 注入缺位**: `provider_cli` 未调用 `load_dotenv_silently`,
+   与 `llm ping` / `doctor` / `process` 行为不一致; 修复为复用同
+   一个 silent / non-overriding / once-only loader。
+
+新增能力 (无新 opt-in 表面, 无新依赖):
+
+- `mindforge provider smoke --profile <name>` 临时覆盖 active_profile
+  (与 `llm ping --profile` 一致), 不写 yaml。
+- audit-trail 新增 `tokens_in` / `tokens_out` / `latency_ms` 字段。
+- `ProviderError` 单独捕获, 异常 message 不回显, 避免 server 返回
+  hint 泄漏。
+- 测试改用真正实现 `LLMProvider.generate(LLMRequest)` 的 stub, 捕获
+  契约漂移; 新增 `test_real_smoke_uses_llm_provider_contract` 与
+  `test_provider_error_is_caught_and_does_not_leak_message`。
+- AST 守卫 `_PER_FILE_ALLOWLIST` 显式允许 `provider_cli` 使用
+  `env_loader` (其它两个守卫文件仍禁止)。
+- 文档 [V0_13_REAL_LLM_SMOKE_SAFETY.md](V0_13_REAL_LLM_SMOKE_SAFETY.md)
+  完整记录三重 gate / 不会触发的事 / 实证。
+
+**真实 smoke 已在本机端到端运行成功** (DashScope Coding Plan,
+synthetic prompt, 44/72 tokens, 1434ms); 输出严格停留在
+`ai_draft_preview`, `human_approved=False`, `written=False`,
+approval boundary 完整。
