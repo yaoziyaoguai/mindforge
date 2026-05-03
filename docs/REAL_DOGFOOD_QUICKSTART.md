@@ -1,5 +1,9 @@
 # Real Dogfood Quickstart
 
+> **Haven't tried MindForge yet?** Run `mindforge demo` first — a
+> zero-token / zero-network 60-second tour on bundled fixtures.
+> Then come back here for the real-data path.
+>
 > **For new MindForge users.** 10 minutes from `pip install` to a real
 > end-to-end dogfood loop using your own non-sensitive Cubox export
 > and a project-only Obsidian vault. **Stays fake-default + dry-run

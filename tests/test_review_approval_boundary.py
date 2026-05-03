@@ -307,6 +307,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # required for any human_approved record" 来固化 readiness 路径
         # 永不产生 human_approved 的不变量。
         "cubox_readiness.py",
+        # Local User Productization Pack — demo_tour 用 human_approved=False
+        # 字面量在 review-packet step 与 safety_invariants 中声明
+        # "demo 永远不产生 human_approved", 反向边界守护 (与 dogfood_safety
+        # / cubox_readiness 同款模式)。
+        "demo_tour.py",
     }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

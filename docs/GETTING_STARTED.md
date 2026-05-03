@@ -1,5 +1,15 @@
 # Getting Started — MindForge v0.5.2
 
+> **⚡ 60 秒看到效果（零 token / 零网络 / 零 vault 写入）:**
+> ```bash
+> mindforge demo
+> ```
+> 4-step tour: Cubox JSON parse → dogfood path classification →
+> Obsidian vault read-only probe → in-memory review packet. Uses
+> bundled fixtures only; never reads `.env`, never writes any vault,
+> never produces `human_approved`. Add `--json` for machine-readable
+> output. Run this before anything else if you just installed MindForge.
+
 > **🚀 Real-data dogfood quickstart (10 min, 0 sensitive data, 0 network):**
 > ```bash
 > mindforge dogfood quickstart --vault /path/to/disposable-project-vault

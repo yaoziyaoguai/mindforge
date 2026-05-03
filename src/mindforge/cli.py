@@ -195,6 +195,61 @@ def _override_active_profile(cfg: MindForgeConfig, profile: str | None) -> MindF
 
 
 @app.command()
+def demo(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="输出机器可读 JSON (供 tests / CI 消费); 默认输出新用户可读文本。",
+    ),
+) -> None:
+    """60 秒新用户 demo tour — 零 secret、零网络、零真实 vault 写入。
+
+    中文学习型说明: 这是 MindForge 的 "1 分钟看到效果" 入口。它编排
+    已有命令的 service 层 (CuboxApiAdapter / dogfood policy / vault
+    probe), 把 SourceDocument → 路径分类 → vault 健康检查 → review
+    packet 这条主链路跑给新用户看一眼。
+
+    安全契约:
+    - 不读取 ``.env`` 内容;
+    - 不调用真实 Cubox HTTP API (使用仓库自带 fixture);
+    - 不调用真实 LLM (走 fake-default 路径);
+    - 不写任何 Obsidian vault (包括 ``.obsidian/``);
+    - 不产生 ``human_approved`` 记录 (artifact_type=review_packet);
+    - 不启用 RAG / embedding / semantic merge;
+    - 不创建 tag, 不 release, 不 push。
+
+    实现委托给 ``demo_tour.run_demo_tour``; CLI 只做 thin adapter
+    (调用 + 渲染), 不持有业务规则。
+    """
+    from .demo_tour import render_demo_tour, run_demo_tour
+
+    report = run_demo_tour()
+    if json_output:
+        import json as _json
+
+        payload = {
+            "all_ok": report.all_ok,
+            "steps": [
+                {
+                    "name": s.name,
+                    "title": s.title,
+                    "ok": s.ok,
+                    "summary": s.summary,
+                    "detail": s.detail,
+                }
+                for s in report.steps
+            ],
+            "safety_invariants": list(report.safety_invariants),
+            "next_actions": list(report.next_actions),
+        }
+        print(_json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_demo_tour(report))
+    if not report.all_ok:
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def scan(
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"),
