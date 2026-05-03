@@ -60,7 +60,10 @@ app = typer.Typer(
     add_completion=True,
     help=(
         "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
+        "新用户先跑这条命令（零 secret / 零网络 / 零 vault 写入）：\n"
+        "  mindforge demo               — 60 秒 fake/safe tour，零配置即可看到端到端效果\n\n"
         "常用命令：\n"
+        "  mindforge demo               — 60 秒新用户 tour，无需 API key / 网络 / vault\n"
         "  scan / process / status      — 把 inbox 文件加工成 Knowledge Cards\n"
         "  approve --card <path>        — 把 ai_draft 卡片晋升为 human_approved\n"
         "  recall / review due          — 检索与复习已审核卡片\n"
@@ -3953,7 +3956,7 @@ def doctor(
 
     if hints:
         hints = list(dict.fromkeys(hints))
-        hints.sort(key=lambda item: {"critical": 0, "recommended": 1, "info": 2}.get(item[0], 9))
+        hints.sort(key=lambda item: {"try_first": -1, "critical": 0, "recommended": 1, "info": 2}.get(item[0], 9))
         console.print("[dim]" + "─" * 72 + "[/dim]")
         console.print("[bold]Action items:[/bold]")
         for priority, h in hints:
@@ -3991,8 +3994,10 @@ def _doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, s
         actions.append(("critical", "Knowledge Cards 目录缺失 → 运行: mindforge init --interactive"))
         # 用户友好性 polish：在要求 init 之前先告诉新用户有零配置 demo 可选；
         # 这是 ``mindforge demo`` 60 秒 tour 的入口提示，不替换 init 的 critical 性。
+        # UX completion: 用 try_first 优先级保证 demo 在 doctor Action items 列表
+        # 第一行出现，让新用户在被多条 critical 提示劝退之前先看到安全演示路径。
         actions.append((
-            "recommended",
+            "try_first",
             "想先跑零配置 tour（无需 vault / API key / 网络）→ 运行: mindforge demo",
         ))
 
@@ -4734,7 +4739,7 @@ def _next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
 def _compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSuggestion]:
     suggestions = sorted(
         suggestions,
-        key=lambda s: {"critical": 0, "recommended": 1, "info": 2}.get(s.priority, 9),
+        key=lambda s: {"try_first": -1, "critical": 0, "recommended": 1, "info": 2}.get(s.priority, 9),
     )
     if len(suggestions) <= 5:
         return suggestions
