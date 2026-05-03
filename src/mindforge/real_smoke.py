@@ -25,7 +25,9 @@
 - **永远不** 把 ``human_approved`` 字段返回为 ``True``;
 - **不** import ``cli`` / ``approval_service`` / ``writer`` / ``cards``
   / ``obsidian*`` / ``cubox*`` / ``scanner`` / ``env_loader`` /
-  ``requests`` / ``httpx`` / ``subprocess`` / ``dotenv``。
+  ``requests`` / ``httpx`` / ``subprocess`` / ``dotenv``;
+- **可以** import ``llm.factory`` 与 ``llm.base`` (LLMRequest/LLMResult/
+  ProviderError) — 这是 provider 标准契约入口, 不是绕过 factory。
 
 调用 LLM 这件事本身由 ``llm.factory`` 内部封装的 provider 完成 —
 本模块只编排 "是否允许 + 如何 audit + 如何脱敏摘要", 不直接发 HTTP。
@@ -162,28 +164,56 @@ def run_synthetic_real_smoke(
         return _refuse(f"provider for alias {alias!r} not built", opt_in_state=opt_in_state)
 
     prompt = build_synthetic_prompt()
+
+    # provider 的标准入口是 ``LLMProvider.generate(LLMRequest) -> LLMResult``
+    # (见 src/mindforge/llm/base.py)。real_smoke 必须严格走这个契约,
+    # 否则会与 fake provider / OpenAICompatibleProvider /
+    # AnthropicCompatibleProvider 全部解耦, 测试 stub 与真实 provider
+    # 行为也会漂移。
+    from .llm.base import LLMRequest, LLMResult, ProviderError
+
     try:
-        # provider 接口可能是 .complete / .chat / .generate; 优先 .complete,
-        # 兼容性 fallback。任何调用失败都视作 blocker, 不重试。
-        if hasattr(provider, "complete"):
-            raw = provider.complete(prompt)
-        elif hasattr(provider, "chat"):
-            raw = provider.chat(prompt)
-        elif hasattr(provider, "generate"):
-            raw = provider.generate(prompt)
-        else:
-            return _refuse(
-                f"provider {type(provider).__name__} exposes no known sync entry "
-                "(.complete/.chat/.generate)",
-                opt_in_state=opt_in_state,
-            )
+        request = LLMRequest(
+            prompt=prompt,
+            stage="provider_smoke",
+            model=mc.model or alias,
+            max_tokens=128,
+            temperature=0.0,
+        )
+    except Exception as exc:
+        return _refuse(
+            f"LLMRequest construction failed: {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
+
+    try:
+        result = provider.generate(request)
+    except ProviderError as exc:
+        # ProviderError 是已知的 provider-layer 失败 (网络/鉴权/4xx/5xx);
+        # 这里不重试, 不把 message 原样回显 (可能含 server 返回信息),
+        # 只暴露异常类型, 避免意外泄漏。
+        return _refuse(
+            f"provider call failed (ProviderError): {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
     except Exception as exc:
         return _refuse(
             f"provider call failed: {type(exc).__name__}",
             opt_in_state=opt_in_state,
         )
 
-    excerpt = _scrub_excerpt(str(raw) if raw is not None else "")
+    # 容忍既符合 LLMResult 契约的真实 provider, 也允许返回 raw string
+    # 的旧式 stub (向后兼容历史 test fixture)。
+    if isinstance(result, LLMResult):
+        text = result.text
+        tokens_in = result.tokens_in
+        tokens_out = result.tokens_out
+        latency_ms = result.latency_ms
+    else:
+        text = str(result) if result is not None else ""
+        tokens_in = tokens_out = latency_ms = None
+
+    excerpt = _scrub_excerpt(text)
 
     return {
         "ran": True,
@@ -193,6 +223,10 @@ def run_synthetic_real_smoke(
         "alias": alias,
         "output_artifact": "ai_draft_preview",
         "output_excerpt_safe": excerpt,
+        # 真实调用的可观察 metadata; 这些字段不含 secret, 可以安全输出。
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "latency_ms": latency_ms,
         # 永久 False — 类型契约即文档。
         "human_approved": False,
         "written": False,
