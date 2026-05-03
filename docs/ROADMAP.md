@@ -2573,4 +2573,6 @@ Boundary contract / Closure criteria / Test surface), 见
   路径; 永不默认建议 `--allow-real`。
 
 **当前状态**: v0.13 + 上述 v0.14 规格 + 取证 cookbook + 边界守卫
-全部 local commits, 未 tag, 未 push (本轮)。
+全部已经 push 到 `origin/main` (HEAD = `dc14b8c`); **未 tag**;
+release / tag 触发仍需 human authorization。整体 Roadmap 状态见
+[ROADMAP_COMPLETION_LEDGER.md](ROADMAP_COMPLETION_LEDGER.md)。

@@ -2,7 +2,26 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
-## Roadmap Completion Pack — v0.14 Future Gate Specifications (local)
+## Roadmap Completion Closure (local)
+
+- 新增 docs/ROADMAP_COMPLETION_LEDGER.md — 单页 status table; 5 个
+  bucket (`pushed` / `local-complete` / `future-gated` /
+  `release-gated` / `forbidden`) 把整个 Roadmap 状态收敛到一处;
+  cross-link V0_14_FUTURE_GATES.md。
+- 新增 tests/test_roadmap_completion_safety.py (9 cases) — repo-wide
+  forbidden-implementation 守卫: G1 (cubox 源码不得 import HTTP
+  client) / G2 (不得定义 commit_write_card / write_obsidian_note /
+  write_formal_note) / G3 (源码不得出现 ``human_approved = True``
+  runtime 赋值) / G4 (strategy/loader/registry/custom 层不得 import
+  subprocess; 任何源码不得 ``importlib.import_module(<var>)``) /
+  G5 (不得定义 embed_text / build_vector_index / semantic_merge /
+  rag_retrieve) / G6 (源码不得包含 git tag / --tags / --force 自动
+  化命令); 默认 ``active_profile: fake`` 不变量; ledger doc 完整性
+  断言。
+- ROADMAP.md 修正 v0.14 future-gate Pack 状态行 (现已 push 到
+  origin/main, HEAD = `dc14b8c`); 增加 cross-link 到 ledger。
+
+## Roadmap Completion Pack — v0.14 Future Gate Specifications (pushed)
 
 - 新增 docs/V0_14_FUTURE_GATES.md — 6 个 future gate (G1 real Cubox /
   G2 real Obsidian write / G3 human_approved UX / G4 custom executable
