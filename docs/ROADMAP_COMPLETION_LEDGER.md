@@ -74,9 +74,12 @@
   (Stage 1-5) commits 已经在 `origin/main`。
 - **v0.14 future-gate Pack pushed**: future gate 规格 + evidence
   cookbook + 仓库级守卫已经在 `origin/main` (HEAD = `dc14b8c`)。
-- **剩余安全可完成项**: 此 ledger 文件 + 配套 forbidden-impl 守卫
-  测试; 完成后整个 Roadmap 在"无人工授权前提下"已经达到 local 闭
-  环, 后续推进必须由命名 human authorizer 触发对应 gate。
+- **Roadmap closure pushed**: ledger + G1-G6 forbidden-impl guard +
+  README/GETTING_STARTED/cookbook cross-links 已经在 `origin/main`
+  (HEAD = `c052cc1`)。
+- **Safe-completable scope is exhausted**: 没有任何进一步动作可以
+  在不打开 future gate / release gate 的前提下推进 Roadmap。详见
+  [ROADMAP.md](ROADMAP.md) §Roadmap Completion Status 段落。
 
 ## How a future contributor opens a gate
 

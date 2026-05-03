@@ -2576,3 +2576,33 @@ Boundary contract / Closure criteria / Test surface), 见
 全部已经 push 到 `origin/main` (HEAD = `dc14b8c`); **未 tag**;
 release / tag 触发仍需 human authorization。整体 Roadmap 状态见
 [ROADMAP_COMPLETION_LEDGER.md](ROADMAP_COMPLETION_LEDGER.md)。
+
+## Roadmap Completion Status — Safe-Completable Scope Exhausted
+
+截至 HEAD = `c052cc1` (已 push 到 `origin/main`):
+
+- **完成并已 push**: v0.7 - v0.12 architecture/strategy 全部 milestone;
+  v0.13 Stages 1 - 5 (real-capable opt-in / preflight / closure
+  docs / boundary tests); v0.14 future-gate Pack (specs +
+  cookbook + G1-G6 forbidden-impl guard); Roadmap completion
+  closure (ledger + cross-link 全部 docs)。
+- **safe-completable scope is exhausted**: 当前安全可完成项已经
+  全部完成。任何进一步推进都需要至少跨过下列 gate 之一, 这些
+  gate 按设计**只能由命名 human authorizer 触发**:
+  - G1 real Cubox ingestion (需要 sample-folder + item-cap +
+    dry-run-first + no-persist 流程授权);
+  - G2 real Obsidian formal-note write (需要 `--commit-write` +
+    `--diff-preview` + per-write 确认 + auto backup);
+  - G3 `human_approved` production UX (UX only; 永不更改
+    `approver.approve_card` 是唯一晋升路径);
+  - G4 custom executable strategy runtime (out-of-process sandbox);
+  - G5 RAG / embedding / semantic merge (local-only 默认);
+  - G6 public release / git tag (named human authorizer + signed)。
+- **本仓库内没有任何自动化能越过上述 gate**; 试图通过删除
+  `tests/test_roadmap_completion_safety.py` 或
+  `tests/test_v014_future_gates_spec.py` 来"绕过 gate" 在政策上
+  是 P0 违规, 见 [ROADMAP_COMPLETION_LEDGER.md](ROADMAP_COMPLETION_LEDGER.md)
+  §How a future contributor opens a gate。
+- **下一步只有两类合法路径**: (a) human authorizer 显式开放某个
+  G1-G6 gate, 走 RFC + ledger 迁移 + 测试 allowlist 更新; (b)
+  保持现状, 等待真实 dogfooding 反馈再决定优先级。

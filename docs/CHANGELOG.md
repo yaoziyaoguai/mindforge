@@ -2,7 +2,26 @@
 
 This file summarizes user-visible and architecture-relevant changes. Detailed historical reviews live in `docs/archive/`.
 
-## Roadmap Completion Closure (local)
+## Roadmap Completion Status — Safe-Completable Scope Exhausted (pushed)
+
+- ROADMAP.md 增加 "Roadmap Completion Status" 段落, 显式声明
+  safe-completable scope 已耗尽; 进一步推进必须由命名 human
+  authorizer 走 G1-G6 future gate 或 G6 release gate; 仓库内没有
+  自动化能越过这些 gate; 试图删除 G1-G6 guard test 是 P0 违规。
+- ROADMAP_COMPLETION_LEDGER.md 同步更新 Completion claim, 加入
+  HEAD = c052cc1 完成记录, 指向 ROADMAP "Roadmap Completion Status"
+  段落作为 single source of truth。
+
+## Roadmap Completion Closure — README + GETTING_STARTED cross-link (pushed)
+
+- README.md docs index 新增 V0_14_FUTURE_GATES.md /
+  ROADMAP_COMPLETION_LEDGER.md / EVIDENCE_COMMANDS.md 三条;
+  GETTING_STARTED.md 安全契约段落 cross-link 三份新文档。
+- EVIDENCE_COMMANDS.md E8 把 test_v014_future_gates_spec.py 与
+  test_roadmap_completion_safety.py 纳入推荐 pytest 列表; 脚注明确
+  "删除 guard test = P0 违规"; E9 列出 ROADMAP_COMPLETION_LEDGER.md。
+
+## Roadmap Completion Closure (pushed)
 
 - 新增 docs/ROADMAP_COMPLETION_LEDGER.md — 单页 status table; 5 个
   bucket (`pushed` / `local-complete` / `future-gated` /
