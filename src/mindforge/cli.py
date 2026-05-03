@@ -55,6 +55,7 @@ from .models import ItemState, StageRecord
 from .obsidian_cli import obsidian_app
 from .provider_cli import provider_app
 from .processors import Pipeline  # noqa: F401  -- 保留向后兼容的 re-export，避免外部测试或脚本因 import 路径中断
+from .process_service import summarize_outcome
 from .strategies import (
     DEFAULT_STRATEGY_NAME,
     StrategyContext,
@@ -749,6 +750,192 @@ def approve_show(
 # ---------------------------------------------------------------------------
 
 
+def _process_one_result(
+    *,
+    result,
+    cp,
+    pipeline,
+    logger,
+    writer,
+    cfg,
+    console,
+    counts,
+    dry_run,
+):
+    """处理单个 scan result 的成功路径。
+
+    架构边界：本函数仍是 cli.py 内部私有 helper，不是新模块。原因：
+    - 与 process 命令耦合的本地状态 (cp/pipeline/logger/writer/cfg/console/counts)
+      过多，强行抽到独立模块会引入贫血抽象与跨模块状态污染。
+    - process_service.py 已被 snapshot caps 锁定（最多 4 个公共函数 / 7 个 dataclass），
+      不应继续膨胀；只把纯函数 summarize_outcome 放在那里。
+    - 这里的提取目的只是降低 process 函数体行数 / 圈复杂度，让 Typer 命令体保持
+      可阅读，并不重组运行时边界。
+
+    时序耦合 (RunLogger.emit / writer.write / console.print / checkpoint 写回)
+    保持在 CLI 端，与原实现等价；不引入额外重排。
+    """
+    doc = result.document
+    assert doc is not None
+
+    candidate = ItemState(
+        source_id=doc.source_id,
+        source_type=doc.source_type,
+        adapter_name=result.adapter_name,
+        source_path=doc.source_path,
+        content_hash=doc.content_hash,
+        first_seen_at=datetime.now(),
+    )
+    item = cp.upsert_seen(candidate)
+
+    outcome = pipeline.run(doc)
+
+    item_result = summarize_outcome(
+        outcome, doc, result.adapter_name, dry_run=dry_run
+    )
+
+    now = datetime.now()
+    item.status = outcome.status  # type: ignore[assignment]
+    item.last_run_id = logger.run_id
+    item.processed_at = now
+    item.error_message = outcome.error_message
+    for stage_name, meta in outcome.stages_meta.items():
+        item.stages[stage_name] = StageRecord(
+            stage=stage_name,  # type: ignore[arg-type]
+            model_alias=meta["model_alias"],
+            provider=meta["provider"],
+            actual_model=meta["actual_model"],
+            prompt_version=meta["prompt_version"],
+            status=meta["status"],
+            processed_at=now,
+            tokens_in=meta.get("tokens_in"),
+            tokens_out=meta.get("tokens_out"),
+            latency_ms=meta.get("latency_ms"),
+        )
+
+    if outcome.status == "skipped":
+        counts["skipped"] += 1
+        item.track = item_result.track
+        item.value_score = item_result.value_score
+        logger.emit(
+            "source_processed",
+            source_id=doc.source_id,
+            source_type=doc.source_type,
+            adapter_name=result.adapter_name,
+            source_path=doc.source_path,
+            content_hash=doc.content_hash,
+            status="skipped",
+            track=item.track or "",
+            value_score=item.value_score or 0,
+            skip_reason=outcome.skip_reason or "",
+        )
+        console.print(_pp.format_skipped(
+            source_path=doc.source_path, skip_reason=outcome.skip_reason
+        ))
+        return
+
+    if outcome.status == "failed":
+        counts["failed"] += 1
+        logger.emit(
+            "source_processed",
+            source_id=doc.source_id,
+            source_type=doc.source_type,
+            adapter_name=result.adapter_name,
+            source_path=doc.source_path,
+            content_hash=doc.content_hash,
+            status="failed",
+            stage_failed=outcome.error_stage or "",
+            error_message=outcome.error_message or "",
+        )
+        console.print(_pp.format_failed(
+            source_path=doc.source_path,
+            error_stage=outcome.error_stage,
+            error_message=outcome.error_message,
+        ))
+        return
+
+    # processed
+    counts["processed"] += 1
+    item.track = item_result.track
+    item.value_score = item_result.value_score
+    source_dict = item_result.source_dict
+    run_dict = {
+        "created_at": now.isoformat(timespec="seconds"),
+        "prompts": {"distill_version": cfg.prompts.distill},  # type: ignore[attr-defined]
+        "profile": cfg.llm.active_profile,  # type: ignore[attr-defined]
+        "stage_models": {
+            s: {"alias": m["model_alias"], "provider": m["provider"], "model": m["actual_model"]}
+            for s, m in outcome.stages_meta.items()
+        },
+        "run_id": logger.run_id,
+    }
+    if item_result.would_write_only:
+        console.print(_pp.format_processed_dry_run(
+            source_path=doc.source_path,
+            target_dir=cfg.vault.cards_path / (item.track or "unrouted"),
+        ))
+        logger.emit(
+            "source_processed",
+            source_id=doc.source_id,
+            source_type=doc.source_type,
+            adapter_name=result.adapter_name,
+            source_path=doc.source_path,
+            content_hash=doc.content_hash,
+            status="processed",
+            track=item.track or "",
+            value_score=item.value_score or 0,
+        )
+        return
+
+    wr = writer.write(card_payload=outcome.card_payload or {}, source=source_dict, run=run_dict)
+    item.card_path = str(wr.path.relative_to(cfg.vault.root))
+    logger.emit(
+        "card_written",
+        output_file=str(wr.path),
+        source_id=doc.source_id,
+        source_type=doc.source_type,
+        track=item.track or "",
+        value_score=item.value_score or 0,
+        card_conflict="true" if wr.conflict else "false",
+    )
+    logger.emit(
+        "source_processed",
+        source_id=doc.source_id,
+        source_type=doc.source_type,
+        adapter_name=result.adapter_name,
+        source_path=doc.source_path,
+        content_hash=doc.content_hash,
+        status="processed",
+        track=item.track or "",
+        value_score=item.value_score or 0,
+        output_file=str(wr.path),
+    )
+    console.print(_pp.format_processed_real(
+        source_path=doc.source_path,
+        output_path=wr.path,
+        conflict=wr.conflict,
+    ))
+
+
+def _finalize_process_run(*, cp, cfg, logger, console, counts, dry_run):
+    """process 命令收尾：保存 checkpoint + 汇总输出。
+
+    与原实现等价：dry-run 时不写 state.json；非 dry-run 时记录 EVENT_STATE_WRITTEN。
+    summary 与 next-hint 仍走 _pp 同一组 presenter，CLI 不做条件分支以外的展示决策。
+    """
+    if not dry_run:
+        cp.save(active_profile=cfg.llm.active_profile)
+        logger.emit(
+            EVENT_STATE_WRITTEN,
+            path=str(cfg.state.state_path),
+            items_count=len(list(cp.all_items())),
+        )
+
+    console.print(_pp.format_summary(counts))
+    for hint in _pp.format_next_hint(counts):
+        console.print(hint, markup=False)
+
+
 @app.command()
 def process(
     config: Path = typer.Option(
@@ -821,7 +1008,6 @@ def process(
         ProcessError,
         ProcessRequest,
         resolve_process_runtime,
-        summarize_outcome,
     )
 
     runtime_or_err = resolve_process_runtime(
@@ -921,160 +1107,29 @@ def process(
                 )
                 continue
 
-            doc = result.document
-            assert doc is not None
-
-            # 把 source 登记到 checkpoint（沿用 scan 的 upsert 语义）
-            candidate = ItemState(
-                source_id=doc.source_id,
-                source_type=doc.source_type,
-                adapter_name=result.adapter_name,
-                source_path=doc.source_path,
-                content_hash=doc.content_hash,
-                first_seen_at=datetime.now(),
+            _process_one_result(
+                result=result,
+                cp=cp,
+                pipeline=pipeline,
+                logger=logger,
+                writer=writer,
+                cfg=cfg,
+                console=console,
+                counts=counts,
+                dry_run=dry_run,
             )
-            item = cp.upsert_seen(candidate)
-
-            outcome = pipeline.run(doc)
-
-            # v0.7.20：把 outcome 三分流的字段提取下沉到 process_service.summarize_outcome
-            # 这是纯函数；CLI 仍负责 RunLogger.emit / console.print / writer.write
-            # / checkpoint 写回，保持时序耦合在 CLI 端。
-            item_result = summarize_outcome(
-                outcome, doc, result.adapter_name, dry_run=dry_run
-            )
-
-            now = datetime.now()
-            item.status = outcome.status  # type: ignore[assignment]
-            item.last_run_id = logger.run_id
-            item.processed_at = now
-            item.error_message = outcome.error_message
-            for stage_name, meta in outcome.stages_meta.items():
-                item.stages[stage_name] = StageRecord(
-                    stage=stage_name,  # type: ignore[arg-type]
-                    model_alias=meta["model_alias"],
-                    provider=meta["provider"],
-                    actual_model=meta["actual_model"],
-                    prompt_version=meta["prompt_version"],
-                    status=meta["status"],
-                    processed_at=now,
-                    tokens_in=meta.get("tokens_in"),
-                    tokens_out=meta.get("tokens_out"),
-                    latency_ms=meta.get("latency_ms"),
-                )
-
-            if outcome.status == "skipped":
-                counts["skipped"] += 1
-                item.track = item_result.track
-                item.value_score = item_result.value_score
-                logger.emit(
-                    "source_processed",
-                    source_id=doc.source_id,
-                    source_type=doc.source_type,
-                    adapter_name=result.adapter_name,
-                    source_path=doc.source_path,
-                    content_hash=doc.content_hash,
-                    status="skipped",
-                    track=item.track or "",
-                    value_score=item.value_score or 0,
-                    skip_reason=outcome.skip_reason or "",
-                )
-                console.print(_pp.format_skipped(
-                    source_path=doc.source_path, skip_reason=outcome.skip_reason
-                ))
-            elif outcome.status == "failed":
-                counts["failed"] += 1
-                logger.emit(
-                    "source_processed",
-                    source_id=doc.source_id,
-                    source_type=doc.source_type,
-                    adapter_name=result.adapter_name,
-                    source_path=doc.source_path,
-                    content_hash=doc.content_hash,
-                    status="failed",
-                    stage_failed=outcome.error_stage or "",
-                    error_message=outcome.error_message or "",
-                )
-                console.print(_pp.format_failed(
-                    source_path=doc.source_path,
-                    error_stage=outcome.error_stage,
-                    error_message=outcome.error_message,
-                ))
-            else:  # processed
-                counts["processed"] += 1
-                item.track = item_result.track
-                item.value_score = item_result.value_score
-                source_dict = item_result.source_dict
-                run_dict = {
-                    "created_at": now.isoformat(timespec="seconds"),
-                    "prompts": {"distill_version": cfg.prompts.distill},  # type: ignore[attr-defined]
-                    "profile": cfg.llm.active_profile,  # type: ignore[attr-defined]
-                    "stage_models": {
-                        s: {"alias": m["model_alias"], "provider": m["provider"], "model": m["actual_model"]}
-                        for s, m in outcome.stages_meta.items()
-                    },
-                    "run_id": logger.run_id,
-                }
-                if item_result.would_write_only:
-                    console.print(_pp.format_processed_dry_run(
-                        source_path=doc.source_path,
-                        target_dir=cfg.vault.cards_path / (item.track or "unrouted"),
-                    ))
-                    logger.emit(
-                        "source_processed",
-                        source_id=doc.source_id,
-                        source_type=doc.source_type,
-                        adapter_name=result.adapter_name,
-                        source_path=doc.source_path,
-                        content_hash=doc.content_hash,
-                        status="processed",
-                        track=item.track or "",
-                        value_score=item.value_score or 0,
-                    )
-                else:
-                    wr = writer.write(card_payload=outcome.card_payload or {}, source=source_dict, run=run_dict)
-                    item.card_path = str(wr.path.relative_to(cfg.vault.root))
-                    logger.emit(
-                        "card_written",
-                        output_file=str(wr.path),
-                        source_id=doc.source_id,
-                        source_type=doc.source_type,
-                        track=item.track or "",
-                        value_score=item.value_score or 0,
-                        card_conflict="true" if wr.conflict else "false",
-                    )
-                    logger.emit(
-                        "source_processed",
-                        source_id=doc.source_id,
-                        source_type=doc.source_type,
-                        adapter_name=result.adapter_name,
-                        source_path=doc.source_path,
-                        content_hash=doc.content_hash,
-                        status="processed",
-                        track=item.track or "",
-                        value_score=item.value_score or 0,
-                        output_file=str(wr.path),
-                    )
-                    console.print(_pp.format_processed_real(
-                        source_path=doc.source_path,
-                        output_path=wr.path,
-                        conflict=wr.conflict,
-                    ))
 
             if limit is not None and counts["seen"] >= limit:
                 break
 
-        if not dry_run:
-            cp.save(active_profile=cfg.llm.active_profile)
-            logger.emit(
-                EVENT_STATE_WRITTEN,
-                path=str(cfg.state.state_path),
-                items_count=len(list(cp.all_items())),
-            )
-
-    console.print(_pp.format_summary(counts))
-    for hint in _pp.format_next_hint(counts):
-        console.print(hint, markup=False)
+        _finalize_process_run(
+            cp=cp,
+            cfg=cfg,
+            logger=logger,
+            console=console,
+            counts=counts,
+            dry_run=dry_run,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1982,6 +2037,51 @@ def recall(
             weight_review_due=weight_review_due,
         )
 
+    return _do_rule_recall(
+        config=config,
+        track=track,
+        project=project,
+        tag=tag,
+        keyword=keyword,
+        source_type=source_type,
+        status=status,
+        include_drafts=include_drafts,
+        since=since,
+        until=until,
+        limit=limit,
+        sort=sort,
+        output_format=output_format,
+    )
+
+
+def _do_rule_recall(
+    *,
+    config: Path,
+    track: str | None,
+    project: str | None,
+    tag: list[str],
+    keyword: str | None,
+    source_type: str | None,
+    status: str,
+    include_drafts: bool,
+    since: str | None,
+    until: str | None,
+    limit: int,
+    sort: str,
+    output_format: str,
+) -> None:
+    """规则路径 recall：从卡片白名单字段做过滤 / 排序 / 输出。
+
+    架构边界：
+    - 与 _do_bm25_recall 平行的 cli.py 内部 helper；不是新模块。原因：
+      它紧耦合 cli.py 的 console / RunLogger / _filters_dict / _hash_keyword
+      / _card_to_safe_dict / _safe_date / _parse_date / _pp 等本地 utility，
+      抽成新模块会显著扩大边界但收益不大。
+    - 仍然不读 source 原文 / Source Excerpt / Human Note；只走 cards 模块的
+      白名单读取。
+    - 输出层 4 个 format 与原实现等价（json / markdown / table / compact），
+      不引入新 markup 行为。
+    """
     from .cards import filter_cards, iter_cards, sort_cards
 
     cfg = _load_cfg(config, read_env=False)
