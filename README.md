@@ -125,6 +125,9 @@ Start here:
 - [docs/LOCAL_FIRST_PRIVACY_CONTRACT.md](docs/LOCAL_FIRST_PRIVACY_CONTRACT.md) - canonical fake-default + real-opt-in privacy contract (v0.13)
 - [docs/V0_13_DOGFOODING_READINESS.md](docs/V0_13_DOGFOODING_READINESS.md) - v0.13 dogfooding readiness scaffolding
 - [docs/V0_13_INDUSTRY_PATTERN_MAP.md](docs/V0_13_INDUSTRY_PATTERN_MAP.md) - offline industry pattern map (OpenAI Agents SDK / LangGraph / Dify / Obsidian / Readwise / ...)
+- [docs/V0_14_FUTURE_GATES.md](docs/V0_14_FUTURE_GATES.md) - v0.14/v1.0 future gate specifications (G1-G6)
+- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md) - single-page Roadmap status table (pushed / future-gated / release-gated / forbidden)
+- [docs/EVIDENCE_COMMANDS.md](docs/EVIDENCE_COMMANDS.md) - copy-paste evidence cookbook (10 sections; quality / fake / refusal / opt-in / preflight / approval / sweep / boundary / roadmap / push)
 - Provider readiness CLI: `mindforge provider readiness` (no network, no secret print) and `mindforge provider smoke --allow-real` (gated synthetic real-LLM smoke)
 - [docs/TESTING.md](docs/TESTING.md) - smoke tests and quality gates
 - [docs/ROADMAP_PROGRESS.md](docs/ROADMAP_PROGRESS.md) - current completion snapshot

@@ -152,6 +152,8 @@ rg -n 'sk-[A-Za-z0-9]{16,}|Bearer [A-Za-z0-9]{16,}|AIza[A-Za-z0-9]{16,}' \
                   tests/test_v013_provider_readiness.py \
                   tests/test_v013_stage4_dogfood_preflight.py \
                   tests/test_v013_stage5_closure_boundaries.py \
+                  tests/test_v014_future_gates_spec.py \
+                  tests/test_roadmap_completion_safety.py \
                   tests/test_review_approval_boundary.py \
                   tests/test_custom_strategy_import_boundaries.py \
                   -q --no-header
@@ -159,18 +161,27 @@ rg -n 'sk-[A-Za-z0-9]{16,}|Bearer [A-Za-z0-9]{16,}|AIza[A-Za-z0-9]{16,}' \
 
 Look for: all green, no skips other than the documented 3.
 
+`test_v014_future_gates_spec.py` pins the v0.14 gate-doc + cookbook
+structure; `test_roadmap_completion_safety.py` is the repo-wide
+forbidden-impl scan for G1–G6 (cubox HTTP / Obsidian write /
+human_approved auto / subprocess in strategy layer / RAG-embedding-
+semantic / git tag automation). Deleting either to "make CI green"
+is a P0 violation by policy — see
+[ROADMAP_COMPLETION_LEDGER.md](ROADMAP_COMPLETION_LEDGER.md) §How
+a future contributor opens a gate.
+
 ---
 
 ## E9 — Roadmap state
 
 ```bash
-ls docs/V0_13_*.md
+ls docs/V0_13_*.md docs/V0_14_*.md docs/ROADMAP_COMPLETION_LEDGER.md
 grep -E '^## v0\.13 Stage' docs/ROADMAP.md
 grep -E '^## v0\.14|^## v1\.0' docs/ROADMAP.md
 ```
 
-Look for: 5 Stage closure sections; v0.14 future-gate section if
-finalized.
+Look for: 5 Stage closure sections; v0.14 future-gate section;
+ROADMAP_COMPLETION_LEDGER.md present (single-page status table).
 
 ---
 

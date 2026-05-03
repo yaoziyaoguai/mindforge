@@ -187,4 +187,10 @@ mindforge provider smoke --config configs/mindforge.yaml --allow-real
 完整的安全契约见
 [`LOCAL_FIRST_PRIVACY_CONTRACT.md`](./LOCAL_FIRST_PRIVACY_CONTRACT.md);
 推迟项 (Cubox 真实 ingestion / Obsidian 真实写入) 的启用前置见
-[`V0_13_REAL_INGESTION_DEFERRED_GATES.md`](./V0_13_REAL_INGESTION_DEFERRED_GATES.md)。
+[`V0_13_REAL_INGESTION_DEFERRED_GATES.md`](./V0_13_REAL_INGESTION_DEFERRED_GATES.md)
+和 v0.14/v1.0 的统一 future-gate 规格
+[`V0_14_FUTURE_GATES.md`](./V0_14_FUTURE_GATES.md)。整个 Roadmap 的
+当前状态 (已 push / future-gated / release-gated / forbidden) 在
+[`ROADMAP_COMPLETION_LEDGER.md`](./ROADMAP_COMPLETION_LEDGER.md);
+要给审计员/团队成员一份可复制的取证命令, 见
+[`EVIDENCE_COMMANDS.md`](./EVIDENCE_COMMANDS.md)。
