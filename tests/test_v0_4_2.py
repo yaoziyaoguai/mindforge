@@ -127,6 +127,7 @@ def test_commands_lists_key_groups() -> None:
         assert cmd in out
     assert "[[wikilinks]]" in out
     assert "mindforge obsidian next --vault PATH" in out
+    assert "mindforge dogfood readiness --vault PATH" in out
     assert "mindforge obsidian preflight --manifest PATH" in out
     assert "--staged-export" in out
     assert "--write" in out

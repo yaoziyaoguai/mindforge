@@ -31,6 +31,17 @@
 
 ## The runbook (single command)
 
+Before printing the runbook, check that your target is still safe:
+
+```
+mindforge dogfood readiness --vault /path/to/project-vault \
+  --cubox-export /path/to/cubox-export.json
+```
+
+This reads neither `.env` nor the Cubox export content. It only checks:
+the vault path classification, provider fake-default state, and whether
+the optional export path exists.
+
 ```
 mindforge dogfood quickstart --vault /path/to/project-vault \
   --cubox-export /path/to/cubox-export.json
@@ -45,16 +56,17 @@ Each step is a copy-paste command you run yourself. If you skip
 
 | # | Command | What it does |
 |---|---|---|
-| 1 | `mindforge doctor --paths` | Confirm local paths + safety boundaries |
-| 2 | `mindforge provider readiness ...` | Confirm `active_profile=fake` (no real LLM) |
-| 3 | `mindforge dogfood cubox-readiness ...` | Confirm Cubox real-path readiness (no network) |
-| 4 | `mindforge cubox dry-run --export <file.json>` | Cubox JSON-export offline preview (real data, zero network) |
-| 5 | `mindforge cubox preview-ai-draft --export <file.json> --limit 3` | First 3 items → ai_draft via fake provider |
-| 6 | `mindforge dogfood preflight examples/demo-vault --declare-non-sensitive` | Static dogfood path classification |
-| 7 | `mindforge obsidian doctor --vault <project-vault>` | Confirm project vault safety (no home scan) |
-| 8 | `mindforge obsidian scan --vault <project-vault> --limit 5` | Scan project vault for Markdown |
-| 9 | `mindforge obsidian stage --vault <project-vault> --source <note.md> --dry-run` | Project-vault staging dry-run |
-| 10 | `mindforge approve list` | List ai_drafts awaiting human approval |
+| 1 | `mindforge dogfood readiness --vault <project-vault>` | One-screen safety summary before copying the runbook |
+| 2 | `mindforge doctor --paths` | Confirm local paths + safety boundaries |
+| 3 | `mindforge provider readiness ...` | Confirm `active_profile=fake` (no real LLM) |
+| 4 | `mindforge dogfood cubox-readiness ...` | Confirm Cubox real-path readiness (no network) |
+| 5 | `mindforge cubox dry-run --export <file.json>` | Cubox JSON-export offline preview (real data, zero network) |
+| 6 | `mindforge cubox preview-ai-draft --export <file.json> --limit 5` | First 5 items → ai_draft via fake provider |
+| 7 | `mindforge dogfood preflight examples/demo-vault --declare-non-sensitive` | Static dogfood path classification |
+| 8 | `mindforge obsidian doctor --vault <project-vault>` | Confirm project vault safety (no home scan) |
+| 9 | `mindforge obsidian scan --vault <project-vault> --limit 5` | Scan project vault for Markdown |
+| 10 | `mindforge obsidian stage --vault <project-vault> --source <note.md> --dry-run` | Project-vault staging dry-run |
+| 11 | `mindforge approve list` | List ai_drafts awaiting human approval |
 
 ## Safety boundaries you can verify yourself
 
@@ -143,7 +155,7 @@ Every step in the runbook above is **safe by default**:
 
 | Step | Writes anything? | How to roll back |
 |---|---|---|
-| `doctor`, `provider readiness`, `cubox-readiness`, `quickstart` | No | Nothing to roll back |
+| `doctor`, `provider readiness`, `cubox-readiness`, `readiness`, `quickstart` | No | Nothing to roll back |
 | `cubox dry-run`, `cubox preview-ai-draft` | **In-memory only.** No Cubox state changes, no vault writes. | Nothing to roll back |
 | `dogfood preflight` | No | Nothing to roll back |
 | `obsidian doctor`, `obsidian scan`, `obsidian links` | Read-only | Nothing to roll back |

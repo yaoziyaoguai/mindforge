@@ -54,6 +54,15 @@ def test_root_help_recommended_commands_actually_exist():
         assert required in cmds, f"{required} 命令必须存在于 CLI registry"
 
 
+def test_dogfood_subcommands_cover_readiness_path():
+    """dogfood 命令族必须包含 readiness，承接 demo → quickstart 的安全检查点。"""
+
+    result = runner.invoke(app, ["dogfood", "--help"])
+    assert result.exit_code == 0, result.output
+    for command in ("plan", "preflight", "readiness", "quickstart"):
+        assert command in result.output
+
+
 def test_demo_output_lists_all_safety_guarantees():
     """``mindforge demo`` 必须明确列出 7 条 safe/fake 安全保证。
 

@@ -35,6 +35,7 @@ def test_quickstart_explicit_vault() -> None:
 def test_quickstart_mentions_three_required_command_paths() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["dogfood", "quickstart"])
+    assert "mindforge dogfood readiness" in result.output
     assert "mindforge cubox dry-run" in result.output
     assert "mindforge cubox preview-ai-draft" in result.output
     assert "mindforge obsidian stage" in result.output
@@ -84,7 +85,7 @@ def test_quickstart_with_cubox_export_substitutes_path() -> None:
 def test_quickstart_steps_helper_consistency_with_doc() -> None:
     """命令清单条数与 doc 表格行数一致, 防止文档漂移。"""
     steps = _dogfood_quickstart_steps(Path("examples/demo-vault"), None)
-    assert len(steps) == 10
+    assert len(steps) == 11
     doc = Path("docs/REAL_DOGFOOD_QUICKSTART.md").read_text(encoding="utf-8")
     # 每条命令的核心动词必须出现在 doc 表格里 (粗匹配, 避免假阳性)。
     for command, _note in steps:

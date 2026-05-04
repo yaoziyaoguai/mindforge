@@ -95,9 +95,7 @@ def dogfood_preflight(
     执行仍由用户走 ``dogfood plan`` 中列出的命令逐条手动触发。
     """
     from .dogfood_safety import build_preflight_report, render_preflight_report
-    from .env_loader import load_dotenv_silently
 
-    load_dotenv_silently(Path.cwd())
     app_cfg = load_app_config(config)
     report = build_preflight_report(
         input_path,
@@ -107,6 +105,62 @@ def dogfood_preflight(
     )
     print(render_preflight_report(report))
     if not report["decision"]["allowed"]:
+        raise typer.Exit(code=2)
+
+
+@dogfood_app.command("readiness")
+def dogfood_readiness(
+    vault: Path | None = typer.Option(
+        None,
+        "--vault",
+        help=(
+            "项目专用 / disposable vault 路径; 省略时使用 examples/demo-vault。"
+            "本命令只做静态路径分类, 不读取 vault 内容。"
+        ),
+    ),
+    cubox_export: Path | None = typer.Option(
+        None,
+        "--cubox-export",
+        help="可选 Cubox JSON export 路径; 只检查路径是否存在, 不读取文件内容。",
+    ),
+    config: Path = typer.Option(
+        Path("configs/mindforge.yaml"),
+        "--config",
+        "-c",
+        help="MindForge 配置文件路径",
+    ),
+    declare_non_sensitive: bool = typer.Option(
+        True,
+        "--declare-non-sensitive/--no-declare-non-sensitive",
+        help="声明 --vault 是项目专用 / 非敏感 disposable 副本; 默认开启。",
+    ),
+) -> None:
+    """汇总 dogfood 前置安全状态；只读报告，不执行任何 dogfood 步骤。
+
+    中文学习型说明：这是 `demo` 和 `quickstart` 中间的产品化检查点。
+    它回答“我现在这条 vault / export / provider 状态是否适合复制
+    quickstart 命令”，但绝不读取 `.env`、不读取 Cubox export 内容、
+    不调用真实 LLM/Cubox API、不写 vault、不 approve。
+    """
+    import os as _os
+
+    from .dogfood_safety import (
+        dogfood_readiness_report,
+        render_dogfood_readiness_report,
+    )
+
+    chosen_vault = vault or Path(
+        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault")
+    )
+    app_cfg = load_app_config(config)
+    report = dogfood_readiness_report(
+        vault=chosen_vault,
+        cubox_export=cubox_export,
+        declared_non_sensitive=declare_non_sensitive,
+        llm_config=app_cfg.llm,
+    )
+    print(render_dogfood_readiness_report(report))
+    if not report["decision"]["ready"]:
         raise typer.Exit(code=2)
 
 
@@ -227,6 +281,11 @@ def _dogfood_quickstart_steps(
         else "已使用你提供的 Cubox export 文件"
     )
     return [
+        (
+            f"mindforge dogfood readiness --vault {v}"
+            + (f" --cubox-export {cubox_path}" if cubox_export else ""),
+            "一条命令确认 vault/provider/export 是否适合复制本 runbook (只读; 不读 export 内容)",
+        ),
         (
             "mindforge doctor --paths",
             "确认本地路径与安全边界 (确认 active_profile=fake)",

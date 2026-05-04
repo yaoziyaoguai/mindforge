@@ -153,6 +153,7 @@ def run_demo_tour(
         ),
         next_actions=(
             "Run a real-data dogfood loop on your own non-sensitive Cubox export:",
+            "  mindforge dogfood readiness --vault /tmp/dogfood-vault",
             "  mindforge dogfood quickstart --vault /tmp/dogfood-vault",
             "Inspect your install:",
             "  mindforge doctor",

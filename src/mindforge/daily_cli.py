@@ -98,6 +98,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("mindforge start", "第一天入口：看状态、安全边界和下一条命令"),
             ("mindforge setup --dry-run", "预览本地 safe-by-default setup"),
             ("mindforge config show", "查看当前 config / vault / state 路径"),
+            ("mindforge dogfood readiness --vault PATH", "复制 dogfood runbook 前确认 fake-default / dry-run 安全状态"),
             ("mindforge dogfood plan --vault PATH", "非敏感副本 dogfooding 命令路径"),
             ("mindforge init --vault PATH", "创建 vault 骨架与默认 configs"),
             ("mindforge doctor --paths", "健康检查 + 本地读写边界"),

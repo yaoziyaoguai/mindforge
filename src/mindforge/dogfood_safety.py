@@ -124,6 +124,125 @@ _REFUSING_CLASSES = {
 }
 
 
+def dogfood_readiness_report(
+    *,
+    vault: Path,
+    llm_config: Any,
+    cubox_export: Path | None = None,
+    declared_non_sensitive: bool = True,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> dict[str, Any]:
+    """汇总新用户 dogfood 前的安全状态；只做 presence/path 检查。
+
+    中文学习型说明：``dogfood readiness`` 是产品化入口，不是 runner。
+    它复用 preflight 的路径分类和 provider readiness 的 presence-only
+    报告，把“当前是否适合复制 quickstart 命令”压成一个只读摘要。
+    这里不读取 Cubox export 内容、不读取 `.env`、不遍历 vault、不调用
+    LLM，也不写任何 vault/card。
+    """
+    from .provider_readiness import build_readiness_report
+
+    vault_classification = classify_input_path(
+        vault,
+        declared_non_sensitive=declared_non_sensitive,
+        cwd=cwd,
+        home=home,
+    )
+    provider = build_readiness_report(llm_config)
+    export_exists = cubox_export.exists() if cubox_export is not None else None
+
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if vault_classification in _REFUSING_CLASSES:
+        blockers.append(f"vault classification={vault_classification!r}")
+    if provider["opt_in"]["opt_in_state"] != "fake_default":
+        warnings.append(
+            f"provider opt_in_state={provider['opt_in']['opt_in_state']!r}; "
+            "quickstart should stay fake-default unless you intentionally opt in"
+        )
+    if cubox_export is None:
+        warnings.append("cubox_export not provided; quickstart will print <file.json> placeholder")
+    elif export_exists is False:
+        blockers.append(f"cubox_export path does not exist: {cubox_export}")
+
+    ready = not blockers
+    return {
+        "vault": {
+            "path": str(vault),
+            "classification": vault_classification,
+        },
+        "provider": {
+            "active_profile": provider["provider"]["active_profile"],
+            "opt_in_state": provider["opt_in"]["opt_in_state"],
+            "fake_default": provider["provider"]["active_profile"] == "fake",
+        },
+        "cubox_export": {
+            "path": str(cubox_export) if cubox_export is not None else None,
+            "exists": export_exists,
+            "will_read_contents": False,
+        },
+        "decision": {
+            "ready": ready,
+            "blockers": blockers,
+            "warnings": warnings,
+        },
+        "output_contract": {
+            "renders_commands_only": True,
+            "reads_env": False,
+            "calls_real_llm": False,
+            "calls_real_cubox_api": False,
+            "writes_vault": False,
+            "writes_cards": False,
+            "approves": False,
+            "human_approved": False,
+        },
+    }
+
+
+def render_dogfood_readiness_report(report: dict[str, Any]) -> str:
+    """渲染 dogfood readiness；只输出状态和下一步命令，不执行命令。"""
+    lines = ["MindForge dogfood readiness", "=" * 40]
+    lines.append(f"vault.path              : {report['vault']['path']}")
+    lines.append(f"vault.classification    : {report['vault']['classification']}")
+    lines.append(f"provider.active_profile : {report['provider']['active_profile']}")
+    lines.append(f"provider.opt_in_state   : {report['provider']['opt_in_state']}")
+    lines.append(f"provider.fake_default   : {report['provider']['fake_default']}")
+    lines.append(f"cubox_export.path       : {report['cubox_export']['path'] or '-'}")
+    lines.append(f"cubox_export.exists     : {report['cubox_export']['exists']}")
+    lines.append(f"decision.ready          : {report['decision']['ready']}")
+    if report["decision"]["blockers"]:
+        lines.append("decision.blockers       :")
+        for item in report["decision"]["blockers"]:
+            lines.append(f"  - {item}")
+    if report["decision"]["warnings"]:
+        lines.append("decision.warnings       :")
+        for item in report["decision"]["warnings"]:
+            lines.append(f"  - {item}")
+    lines.append(
+        "output_contract         : renders_commands_only=True, "
+        "reads_env=False, calls_real_llm=False, calls_real_cubox_api=False, "
+        "writes_vault=False, human_approved=False"
+    )
+    lines.append("")
+    if report["decision"]["ready"]:
+        lines.append("Recommended next:")
+        lines.append(
+            f"  mindforge dogfood quickstart --vault {report['vault']['path']}"
+        )
+        lines.append("  mindforge dogfood preflight examples/demo-vault")
+    else:
+        lines.append("Fix first:")
+        lines.append("  mindforge demo")
+        lines.append("  mindforge dogfood quickstart --vault examples/demo-vault")
+    lines.append("")
+    lines.append(
+        "Cleanup: use a disposable vault copy, e.g. "
+        "cp -r examples/demo-vault /tmp/dogfood-vault; rollback = delete that copy."
+    )
+    return "\n".join(lines)
+
+
 def build_preflight_report(
     input_path: Path,
     *,
@@ -258,6 +377,8 @@ __all__ = [
     "classify_input_path",
     "build_preflight_report",
     "render_preflight_report",
+    "dogfood_readiness_report",
+    "render_dogfood_readiness_report",
     "CLASS_SYNTHETIC",
     "CLASS_NON_SENSITIVE_LOCAL",
     "CLASS_PRIVATE_REAL_DATA_FORBIDDEN",

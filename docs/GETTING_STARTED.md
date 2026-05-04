@@ -12,9 +12,12 @@
 
 > **🚀 Real-data dogfood quickstart (10 min, 0 sensitive data, 0 network):**
 > ```bash
+> mindforge dogfood readiness --vault /path/to/disposable-project-vault
 > mindforge dogfood quickstart --vault /path/to/disposable-project-vault
 > ```
-> Prints a 10-step copy-paste runbook that takes you from install →
+> `readiness` first confirms the vault/provider/export state is still
+> fake-default + dry-run safe. `quickstart` then prints an 11-step
+> copy-paste runbook that takes you from install →
 > Cubox JSON-export preview → ai_draft → project-vault dry-run, **all
 > on the fake-default + dry-run path**. No real LLM. No real Cubox API.
 > No formal vault write. No `human_approved` produced. **No release / no
@@ -32,6 +35,7 @@
 > **想直接看效果？** 用仓库自带的 demo vault 一键跑：
 > ```bash
 > mindforge doctor --vault examples/demo-vault
+> mindforge dogfood readiness --vault examples/demo-vault
 > mindforge commands
 > mindforge next --vault examples/demo-vault
 > mindforge scan --vault examples/demo-vault

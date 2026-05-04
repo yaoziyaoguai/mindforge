@@ -100,6 +100,7 @@ def test_render_demo_tour_contains_pinned_user_facing_literals() -> None:
     assert "no human_approved" in out
     assert "fake-default" in out
     # 下一步建议必须指向已有命令, 避免出现"虚构命令"
+    assert "dogfood readiness" in out
     assert "dogfood quickstart" in out
 
 

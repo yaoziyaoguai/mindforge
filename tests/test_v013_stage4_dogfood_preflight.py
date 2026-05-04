@@ -30,6 +30,8 @@ from mindforge.dogfood_safety import (
     CLASS_SYNTHETIC,
     build_preflight_report,
     classify_input_path,
+    dogfood_readiness_report,
+    render_dogfood_readiness_report,
 )
 
 
@@ -248,3 +250,79 @@ def test_cli_dogfood_preflight_does_not_invoke_llm(tmp_path, monkeypatch):
         assert result.exit_code == 0, result.output
     finally:
         monkeypatch.setattr(factory_mod, "build_providers", real_build)
+
+
+def test_dogfood_readiness_summarizes_safe_default_path(fake_llm_config):
+    """readiness 是 quickstart 前的只读产品检查点，不读取任何输入内容。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    report = dogfood_readiness_report(
+        vault=repo_root / "examples" / "demo-vault",
+        cubox_export=None,
+        declared_non_sensitive=True,
+        llm_config=fake_llm_config,
+    )
+    assert report["decision"]["ready"] is True
+    assert report["provider"]["fake_default"] is True
+    assert report["output_contract"]["reads_env"] is False
+    assert report["output_contract"]["calls_real_llm"] is False
+    assert report["output_contract"]["calls_real_cubox_api"] is False
+    assert report["output_contract"]["human_approved"] is False
+    rendered = render_dogfood_readiness_report(report)
+    assert "MindForge dogfood readiness" in rendered
+    assert "mindforge dogfood quickstart" in rendered
+    assert "rollback = delete that copy" in rendered
+
+
+def test_dogfood_readiness_blocks_missing_export(fake_llm_config, tmp_path):
+    """提供 Cubox export 时只检查存在性；缺失要给 blocker，而不是猜测继续。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    missing_export = tmp_path / "missing.json"
+    report = dogfood_readiness_report(
+        vault=repo_root / "examples" / "demo-vault",
+        cubox_export=missing_export,
+        declared_non_sensitive=True,
+        llm_config=fake_llm_config,
+    )
+    assert report["decision"]["ready"] is False
+    assert any("cubox_export" in b for b in report["decision"]["blockers"])
+    assert report["cubox_export"]["will_read_contents"] is False
+
+
+def test_cli_dogfood_readiness_does_not_read_env_or_export_contents(
+    tmp_path, fake_llm_config, monkeypatch
+):
+    """CLI readiness 不读 `.env`，也不读取 Cubox export 内容。"""
+    repo_root = Path(__file__).resolve().parents[1]
+    export = tmp_path / "export.json"
+    export.write_text("SECRET-CONTENT-MUST-NOT-BE-READ", encoding="utf-8")
+
+    def _blocked_env(*_args, **_kwargs):  # pragma: no cover
+        raise AssertionError("dogfood readiness 不应读取 .env")
+
+    def _blocked_read_text(self, *args, **kwargs):  # noqa: ANN001
+        if self == export:
+            raise AssertionError("dogfood readiness 不应读取 Cubox export 内容")
+        return real_read_text(self, *args, **kwargs)
+
+    real_read_text = Path.read_text
+    monkeypatch.setattr("mindforge.env_loader.load_dotenv_silently", _blocked_env)
+    monkeypatch.setattr(Path, "read_text", _blocked_read_text)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "dogfood",
+            "readiness",
+            "--vault",
+            str(repo_root / "examples" / "demo-vault"),
+            "--cubox-export",
+            str(export),
+            "--config",
+            str(repo_root / "configs" / "mindforge.yaml"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "decision.ready          : True" in result.output
+    assert "reads_env=False" in result.output
+    assert "human_approved=False" in result.output

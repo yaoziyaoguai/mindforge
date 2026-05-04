@@ -32,6 +32,13 @@ pip install -e .
 mindforge demo            # 60s tour: SourceDocument → ai_draft → review packet
 ```
 
+Before copying a real-data dogfood runbook, verify that the current path is
+still fake-default and dry-run safe:
+
+```bash
+mindforge dogfood readiness --vault examples/demo-vault
+```
+
 Once you want to bring your own vault and inbox, continue with the full
 init flow:
 
@@ -71,6 +78,7 @@ To try the product without using your own data:
 
 ```bash
 mindforge doctor --vault examples/demo-vault
+mindforge dogfood readiness --vault examples/demo-vault
 mindforge commands
 mindforge next --vault examples/demo-vault
 mindforge scan --vault examples/demo-vault
