@@ -34,28 +34,30 @@
 >
 > **想直接看效果？** 用仓库自带的 demo vault 一键跑：
 > ```bash
-> mindforge doctor --vault examples/demo-vault
-> mindforge dogfood readiness --vault examples/demo-vault
+> cp -R examples/demo-vault /tmp/dogfood-vault
+> mindforge doctor --vault /tmp/dogfood-vault
+> mindforge dogfood readiness --vault /tmp/dogfood-vault
 > mindforge commands
-> mindforge next --vault examples/demo-vault
-> mindforge scan --vault examples/demo-vault
-> mindforge process --profile fake --limit 1 --vault examples/demo-vault
-> mindforge approve list --vault examples/demo-vault
-> mindforge index rebuild --vault examples/demo-vault
-> mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault examples/demo-vault
-> mindforge review weekly --format markdown --vault examples/demo-vault
-> mindforge review schedule --days 7 --format markdown --vault examples/demo-vault
-> mindforge project context my-first-agent --target claude-code --vault examples/demo-vault
-> mindforge obsidian doctor --vault examples/demo-vault
-> mindforge obsidian scan --vault examples/demo-vault --limit 5
-> mindforge obsidian links --vault examples/demo-vault
-> mindforge obsidian stage --vault examples/demo-vault \
+> mindforge next --vault /tmp/dogfood-vault
+> mindforge scan --vault /tmp/dogfood-vault
+> mindforge process --profile fake --limit 1 --vault /tmp/dogfood-vault
+> mindforge approve list --vault /tmp/dogfood-vault
+> mindforge index rebuild --vault /tmp/dogfood-vault
+> mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault /tmp/dogfood-vault
+> mindforge review weekly --format markdown --vault /tmp/dogfood-vault
+> mindforge review schedule --days 7 --format markdown --vault /tmp/dogfood-vault
+> mindforge project context my-first-agent --target claude-code --vault /tmp/dogfood-vault
+> mindforge obsidian doctor --vault /tmp/dogfood-vault
+> mindforge obsidian scan --vault /tmp/dogfood-vault --limit 5
+> mindforge obsidian links --vault /tmp/dogfood-vault
+> mindforge obsidian stage --vault /tmp/dogfood-vault \
 >   --source 02-Knowledge/agent-runtime-observer.md --dry-run
+> rm -rf /tmp/dogfood-vault
 > ```
 > （demo vault 完全虚构，详见 [`examples/demo-vault/README.md`](../examples/demo-vault/README.md)）
 >
-> 提示：`process` 会写一张本地 `ai_draft` demo 卡。想反复试跑时，可以先把
-> `examples/demo-vault` 复制到 `/tmp`，再把 `--vault` 指向副本。
+> 提示：`process` 会写一张本地 `ai_draft` demo 卡，所以推荐先复制到
+> `/tmp/dogfood-vault`。想重置 demo 状态时，删除这个 disposable 副本即可。
 >
 > 不知道下一步该敲哪条命令？随时跑 **`mindforge next`** 看建议，
 > 或 **`mindforge commands`** 看按场景分组的命令地图。完整文档地图见

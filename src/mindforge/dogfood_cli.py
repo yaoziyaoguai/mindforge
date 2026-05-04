@@ -287,7 +287,7 @@ def _dogfood_quickstart_steps(
             "一条命令确认 vault/provider/export 是否适合复制本 runbook (只读; 不读 export 内容)",
         ),
         (
-            "mindforge doctor --paths",
+            f"mindforge doctor --vault {v} --paths",
             "确认本地路径与安全边界 (确认 active_profile=fake)",
         ),
         (
@@ -307,7 +307,7 @@ def _dogfood_quickstart_steps(
             "对前 5 条用 fake provider 生成 ai_draft (review-only; 永远不要 --limit > 20 第一次跑)",
         ),
         (
-            "mindforge dogfood preflight examples/demo-vault --declare-non-sensitive",
+            f"mindforge dogfood preflight {v} --declare-non-sensitive",
             "静态 dogfood 路径分类; 不读输入, 不调 LLM, 不写 vault",
         ),
         (
@@ -323,7 +323,7 @@ def _dogfood_quickstart_steps(
             "项目 vault staging dry-run (默认 --dry-run; --write 才真写)",
         ),
         (
-            "mindforge approve list",
+            f"mindforge approve list --vault {v}",
             "查看待人工 approve 的 ai_draft (永远只能由 approver.approve_card 晋升)",
         ),
     ]

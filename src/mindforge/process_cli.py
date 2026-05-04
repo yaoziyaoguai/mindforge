@@ -298,7 +298,7 @@ def _finalize_process_run(*, cp, cfg, logger, console, counts, dry_run):
         )
 
     console.print(_pp.format_summary(counts))
-    for hint in _pp.format_next_hint(counts):
+    for hint in _pp.format_next_hint(counts, vault_root=cfg.vault.root):
         console.print(hint, markup=False)
 
 

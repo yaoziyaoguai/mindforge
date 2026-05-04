@@ -142,7 +142,10 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
         str(index_path) if index_path.exists() else "missing",
     ))
     if not index_path.exists():
-        actions.append(("recommended", "BM25 索引缺失 → 运行: mindforge index rebuild"))
+        actions.append((
+            "recommended",
+            f"BM25 索引缺失 → 运行: mindforge index rebuild --vault {cfg.vault.root}",
+        ))
 
     try:
         from ..assets_runtime import bundled_text
@@ -262,7 +265,8 @@ def compute_doctor_hints(
             elif n_drafts > 0:
                 hints.append((
                     "recommended",
-                    f"{n_drafts} 张 ai_draft 待人工审核 → 运行: mindforge approve list",
+                    f"{n_drafts} 张 ai_draft 待人工审核 → 运行: "
+                    f"mindforge approve list --vault {cfg.vault.root}",
                 ))
             # v0.3.2: 没有 human_approved 但有 ai_draft → 提示 recall --include-drafts
             if res.cards and n_approved == 0 and n_drafts > 0:
@@ -290,12 +294,14 @@ def compute_doctor_hints(
                 if _overdue:
                     hints.append((
                         "recommended",
-                        f"{_overdue} 张卡片已 overdue → 运行: mindforge review backlog",
+                        f"{_overdue} 张卡片已 overdue → 运行: "
+                        f"mindforge review backlog --vault {cfg.vault.root}",
                     ))
                 elif _due_7:
                     hints.append((
                         "recommended",
-                        f"{_due_7} 张卡片本周内到期 → 运行: mindforge review schedule --days 7",
+                        f"{_due_7} 张卡片本周内到期 → 运行: "
+                        f"mindforge review schedule --days 7 --vault {cfg.vault.root}",
                     ))
             # v0.3.1: BM25 索引检查（缺失 / 配置漂移 / mtime 漂移）
             idx_path = _lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
@@ -303,7 +309,8 @@ def compute_doctor_hints(
                 if res.cards:
                     hints.append((
                         "recommended",
-                        "BM25 索引缺失 → 运行: mindforge index rebuild",
+                            f"BM25 索引缺失 → 运行: "
+                            f"mindforge index rebuild --vault {cfg.vault.root}",
                     ))
             else:
                 try:
@@ -317,19 +324,22 @@ def compute_doctor_hints(
                     if idx.config_hash and idx.config_hash != cur_h:
                         hints.append((
                             "recommended",
-                            "BM25 索引与 search 配置不一致 → 运行: mindforge index rebuild",
+                                "BM25 索引与 search 配置不一致 → 运行: "
+                                f"mindforge index rebuild --vault {cfg.vault.root}",
                         ))
                     else:
                         diff = _lx.diff_index(idx, res.cards)
                         if not diff.fresh:
                             hints.append((
                                 "recommended",
-                                "BM25 索引 stale（卡片有变更） → 运行: mindforge index rebuild",
+                                "BM25 索引 stale（卡片有变更） → 运行: "
+                                f"mindforge index rebuild --vault {cfg.vault.root}",
                             ))
                 except Exception:  # noqa: BLE001
                     hints.append((
                         "recommended",
-                        "BM25 索引读取失败 → 运行: mindforge index rebuild",
+                        "BM25 索引读取失败 → 运行: "
+                        f"mindforge index rebuild --vault {cfg.vault.root}",
                     ))
         except Exception:  # noqa: BLE001
             pass

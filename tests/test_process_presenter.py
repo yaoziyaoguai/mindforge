@@ -113,6 +113,16 @@ def test_format_next_hint_after_processed_emphasizes_human_approval_boundary() -
     assert "ai_draft" in joined and "human approval" in joined
 
 
+def test_format_next_hint_can_keep_current_vault_context() -> None:
+    """presenter 只接收 vault_root 值，避免自己读取配置或反向依赖 CLI。"""
+
+    hints = format_next_hint(
+        {"seen": 1, "processed": 1, "skipped": 0, "failed": 0},
+        vault_root=Path("/tmp/dogfood-vault"),
+    )
+    assert "mindforge approve list --vault /tmp/dogfood-vault" in hints[0]
+
+
 def test_format_next_hint_after_skipped_only_suggests_scan_or_approve() -> None:
     """全 skipped 时引导用户去 scan 或 approve list，而不是夸大 processed。"""
 

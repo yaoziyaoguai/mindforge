@@ -60,7 +60,7 @@ def format_summary(counts: Mapping[str, int]) -> str:
     )
 
 
-def format_next_hint(counts: Mapping[str, int]) -> list[str]:
+def format_next_hint(counts: Mapping[str, int], *, vault_root: Path | None = None) -> list[str]:
     """根据 counts 给出下一步建议（plain 字符串列表，CLI 决定是否打印）。
 
     安全契约：``processed > 0`` 时必须复述 ``ai_draft until explicit human
@@ -69,13 +69,17 @@ def format_next_hint(counts: Mapping[str, int]) -> list[str]:
 
     processed = counts.get("processed", 0)
     skipped = counts.get("skipped", 0)
+    vault_suffix = f" --vault {vault_root}" if vault_root is not None else ""
     if processed > 0:
         return [
-            "Next: mindforge approve list",
+            f"Next: mindforge approve list{vault_suffix}",
             "Boundary: generated cards remain ai_draft until explicit human approval.",
         ]
     if skipped > 0:
-        return ["Next: mindforge scan or mindforge approve list"]
+        return [
+            "Next: "
+            f"mindforge scan{vault_suffix} or mindforge approve list{vault_suffix}"
+        ]
     return []
 
 

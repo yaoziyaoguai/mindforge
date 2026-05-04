@@ -47,7 +47,7 @@ mindforge dogfood quickstart --vault /path/to/project-vault \
   --cubox-export /path/to/cubox-export.json
 ```
 
-This **prints** the 10-step runbook. It does **not** execute anything.
+This **prints** the 11-step runbook. It does **not** execute anything.
 Each step is a copy-paste command you run yourself. If you skip
 `--cubox-export`, the Cubox steps will still print but with
 `<file.json>` placeholder text.
@@ -57,16 +57,16 @@ Each step is a copy-paste command you run yourself. If you skip
 | # | Command | What it does |
 |---|---|---|
 | 1 | `mindforge dogfood readiness --vault <project-vault>` | One-screen safety summary before copying the runbook |
-| 2 | `mindforge doctor --paths` | Confirm local paths + safety boundaries |
+| 2 | `mindforge doctor --vault <project-vault> --paths` | Confirm local paths + safety boundaries |
 | 3 | `mindforge provider readiness ...` | Confirm `active_profile=fake` (no real LLM) |
 | 4 | `mindforge dogfood cubox-readiness ...` | Confirm Cubox real-path readiness (no network) |
 | 5 | `mindforge cubox dry-run --export <file.json>` | Cubox JSON-export offline preview (real data, zero network) |
 | 6 | `mindforge cubox preview-ai-draft --export <file.json> --limit 5` | First 5 items → ai_draft via fake provider |
-| 7 | `mindforge dogfood preflight examples/demo-vault --declare-non-sensitive` | Static dogfood path classification |
+| 7 | `mindforge dogfood preflight <project-vault> --declare-non-sensitive` | Static dogfood path classification |
 | 8 | `mindforge obsidian doctor --vault <project-vault>` | Confirm project vault safety (no home scan) |
 | 9 | `mindforge obsidian scan --vault <project-vault> --limit 5` | Scan project vault for Markdown |
 | 10 | `mindforge obsidian stage --vault <project-vault> --source <note.md> --dry-run` | Project-vault staging dry-run |
-| 11 | `mindforge approve list` | List ai_drafts awaiting human approval |
+| 11 | `mindforge approve list --vault <project-vault>` | List ai_drafts awaiting human approval |
 
 ## Safety boundaries you can verify yourself
 

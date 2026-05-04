@@ -351,7 +351,10 @@ def _print_daily_snapshot(snapshot: DailySnapshot) -> None:
 def _print_next_actions(suggestions: list[NextSuggestion]) -> None:
     console.print("\n[bold]Next actions[/bold]")
     for item in suggestions:
-        console.print(f"  [{item.priority}] → {item.command}", markup=False)
+        # 中文学习型说明：命令行必须是可复制产品面，不交给 Rich 自动换行。
+        # 真实 dogfood 里用户常带很长的 /tmp vault 路径；一旦被 Rich 包装成
+        # 多行，新用户很难判断该复制哪一段。原因说明仍可由 Rich 渲染。
+        print(f"  [{item.priority}] → {item.command}")
         console.print(f"    {item.reason}")
 
 

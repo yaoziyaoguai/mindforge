@@ -46,6 +46,7 @@ CLASS_HOME_SCAN_FORBIDDEN = "home_scan_forbidden"
 CLASS_PATH_DOES_NOT_EXIST = "path_does_not_exist"
 
 _SYNTHETIC_PARENTS = ("examples/demo-vault", "examples/custom-strategies")
+_DISPOSABLE_ROOT_MARKERS = ("/tmp/", "/private/tmp/")
 
 
 def classify_input_path(
@@ -62,13 +63,16 @@ def classify_input_path(
     1. 路径不存在 → ``path_does_not_exist`` (refuse: 不能猜测意图);
     2. 路径解析后在 ``examples/demo-vault`` 或 ``examples/custom-strategies``
        下 → ``synthetic`` (最安全);
-    3. 路径或其任意上级目录名 == ``.obsidian`` → ``obsidian_vault_forbidden``
+    3. 路径解析后在系统临时目录下，且用户显式声明 non-sensitive →
+       ``non_sensitive_local``。这是 README 推荐的 disposable vault 复制路径；
+       允许它避免用户被安全检查卡住，但仍不读取 vault 内容。
+    4. 路径或其任意上级目录名 == ``.obsidian`` → ``obsidian_vault_forbidden``
        (Obsidian vault 标志目录, Stage 4 显式禁止);
-    4. 路径解析后在用户 ``home`` 下且不在当前 ``cwd`` 下 →
+    5. 路径解析后在用户 ``home`` 下且不在当前 ``cwd`` 下 →
        ``home_scan_forbidden``;
-    5. 调用者显式 ``declared_non_sensitive=True`` 且其它规则未命中 →
+    6. 调用者显式 ``declared_non_sensitive=True`` 且其它规则未命中 →
        ``non_sensitive_local`` (用户为这条声明负责);
-    6. 否则 → ``private_real_data_forbidden``。
+    7. 否则 → ``private_real_data_forbidden``。
 
     cwd / home 注入便于测试; 默认走真实 ``Path.cwd()`` / ``Path.home()``,
     但**只解析**, 不遍历。
@@ -88,6 +92,15 @@ def classify_input_path(
     for marker in _SYNTHETIC_PARENTS:
         if f"/{marker}" in resolved_str or resolved_str.endswith(marker):
             return CLASS_SYNTHETIC
+
+    # README / quickstart 推荐用户先复制 examples/demo-vault 到 /tmp 做
+    # disposable project vault。它会保留 .obsidian 形状，但目标是可删除副本，
+    # 且 readiness/preflight 仍不读取内容、不写 vault；因此在用户显式声明
+    # non-sensitive 时允许通过。home 下真实个人 vault 不会命中此分支。
+    if declared_non_sensitive and any(
+        resolved_str.startswith(marker) for marker in _DISPOSABLE_ROOT_MARKERS
+    ):
+        return CLASS_NON_SENSITIVE_LOCAL
 
     # 检测 .obsidian: 路径自身或任意 parent 是 .obsidian, 或任意 parent
     # 目录里**存在** .obsidian 子目录 (Obsidian vault 标志)
@@ -230,7 +243,10 @@ def render_dogfood_readiness_report(report: dict[str, Any]) -> str:
         lines.append(
             f"  mindforge dogfood quickstart --vault {report['vault']['path']}"
         )
-        lines.append("  mindforge dogfood preflight examples/demo-vault")
+        lines.append(
+            f"  mindforge dogfood preflight {report['vault']['path']} "
+            "--declare-non-sensitive"
+        )
     else:
         lines.append("Fix first:")
         lines.append("  mindforge demo")

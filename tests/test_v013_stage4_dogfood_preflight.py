@@ -63,6 +63,27 @@ def test_obsidian_vault_path_is_forbidden(tmp_path):
     )
 
 
+def test_tmp_disposable_obsidian_vault_can_be_declared_non_sensitive(tmp_path):
+    """README 推荐的 /tmp disposable vault 副本应能通过 readiness。
+
+    中文学习：真实 dogfood reality check 发现用户按文档复制 demo vault 到
+    /tmp 后会保留 .obsidian 目录。这里允许的前提很窄：必须是临时目录下、
+    必须显式声明 non-sensitive；home 下真实个人 vault 仍由下一条测试拒绝。
+    """
+    vault = Path("/tmp") / f"mindforge-test-{tmp_path.name}"
+    (vault / ".obsidian").mkdir(parents=True, exist_ok=True)
+    try:
+        assert (
+            classify_input_path(vault, declared_non_sensitive=True)
+            == CLASS_NON_SENSITIVE_LOCAL
+        )
+    finally:
+        for child in (vault / ".obsidian").glob("*"):
+            child.unlink()
+        (vault / ".obsidian").rmdir()
+        vault.rmdir()
+
+
 def test_home_path_outside_cwd_is_forbidden(tmp_path, monkeypatch):
     """模拟用户把家目录的子路径作为 input — 必须拒绝。"""
     fake_home = tmp_path / "home"
@@ -270,7 +291,27 @@ def test_dogfood_readiness_summarizes_safe_default_path(fake_llm_config):
     rendered = render_dogfood_readiness_report(report)
     assert "MindForge dogfood readiness" in rendered
     assert "mindforge dogfood quickstart" in rendered
+    assert "mindforge dogfood preflight" in rendered
+    assert "--declare-non-sensitive" in rendered
     assert "rollback = delete that copy" in rendered
+
+
+def test_dogfood_readiness_allows_tmp_disposable_vault(fake_llm_config, tmp_path):
+    """readiness 必须承接 README 的 cp -R examples/demo-vault /tmp 路径。"""
+    vault = Path("/tmp") / f"mindforge-readiness-{tmp_path.name}"
+    (vault / ".obsidian").mkdir(parents=True, exist_ok=True)
+    try:
+        report = dogfood_readiness_report(
+            vault=vault,
+            cubox_export=None,
+            declared_non_sensitive=True,
+            llm_config=fake_llm_config,
+        )
+        assert report["decision"]["ready"] is True
+        assert report["vault"]["classification"] == CLASS_NON_SENSITIVE_LOCAL
+    finally:
+        (vault / ".obsidian").rmdir()
+        vault.rmdir()
 
 
 def test_dogfood_readiness_blocks_missing_export(fake_llm_config, tmp_path):

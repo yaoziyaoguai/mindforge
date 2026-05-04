@@ -77,24 +77,28 @@ mindforge strategies list
 To try the product without using your own data:
 
 ```bash
-mindforge doctor --vault examples/demo-vault
-mindforge dogfood readiness --vault examples/demo-vault
+cp -R examples/demo-vault /tmp/dogfood-vault
+mindforge doctor --vault /tmp/dogfood-vault
+mindforge dogfood readiness --vault /tmp/dogfood-vault
 mindforge commands
-mindforge next --vault examples/demo-vault
-mindforge scan --vault examples/demo-vault
-mindforge process --profile fake --limit 1 --vault examples/demo-vault
-mindforge approve list --vault examples/demo-vault
-mindforge index rebuild --vault examples/demo-vault
-mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault examples/demo-vault
-mindforge review weekly --format markdown --vault examples/demo-vault
-mindforge project context my-first-agent --target claude-code --vault examples/demo-vault
-mindforge obsidian doctor --vault examples/demo-vault
-mindforge obsidian scan --vault examples/demo-vault --limit 5
-mindforge obsidian links --vault examples/demo-vault
-mindforge obsidian stage --vault examples/demo-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
+mindforge next --vault /tmp/dogfood-vault
+mindforge scan --vault /tmp/dogfood-vault
+mindforge process --profile fake --limit 1 --vault /tmp/dogfood-vault
+mindforge approve list --vault /tmp/dogfood-vault
+mindforge index rebuild --vault /tmp/dogfood-vault
+mindforge recall --query "checkpoint runtime" --ranking hybrid --explain --vault /tmp/dogfood-vault
+mindforge review weekly --format markdown --vault /tmp/dogfood-vault
+mindforge project context my-first-agent --target claude-code --vault /tmp/dogfood-vault
+mindforge obsidian doctor --vault /tmp/dogfood-vault
+mindforge obsidian scan --vault /tmp/dogfood-vault --limit 5
+mindforge obsidian links --vault /tmp/dogfood-vault
+mindforge obsidian stage --vault /tmp/dogfood-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
+rm -rf /tmp/dogfood-vault
 ```
 
-The demo vault is fictional and safe to inspect. See [examples/demo-vault/README.md](examples/demo-vault/README.md).
+The demo vault is fictional and safe to inspect. Copying it to `/tmp` keeps
+generated `ai_draft` cards and runtime files out of repository fixtures; cleanup
+is deleting that disposable copy. See [examples/demo-vault/README.md](examples/demo-vault/README.md).
 
 ## What It Does
 

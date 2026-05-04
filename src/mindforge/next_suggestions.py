@@ -81,7 +81,7 @@ def next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
     if draft_count > 0:
         suggestions.append(
             NextSuggestion(
-                "mindforge approve list",
+                _vault_command(cfg, "mindforge approve list"),
                 f"有 {draft_count} 张 ai_draft 卡片等待审核（不会自动 approve）",
                 "recommended",
             )
@@ -119,7 +119,7 @@ def _vault_shape_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
         return []
     return [
         NextSuggestion(
-            "mindforge init",
+            _vault_command(cfg, "mindforge init"),
             "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）",
             "critical",
         )
@@ -149,11 +149,17 @@ def _state_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSugge
     state_path = cfg.state.state_path
     raw_or_triaged = _count_raw_or_triaged_state_entries(state_path)
     if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
-        return [NextSuggestion("mindforge scan", "inbox 有文件但 state.json 还没建立", "critical")]
+        return [
+            NextSuggestion(
+                _vault_command(cfg, "mindforge scan"),
+                "inbox 有文件但 state.json 还没建立",
+                "critical",
+            )
+        ]
     if raw_or_triaged > 0:
         return [
             NextSuggestion(
-                "mindforge process --limit 10",
+                _vault_command(cfg, "mindforge process --limit 10"),
                 f"state 中有 {raw_or_triaged} 条未跑完 pipeline",
                 "critical",
             )
@@ -209,7 +215,7 @@ def _index_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
     if cards.exists() and not index_path.exists() and card_file_count > 0:
         return [
             NextSuggestion(
-                "mindforge index rebuild",
+                _vault_command(cfg, "mindforge index rebuild"),
                 "BM25 索引尚未建立（recall 需要它）",
                 "recommended",
             )
@@ -223,7 +229,7 @@ def _review_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
         return []
     return [
         NextSuggestion(
-            "mindforge review backlog",
+            _vault_command(cfg, "mindforge review backlog"),
             f"有 {overdue} 张复习卡片已 overdue",
             "recommended",
         )
@@ -266,11 +272,25 @@ def _project_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
         return []
     return [
         NextSuggestion(
-            "mindforge project list",
+            _vault_command(cfg, "mindforge project list"),
             f"vault 中有 {project_count} 个项目笔记，可生成 context pack",
             "info",
         )
     ]
+
+
+def _vault_command(cfg: MindForgeConfig, command: str) -> str:
+    """把建议命令绑定到当前 vault，保证复制后仍在同一个 dogfood 目标上运行。
+
+    中文学习型说明：``next`` / ``start`` 是产品入口，输出的每条命令都应该
+    可以直接复制。真实 dogfood 时用户常传入 demo 或 ``/tmp`` disposable
+    vault；如果建议命令丢掉 ``--vault``，下一步就会回到配置里的默认私人
+    vault，既卡顿也有安全风险。这里仍是纯字符串策略，不依赖 CLI/Rich。
+    """
+
+    if "--vault" in command:
+        return command
+    return f"{command} --vault {cfg.vault.root}"
 
 
 def compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSuggestion]:

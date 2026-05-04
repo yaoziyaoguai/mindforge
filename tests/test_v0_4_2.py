@@ -171,6 +171,7 @@ def test_next_suggests_approve_when_drafts_exist(tmp_path: Path) -> None:
     res = runner.invoke(app, ["next", "--config", str(cfg)])
     assert res.exit_code == 0
     assert "approve list" in res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
 
 
 def test_next_suggests_index_rebuild_when_index_missing(tmp_path: Path) -> None:
@@ -217,6 +218,19 @@ def test_next_json_format_is_parseable(tmp_path: Path) -> None:
     assert all("command" in s and "reason" in s and "priority" in s for s in data["suggestions"])
 
 
+def test_next_text_suggestions_keep_current_vault(tmp_path: Path) -> None:
+    """真实 dogfood 输出的下一步命令必须保留当前 vault 上下文。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-1", {
+        "id": "draft-1", "title": "draft", "status": "ai_draft",
+        "track": "agent-runtime", "value_score": 5,
+    })
+    res = runner.invoke(app, ["next", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
+
+
 def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None:
     """v0.5.4: today 是只读每日入口，展示状态和下一步，不触发加工。
 
@@ -257,6 +271,19 @@ def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
     assert "human_approved" in res.output
     assert "Next actions" in res.output
     assert "不读 .env" in res.output
+
+
+def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
+    """start 是第一天入口，建议命令也必须能直接复制到同一 vault。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-1", {
+        "id": "draft-1", "title": "draft", "status": "ai_draft",
+        "track": "agent-runtime", "value_score": 5,
+    })
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
 
 
 def test_start_missing_config_suggests_init(tmp_path: Path) -> None:

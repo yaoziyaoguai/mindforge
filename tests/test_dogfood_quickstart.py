@@ -30,6 +30,12 @@ def test_quickstart_explicit_vault() -> None:
     )
     assert result.exit_code == 0, result.output
     assert "/tmp/project-vault" in result.output
+    assert "mindforge doctor --vault /tmp/project-vault --paths" in result.output
+    assert (
+        "mindforge dogfood preflight /tmp/project-vault --declare-non-sensitive"
+        in result.output
+    )
+    assert "mindforge approve list --vault /tmp/project-vault" in result.output
 
 
 def test_quickstart_mentions_three_required_command_paths() -> None:

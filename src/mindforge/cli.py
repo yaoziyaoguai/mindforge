@@ -363,7 +363,10 @@ def scan(
         if write_state:
             cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
             console.print(f"已写入 state.json → {cfg.state.state_path}")  # type: ignore[attr-defined]
-            console.print("Next: mindforge process --profile fake --limit 1", markup=False)
+            console.print(
+                f"Next: mindforge process --profile fake --limit 1 --vault {cfg.vault.root}",
+                markup=False,
+            )
             logger.emit(
                 EVENT_STATE_WRITTEN,
                 path=str(cfg.state.state_path),  # type: ignore[attr-defined]
