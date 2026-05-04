@@ -199,14 +199,16 @@ def test_cli_strategies_list_does_not_construct_llm_client() -> None:
     """``mindforge strategies list`` 必须是纯查询 —— 实现源码里不能出现
     ``LLMClient(`` 构造、不能调用 ``build_strategy(`` / ``build_providers(``。
 
-    通过对 cli.py 中 ``strategies_list`` 函数体的源码扫描守护这条边界，
-    避免后续随手在 list 里加上"顺便初始化 client 检查可达性"等副作用。
+    通过对 ``strategy_cli.py`` 中 ``strategies_list`` 函数体的源码扫描守护
+    这条边界。root ``cli.py`` 只注册命令族；真正的 strategy discovery
+    adapter 有独立 owner，避免后续随手在 list 里加上"顺便初始化 client
+    检查可达性"等副作用。
     """
 
-    src = Path("src/mindforge/cli.py").read_text(encoding="utf-8")
+    src = Path("src/mindforge/strategy_cli.py").read_text(encoding="utf-8")
     # 定位 strategies_list 函数体
     marker = "def strategies_list("
-    assert marker in src, "cli.py 中未找到 strategies_list 函数"
+    assert marker in src, "strategy_cli.py 中未找到 strategies_list 函数"
     start = src.index(marker)
     # 函数体到下一个顶层 def/@ 装饰之间
     after = src[start:]
@@ -261,17 +263,17 @@ def test_cli_process_unknown_strategy_message_hints_strategies_list() -> None:
     """``mindforge process --strategy <unknown>`` 的 console 错误必须
     包含 ``mindforge strategies list`` 提示，给终端用户一条明确的下一步。
 
-    Red 期望：当前 cli.py 把 UnknownStrategyError 翻译成
-    "未知 strategy: ...; 可选: (...)"，没有 discovery 入口。
+    ``process_cli.py`` 是 process 命令的 adapter owner；root ``cli.py`` 只做
+    命令注册。这里扫描真实 owner，防止拆分后测试继续盯旧巨石入口。
     """
 
-    src = Path("src/mindforge/cli.py").read_text(encoding="utf-8")
+    src = Path("src/mindforge/process_cli.py").read_text(encoding="utf-8")
     # 定位 UnknownStrategyError 翻译块
     assert "except UnknownStrategyError" in src
     after = src[src.index("except UnknownStrategyError"):]
     window = after[:600]
     assert "strategies list" in window, (
-        "cli.py 中 UnknownStrategyError 翻译块未包含 `strategies list` 提示；"
+        "process_cli.py 中 UnknownStrategyError 翻译块未包含 `strategies list` 提示；"
         "Slice 2 Green 必须在错误消息中加入该 discovery 入口。"
     )
 

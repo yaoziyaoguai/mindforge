@@ -88,6 +88,148 @@ def _refuse(reason: str, *, opt_in_state: str | None = None) -> dict[str, Any]:
     }
 
 
+def _ready_opt_in_state_or_refusal(llm_config: Any, *, allow_real: bool) -> tuple[str, dict[str, Any] | None]:
+    if not allow_real:
+        return "", _refuse("--allow-real flag not provided (default safe refusal)")
+
+    # 复用 readiness 模块做状态分类, 避免重复实现。
+    from .provider_readiness import build_readiness_report
+
+    report = build_readiness_report(llm_config)
+    opt_in_state = report["opt_in"]["opt_in_state"]
+    if opt_in_state != "ready":
+        return opt_in_state, _refuse(
+            f"opt_in_state={opt_in_state!r}; need 'ready' "
+            "(active_profile != fake AND target alias api_key present)",
+            opt_in_state=opt_in_state,
+        )
+    return opt_in_state, None
+
+
+def _select_smoke_alias(
+    llm_config: Any,
+    *,
+    alias: str | None,
+    opt_in_state: str,
+) -> tuple[str | None, dict[str, Any] | None]:
+    profile = llm_config.profiles[llm_config.active_profile]
+    candidates = [a for a in profile.values() if llm_config.models[a].type != "fake"]
+    if alias is None:
+        if not candidates:
+            return None, _refuse("no non-fake alias in active profile", opt_in_state=opt_in_state)
+        return candidates[0], None
+    if alias not in candidates:
+        return None, _refuse(
+            f"alias {alias!r} not in active profile or is fake type",
+            opt_in_state=opt_in_state,
+        )
+    return alias, None
+
+
+def _build_smoke_provider(
+    llm_config: Any,
+    *,
+    alias: str,
+    opt_in_state: str,
+) -> tuple[Any | None, dict[str, Any] | None]:
+    # 真实调用 — 通过 factory 走标准路径; build_providers lazy-by-profile,
+    # 只构造 active 的 alias。
+    from .llm.factory import build_providers
+
+    try:
+        providers = build_providers(llm_config)
+    except Exception as exc:
+        return None, _refuse(
+            f"provider construction failed: {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
+
+    provider = providers.get(alias)
+    if provider is None:
+        return None, _refuse(f"provider for alias {alias!r} not built", opt_in_state=opt_in_state)
+    return provider, None
+
+
+def _build_smoke_request(mc: Any, *, alias: str, opt_in_state: str) -> tuple[Any | None, dict[str, Any] | None]:
+    # provider 的标准入口是 ``LLMProvider.generate(LLMRequest) -> LLMResult``
+    # (见 src/mindforge/llm/base.py)。real_smoke 必须严格走这个契约,
+    # 否则会与 fake provider / OpenAICompatibleProvider /
+    # AnthropicCompatibleProvider 全部解耦, 测试 stub 与真实 provider
+    # 行为也会漂移。
+    from .llm.base import LLMRequest
+
+    try:
+        return LLMRequest(
+            prompt=build_synthetic_prompt(),
+            stage="provider_smoke",
+            model=mc.model or alias,
+            max_tokens=128,
+            temperature=0.0,
+        ), None
+    except Exception as exc:
+        return None, _refuse(
+            f"LLMRequest construction failed: {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
+
+
+def _call_smoke_provider(provider: Any, request: Any, *, opt_in_state: str) -> tuple[Any | None, dict[str, Any] | None]:
+    from .llm.base import ProviderError
+
+    try:
+        return provider.generate(request), None
+    except ProviderError as exc:
+        # ProviderError 是已知的 provider-layer 失败 (网络/鉴权/4xx/5xx);
+        # 这里不重试, 不把 message 原样回显 (可能含 server 返回信息),
+        # 只暴露异常类型, 避免意外泄漏。
+        return None, _refuse(
+            f"provider call failed (ProviderError): {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
+    except Exception as exc:
+        return None, _refuse(
+            f"provider call failed: {type(exc).__name__}",
+            opt_in_state=opt_in_state,
+        )
+
+
+def _result_metadata(result: Any) -> tuple[str, int | None, int | None, int | None]:
+    # 容忍既符合 LLMResult 契约的真实 provider, 也允许返回 raw string
+    # 的旧式 stub (向后兼容历史 test fixture)。
+    from .llm.base import LLMResult
+
+    if isinstance(result, LLMResult):
+        return result.text, result.tokens_in, result.tokens_out, result.latency_ms
+    return str(result) if result is not None else "", None, None, None
+
+
+def _success_audit(
+    *,
+    opt_in_state: str,
+    provider_type: str,
+    alias: str,
+    result: Any,
+) -> dict[str, Any]:
+    text, tokens_in, tokens_out, latency_ms = _result_metadata(result)
+    return {
+        "ran": True,
+        "blocker": None,
+        "opt_in_state": opt_in_state,
+        "provider_type": provider_type,
+        "alias": alias,
+        "output_artifact": "ai_draft_preview",
+        "output_excerpt_safe": _scrub_excerpt(text),
+        # 真实调用的可观察 metadata; 这些字段不含 secret, 可以安全输出。
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "latency_ms": latency_ms,
+        # 永久 False — 类型契约即文档。
+        "human_approved": False,
+        "written": False,
+        "synthetic_input_only": True,
+    }
+
+
 def run_synthetic_real_smoke(
     llm_config: Any,
     *,
@@ -111,127 +253,31 @@ def run_synthetic_real_smoke(
     Returns:
         audit-trail dict (字段见 ``_refuse`` / 成功路径)。
     """
-    # Guard 1: explicit opt-in
-    if not allow_real:
-        return _refuse("--allow-real flag not provided (default safe refusal)")
+    opt_in_state, refusal = _ready_opt_in_state_or_refusal(llm_config, allow_real=allow_real)
+    if refusal is not None:
+        return refusal
 
-    # 复用 readiness 模块做状态分类, 避免重复实现。
-    from .provider_readiness import build_readiness_report
-
-    report = build_readiness_report(llm_config)
-    opt_in_state = report["opt_in"]["opt_in_state"]
-
-    # Guard 2 + 3 + 4: 必须达到 ready 状态
-    if opt_in_state != "ready":
-        return _refuse(
-            f"opt_in_state={opt_in_state!r}; need 'ready' "
-            "(active_profile != fake AND target alias api_key present)",
-            opt_in_state=opt_in_state,
-        )
-
-    # 选 alias: 调用方指定优先; 否则取当前 profile 中第一个非 fake alias
-    profile = llm_config.profiles[llm_config.active_profile]
-    candidates = [
-        a for a in profile.values() if llm_config.models[a].type != "fake"
-    ]
-    if alias is None:
-        if not candidates:
-            return _refuse("no non-fake alias in active profile", opt_in_state=opt_in_state)
-        alias = candidates[0]
-    elif alias not in candidates:
-        return _refuse(
-            f"alias {alias!r} not in active profile or is fake type",
-            opt_in_state=opt_in_state,
-        )
-
+    alias, refusal = _select_smoke_alias(llm_config, alias=alias, opt_in_state=opt_in_state)
+    if refusal is not None:
+        return refusal
+    assert alias is not None
     mc = llm_config.models[alias]
-    provider_type = mc.type
 
-    # 真实调用 — 通过 factory 走标准路径; build_providers lazy-by-profile,
-    # 只构造 active 的 alias。
-    from .llm.factory import build_providers
-
-    try:
-        providers = build_providers(llm_config)
-    except Exception as exc:
-        return _refuse(
-            f"provider construction failed: {type(exc).__name__}",
-            opt_in_state=opt_in_state,
-        )
-
-    provider = providers.get(alias)
-    if provider is None:
-        return _refuse(f"provider for alias {alias!r} not built", opt_in_state=opt_in_state)
-
-    prompt = build_synthetic_prompt()
-
-    # provider 的标准入口是 ``LLMProvider.generate(LLMRequest) -> LLMResult``
-    # (见 src/mindforge/llm/base.py)。real_smoke 必须严格走这个契约,
-    # 否则会与 fake provider / OpenAICompatibleProvider /
-    # AnthropicCompatibleProvider 全部解耦, 测试 stub 与真实 provider
-    # 行为也会漂移。
-    from .llm.base import LLMRequest, LLMResult, ProviderError
-
-    try:
-        request = LLMRequest(
-            prompt=prompt,
-            stage="provider_smoke",
-            model=mc.model or alias,
-            max_tokens=128,
-            temperature=0.0,
-        )
-    except Exception as exc:
-        return _refuse(
-            f"LLMRequest construction failed: {type(exc).__name__}",
-            opt_in_state=opt_in_state,
-        )
-
-    try:
-        result = provider.generate(request)
-    except ProviderError as exc:
-        # ProviderError 是已知的 provider-layer 失败 (网络/鉴权/4xx/5xx);
-        # 这里不重试, 不把 message 原样回显 (可能含 server 返回信息),
-        # 只暴露异常类型, 避免意外泄漏。
-        return _refuse(
-            f"provider call failed (ProviderError): {type(exc).__name__}",
-            opt_in_state=opt_in_state,
-        )
-    except Exception as exc:
-        return _refuse(
-            f"provider call failed: {type(exc).__name__}",
-            opt_in_state=opt_in_state,
-        )
-
-    # 容忍既符合 LLMResult 契约的真实 provider, 也允许返回 raw string
-    # 的旧式 stub (向后兼容历史 test fixture)。
-    if isinstance(result, LLMResult):
-        text = result.text
-        tokens_in = result.tokens_in
-        tokens_out = result.tokens_out
-        latency_ms = result.latency_ms
-    else:
-        text = str(result) if result is not None else ""
-        tokens_in = tokens_out = latency_ms = None
-
-    excerpt = _scrub_excerpt(text)
-
-    return {
-        "ran": True,
-        "blocker": None,
-        "opt_in_state": opt_in_state,
-        "provider_type": provider_type,
-        "alias": alias,
-        "output_artifact": "ai_draft_preview",
-        "output_excerpt_safe": excerpt,
-        # 真实调用的可观察 metadata; 这些字段不含 secret, 可以安全输出。
-        "tokens_in": tokens_in,
-        "tokens_out": tokens_out,
-        "latency_ms": latency_ms,
-        # 永久 False — 类型契约即文档。
-        "human_approved": False,
-        "written": False,
-        "synthetic_input_only": True,
-    }
+    provider, refusal = _build_smoke_provider(llm_config, alias=alias, opt_in_state=opt_in_state)
+    if refusal is not None:
+        return refusal
+    request, refusal = _build_smoke_request(mc, alias=alias, opt_in_state=opt_in_state)
+    if refusal is not None:
+        return refusal
+    result, refusal = _call_smoke_provider(provider, request, opt_in_state=opt_in_state)
+    if refusal is not None:
+        return refusal
+    return _success_audit(
+        opt_in_state=opt_in_state,
+        provider_type=mc.type,
+        alias=alias,
+        result=result,
+    )
 
 
 __all__ = [

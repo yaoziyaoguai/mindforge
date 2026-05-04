@@ -53,6 +53,7 @@ from .llm import LLMClient, build_providers
 from .scanner import ScanResult
 from .source_mux import SourceMux
 from .sources.cubox_api import CuboxApiAdapter
+from .sources.base import SourceDocument
 from .strategies import DEFAULT_STRATEGY_NAME, StrategyContext, build_strategy
 
 console = Console()
@@ -184,33 +185,15 @@ def _load_default_config_path() -> Path:
     return cache
 
 
-@cubox_app.command("preview-ai-draft")
-def cubox_preview_ai_draft(
-    export: Path = typer.Option(
-        ..., "--export", help="本地 Cubox JSON export 文件路径"
-    ),
-    limit: int | None = typer.Option(
-        None, "--limit", help="最多处理多少条 yielded 文档（None=全跑）", min=1
-    ),
-    json_out: bool = typer.Option(
-        False, "--json", help="输出机器可读 JSON 一行"
-    ),
-) -> None:
-    """对 Cubox export 走 fake KnowledgeStrategy，**仅在内存中**生成
-    ai_draft 预览，并打印观测 summary。
-
-    安全边界：永不读 ``.env``、不联网、不调真实 LLM、不调真实 Cubox API、
-    不写 ``.mindforge/runs/*.jsonl``、不写 Obsidian vault、不生成
-    ``human_approved``、不自动 approve、不展示 ai_draft 正文。
-    """
-
+def _parse_cubox_export_or_exit(export: Path) -> list[SourceDocument]:
+    """解析本地 Cubox export；只读本地文件，不触达真实 Cubox API。"""
     if not export.exists():
         console.print(f"[red]Cubox export 文件不存在：{export}[/red]")
         raise typer.Exit(code=2)
 
     adapter = CuboxApiAdapter()
     try:
-        docs = adapter.parse_export(export)
+        return adapter.parse_export(export)
     except json.JSONDecodeError as exc:
         console.print(
             f"[red]Cubox export JSON 解析失败：{export}"
@@ -221,9 +204,16 @@ def cubox_preview_ai_draft(
         console.print(f"[red]Cubox export 内容非法：{exc}[/red]")
         raise typer.Exit(code=2) from exc
 
-    # 去重（与 dry-run 同一 seam）
+
+def _dedup_cubox_docs(
+    docs: list[SourceDocument],
+    *,
+    export: Path,
+) -> tuple[list[SourceDocument], SourceMux]:
+    """沿用 SourceMux 去重 seam，保证 preview 与 dry-run 对同一 export 行为一致。"""
+    adapter = CuboxApiAdapter()
     mux = SourceMux()
-    yielded_docs = []
+    yielded_docs: list[SourceDocument] = []
     for d in docs:
         kept = mux.feed(
             ScanResult(
@@ -235,12 +225,11 @@ def cubox_preview_ai_draft(
         )
         if kept is not None and kept.document is not None:
             yielded_docs.append(kept.document)
+    return yielded_docs, mux
 
-    if limit is not None:
-        yielded_docs = yielded_docs[:limit]
 
-    # 构造 fake-only KnowledgeStrategy：复用既有 build_strategy，但强制
-    # active_profile=fake，确保 build_providers 不需要真实 API key。
+def _fake_preview_strategy():
+    """构造 fake-only KnowledgeStrategy，维持 no API key / no network 安全路径。"""
     cfg = load_mindforge_config(_load_default_config_path())
     # LLMConfig 是 frozen dataclass：用 ``replace`` 而非赋值，强制 fake profile。
     from dataclasses import replace as _replace
@@ -263,24 +252,24 @@ def cubox_preview_ai_draft(
     )
     pipeline = build_strategy(DEFAULT_STRATEGY_NAME, ctx)
     pipeline.logger = _NoOpRunLogger()  # type: ignore[assignment]
+    return pipeline
 
+
+def _preview_ai_draft_summary(
+    *,
+    docs: list[SourceDocument],
+    yielded_docs: list[SourceDocument],
+    mux: SourceMux,
+) -> AiDraftPreviewSummary:
+    """运行 fake strategy 并只返回观测摘要，不暴露 ai_draft 正文。"""
+    pipeline = _fake_preview_strategy()
     outcomes: list[AiDraftPreviewItem] = []
     by_status: dict[str, int] = {}
     for d in yielded_docs:
         outcome = pipeline.run(d)
         status = outcome.status
         by_status[status] = by_status.get(status, 0) + 1
-        track: str | None = None
-        value_score: int | None = None
-        if outcome.triage is not None:
-            parsed = outcome.triage.parsed
-            if isinstance(parsed, dict):
-                t = parsed.get("track")
-                if isinstance(t, str):
-                    track = t
-                v = parsed.get("value_score")
-                if isinstance(v, int):
-                    value_score = v
+        track, value_score = _preview_triage_fields(outcome.triage)
         outcomes.append(
             AiDraftPreviewItem(
                 title=d.title,
@@ -294,12 +283,60 @@ def cubox_preview_ai_draft(
             )
         )
 
-    summary = AiDraftPreviewSummary(
+    return AiDraftPreviewSummary(
         items_seen=len(docs),
         yielded=len(yielded_docs),
         deduped=mux.stats.deduped,
         by_status=by_status,
         outcomes=outcomes,
+    )
+
+
+def _preview_triage_fields(triage: object) -> tuple[str | None, int | None]:
+    """从 strategy triage 结果中提取 presenter 需要的两个安全字段。"""
+    track: str | None = None
+    value_score: int | None = None
+    parsed = getattr(triage, "parsed", None) if triage is not None else None
+    if isinstance(parsed, dict):
+        t = parsed.get("track")
+        if isinstance(t, str):
+            track = t
+        v = parsed.get("value_score")
+        if isinstance(v, int):
+            value_score = v
+    return track, value_score
+
+
+@cubox_app.command("preview-ai-draft")
+def cubox_preview_ai_draft(
+    export: Path = typer.Option(
+        ..., "--export", help="本地 Cubox JSON export 文件路径"
+    ),
+    limit: int | None = typer.Option(
+        None, "--limit", help="最多处理多少条 yielded 文档（None=全跑）", min=1
+    ),
+    json_out: bool = typer.Option(
+        False, "--json", help="输出机器可读 JSON 一行"
+    ),
+) -> None:
+    """对 Cubox export 走 fake KnowledgeStrategy，**仅在内存中**生成
+    ai_draft 预览，并打印观测 summary。
+
+    安全边界：永不读 ``.env``、不联网、不调真实 LLM、不调真实 Cubox API、
+    不写 ``.mindforge/runs/*.jsonl``、不写 Obsidian vault、不生成
+    ``human_approved``、不自动 approve、不展示 ai_draft 正文。
+    """
+
+    docs = _parse_cubox_export_or_exit(export)
+    yielded_docs, mux = _dedup_cubox_docs(docs, export=export)
+
+    if limit is not None:
+        yielded_docs = yielded_docs[:limit]
+
+    summary = _preview_ai_draft_summary(
+        docs=docs,
+        yielded_docs=yielded_docs,
+        mux=mux,
     )
 
     if json_out:

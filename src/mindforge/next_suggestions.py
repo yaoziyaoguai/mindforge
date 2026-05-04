@@ -68,107 +68,16 @@ def next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
     每一条都对应一条用户能直接执行的命令。
     """
 
+    if not cfg.vault.root.exists():
+        return _missing_vault_suggestions(cfg)
+
     suggestions: list[NextSuggestion] = []
-    vault_root = cfg.vault.root
-    inbox = cfg.vault.inbox_path
-    cards = cfg.vault.cards_path
-    projects_dir = cfg.vault.projects_path
-    workdir = cfg.state.workdir
+    suggestions.extend(_vault_shape_suggestions(cfg))
+    inbox_files = _count_inbox_files(cfg)
+    suggestions.extend(_inbox_suggestions(cfg, inbox_files))
+    suggestions.extend(_state_suggestions(cfg, inbox_files))
 
-    # 1. vault 是否完整
-    if not vault_root.exists():
-        # 用户友好性 polish：vault 缺失时，先把零配置 demo tour 推到最前。
-        # 这样新用户不必先执行 ``mindforge init`` 也能 60 秒看到 fake/safe path
-        # 跑通的效果；``mindforge init`` 仍然是 vault 真正落地前的必经一步，
-        # 所以保留为 critical。
-        suggestions.append(
-            NextSuggestion(
-                "mindforge demo",
-                "60 秒零配置 tour（不需要 API key、不联网、不写 vault）",
-                "recommended",
-            )
-        )
-        suggestions.append(
-            NextSuggestion(
-                f"mindforge init --vault {vault_root}",
-                "vault 根目录不存在，先一键铺骨架",
-                "critical",
-            )
-        )
-        return suggestions
-    if not inbox.exists() or not cards.exists():
-        suggestions.append(
-            NextSuggestion(
-                "mindforge init",
-                "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）",
-                "critical",
-            )
-        )
-
-    # 2. inbox 是否有原料（统计文件数即可，**不读内容**）
-    inbox_files = 0
-    if inbox.exists():
-        for p in inbox.rglob("*"):
-            if p.is_file() and not p.name.startswith("."):
-                inbox_files += 1
-    if inbox_files == 0:
-        suggestions.append(
-            NextSuggestion(
-                f"# 把 markdown 放到 {inbox}/ManualNotes/ 或 Cubox/ 等子目录",
-                "inbox 当前为空，没有可加工的原料",
-                "info",
-            )
-        )
-
-    # 3. state.json 是否有未处理（raw/triaged）
-    state_path = cfg.state.state_path
-    raw_or_triaged = 0
-    drafts_in_state = 0
-    if state_path.exists():
-        try:
-            data = _json.loads(state_path.read_text(encoding="utf-8"))
-            entries = data.get("items") or data.get("documents") or {}
-            for entry in entries.values():
-                st = entry.get("status", "")
-                if st in {"raw", "triaged"}:
-                    raw_or_triaged += 1
-        except Exception:
-            pass
-    if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
-        suggestions.append(NextSuggestion("mindforge scan", "inbox 有文件但 state.json 还没建立", "critical"))
-    elif raw_or_triaged > 0:
-        suggestions.append(
-            NextSuggestion(
-                "mindforge process --limit 10",
-                f"state 中有 {raw_or_triaged} 条未跑完 pipeline",
-                "critical",
-            )
-        )
-
-    # 4. ai_draft 待审核（**只**统计 frontmatter 的 status 字段）
-    draft_count = 0
-    if cards.exists():
-        try:
-            import yaml as _yaml
-
-            for p in cards.rglob("*.md"):
-                if p.name.startswith("_"):
-                    continue
-                try:
-                    text = p.read_text(encoding="utf-8")
-                    if not text.startswith("---"):
-                        continue
-                    end = text.find("\n---", 3)
-                    if end < 0:
-                        continue
-                    fm = _yaml.safe_load(text[3:end]) or {}
-                    if fm.get("status") == "ai_draft":
-                        draft_count += 1
-                except Exception:
-                    continue
-        except Exception:
-            pass
-    drafts_in_state = draft_count
+    draft_count = _count_cards_by_status(cfg, "ai_draft")
     if draft_count > 0:
         suggestions.append(
             NextSuggestion(
@@ -178,91 +87,190 @@ def next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
             )
         )
 
-    # 5. 索引是否存在
-    index_path = workdir / "index" / "bm25.json"
+    suggestions.extend(_index_suggestions(cfg))
+    suggestions.extend(_review_suggestions(cfg))
+    suggestions.extend(_project_suggestions(cfg))
+    if not suggestions:
+        suggestions.append(
+            NextSuggestion("mindforge doctor", "看起来一切就绪；定期跑 doctor 自检", "info")
+        )
+    return compact_next_suggestions(suggestions)
+
+
+def _missing_vault_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
+    """vault 缺失时给 demo + init，两条建议必须保持原顺序。"""
+
+    return [
+        NextSuggestion(
+            "mindforge demo",
+            "60 秒零配置 tour（不需要 API key、不联网、不写 vault）",
+            "recommended",
+        ),
+        NextSuggestion(
+            f"mindforge init --vault {cfg.vault.root}",
+            "vault 根目录不存在，先一键铺骨架",
+            "critical",
+        ),
+    ]
+
+
+def _vault_shape_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
+    if cfg.vault.inbox_path.exists() and cfg.vault.cards_path.exists():
+        return []
+    return [
+        NextSuggestion(
+            "mindforge init",
+            "vault 子目录缺失（00-Inbox/ 或 20-Knowledge-Cards/）",
+            "critical",
+        )
+    ]
+
+
+def _count_inbox_files(cfg: MindForgeConfig) -> int:
+    inbox = cfg.vault.inbox_path
+    if not inbox.exists():
+        return 0
+    return sum(1 for p in inbox.rglob("*") if p.is_file() and not p.name.startswith("."))
+
+
+def _inbox_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSuggestion]:
+    if inbox_files != 0:
+        return []
+    return [
+        NextSuggestion(
+            f"# 把 markdown 放到 {cfg.vault.inbox_path}/ManualNotes/ 或 Cubox/ 等子目录",
+            "inbox 当前为空，没有可加工的原料",
+            "info",
+        )
+    ]
+
+
+def _state_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSuggestion]:
+    state_path = cfg.state.state_path
+    raw_or_triaged = _count_raw_or_triaged_state_entries(state_path)
+    if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
+        return [NextSuggestion("mindforge scan", "inbox 有文件但 state.json 还没建立", "critical")]
+    if raw_or_triaged > 0:
+        return [
+            NextSuggestion(
+                "mindforge process --limit 10",
+                f"state 中有 {raw_or_triaged} 条未跑完 pipeline",
+                "critical",
+            )
+        ]
+    return []
+
+
+def _count_raw_or_triaged_state_entries(state_path) -> int:  # type: ignore[no-untyped-def]
+    if not state_path.exists():
+        return 0
+    try:
+        data = _json.loads(state_path.read_text(encoding="utf-8"))
+        entries = data.get("items") or data.get("documents") or {}
+        return sum(1 for entry in entries.values() if entry.get("status", "") in {"raw", "triaged"})
+    except Exception:
+        return 0
+
+
+def _iter_card_frontmatters(cards_path):  # type: ignore[no-untyped-def]
+    if not cards_path.exists():
+        return
+    try:
+        import yaml as _yaml
+    except Exception:
+        return
+    for path in cards_path.rglob("*.md"):
+        if path.name.startswith("_"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+            if not text.startswith("---"):
+                continue
+            end = text.find("\n---", 3)
+            if end < 0:
+                continue
+            yield _yaml.safe_load(text[3:end]) or {}
+        except Exception:
+            continue
+
+
+def _count_cards_by_status(cfg: MindForgeConfig, status: str) -> int:
+    return sum(1 for fm in _iter_card_frontmatters(cfg.vault.cards_path) or () if fm.get("status") == status)
+
+
+def _index_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
+    cards = cfg.vault.cards_path
+    index_path = cfg.state.workdir / "index" / "bm25.json"
     card_file_count = 0
     if cards.exists():
         card_file_count = sum(
-            1
-            for p in cards.rglob("*.md")
-            if p.is_file() and not p.name.startswith("_")
+            1 for p in cards.rglob("*.md") if p.is_file() and not p.name.startswith("_")
         )
     if cards.exists() and not index_path.exists() and card_file_count > 0:
-        # 即使全部 ai_draft，也给一次 rebuild 提示（recall --include-drafts 仍能用）。
-        suggestions.append(
+        return [
             NextSuggestion(
                 "mindforge index rebuild",
                 "BM25 索引尚未建立（recall 需要它）",
                 "recommended",
             )
-        )
+        ]
+    return []
 
-    # 6. 复习 backlog
+
+def _review_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
+    overdue = _count_overdue_review_cards(cfg)
+    if overdue <= 0:
+        return []
+    return [
+        NextSuggestion(
+            "mindforge review backlog",
+            f"有 {overdue} 张复习卡片已 overdue",
+            "recommended",
+        )
+    ]
+
+
+def _count_overdue_review_cards(cfg: MindForgeConfig) -> int:
+    now = _dt.now().astimezone()
     overdue = 0
-    if cards.exists():
+    for fm in _iter_card_frontmatters(cfg.vault.cards_path) or ():
+        if fm.get("status") != "human_approved":
+            continue
+        review_after = _parse_review_after(fm.get("review_after"), now)
+        if review_after is not None and review_after <= now:
+            overdue += 1
+    return overdue
+
+
+def _parse_review_after(value, now: _dt) -> _dt | None:  # type: ignore[no-untyped-def]
+    if not value:
+        return None
+    if isinstance(value, str):
         try:
-            import yaml as _yaml
-
-            now = _dt.now().astimezone()
-            for p in cards.rglob("*.md"):
-                if p.name.startswith("_"):
-                    continue
-                try:
-                    text = p.read_text(encoding="utf-8")
-                    if not text.startswith("---"):
-                        continue
-                    end = text.find("\n---", 3)
-                    if end < 0:
-                        continue
-                    fm = _yaml.safe_load(text[3:end]) or {}
-                    if fm.get("status") != "human_approved":
-                        continue
-                    ra = fm.get("review_after")
-                    if not ra:
-                        continue
-                    if isinstance(ra, str):
-                        try:
-                            ra = _dt.fromisoformat(ra.replace("Z", "+00:00"))
-                        except Exception:
-                            continue
-                    if hasattr(ra, "tzinfo") and ra.tzinfo is None:
-                        ra = ra.replace(tzinfo=now.tzinfo)
-                    if ra <= now:
-                        overdue += 1
-                except Exception:
-                    continue
+            value = _dt.fromisoformat(value.replace("Z", "+00:00"))
         except Exception:
-            pass
-    if overdue > 0:
-        suggestions.append(
-            NextSuggestion(
-                "mindforge review backlog",
-                f"有 {overdue} 张复习卡片已 overdue",
-                "recommended",
-            )
-        )
+            return None
+    if hasattr(value, "tzinfo") and value.tzinfo is None:
+        value = value.replace(tzinfo=now.tzinfo)
+    return value
 
-    # 7. 项目上下文（有 30-Projects 文件即提示）
+
+def _project_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
+    projects_dir = cfg.vault.projects_path
     project_count = 0
     if projects_dir.exists():
         project_count = sum(
-            1
-            for p in projects_dir.glob("*.md")
-            if not p.name.startswith("_") and p.is_file()
+            1 for p in projects_dir.glob("*.md") if not p.name.startswith("_") and p.is_file()
         )
-    if project_count > 0 and drafts_in_state >= 0:
-        suggestions.append(
-            NextSuggestion(
-                "mindforge project list",
-                f"vault 中有 {project_count} 个项目笔记，可生成 context pack",
-                "info",
-            )
+    if project_count == 0:
+        return []
+    return [
+        NextSuggestion(
+            "mindforge project list",
+            f"vault 中有 {project_count} 个项目笔记，可生成 context pack",
+            "info",
         )
-
-    # 8. 兜底：什么都没建议时给一条 doctor
-    if not suggestions:
-        suggestions.append(NextSuggestion("mindforge doctor", "看起来一切就绪；定期跑 doctor 自检", "info"))
-    return compact_next_suggestions(suggestions)
+    ]
 
 
 def compact_next_suggestions(suggestions: list[NextSuggestion]) -> list[NextSuggestion]:

@@ -321,7 +321,33 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # 抽出的纯逻辑层。只在 *只读* 路径用 "human_approved" 字面量过滤
         # 卡片以做诊断统计与 BM25 / overdue 推断，从未做晋升动作。
         "doctor.py",
-    }
+        # Full Repo Decomposition milestone — backup_cli.py 从 cli.py 抽出
+        # backup export adapter，只读导出 human_approved 卡片的安全摘要；
+        # 不写卡片状态，也不产生任何 approval side effect。
+        "backup_cli.py",
+            # daily_cli.py 从 cli.py 抽出 today/start/next 只读入口，只用
+            # human_approved 统计 review due 信号，不写状态、不 approve。
+            "daily_cli.py",
+            # approval_cli.py 是显式人工 approve 的 CLI adapter owner。它只把
+            # 用户命令转交给 approval_service/approver，不允许静默自动晋升；
+            # human_approved 字面量出现在用户可见说明和边界提示中是合理的。
+            "approval_cli.py",
+            # process_cli.py 只在命令 docstring/help 中声明默认 ai_draft 与
+            # 必须人工晋升的边界；实际 process 写卡路径不会产生 human_approved。
+            "process_cli.py",
+            # review_cli.py 是 review adapter，只读取 human_approved 卡片做
+            # 到期/统计展示；不写卡片状态。
+            "review_cli.py",
+            # recall_index_cli.py 是 recall/index adapter，只用 human_approved
+            # 作为默认检索过滤条件；不负责 approve。
+            "recall_index_cli.py",
+            # project_cli.py 只在 project context / evidence 只读汇总中默认过滤
+            # human_approved 卡片；不产生审批副作用。
+            "project_cli.py",
+            # dogfood_cli.py 只打印安全 dogfooding runbook 和说明，声明不会
+            # 生成 human_approved；不执行审批路径。
+            "dogfood_cli.py",
+        }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
         if "human_approved" in text and f.name not in allowed:

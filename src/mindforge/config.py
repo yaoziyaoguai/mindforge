@@ -331,21 +331,9 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def load_mindforge_config(path: str | Path) -> MindForgeConfig:
-    """加载并校验 mindforge.yaml，返回不可变快照。
-
-    中文学习型说明：相对 ``state.workdir`` 按当前工作目录解析，而不是按
-    config 文件父目录猜测仓库根。packaged install 下 config 可能被复制到任意
-    位置，继续使用 ``config.parent.parent`` 会把 `.mindforge` 写到违背直觉
-    的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
-    """
-    p = Path(path)
-    raw = _read_yaml(p)
-    base_dir = Path.cwd()
-
-    # ---- vault ----
-    vault_raw = _require(raw, "vault", dict, ctx=str(p))
-    vault = VaultConfig(
+def _parse_vault(raw: dict[str, Any], *, ctx: str) -> VaultConfig:
+    vault_raw = _require(raw, "vault", dict, ctx=ctx)
+    return VaultConfig(
         root=Path(_require(vault_raw, "root", str, ctx="vault")).expanduser(),
         inbox_root=_require(vault_raw, "inbox_root", str, ctx="vault"),
         cards_dir=_require(vault_raw, "cards_dir", str, ctx="vault"),
@@ -353,59 +341,61 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         projects_dir=str(vault_raw.get("projects_dir") or "30-Projects"),
     )
 
-    # ---- sources ----
-    sources_raw = _require(raw, "sources", dict, ctx=str(p))
+
+def _parse_sources(raw: dict[str, Any], *, ctx: str) -> SourcesConfig:
+    sources_raw = _require(raw, "sources", dict, ctx=ctx)
     enabled_list = _require(sources_raw, "enabled", list, ctx="sources")
     registry_raw = _require(sources_raw, "registry", dict, ctx="sources")
 
     registry: dict[str, SourceRegistryEntry] = {}
-    for st, entry in registry_raw.items():
-        if st not in KNOWN_SOURCE_TYPES:
+    for source_type, entry in registry_raw.items():
+        if source_type not in KNOWN_SOURCE_TYPES:
             raise ConfigError(
-                f"sources.registry 出现未知 source_type {st!r}；"
+                f"sources.registry 出现未知 source_type {source_type!r}；"
                 f"已知集合：{sorted(KNOWN_SOURCE_TYPES)}"
             )
         if not isinstance(entry, dict):
-            raise ConfigError(f"sources.registry.{st} 必须是 YAML 对象")
-        registry[st] = SourceRegistryEntry(
-            source_type=st,
-            adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{st}"),
-            inbox_subdir=_require(entry, "inbox_subdir", str, ctx=f"sources.registry.{st}"),
-            file_glob=_require(entry, "file_glob", str, ctx=f"sources.registry.{st}"),
-            # enabled 字段在 v0.1 默认 True；显式 false 表示占位 stub
+            raise ConfigError(f"sources.registry.{source_type} 必须是 YAML 对象")
+        registry[source_type] = SourceRegistryEntry(
+            source_type=source_type,
+            adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{source_type}"),
+            inbox_subdir=_require(entry, "inbox_subdir", str, ctx=f"sources.registry.{source_type}"),
+            file_glob=_require(entry, "file_glob", str, ctx=f"sources.registry.{source_type}"),
+            # enabled 字段在 v0.1 默认 True；显式 false 表示占位 stub。
             enabled=bool(entry.get("enabled", True)),
         )
-    for st in enabled_list:
-        if st not in registry:
+    for source_type in enabled_list:
+        if source_type not in registry:
             raise ConfigError(
-                f"sources.enabled 列出的 {st!r} 不在 sources.registry 中"
+                f"sources.enabled 列出的 {source_type!r} 不在 sources.registry 中"
             )
-    sources = SourcesConfig(enabled=tuple(enabled_list), registry=registry)
+    return SourcesConfig(enabled=tuple(enabled_list), registry=registry)
 
-    # ---- state ----
-    state_raw = _require(raw, "state", dict, ctx=str(p))
+
+def _parse_state(raw: dict[str, Any], *, ctx: str, base_dir: Path) -> StateConfig:
+    state_raw = _require(raw, "state", dict, ctx=ctx)
     workdir_str = _require(state_raw, "workdir", str, ctx="state")
-    state = StateConfig(
-        workdir=(base_dir / workdir_str) if not Path(workdir_str).is_absolute() else Path(workdir_str),
+    workdir = Path(workdir_str)
+    return StateConfig(
+        workdir=(base_dir / workdir_str) if not workdir.is_absolute() else workdir,
         state_file=_require(state_raw, "state_file", str, ctx="state"),
         runs_dir=_require(state_raw, "runs_dir", str, ctx="state"),
         index_file=_require(state_raw, "index_file", str, ctx="state"),
         backup_state=bool(state_raw.get("backup_state", True)),
     )
 
-    # ---- triage ----
-    triage_raw = _require(raw, "triage", dict, ctx=str(p))
-    triage = TriageConfig(
+
+def _parse_triage(raw: dict[str, Any], *, ctx: str) -> TriageConfig:
+    triage_raw = _require(raw, "triage", dict, ctx=ctx)
+    return TriageConfig(
         value_score_threshold=int(_require(triage_raw, "value_score_threshold", int, ctx="triage")),
         default_track=_require(triage_raw, "default_track", str, ctx="triage"),
     )
 
-    # ---- llm ----
-    llm = _parse_llm(_require(raw, "llm", dict, ctx=str(p)))
 
-    # ---- prompts ----
-    prompts_raw = _require(raw, "prompts", dict, ctx=str(p))
-    prompts = PromptVersions(
+def _parse_prompts(raw: dict[str, Any], *, ctx: str) -> PromptVersions:
+    prompts_raw = _require(raw, "prompts", dict, ctx=ctx)
+    return PromptVersions(
         triage=_require(prompts_raw, "triage_version", str, ctx="prompts"),
         distill=_require(prompts_raw, "distill_version", str, ctx="prompts"),
         link_suggestion=_require(prompts_raw, "link_suggestion_version", str, ctx="prompts"),
@@ -413,16 +403,18 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         action_extraction=_require(prompts_raw, "action_extraction_version", str, ctx="prompts"),
     )
 
-    # ---- logging ----
-    logging_raw = _require(raw, "logging", dict, ctx=str(p))
-    logging_cfg = LoggingConfig(
+
+def _parse_logging(raw: dict[str, Any], *, ctx: str) -> LoggingConfig:
+    logging_raw = _require(raw, "logging", dict, ctx=ctx)
+    return LoggingConfig(
         level=str(logging_raw.get("level", "INFO")),
         file=str(logging_raw.get("file", ".mindforge/mindforge.log")),
         record_prompts=bool(logging_raw.get("record_prompts", True)),
         record_outputs=bool(logging_raw.get("record_outputs", True)),
     )
 
-    # ---- review (M4 — optional block；缺失走全默认) ----
+
+def _parse_review(raw: dict[str, Any]) -> ReviewConfig:
     review_raw = raw.get("review") or {}
     if not isinstance(review_raw, dict):
         raise ConfigError(f"review 必须是 YAML 对象，得到 {type(review_raw).__name__}")
@@ -434,33 +426,54 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         partial=int(intervals_raw.get("partial", 7)),
         forgotten=int(intervals_raw.get("forgotten", 1)),
     )
-    for fname, val in (
+    for name, value in (
         ("remembered", intervals.remembered),
         ("partial", intervals.partial),
         ("forgotten", intervals.forgotten),
     ):
-        if val < 0:
-            raise ConfigError(f"review.intervals.{fname} 必须 >=0，得到 {val}")
-    review_cfg = ReviewConfig(
+        if value < 0:
+            raise ConfigError(f"review.intervals.{name} 必须 >=0，得到 {value}")
+    return ReviewConfig(
         intervals=intervals,
         default_include_drafts=bool(review_raw.get("default_include_drafts", False)),
     )
 
-    # ---- telemetry (M5.7 — optional block；缺失走全默认) ----
+
+def _parse_telemetry(raw: dict[str, Any]) -> TelemetryConfig:
     telemetry_raw = raw.get("telemetry") or {}
     if not isinstance(telemetry_raw, dict):
         raise ConfigError(
             f"telemetry 必须是 mapping，得到 {type(telemetry_raw).__name__}"
         )
-    telemetry_cfg = TelemetryConfig(
+    return TelemetryConfig(
         enabled=bool(telemetry_raw.get("enabled", True)),
         local_only=bool(telemetry_raw.get("local_only", True)),
     )
 
-    # ---- obsidian (v0.5 — optional；缺失走安全默认) ----
-    obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
 
-    # ---- search (v0.3.1 — optional；缺失走全默认) ----
+def load_mindforge_config(path: str | Path) -> MindForgeConfig:
+    """加载并校验 mindforge.yaml，返回不可变快照。
+
+    中文学习型说明：相对 ``state.workdir`` 按当前工作目录解析，而不是按
+    config 文件父目录猜测仓库根。packaged install 下 config 可能被复制到任意
+    位置，继续使用 ``config.parent.parent`` 会把 `.mindforge` 写到违背直觉
+    的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
+    """
+    p = Path(path)
+    raw = _read_yaml(p)
+    base_dir = Path.cwd()
+    ctx = str(p)
+
+    vault = _parse_vault(raw, ctx=ctx)
+    sources = _parse_sources(raw, ctx=ctx)
+    state = _parse_state(raw, ctx=ctx, base_dir=base_dir)
+    triage = _parse_triage(raw, ctx=ctx)
+    llm = _parse_llm(_require(raw, "llm", dict, ctx=str(p)))
+    prompts = _parse_prompts(raw, ctx=ctx)
+    logging_cfg = _parse_logging(raw, ctx=ctx)
+    review_cfg = _parse_review(raw)
+    telemetry_cfg = _parse_telemetry(raw)
+    obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
     search_cfg = _parse_search(raw.get("search") or {})
 
     return MindForgeConfig(

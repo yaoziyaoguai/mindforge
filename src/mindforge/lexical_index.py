@@ -388,6 +388,138 @@ class SearchHit:
     field_hits: tuple[FieldHit, ...]
 
 
+def _search_candidates(
+    docs: Iterable[IndexedDoc],
+    *,
+    status_filter: str | None,
+    track: str | None,
+    project: str | None,
+    tag_set: set[str],
+    source_type: str | None,
+    since: datetime | None,
+    until: datetime | None,
+) -> list[IndexedDoc]:
+    """先做结构化字段过滤，再进入 BM25 打分。
+
+    这个边界很重要：过滤只看索引内的安全元数据字段，不读取卡片正文、
+    source raw_text 或任何运行态文件，保持 recall 的本地词法检索契约。
+    """
+    candidates: list[IndexedDoc] = []
+    for d in docs:
+        if status_filter is not None and d.status != status_filter:
+            continue
+        if track is not None and d.track != track:
+            continue
+        if project is not None and project not in d.projects:
+            continue
+        if source_type is not None and d.source_type != source_type:
+            continue
+        if tag_set:
+            doc_tags = {t.lower() for t in d.tags}
+            if not tag_set.issubset(doc_tags):
+                continue
+        if since is not None or until is not None:
+            dt = _parse_iso(d.created_at)
+            if since is not None and (dt is None or dt < since):
+                continue
+            if until is not None and (dt is None or dt > until):
+                continue
+        candidates.append(d)
+    return candidates
+
+
+def _idf_by_query_term(candidates: list[IndexedDoc], query_terms: list[str]) -> dict[str, float]:
+    """在过滤后的候选集合上重算 IDF，让解释分数贴近当前查询范围。"""
+    n_docs = len(candidates)
+    query_term_set = set(query_terms)
+    df: Counter[str] = Counter()
+    for d in candidates:
+        seen: set[str] = set()
+        for toks in d.fields.values():
+            for t in toks:
+                if t in query_term_set:
+                    seen.add(t)
+        for t in seen:
+            df[t] += 1
+    return {
+        t: math.log((n_docs - df[t] + 0.5) / (df[t] + 0.5) + 1.0)
+        for t in query_terms
+    }
+
+
+def _score_candidate(
+    index: BM25Index,
+    doc: IndexedDoc,
+    query_terms: list[str],
+    idf: dict[str, float],
+    *,
+    avgdl: float,
+) -> SearchHit | None:
+    """计算单张卡片的 BM25 分数和字段级 explain。
+
+    Search 的公开行为只需要一组有序命中；把单卡打分独立出来后，
+    BM25 数学、字段贡献解释、外层查询编排三者各自清晰。
+    """
+    per_field_counts: dict[str, Counter[str]] = {}
+    weighted_tf: Counter[str] = Counter()
+    for fname, toks in doc.fields.items():
+        w = index.field_weights.get(fname, 1)
+        cnt: Counter[str] = Counter()
+        for t in toks:
+            if t in idf:
+                cnt[t] += 1
+        if cnt:
+            per_field_counts[fname] = cnt
+            for t, n in cnt.items():
+                weighted_tf[t] += w * n
+
+    if not weighted_tf:
+        return None
+
+    dl = doc.doc_len if doc.doc_len > 0 else 1.0
+    score = 0.0
+    per_term_score: dict[str, float] = {}
+    for t in query_terms:
+        tf = weighted_tf.get(t, 0)
+        if tf == 0:
+            continue
+        denom = tf + index.k1 * (1.0 - index.b + index.b * dl / avgdl)
+        s = idf[t] * (tf * (index.k1 + 1.0)) / denom if denom > 0 else 0.0
+        per_term_score[t] = s
+        score += s
+
+    field_hits = _field_hits_from_counts(
+        index=index,
+        per_field_counts=per_field_counts,
+        weighted_tf=weighted_tf,
+        per_term_score=per_term_score,
+    )
+    return SearchHit(doc=doc, score=score, field_hits=tuple(field_hits))
+
+
+def _field_hits_from_counts(
+    *,
+    index: BM25Index,
+    per_field_counts: dict[str, Counter[str]],
+    weighted_tf: Counter[str],
+    per_term_score: dict[str, float],
+) -> list[FieldHit]:
+    """把总分按字段贡献近似分摊，用于 ``--explain`` 可解释输出。"""
+    field_hits: list[FieldHit] = []
+    for fname, cnt in per_field_counts.items():
+        w = index.field_weights.get(fname, 1)
+        contrib = 0.0
+        for t, n in cnt.items():
+            wt = weighted_tf[t]
+            if wt > 0:
+                contrib += per_term_score.get(t, 0.0) * (w * n) / wt
+        field_hits.append(
+            FieldHit(field=fname, term_counts=dict(cnt), weight=w, contribution=contrib)
+        )
+    field_hits.sort(key=lambda h: h.contribution, reverse=True)
+    return field_hits
+
+
 def search(
     index: BM25Index,
     query: str,
@@ -414,99 +546,30 @@ def search(
 
     eff_status = None if (include_drafts or status_filter in (None, "all")) else status_filter
     tag_set = {t.lower() for t in tags if t}
-
-    # pre-filter
-    candidates: list[IndexedDoc] = []
-    for d in index.docs:
-        if eff_status is not None and d.status != eff_status:
-            continue
-        if track is not None and d.track != track:
-            continue
-        if project is not None and project not in d.projects:
-            continue
-        if source_type is not None and d.source_type != source_type:
-            continue
-        if tag_set:
-            doc_tags = {t.lower() for t in d.tags}
-            if not tag_set.issubset(doc_tags):
-                continue
-        if since is not None or until is not None:
-            dt = _parse_iso(d.created_at)
-            if since is not None and (dt is None or dt < since):
-                continue
-            if until is not None and (dt is None or dt > until):
-                continue
-        candidates.append(d)
+    candidates = _search_candidates(
+        index.docs,
+        status_filter=eff_status,
+        track=track,
+        project=project,
+        tag_set=tag_set,
+        source_type=source_type,
+        since=since,
+        until=until,
+    )
 
     if not candidates:
         return []
 
-    # df 在过滤后语料上重算 → 更贴合用户当前查询子集
-    N = len(candidates)
     unique_q = list(dict.fromkeys(q_terms))   # 保序去重
-    df: Counter[str] = Counter()
-    # 按 (doc, term) 是否出现来累加 df —— 每个字段都算入 doc 总词袋
-    for d in candidates:
-        seen: set[str] = set()
-        for toks in d.fields.values():
-            for t in toks:
-                if t in unique_q:
-                    seen.add(t)
-        for t in seen:
-            df[t] += 1
-    idf = {t: math.log((N - df[t] + 0.5) / (df[t] + 0.5) + 1.0) for t in unique_q}
+    idf = _idf_by_query_term(candidates, unique_q)
 
     avgdl = index.avgdl or 1.0
-    k1 = index.k1
-    b = index.b
 
     hits: list[SearchHit] = []
     for d in candidates:
-        # weighted_tf[term] = sum_field weight[field] * tf_in_field
-        per_field_counts: dict[str, Counter[str]] = {}
-        weighted_tf: Counter[str] = Counter()
-        for fname, toks in d.fields.items():
-            w = index.field_weights.get(fname, 1)
-            cnt: Counter[str] = Counter()
-            for t in toks:
-                if t in idf:
-                    cnt[t] += 1
-            if cnt:
-                per_field_counts[fname] = cnt
-                for t, n in cnt.items():
-                    weighted_tf[t] += w * n
-
-        if not weighted_tf:
-            continue
-
-        dl = d.doc_len if d.doc_len > 0 else 1.0
-        score = 0.0
-        per_term_score: dict[str, float] = {}
-        for t in unique_q:
-            tf = weighted_tf.get(t, 0)
-            if tf == 0:
-                continue
-            denom = tf + k1 * (1.0 - b + b * dl / avgdl)
-            s = idf[t] * (tf * (k1 + 1.0)) / denom if denom > 0 else 0.0
-            per_term_score[t] = s
-            score += s
-
-        # 组装 explain：把总分按字段贡献近似分摊。
-        # 近似公式：field_contrib = sum_t (per_term_score[t] * (w * fcount[t]) / weighted_tf[t])
-        field_hits: list[FieldHit] = []
-        for fname, cnt in per_field_counts.items():
-            w = index.field_weights.get(fname, 1)
-            contrib = 0.0
-            for t, n in cnt.items():
-                wt = weighted_tf[t]
-                if wt > 0:
-                    contrib += per_term_score.get(t, 0.0) * (w * n) / wt
-            field_hits.append(
-                FieldHit(field=fname, term_counts=dict(cnt), weight=w, contribution=contrib)
-            )
-        field_hits.sort(key=lambda h: h.contribution, reverse=True)
-
-        hits.append(SearchHit(doc=d, score=score, field_hits=tuple(field_hits)))
+        hit = _score_candidate(index, d, unique_q, idf, avgdl=avgdl)
+        if hit is not None:
+            hits.append(hit)
 
     hits.sort(key=lambda h: (-h.score, h.doc.rel_path))
     return hits[:limit]

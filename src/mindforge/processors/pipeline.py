@@ -75,29 +75,8 @@ class Pipeline:
         outcome = PipelineOutcome(status="failed")
         ifh = doc.content_hash
 
-        # ------------------------------------------------------------- triage
-        try:
-            triage = run_stage(
-                client=self.client,
-                logger=self.logger,
-                stage="triage",
-                prompts_dir=self.prompts_dir,
-                prompt_version=self.prompt_versions.for_stage("triage"),
-                input_file_hash=ifh,
-                variables={
-                    "title": doc.title or "",
-                    "source_type": doc.source_type,
-                    "source_url": doc.source_url or "",
-                    "tags": ", ".join(doc.tags),
-                    "tracks_yaml": self.learning_tracks_text,
-                    "excerpt": _excerpt(doc.raw_text, 4000),
-                },
-            )
-            outcome.triage = triage
-            self._record_stage(outcome, triage, status="ok")
-        except StageError as e:
-            outcome.error_message = str(e)
-            outcome.error_stage = "triage"
+        triage = self._run_stage_or_fail(outcome, "triage", ifh, _triage_vars(doc, self.learning_tracks_text))
+        if triage is None:
             return outcome
 
         track = str(triage.parsed.get("track") or "unrouted")
@@ -110,116 +89,44 @@ class Pipeline:
             )
             return outcome
 
-        # ------------------------------------------------------------ distill
-        try:
-            distill = run_stage(
-                client=self.client,
-                logger=self.logger,
-                stage="distill",
-                prompts_dir=self.prompts_dir,
-                prompt_version=self.prompt_versions.for_stage("distill"),
-                input_file_hash=ifh,
-                variables={
-                    "title": doc.title or "",
-                    "source_type": doc.source_type,
-                    "source_url": doc.source_url or "",
-                    "track": track,
-                    "output_focus": "",
-                    "value_score": str(value_score),
-                    "topic_keywords": ", ".join(triage.parsed.get("topic_keywords") or []),
-                    "raw_text": _excerpt(doc.raw_text, 12000),
-                },
-            )
-            outcome.distill = distill
-            self._record_stage(outcome, distill, status="ok")
-        except StageError as e:
-            outcome.error_message = str(e)
-            outcome.error_stage = "distill"
+        distill = self._run_stage_or_fail(
+            outcome,
+            "distill",
+            ifh,
+            _distill_vars(doc, triage=triage, track=track, value_score=value_score),
+        )
+        if distill is None:
             return outcome
 
         ai_summary = distill.parsed.get("ai_summary_bullets") or []
 
-        # ----------------------------------------------------- link_suggestion
-        try:
-            ls = run_stage(
-                client=self.client,
-                logger=self.logger,
-                stage="link_suggestion",
-                prompts_dir=self.prompts_dir,
-                prompt_version=self.prompt_versions.for_stage("link_suggestion"),
-                input_file_hash=ifh,
-                variables={
-                    "card_title": distill.parsed.get("title") or "",
-                    "track": track,
-                    "tags": ", ".join(distill.parsed.get("tags") or []),
-                    "ai_summary_bullets": "\n".join(f"- {b}" for b in ai_summary),
-                    "candidate_cards": "",
-                    "candidate_projects": "",
-                },
-            )
-            outcome.link_suggestion = ls
-            self._record_stage(outcome, ls, status="ok")
-        except StageError as e:
-            outcome.error_message = str(e)
-            outcome.error_stage = "link_suggestion"
+        ls = self._run_stage_or_fail(
+            outcome,
+            "link_suggestion",
+            ifh,
+            _link_suggestion_vars(distill=distill, track=track, ai_summary=ai_summary),
+        )
+        if ls is None:
             return outcome
 
-        # ---------------------------------------------------- review_questions
-        try:
-            rq = run_stage(
-                client=self.client,
-                logger=self.logger,
-                stage="review_questions",
-                prompts_dir=self.prompts_dir,
-                prompt_version=self.prompt_versions.for_stage("review_questions"),
-                input_file_hash=ifh,
-                variables={
-                    "card_title": distill.parsed.get("title") or "",
-                    "track": track,
-                    "ai_summary_bullets": "\n".join(f"- {b}" for b in ai_summary),
-                    "ai_inference_bullets": "\n".join(
-                        f"- {b}" for b in (distill.parsed.get("ai_inference_bullets") or [])
-                    ),
-                    "reusable_prompts_or_principles": "\n".join(
-                        f"- {b}" for b in (distill.parsed.get("reusable_prompts_or_principles") or [])
-                    ),
-                    "source_excerpt": distill.parsed.get("source_excerpt") or "",
-                },
-            )
-            outcome.review_questions = rq
-            self._record_stage(outcome, rq, status="ok")
-        except StageError as e:
-            outcome.error_message = str(e)
-            outcome.error_stage = "review_questions"
+        rq = self._run_stage_or_fail(
+            outcome,
+            "review_questions",
+            ifh,
+            _review_question_vars(distill=distill, track=track, ai_summary=ai_summary),
+        )
+        if rq is None:
             return outcome
 
-        # --------------------------------------------------- action_extraction
-        try:
-            ae = run_stage(
-                client=self.client,
-                logger=self.logger,
-                stage="action_extraction",
-                prompts_dir=self.prompts_dir,
-                prompt_version=self.prompt_versions.for_stage("action_extraction"),
-                input_file_hash=ifh,
-                variables={
-                    "card_title": distill.parsed.get("title") or "",
-                    "track": track,
-                    "ai_summary_bullets": "\n".join(f"- {b}" for b in ai_summary),
-                    "reusable_prompts_or_principles": "\n".join(
-                        f"- {b}" for b in (distill.parsed.get("reusable_prompts_or_principles") or [])
-                    ),
-                    "candidate_projects": "",
-                },
-            )
-            outcome.action_extraction = ae
-            self._record_stage(outcome, ae, status="ok")
-        except StageError as e:
-            outcome.error_message = str(e)
-            outcome.error_stage = "action_extraction"
+        ae = self._run_stage_or_fail(
+            outcome,
+            "action_extraction",
+            ifh,
+            _action_extraction_vars(distill=distill, track=track, ai_summary=ai_summary),
+        )
+        if ae is None:
             return outcome
 
-        # ---------------------------------------------- 组装 card payload
         outcome.card_payload = _build_card_payload(
             doc=doc,
             track=track,
@@ -233,6 +140,31 @@ class Pipeline:
         return outcome
 
     # ------------------------------------------------------- internal helpers
+    def _run_stage_or_fail(
+        self,
+        outcome: PipelineOutcome,
+        stage: str,
+        input_file_hash: str,
+        variables: dict[str, Any],
+    ) -> StageResult | None:
+        try:
+            result = run_stage(
+                client=self.client,
+                logger=self.logger,
+                stage=stage,
+                prompts_dir=self.prompts_dir,
+                prompt_version=self.prompt_versions.for_stage(stage),
+                input_file_hash=input_file_hash,
+                variables=variables,
+            )
+            setattr(outcome, stage, result)
+            self._record_stage(outcome, result, status="ok")
+            return result
+        except StageError as e:
+            outcome.error_message = str(e)
+            outcome.error_stage = stage
+            return None
+
     def _record_stage(self, outcome: PipelineOutcome, sr: StageResult, *, status: str) -> None:
         outcome.stages_meta[sr.stage] = {
             "model_alias": sr.model_alias,
@@ -255,6 +187,91 @@ def _excerpt(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n\n[...truncated for prompt budget...]"
+
+
+def _bullet_lines(items: Any) -> str:
+    return "\n".join(f"- {item}" for item in (items or []))
+
+
+def _triage_vars(doc: SourceDocument, learning_tracks_text: str) -> dict[str, str]:
+    return {
+        "title": doc.title or "",
+        "source_type": doc.source_type,
+        "source_url": doc.source_url or "",
+        "tags": ", ".join(doc.tags),
+        "tracks_yaml": learning_tracks_text,
+        "excerpt": _excerpt(doc.raw_text, 4000),
+    }
+
+
+def _distill_vars(
+    doc: SourceDocument,
+    *,
+    triage: StageResult,
+    track: str,
+    value_score: int,
+) -> dict[str, str]:
+    return {
+        "title": doc.title or "",
+        "source_type": doc.source_type,
+        "source_url": doc.source_url or "",
+        "track": track,
+        "output_focus": "",
+        "value_score": str(value_score),
+        "topic_keywords": ", ".join(triage.parsed.get("topic_keywords") or []),
+        "raw_text": _excerpt(doc.raw_text, 12000),
+    }
+
+
+def _link_suggestion_vars(
+    *,
+    distill: StageResult,
+    track: str,
+    ai_summary: Any,
+) -> dict[str, str]:
+    return {
+        "card_title": distill.parsed.get("title") or "",
+        "track": track,
+        "tags": ", ".join(distill.parsed.get("tags") or []),
+        "ai_summary_bullets": _bullet_lines(ai_summary),
+        "candidate_cards": "",
+        "candidate_projects": "",
+    }
+
+
+def _review_question_vars(
+    *,
+    distill: StageResult,
+    track: str,
+    ai_summary: Any,
+) -> dict[str, str]:
+    return {
+        "card_title": distill.parsed.get("title") or "",
+        "track": track,
+        "ai_summary_bullets": _bullet_lines(ai_summary),
+        "ai_inference_bullets": _bullet_lines(distill.parsed.get("ai_inference_bullets")),
+        "reusable_prompts_or_principles": _bullet_lines(
+            distill.parsed.get("reusable_prompts_or_principles")
+        ),
+        "source_excerpt": distill.parsed.get("source_excerpt") or "",
+    }
+
+
+def _action_extraction_vars(
+    *,
+    distill: StageResult,
+    track: str,
+    ai_summary: Any,
+) -> dict[str, str]:
+    return {
+        "card_title": distill.parsed.get("title") or "",
+        "track": track,
+        "ai_summary_bullets": _bullet_lines(ai_summary),
+        "reusable_prompts_or_principles": _bullet_lines(
+            distill.parsed.get("reusable_prompts_or_principles")
+        ),
+        "candidate_projects": "",
+    }
 
 
 def _build_card_payload(

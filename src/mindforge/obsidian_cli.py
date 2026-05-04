@@ -234,6 +234,200 @@ def _write_obsidian_staged_export(
     return plan.target_path
 
 
+def _preview_stage_skip(
+    *,
+    vault_root: Path,
+    source_path: Path,
+    skipped_reason: str,
+    source_exists: bool,
+    source_in_vault: bool,
+) -> None:
+    _print_stage_preview(
+        vault_root=vault_root,
+        source=source_path,
+        target=None,
+        action="skipped",
+        skipped_reason=skipped_reason,
+        source_exists=source_exists,
+        source_in_vault=source_in_vault,
+    )
+
+
+def _reject_or_preview_stage_skip(
+    *,
+    vault_root: Path,
+    source_path: Path,
+    dry_run: bool,
+    skipped_reason: str,
+    source_exists: bool,
+    source_in_vault: bool,
+    error_text: str,
+) -> bool:
+    """处理 stage source validation 失败。
+
+    中文学习型说明：dry-run 路径必须展示安全摘要并返回；write 路径必须显式
+    非零退出。这个 helper 把“预览 vs 拒绝”的边界固定在一个地方，避免
+    ``obsidian_stage`` 命令体重新长出重复分支。
+    """
+
+    if dry_run:
+        _preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            skipped_reason=skipped_reason,
+            source_exists=source_exists,
+            source_in_vault=source_in_vault,
+        )
+        return False
+    console.print(f"[red]✗ {error_text}[/red]")
+    raise typer.Exit(code=2)
+
+
+def _stage_source_is_valid(*, vault_root: Path, options: object, source_path: Path, dry_run: bool) -> bool:
+    from .obsidian import obsidian_path_in_scope
+
+    if not vault_root.exists() or not vault_root.is_dir():
+        _preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            skipped_reason="Obsidian vault 不存在或不是目录；请检查 --vault。",
+            source_exists=source_path.exists(),
+            source_in_vault=safe_relative_to(source_path, vault_root) is not None,
+        )
+        return False
+    if safe_relative_to(source_path, vault_root) is None:
+        return _reject_or_preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            dry_run=dry_run,
+            skipped_reason="--source 必须位于 Obsidian vault 内，避免误处理外部资料。",
+            source_exists=source_path.exists(),
+            source_in_vault=False,
+            error_text="--source 必须位于 Obsidian vault 内，避免误处理真实外部资料。",
+        )
+    if not source_path.exists():
+        return _reject_or_preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            dry_run=dry_run,
+            skipped_reason="source note 不存在。",
+            source_exists=False,
+            source_in_vault=True,
+            error_text=f"source note 不存在：{source_path}",
+        )
+    if source_path.is_dir():
+        return _reject_or_preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            dry_run=dry_run,
+            skipped_reason="--source 是目录；stage 需要单个 Markdown note。",
+            source_exists=True,
+            source_in_vault=True,
+            error_text=f"--source 是目录；请传单个 Markdown note：{source_path}",
+        )
+    if source_path.suffix.lower() != ".md":
+        return _reject_or_preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            dry_run=dry_run,
+            skipped_reason="--source 不是 Markdown 文件。",
+            source_exists=True,
+            source_in_vault=True,
+            error_text=f"--source 不是 Markdown 文件：{source_path}",
+        )
+
+    in_scope, scope_reason = obsidian_path_in_scope(source_path, options)  # type: ignore[arg-type]
+    if not in_scope:
+        return _reject_or_preview_stage_skip(
+            vault_root=vault_root,
+            source_path=source_path,
+            dry_run=dry_run,
+            skipped_reason=f"source 不在当前 include/exclude scope：{scope_reason}。",
+            source_exists=True,
+            source_in_vault=True,
+            error_text=f"source 不在当前 include/exclude scope：{scope_reason}。",
+        )
+    return True
+
+
+def _load_stage_document_or_exit(*, vault_root: Path, source_path: Path, dry_run: bool) -> Any | None:
+    from .sources.obsidian_vault import ObsidianVaultSourceAdapter
+
+    adapter = ObsidianVaultSourceAdapter(vault_root)
+    try:
+        return adapter.load(str(source_path))
+    except Exception as e:  # noqa: BLE001 - 只打印安全错误摘要，不输出 note 正文
+        if dry_run:
+            _preview_stage_skip(
+                vault_root=vault_root,
+                source_path=source_path,
+                skipped_reason=f"source 解析失败：{type(e).__name__}: {e}",
+                source_exists=True,
+                source_in_vault=True,
+            )
+            return None
+        console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
+        raise typer.Exit(code=2) from e
+
+
+def _stage_target_or_exit(
+    *,
+    cfg: MindForgeConfig,
+    vault_root: Path,
+    doc: Any,
+    output_dir: Path | None,
+    staged_export: bool,
+) -> Path:
+    if staged_export:
+        return staged_export_dir(cfg, output_dir) / obsidian_export_filename(doc)
+
+    from .obsidian import stage_output_path
+
+    try:
+        return stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=2) from e
+
+
+def _stage_preview_action(*, staged_export: bool, target: Path) -> str:
+    if staged_export:
+        return "would-create-staged-export" if not target.exists() else "would-update-staged-export"
+    return "would-create-staging-candidate" if not target.exists() else "would-update-staging-candidate"
+
+
+def _print_stage_success_preview(
+    *,
+    vault_root: Path,
+    source_path: Path,
+    target: Path,
+    doc: Any,
+    staged_export: bool,
+) -> None:
+    preview_fields = _stage_preview_fields(doc)
+    _print_stage_preview(
+        vault_root=vault_root,
+        source=source_path,
+        target=target,
+        action=_stage_preview_action(staged_export=staged_export, target=target),
+        skipped_reason="",
+        content_hash=doc.content_hash,
+        title=str(preview_fields["title"]),
+        wikilinks=list(preview_fields["wikilinks"]),  # type: ignore[arg-type]
+        frontmatter_keys=list(preview_fields["frontmatter_keys"]),  # type: ignore[arg-type]
+        source_type=str(preview_fields["source_type"]),
+        source_exists=True,
+        source_in_vault=True,
+    )
+
+
+def _write_regular_stage_candidate(*, target: Path, content: str) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    console.print(f"[green]✓ staged[/green] {target}")
+    console.print("[dim]说明：未修改 source note、未移动文件、未重写 wikilinks、未 auto approve。[/dim]")
+
+
 @obsidian_app.command("scan")
 def obsidian_scan(
     vault: Path | None = typer.Option(
@@ -380,146 +574,39 @@ def obsidian_stage(
 ) -> None:
     """把 Obsidian note 的候选加工结果写入 staging/review，而不是修改原 note。"""
 
-    from .obsidian import build_stage_markdown, obsidian_path_in_scope, stage_output_path
-    from .sources.obsidian_vault import ObsidianVaultSourceAdapter
+    from .obsidian import build_stage_markdown
 
     cfg = _load_cfg(config)
     vault_root, options = _obsidian_options(cfg, vault, include=include, exclude=exclude)
     _obsidian_copy_warning()
     source_path = resolve_obsidian_source_for_preview(source, vault_root)
-    if not vault_root.exists() or not vault_root.is_dir():
-        _print_stage_preview(
-            vault_root=vault_root,
-            source=source_path,
-            target=None,
-            action="skipped",
-            skipped_reason="Obsidian vault 不存在或不是目录；请检查 --vault。",
-            source_exists=source_path.exists(),
-            source_in_vault=safe_relative_to(source_path, vault_root) is not None,
-        )
+    if not _stage_source_is_valid(
+        vault_root=vault_root,
+        options=options,
+        source_path=source_path,
+        dry_run=dry_run,
+    ):
         return
-    if safe_relative_to(source_path, vault_root) is None:
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason="--source 必须位于 Obsidian vault 内，避免误处理外部资料。",
-                source_exists=source_path.exists(),
-                source_in_vault=False,
-            )
-            return
-        console.print("[red]✗ --source 必须位于 Obsidian vault 内，避免误处理真实外部资料。[/red]")
-        raise typer.Exit(code=2) from None
-    if not source_path.exists():
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason="source note 不存在。",
-                source_exists=False,
-                source_in_vault=True,
-            )
-            return
-        console.print(f"[red]✗ source note 不存在：{source_path}[/red]")
-        raise typer.Exit(code=2)
-    if source_path.is_dir():
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason="--source 是目录；stage 需要单个 Markdown note。",
-                source_exists=True,
-                source_in_vault=True,
-            )
-            return
-        console.print(f"[red]✗ --source 是目录；请传单个 Markdown note：{source_path}[/red]")
-        raise typer.Exit(code=2)
-    if source_path.suffix.lower() != ".md":
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason="--source 不是 Markdown 文件。",
-                source_exists=True,
-                source_in_vault=True,
-            )
-            return
-        console.print(f"[red]✗ --source 不是 Markdown 文件：{source_path}[/red]")
-        raise typer.Exit(code=2)
-    in_scope, scope_reason = obsidian_path_in_scope(source_path, options)  # type: ignore[arg-type]
-    if not in_scope:
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason=f"source 不在当前 include/exclude scope：{scope_reason}。",
-                source_exists=True,
-                source_in_vault=True,
-            )
-            return
-        console.print(f"[red]✗ source 不在当前 include/exclude scope：{scope_reason}。[/red]")
-        raise typer.Exit(code=2)
 
-    adapter = ObsidianVaultSourceAdapter(vault_root)
-    try:
-        doc = adapter.load(str(source_path))
-    except Exception as e:  # noqa: BLE001 - 只打印安全错误摘要，不输出 note 正文
-        if dry_run:
-            _print_stage_preview(
-                vault_root=vault_root,
-                source=source_path,
-                target=None,
-                action="skipped",
-                skipped_reason=f"source 解析失败：{type(e).__name__}: {e}",
-                source_exists=True,
-                source_in_vault=True,
-            )
-            return
-        console.print(f"[red]✗ source 解析失败：{type(e).__name__}: {e}[/red]")
-        raise typer.Exit(code=2) from e
-    if staged_export:
-        target = staged_export_dir(cfg, output_dir) / obsidian_export_filename(doc)
-    else:
-        try:
-            target = stage_output_path(vault_root, cfg.obsidian, doc, output_dir)
-        except ValueError as e:
-            console.print(f"[red]✗ {e}[/red]")
-            raise typer.Exit(code=2) from e
+    doc = _load_stage_document_or_exit(vault_root=vault_root, source_path=source_path, dry_run=dry_run)
+    if doc is None:
+        return
+    target = _stage_target_or_exit(
+        cfg=cfg,
+        vault_root=vault_root,
+        doc=doc,
+        output_dir=output_dir,
+        staged_export=staged_export,
+    )
     content = build_stage_markdown(doc)
 
     if dry_run:
-        preview_fields = _stage_preview_fields(doc)
-        _print_stage_preview(
+        _print_stage_success_preview(
             vault_root=vault_root,
-            source=source_path,
+            source_path=source_path,
             target=target,
-            action=(
-                "would-create-staged-export"
-                if staged_export and not target.exists()
-                else "would-update-staged-export"
-                if staged_export
-                else "would-create-staging-candidate"
-                if not target.exists()
-                else "would-update-staging-candidate"
-            ),
-            skipped_reason="",
-            content_hash=doc.content_hash,
-            title=str(preview_fields["title"]),
-            wikilinks=list(preview_fields["wikilinks"]),  # type: ignore[arg-type]
-            frontmatter_keys=list(preview_fields["frontmatter_keys"]),  # type: ignore[arg-type]
-            source_type=str(preview_fields["source_type"]),
-            source_exists=True,
-            source_in_vault=True,
+            doc=doc,
+            staged_export=staged_export,
         )
         return
     if not confirm:
@@ -538,10 +625,7 @@ def obsidian_stage(
         )
         return
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    console.print(f"[green]✓ staged[/green] {target}")
-    console.print("[dim]说明：未修改 source note、未移动文件、未重写 wikilinks、未 auto approve。[/dim]")
+    _write_regular_stage_candidate(target=target, content=content)
 
 
 @obsidian_app.command("preflight")
