@@ -13,6 +13,7 @@ from pathlib import Path
 import typer
 
 from . import process_presenter as _pp
+from .cards import iter_cards
 from .checkpoint import Checkpoint
 from .cli_runtime import console, load_cfg, override_active_profile
 from .env_loader import load_dotenv_silently
@@ -51,6 +52,25 @@ class _ProcessRuntimeParts:
     checkpoint: Checkpoint
     writer: CardWriter
     pipeline: object
+
+
+@dataclass(frozen=True)
+class _ApprovedSourceIndex:
+    """已进入 human_approved 知识库的 source provenance 索引。
+
+    中文学习型说明：历史 dogfood 中，老 source 可能仍留在 Inbox，但对应卡片
+    已经 human_approved。process 默认不能再把这种 source 当作待处理材料，
+    否则会生成 conflict card。这里仅读卡片 frontmatter 白名单，不读 source
+    正文，也不移动/删除历史 source。
+    """
+
+    source_ids: frozenset[str]
+    source_paths: frozenset[str]
+
+    def contains(self, *, source_id: str, source_path: str, vault_root: Path) -> bool:
+        if source_id in self.source_ids:
+            return True
+        return bool(_source_path_keys(source_path, vault_root=vault_root).intersection(self.source_paths))
 
 
 def _upsert_processing_item(result, cp) -> tuple[object, object]:
@@ -376,8 +396,62 @@ def _build_process_runtime_parts(*, cfg, runtime, strategy: str) -> _ProcessRunt
     )
 
 
+def _source_path_keys(source_path: str, *, vault_root: Path) -> set[str]:
+    keys = {source_path}
+    p = Path(source_path).expanduser()
+    if not p.is_absolute():
+        keys.add(str((vault_root / p).resolve()))
+    try:
+        resolved = p.resolve()
+        keys.add(str(resolved))
+        try:
+            keys.add(resolved.relative_to(vault_root.resolve()).as_posix())
+        except ValueError:
+            pass
+    except OSError:
+        pass
+    return keys
+
+
+def _build_approved_source_index(cfg) -> _ApprovedSourceIndex:
+    card_scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    source_ids: set[str] = set()
+    source_paths: set[str] = set()
+    for card in card_scan.cards:
+        if card.status != "human_approved":
+            continue
+        if card.source_id:
+            source_ids.add(card.source_id)
+        if card.source_path:
+            source_paths.update(_source_path_keys(card.source_path, vault_root=cfg.vault.root))
+    return _ApprovedSourceIndex(
+        source_ids=frozenset(source_ids),
+        source_paths=frozenset(source_paths),
+    )
+
+
+def _emit_already_approved_source_skip(*, result, doc, logger, counts) -> None:
+    counts["skipped"] += 1
+    logger.emit(
+        "source_skipped_or_unchanged",
+        source_id=doc.source_id,
+        source_type=doc.source_type,
+        adapter_name=result.adapter_name,
+        source_path=doc.source_path,
+        content_hash=doc.content_hash,
+        status="already_approved",
+        skip_reason="already_approved",
+    )
+    console.print(_pp.format_skipped(
+        source_path=doc.source_path,
+        skip_reason="already_approved",
+    ))
+
+
 def _run_process_loop(*, cfg, parts: _ProcessRuntimeParts, file, limit, dry_run) -> None:
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
+    attempted = 0
+    approved_sources = _build_approved_source_index(cfg)
     with RunLogger(cfg.state.runs_path, command="process") as logger:
         parts.pipeline.logger = logger
         for result in parts.scanner.iter_results():
@@ -395,6 +469,22 @@ def _run_process_loop(*, cfg, parts: _ProcessRuntimeParts, file, limit, dry_run)
                 )
                 continue
 
+            doc = result.document
+            assert doc is not None
+            if approved_sources.contains(
+                source_id=doc.source_id,
+                source_path=doc.source_path,
+                vault_root=cfg.vault.root,
+            ):
+                _emit_already_approved_source_skip(
+                    result=result,
+                    doc=doc,
+                    logger=logger,
+                    counts=counts,
+                )
+                continue
+
+            attempted += 1
             _process_one_result(
                 result=result,
                 cp=parts.checkpoint,
@@ -407,7 +497,7 @@ def _run_process_loop(*, cfg, parts: _ProcessRuntimeParts, file, limit, dry_run)
                 dry_run=dry_run,
             )
 
-            if limit is not None and counts["seen"] >= limit:
+            if limit is not None and attempted >= limit:
                 break
 
         _finalize_process_run(

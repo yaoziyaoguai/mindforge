@@ -120,3 +120,16 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
     assert init_pos == -1 or demo_pos < init_pos, (
         "demo 必须排在 init 之前，体现零配置优先"
     )
+
+
+def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
+    """README first-run 路径必须解释 cwd vault 与 recall --query，防 dogfood 漂移。"""
+
+    text = Path("README.md").read_text(encoding="utf-8")
+    quickstart = text.split("## Quick Start", 1)[1].split("\n## ", 1)[0]
+
+    assert "cd /Users/jinkun.wang/MindForgeVault" in quickstart
+    assert "explicit `--vault`" in quickstart
+    assert "current vault" in quickstart
+    assert "configs/mindforge.yaml" in quickstart
+    assert 'mindforge recall --query "MindForge"' in quickstart

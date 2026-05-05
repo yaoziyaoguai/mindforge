@@ -31,6 +31,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import yaml
 from rich.console import Console
 
 from mindforge import review_presenter, review_service
@@ -456,6 +457,56 @@ def test_review_service_public_api_unchanged() -> None:
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _write_cli_smoke_config(tmp_path: Path) -> Path:
+    """给 subprocess CLI smoke 准备隔离配置，避免读写用户真实 dogfood vault。"""
+
+    vault = tmp_path / "vault"
+    (vault / "00-Inbox" / "ManualNotes").mkdir(parents=True)
+    (vault / "20-Knowledge-Cards").mkdir(parents=True)
+    cfg = {
+        "version": 0.7,
+        "vault": {
+            "root": str(vault),
+            "inbox_root": "00-Inbox",
+            "cards_dir": "20-Knowledge-Cards",
+            "archive_dir": "90-Archive/Skipped",
+        },
+        "sources": {"enabled": [], "registry": {}},
+        "state": {
+            "workdir": str(tmp_path / ".mindforge"),
+            "state_file": "state.json",
+            "runs_dir": "runs",
+            "index_file": "index.jsonl",
+            "backup_state": True,
+        },
+        "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+        "llm": {
+            "active_profile": "fake",
+            "profiles": {
+                "fake": {
+                    "triage": "fake_alias",
+                    "distill": "fake_alias",
+                    "link_suggestion": "fake_alias",
+                    "review_questions": "fake_alias",
+                    "action_extraction": "fake_alias",
+                }
+            },
+            "models": {"fake_alias": {"provider": "fake", "type": "fake", "model": "fake"}},
+        },
+        "prompts": {
+            "triage_version": "v1",
+            "distill_version": "v1",
+            "link_suggestion_version": "v1",
+            "review_questions_version": "v1",
+            "action_extraction_version": "v1",
+        },
+        "logging": {"level": "INFO", "file": str(tmp_path / "mf.log")},
+    }
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return cfg_path
+
+
 def _run_cli(args: list[str]) -> str:
     """运行真实 CLI 入口，返回 stdout。"""
     result = subprocess.run(
@@ -469,27 +520,27 @@ def _run_cli(args: list[str]) -> str:
     return result.stdout
 
 
-def test_cli_review_weekly_markdown_smoke() -> None:
+def test_cli_review_weekly_markdown_smoke(tmp_path: Path) -> None:
     """``review weekly`` 默认 markdown 必须返回完整 7 段 + 边界声明。
 
     这是 CLI 黑盒测试：保证 presenter + CLI 胶水联合后输出仍稳定。
     """
-    out = _run_cli(
-        ["review", "weekly", "--config", "configs/mindforge.yaml"]
-    )
+    cfg = _write_cli_smoke_config(tmp_path)
+    out = _run_cli(["review", "weekly", "--config", str(cfg)])
     assert "# Weekly Review · " in out
     assert "## Workflow bridge" in out
     assert "**不**调用 LLM" in out
 
 
-def test_cli_review_weekly_json_schema_smoke() -> None:
+def test_cli_review_weekly_json_schema_smoke(tmp_path: Path) -> None:
     """``review weekly --format json`` 必须输出可解析 JSON 且 version=1。"""
+    cfg = _write_cli_smoke_config(tmp_path)
     out = _run_cli(
         [
             "review",
             "weekly",
             "--config",
-            "configs/mindforge.yaml",
+            str(cfg),
             "--format",
             "json",
         ]

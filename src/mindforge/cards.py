@@ -33,6 +33,7 @@ class CardSummary:
     projects: tuple[str, ...]
     tags: tuple[str, ...]
     source_type: str | None
+    source_id: str | None = None
     adapter_name: str | None = None
     source_path: str | None = None
     source_title: str | None = None
@@ -216,6 +217,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         track=_str_or_none(data.get("track")),
         projects=_str_tuple(data.get("projects")),
         tags=_str_tuple(data.get("tags")),
+        source_id=_str_or_none(data.get("source_id")),
         source_type=_str_or_none(data.get("source_type")),
         adapter_name=_str_or_none(data.get("adapter_name")),
         source_path=_str_or_none(data.get("source_path")),

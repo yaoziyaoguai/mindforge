@@ -39,6 +39,24 @@ class AppContext:
     paths: AppPaths
 
 
+@dataclass(frozen=True)
+class ActiveVaultDecision:
+    """本次命令使用哪个 vault 的只读决策结果。
+
+    中文学习型说明：CLI 可以在任意目录运行。为了避免 scan 用一个 vault、
+    state/index 又写到另一个目录，所有命令都先收敛到同一个 active vault。
+    本结构只描述路径选择原因，不读取 source 正文、不写文件、不碰 `.env`。
+    """
+
+    root: Path
+    reason: str
+    configured_root: Path
+
+    @property
+    def configured_differs(self) -> bool:
+        return self.root != self.configured_root
+
+
 def load_app_config(config_path: Path, *, vault_override: Path | None = None) -> MindForgeConfig:
     """加载 config 并应用本次命令的 vault override；不读 `.env`。
 
@@ -50,7 +68,8 @@ def load_app_config(config_path: Path, *, vault_override: Path | None = None) ->
         cfg = load_mindforge_config(config_path)
     except ConfigError as e:
         raise AppContextError("invalid_config", str(e)) from e
-    return apply_vault_override(cfg, vault_override)
+    decision = resolve_active_vault(cfg, vault_override=vault_override)
+    return apply_active_vault(cfg, decision)
 
 
 def resolve_config_path(config_path: Path) -> Path:
@@ -87,9 +106,84 @@ def build_app_context(config_path: Path, *, vault_override: Path | None = None) 
     )
 
 
+def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
+    """从 cwd 向上寻找 MindForge vault root；找不到返回 None。
+
+    当前判断只使用目录形状：``00-Inbox`` 与 ``20-Knowledge-Cards`` 同时存在。
+    这是 init 后 vault 的最小稳定信号，避免依赖 repo 配置或真实私人内容。
+    """
+
+    current = (cwd or Path.cwd()).expanduser().resolve()
+    candidates = (current, *current.parents)
+    for candidate in candidates:
+        if (candidate / "00-Inbox").is_dir() and (candidate / "20-Knowledge-Cards").is_dir():
+            return candidate
+    return None
+
+
+def resolve_active_vault(
+    cfg: MindForgeConfig,
+    *,
+    vault_override: Path | None = None,
+    cwd: Path | None = None,
+) -> ActiveVaultDecision:
+    """按统一优先级选择 active vault。
+
+    优先级：explicit ``--vault`` > cwd/ancestor vault > configured vault。
+    这个规则保证用户在 vault root 内运行 ``mindforge scan`` 时，scanner、
+    state/index、next command 全部指向同一个 vault。
+    """
+
+    configured = cfg.vault.root.expanduser().resolve()
+    if vault_override is not None:
+        return ActiveVaultDecision(
+            root=vault_override.expanduser().resolve(),
+            reason="explicit --vault",
+            configured_root=configured,
+        )
+    cwd_vault = detect_cwd_vault(cwd)
+    if cwd_vault is not None:
+        return ActiveVaultDecision(
+            root=cwd_vault,
+            reason="cwd vault",
+            configured_root=configured,
+        )
+    return ActiveVaultDecision(
+        root=configured,
+        reason="configured vault",
+        configured_root=configured,
+    )
+
+
+def apply_active_vault(cfg: MindForgeConfig, decision: ActiveVaultDecision) -> MindForgeConfig:
+    """把 active vault 应用到 cfg，并让相对 state.workdir 跟随 active vault。
+
+    中文学习型说明：``state.workdir: .mindforge`` 是 vault-local runtime
+    状态，不应再按任意 cwd 解析。否则会出现真实 dogfood 里看到的矛盾：
+    state 写到当前目录，而 scanner/next command 使用另一个 vault。
+    绝对 workdir 仍保持用户显式选择，不被重写。
+    """
+
+    new_vault = replace(cfg.vault, root=decision.root)
+    state_raw = cfg.raw.get("state") if isinstance(cfg.raw, dict) else None
+    workdir_raw = state_raw.get("workdir") if isinstance(state_raw, dict) else None
+    new_state = cfg.state
+    if isinstance(workdir_raw, str) and not Path(workdir_raw).expanduser().is_absolute():
+        new_state = replace(cfg.state, workdir=decision.root / workdir_raw)
+    metadata = {
+        "_mindforge_active_vault": {
+            "root": str(decision.root),
+            "reason": decision.reason,
+            "configured_root": str(decision.configured_root),
+            "configured_differs": decision.configured_differs,
+        }
+    }
+    return replace(cfg, vault=new_vault, state=new_state, raw={**cfg.raw, **metadata})
+
+
 def apply_vault_override(cfg: MindForgeConfig, vault_override: Path | None) -> MindForgeConfig:
-    """只覆盖 vault.root，不修改 yaml，也不改变 cards_dir 等相对目录字段。"""
+    """兼容旧调用：按 active-vault 规则应用显式 override。"""
     if vault_override is None:
         return cfg
-    new_vault = replace(cfg.vault, root=vault_override.expanduser().resolve())
-    return replace(cfg, vault=new_vault)
+    decision = resolve_active_vault(cfg, vault_override=vault_override)
+    return apply_active_vault(cfg, decision)

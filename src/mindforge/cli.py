@@ -286,6 +286,16 @@ def scan(
 ) -> None:
     """扫描 inbox 目录，把每个文件解析为 SourceDocument 并登记到 state.json。"""
     cfg = _load_cfg(config, read_env=False)
+    active_meta = cfg.raw.get("_mindforge_active_vault", {}) if isinstance(cfg.raw, dict) else {}
+    reason = active_meta.get("reason") if isinstance(active_meta, dict) else None
+    configured_root = active_meta.get("configured_root") if isinstance(active_meta, dict) else None
+    configured_differs = bool(active_meta.get("configured_differs")) if isinstance(active_meta, dict) else False
+    console.print(f"active vault: {cfg.vault.root}", markup=False, soft_wrap=True)
+    console.print(f"state path  : {cfg.state.state_path}", markup=False, soft_wrap=True)
+    if configured_differs:
+        console.print(
+            f"[yellow]vault resolution: using {reason}; configured vault is {configured_root}[/yellow]"
+        )
     scanner = Scanner(cfg)  # type: ignore[arg-type]
     cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)  # type: ignore[attr-defined]
 
@@ -355,6 +365,7 @@ def scan(
                     content_hash=merged.content_hash,
                     status=merged.status,
                 )
+            console.print(f"scanned: {doc.source_path}", markup=False, soft_wrap=True)
             table.add_row(doc.source_type, doc.source_path, label, doc.content_hash[:18] + "...")
 
         console.print(table)
@@ -365,10 +376,11 @@ def scan(
 
         if write_state:
             cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
-            console.print(f"已写入 state.json → {cfg.state.state_path}")  # type: ignore[attr-defined]
+            console.print(f"已写入 state.json → {cfg.state.state_path}", soft_wrap=True)  # type: ignore[attr-defined]
             console.print(
                 f"Next: mindforge process --profile fake --limit 1 --vault {cfg.vault.root}",
                 markup=False,
+                soft_wrap=True,
             )
             logger.emit(
                 EVENT_STATE_WRITTEN,

@@ -46,6 +46,7 @@ EOF
 跑通最小流程：
 
 ```bash
+cd /Users/jinkun.wang/MindForgeVault
 mindforge scan
 mindforge process --profile fake --limit 1
 mindforge approve list
@@ -59,6 +60,13 @@ mindforge recall --query "MindForge"
 
 第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
 为 `human_approved`。默认 `fake` provider 不调用真实 LLM。
+
+Vault resolution rule: explicit `--vault` wins first, then MindForge detects the
+current vault if you run commands inside a vault root or its subdirectory, then
+falls back to `configs/mindforge.yaml`. If you run commands from the project repo
+instead of `/Users/jinkun.wang/MindForgeVault`, either keep `vault.root` correct
+or pass `--vault /Users/jinkun.wang/MindForgeVault`. CLI next commands always
+print the active vault they are using.
 
 ## Three Concepts You Need First
 
