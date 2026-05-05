@@ -166,5 +166,6 @@ class WorkspaceWriter(Protocol):
 - `docs/OBSIDIAN_BINDING.md`：现有 Obsidian 集成（read-only scan 与
   mindforge cards 目录）；workspace writer 是其**增量扩展**而不是
   重写；
-- `docs/ARCHITECTURE_MAP.md`：本文档落地后应在该 map 中追加一节
+- `docs/ARCHITECTURE.md` / `docs/IMPLEMENTATION.md`：本文档落地后应在
+  canonical architecture 与 implementation guide 中追加对应边界说明
   "Workspace Writer Boundary"。

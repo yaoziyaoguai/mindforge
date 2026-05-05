@@ -1,122 +1,126 @@
 # MindForge Architecture
 
-MindForge is a local-first CLI pipeline. It keeps raw inputs, generated cards, state, run logs, indexes, and telemetry separated so the system can be audited without leaking private content.
+MindForge is a local-first personal AI learning memory tool with two user
+surfaces: CLI for precise local control and Web for a localhost-only personal
+console. The architecture serves a single user and one local workspace. It is
+not SaaS, not a cloud sync service, not a multi-user admin product, and not a
+hidden automation layer over private notes.
 
-Obsidian is treated as personal knowledge context, not as a machine runtime
-store. v0.5 implements a minimal read-only Obsidian binding that ingests vault
-notes through the same source adapter contract while keeping generated output in
-staging/review areas and keeping runtime state outside formal notes.
+## Product Shape
 
-## Data Flow
-
-```text
-00-Inbox/<subdir>/*
-  -> SourceAdapter
-  -> SourceDocument
-  -> LLM pipeline
-  -> 20-Knowledge-Cards/<track>/*.md
-  -> approve / recall / review / project context / vault helpers
-```
-
-v0.5 adds the path below without changing the downstream contract:
+MindForge helps a person review their own learning material safely:
 
 ```text
-Obsidian vault Markdown (read-only)
-  -> ObsidianVaultSource adapter
+SourceAdapter
   -> SourceDocument
-  -> existing pipeline / recall / review layers
-  -> staging/review output only, never direct formal-note rewrites
+  -> processing pipeline
+  -> ai_draft
+  -> explicit human approval
+  -> human_approved
+  -> local recall / review / Obsidian or OPS binding
 ```
 
-## Core Layers
+The central object crossing ingestion boundaries is `SourceDocument`. Cubox is
+only one `SourceAdapter`; it must not become the architecture center. Processor
+and `KnowledgeStrategy` implementations depend on `SourceDocument`, not on a
+specific upstream product.
 
-### Source Ingestion
+AI output is advisory. It can produce `ai_draft` cards only. A card becomes
+long-term memory only through an explicit approval action performed by the user.
 
-`src/mindforge/scanner.py` dispatches files by `configs/mindforge.yaml.sources.registry`. Each source is handled by a `SourceAdapter` and normalized into `SourceDocument`.
+## Boundaries
 
-Active adapter contract:
+### CLI
 
-- [SOURCE_ADAPTER_PROTOCOL.md](./SOURCE_ADAPTER_PROTOCOL.md)
-- `src/mindforge/sources/base.py`
-- `src/mindforge/sources/registry.py`
+The CLI is a thin adapter. It parses arguments, loads local context, delegates
+to services/facades, and renders human-friendly output. It should not own core
+approval, provider, recall, or workspace business rules.
 
-For Obsidian, `ObsidianVaultSourceAdapter` reads Markdown notes, frontmatter,
-tags, aliases, `[[wikilinks]]`, headings, and directory context without
-modifying the vault.
+### Web
 
-### SourceDocument Contract
+The Web first slice is a local presentation/control layer:
 
-`SourceDocument` is the only downstream source interface. It contains `source_id`, `source_type`, `source_path`, metadata, highlights, `raw_text`, `content_hash`, and `adapter_name`.
+```text
+React UI
+  -> FastAPI APIRouter controller
+  -> mindforge_web service/facade
+  -> existing mindforge service / policy / storage
+  -> local files under configured workspace/vault
+```
 
-The broader data contract remains in [MINDFORGE_PROTOCOL.md](./MINDFORGE_PROTOCOL.md).
+Routers are controllers, not business modules. They validate payloads and call
+the Web facade. The facade may orchestrate Web scenarios, but it must reuse the
+existing MindForge services and policies.
 
-### Processing Pipeline
+### Service and Presenter
 
-The pipeline has five fixed stages:
+Services hold business semantics and return structured results. Presenters hold
+output shape. CLI/Web adapters may choose format, but they should not duplicate
+domain decisions.
 
-1. `triage`
-2. `distill`
-3. `link_suggestion`
-4. `review_questions`
-5. `action_extraction`
+### Provider and Readiness
 
-Provider routing is static through `llm.active_profile` and per-stage aliases in `configs/mindforge.yaml`. Default profile is `fake`.
+The fake provider is the default safe path. Real providers are opt-in. Provider
+readiness reports configuration state and key presence, but must not call a real
+LLM. Cubox readiness follows the same rule: report local configuration/path
+state, do not call the real Cubox API during readiness checks.
 
-### Knowledge Cards
+### Approval
 
-Cards are written to `20-Knowledge-Cards/<track>/*.md` and default to `status: ai_draft`. Cards become durable memory only after explicit `mindforge approve`.
+Approval is the trust boundary:
 
-### State, Runs, Telemetry
+- `ai_draft -> human_approved` requires an explicit user action.
+- Web approve requires `confirm: true` and `reviewed_source: true`.
+- CLI approve requires the explicit confirmation path.
+- No status, recall, scan, import, or background command may create
+  `human_approved`.
+- Reject/defer must be honest if persistence is unavailable; no fake success.
 
-- `.mindforge/state.json`: processing state machine and content hashes.
-- `.mindforge/runs/*.jsonl`: local per-run event chain.
-- `.mindforge/telemetry.jsonl`: local command-use metadata only.
-- `.mindforge/index/bm25.json`: local recall index built from safe card fields.
+### Workspace, Obsidian, and OPS
 
-These files have separate responsibilities and should not be merged.
-They also must not be written into formal Obsidian notes. Future SQLite,
-vector, graph, cache, or checkpoint stores are derived machine layers and must
-remain rebuildable from source vault content and MindForge artifacts.
+Obsidian or an OPS workspace is a human knowledge workbench. It must not be used
+as a dumping ground for machine runtime/state/cache/index/logs/vector stores or
+graph-derived layers. MindForge may read or stage into controlled locations, but
+it must not automatically reorganize a real private vault.
 
-### Obsidian Boundary
+## Recall
 
-Obsidian has three roles in the target architecture:
+Current recall is local lexical retrieval, backed by approved cards and BM25-like
+ranking where available. It is not RAG, not embeddings, not semantic search, and
+not semantic merge. Drafts are excluded unless a command explicitly asks for
+draft inclusion.
 
-1. **Personal knowledge source**: existing notes, daily notes, project notes,
-   tags, frontmatter, wikilinks, and folders are input context.
-2. **Human knowledge workbench**: MindForge may propose summaries, candidate
-   cards, MOCs, review notes, or learning routes into a staging/review area.
-3. **Not runtime state**: logs, checkpoints, caches, indexes, and intermediate
-   state stay out of formal notes.
+## Current Non-Goals
 
-MindForge must not auto-organize the vault, move files, rewrite wikilinks, or
-edit formal notes without a separate explicit review workflow.
+MindForge currently does not do:
 
-CLI surface: `mindforge obsidian doctor|scan|links|stage`.
+- RAG, embeddings, vector stores, or semantic merge.
+- Obsidian plugin development.
+- Automatic organization of a real vault.
+- Real LLM calls by default.
+- Real Cubox API calls by default.
+- Cloud sync, login, OAuth, payment, hosting, or multi-user permissions.
 
-Detailed v0.5 boundary: [OBSIDIAN_BINDING.md](./OBSIDIAN_BINDING.md).
+## Long-Term Architecture Principles
 
-### Recall And Review
+- High cohesion: each module should have one clear reason to change.
+- Low coupling: adapters depend on stable service contracts, not internal file
+  layout.
+- Information hiding: secret values, raw provider payloads, and private note
+  bodies stay behind explicit user actions.
+- Thin adapters: CLI, FastAPI routers, and React components should not grow into
+  new monoliths.
+- Domain names over generic helpers: avoid `common` or `utils` dumping grounds.
+- Tests protect behavior and boundaries, not arbitrary file-size metrics.
 
-Recall is local lexical search with optional hybrid ranking. Review scheduling is local plan/export only. There is no vector database, background scheduler, system calendar integration, or notification daemon.
+## Focused Protocols
 
-Active detail docs:
+The canonical architecture above is intentionally short. Detailed historical
+protocols remain available because code and tests still reference them:
 
-- [M5_4_LEXICAL_RECALL_PROTOCOL.md](./M5_4_LEXICAL_RECALL_PROTOCOL.md)
-- [M4_RECALL_REVIEW_PROTOCOL.md](./M4_RECALL_REVIEW_PROTOCOL.md)
-
-### Project Context
-
-Project context joins safe card summaries with `30-Projects/<name>.md` frontmatter. Project note bodies are not read. `update-evidence` writes only a controlled START/END block in project files.
-
-Active detail doc:
-
-- [M5_3_PROJECT_CONTEXT_PROTOCOL.md](./M5_3_PROJECT_CONTEXT_PROTOCOL.md)
-
-## Extension Points
-
-- Add source formats through `SourceAdapter`.
-- Add provider integrations through `src/mindforge/llm/`.
-- Add CLI polish in `src/mindforge/cli.py`.
-
-Avoid adding architecture outside the current safety model without updating [SECURITY.md](./SECURITY.md), [ROADMAP.md](./ROADMAP.md), and tests.
+- [Human Approval Protocol](M3_HUMAN_APPROVAL_PROTOCOL.md)
+- [Recall / Review Protocol](M4_RECALL_REVIEW_PROTOCOL.md)
+- [SourceAdapter Protocol](SOURCE_ADAPTER_PROTOCOL.md)
+- [Lexical Recall Protocol](M5_4_LEXICAL_RECALL_PROTOCOL.md)
+- [Local-First Privacy Contract](LOCAL_FIRST_PRIVACY_CONTRACT.md)
+- [Security](SECURITY.md)

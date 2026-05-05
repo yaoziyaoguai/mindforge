@@ -75,7 +75,7 @@
 - **v0.14 future-gate Pack pushed**: future gate 规格 + evidence
   cookbook + 仓库级守卫已经在 `origin/main` (HEAD = `dc14b8c`)。
 - **Roadmap closure pushed**: ledger + G1-G6 forbidden-impl guard +
-  README/GETTING_STARTED/cookbook cross-links + closure declaration
+  README/USAGE/cookbook cross-links + closure declaration
   已经在 `origin/main` (HEAD = `b99b9a6`)。
 - **Safe-completable scope is exhausted**: 没有任何进一步动作可以
   在不打开 future gate / release gate 的前提下推进 Roadmap。详见

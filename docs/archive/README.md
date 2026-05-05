@@ -4,8 +4,8 @@ This directory preserves historical reviews, design drafts, and narrow documents
 
 Use active docs first:
 
-- [../DOCS_INDEX.md](../DOCS_INDEX.md)
+- [../../README.md](../../README.md)
 - [../CHANGELOG.md](../CHANGELOG.md)
-- [../ROADMAP_PROGRESS.md](../ROADMAP_PROGRESS.md)
+- [../ROADMAP.md](../ROADMAP.md)
 
 Archived documents may contain historical paths and counts from the release in which they were written.

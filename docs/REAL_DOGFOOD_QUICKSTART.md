@@ -11,7 +11,7 @@
 > formal vault write. No `human_approved` record produced.
 >
 > Companion docs:
-> [GETTING_STARTED.md](GETTING_STARTED.md) (full install guide) ·
+> [USAGE.md](USAGE.md) (canonical usage guide) ·
 > [LOCAL_FIRST_PRIVACY_CONTRACT.md](LOCAL_FIRST_PRIVACY_CONTRACT.md) ·
 > [CUBOX_DRY_RUN.md](CUBOX_DRY_RUN.md) ·
 > [V0_14_FUTURE_GATES.md](V0_14_FUTURE_GATES.md) (G1–G6 gates) ·
@@ -213,7 +213,7 @@ check, never reads the value) and via test-pinned literals
   one).
 - Commit a token to git, even temporarily, even in a branch you
   "plan to delete".
-- Put a token in a docs file, README, GETTING_STARTED, runbook,
+- Put a token in a docs file, README, USAGE, runbook,
   comment, commit message, or test fixture.
 - Print a token via `echo $MINDFORGE_CUBOX_TOKEN`, `printenv`, or
   `env | grep CUBOX` in a recorded session.
