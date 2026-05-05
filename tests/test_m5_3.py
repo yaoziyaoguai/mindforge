@@ -63,7 +63,7 @@ def _setup_vault_with_one_approved_card(
     cards_dir = vault / "20-Knowledge-Cards" / "agent-runtime"
     card = next(cards_dir.glob("*.md"))
     assert runner.invoke(
-        app, ["approve", "--card", str(card), "--config", str(cfg_path)]
+        app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"]
     ).exit_code == 0
 
     text = card.read_text("utf-8")

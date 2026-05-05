@@ -13,6 +13,12 @@ from . import init_presenter as _ip
 from .app_context import AppContextError, load_app_config
 from .cli_runtime import console, global_vault_override, load_cfg
 from .config import ConfigError, MindForgeConfig, load_mindforge_config
+from .presenters.local_status import (
+    render_config_status,
+    render_friendly_error,
+    render_status_json,
+)
+from .services.local_status import build_local_status_snapshot, friendly_config_error
 from .presenters.doctor import doctor_icon as _doctor_icon
 from .services.doctor import config_doctor_rows as _svc_config_doctor_rows
 
@@ -358,6 +364,27 @@ def config_doctor(
             console.print(f"    next: {next_action}", markup=False)
     if all(state != "error" for state, *_rest in rows):
         console.print("[green]✓ config looks safe for local fake-provider use[/green]")
+
+
+@config_app.command("status")
+def config_status(
+    config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    as_json: bool = typer.Option(False, "--json", help="输出机器可读 JSON。"),
+) -> None:
+    """展示真实本地配置 readiness；只显示 key presence，不显示 secret value。"""
+    try:
+        snapshot = build_local_status_snapshot(
+            config,
+            vault_override=global_vault_override(),
+            cwd=Path.cwd(),
+        )
+    except AppContextError as exc:
+        render_friendly_error(console, friendly_config_error(config, str(exc)))
+        raise typer.Exit(code=2) from exc
+    if as_json:
+        render_status_json(snapshot)
+        return
+    render_config_status(console, snapshot)
 
 
 @config_app.command("init")

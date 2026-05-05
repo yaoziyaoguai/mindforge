@@ -51,7 +51,9 @@ def _vault_with_approved_card(
     card = cards[0]
 
     # approve → human_approved
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(
+        app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"]
+    )
     assert r.exit_code == 0, r.output
     return cfg_path, vault, card
 

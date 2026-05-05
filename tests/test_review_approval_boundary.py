@@ -325,7 +325,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # backup export adapter，只读导出 human_approved 卡片的安全摘要；
         # 不写卡片状态，也不产生任何 approval side effect。
         "backup_cli.py",
-            # daily_cli.py 从 cli.py 抽出 today/start/next 只读入口，只用
+        # real-data CLI status presenter 只读展示 approved 计数；不写状态、
+        # 不调用 approval_service，也不产生 human_approved。
+        "local_status.py",
+                # daily_cli.py 从 cli.py 抽出 today/start/next 只读入口，只用
             # human_approved 统计 review due 信号，不写状态、不 approve。
             "daily_cli.py",
             # approval_cli.py 是显式人工 approve 的 CLI adapter owner。它只把

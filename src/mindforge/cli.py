@@ -103,6 +103,7 @@ from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
 from .vault_cli import vault_app
 from .web_cli import web
+from .workspace_cli import workspace_app
 
 __all__ = [
     "app",
@@ -390,8 +391,48 @@ def status(
         "-c",
         help="mindforge.yaml 路径",
     ),
+    as_json: bool = typer.Option(False, "--json", help="输出机器可读 JSON。"),
 ) -> None:
-    """打印 state.json 的当前状态汇总。"""
+    """打印真实本地 workspace / vault / draft / recall 状态汇总。"""
+    from .app_context import AppContextError
+    from .presenters.local_status import (
+        render_friendly_error,
+        render_local_status,
+        render_status_json,
+    )
+    from .services.local_status import build_local_status_snapshot, friendly_config_error
+
+    try:
+        snapshot = build_local_status_snapshot(
+            config,
+            vault_override=_global_vault_override(),
+            cwd=Path.cwd(),
+        )
+    except AppContextError as exc:
+        render_friendly_error(console, friendly_config_error(config, str(exc)))
+        raise typer.Exit(code=2) from exc
+    if as_json:
+        render_status_json(snapshot)
+        return
+    with RunLogger(Path(str(snapshot.workspace["runs_path"])), command="status") as logger:
+        logger.emit(
+            EVENT_STATUS_REPORTED,
+            path=snapshot.workspace["state_path"],
+            items_count=snapshot.workspace["state_item_count"],
+            counts={
+                "by_status": dict(snapshot.workspace["state_counts"]),
+                "by_source_type": dict(snapshot.workspace["source_counts"]),
+                "cards_by_status": dict(snapshot.cards["by_status"]),
+            },
+            active_profile=snapshot.provider["active_profile"],
+        )
+    render_local_status(console, snapshot)
+
+
+def _legacy_status(
+    config: Path = Path("configs/mindforge.yaml"),
+) -> None:
+    """历史 state.json 摘要实现；保留给内部兼容，不再作为用户主入口。"""
     cfg = _load_cfg(config, read_env=False)
     cp = Checkpoint.load(cfg.state.state_path)  # type: ignore[attr-defined]
 
@@ -480,6 +521,7 @@ app.add_typer(index_app, name="index")
 app.add_typer(telemetry_app, name="telemetry")
 app.add_typer(vault_app, name="vault")
 app.add_typer(cubox_app, name="cubox")
+app.add_typer(workspace_app, name="workspace")
 
 
 def main() -> None:

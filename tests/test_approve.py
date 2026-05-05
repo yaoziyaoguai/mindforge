@@ -82,7 +82,7 @@ def test_approve_promotes_ai_draft_to_human_approved(
     fm0 = _read_fm(card)
     assert fm0["status"] == "ai_draft"
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
     fm1 = _read_fm(card)
     assert fm1["status"] == "human_approved"
@@ -109,7 +109,7 @@ def test_approve_preserves_body(
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     body_before = _read_body(card)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
     assert _read_body(card) == body_before
 
@@ -124,7 +124,7 @@ def test_approve_does_not_touch_source(
 ) -> None:
     cfg_path, _v, src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     src_bytes = src.read_bytes()
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
     assert src.read_bytes() == src_bytes
 
@@ -142,7 +142,7 @@ def test_approve_works_with_zero_env(
     for k in list(os.environ.keys()):
         if k.startswith("MINDFORGE_") or k.startswith("OPENAI"):
             monkeypatch.delenv(k, raising=False)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
 
 
@@ -162,7 +162,7 @@ def test_approve_never_calls_llm(
         raise AssertionError("approve 路径绝不应该发起 HTTP 请求")
 
     monkeypatch.setattr(httpx.Client, "post", _no_http, raising=True)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
 
 
@@ -175,12 +175,12 @@ def test_approve_is_idempotent_on_human_approved(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
-    r1 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r1 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r1.exit_code == 0
     fm1 = _read_fm(card)
     text1 = card.read_text("utf-8")
 
-    r2 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r2 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r2.exit_code == 0
     fm2 = _read_fm(card)
     text2 = card.read_text("utf-8")
@@ -205,7 +205,7 @@ def test_approve_rejects_non_promotable_status(
     assert text2 != text
     card.write_text(text2, encoding="utf-8")
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 4, r.output
     # 卡片完全没变
     assert card.read_text("utf-8") == text2
@@ -222,7 +222,7 @@ def test_approve_rejects_corrupt_frontmatter(
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     # 写一个明显非法的 YAML
     card.write_text("---\nstatus: ai_draft\n  bad: : :\n---\nbody\n", encoding="utf-8")
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 3, r.output
 
 
@@ -231,7 +231,7 @@ def test_approve_rejects_missing_status(
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     card.write_text("---\ntitle: X\n---\nbody\n", encoding="utf-8")
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 3, r.output
 
 
@@ -263,7 +263,7 @@ def test_approve_runs_jsonl_uses_whitelisted_fields_only(
     runs_dir = tmp_path / ".mindforge" / "runs"
     before = {p.name for p in runs_dir.glob("*.jsonl")}
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
 
     after_files = [p for p in runs_dir.glob("*.jsonl") if p.name not in before]
@@ -292,7 +292,7 @@ def test_state_json_round_trip_with_approval_fields(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
 
     state_path = tmp_path / ".mindforge" / "state.json"

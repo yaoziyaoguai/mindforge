@@ -408,6 +408,14 @@ def test_approve_explicit_action_mentions_human_approval_boundary(tmp_path: Path
     })
 
     res = runner.invoke(app, ["approve", "--config", str(cfg), "--card", str(card)])
+    assert res.exit_code == 2, res.output
+    assert "--confirm" in res.output
+    assert "ai_draft" in card.read_text(encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["approve", "--config", str(cfg), "--card", str(card), "--confirm"],
+    )
 
     assert res.exit_code == 0, res.output
     assert "human_approved" in res.output

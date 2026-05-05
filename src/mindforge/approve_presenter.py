@@ -105,7 +105,7 @@ def approve_next_command(c: CardSummary) -> str:
 
     presenter 仅生成命令字符串，是否执行由用户复制粘贴。
     """
-    return f"mindforge approve --card {c.rel_path}"
+    return f"mindforge approve --card {c.rel_path} --confirm"
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +226,7 @@ def render_approval_show(
         "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
         markup=False,
     )
-    console.print(f"Next: mindforge approve --card {card_path}", markup=False)
+    console.print(f"Next: mindforge approve --card {card_path} --confirm", markup=False)
 
 
 # ---------------------------------------------------------------------------

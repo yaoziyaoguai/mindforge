@@ -58,7 +58,9 @@ def _setup_two_cards(
     cards = [first, second]
 
     for i, card in enumerate(cards):
-        runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+        runner.invoke(
+            app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"]
+        )
         text = card.read_text("utf-8")
         fm_text, body = text.split("---\n", 2)[1], text.split("---\n", 2)[2]
         fm = yaml.safe_load(fm_text)

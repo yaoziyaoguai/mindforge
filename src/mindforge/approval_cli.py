@@ -31,8 +31,8 @@ approve_app = typer.Typer(
         "  - 如果允许 LLM 自动 approve，AI 误差会被无限放大；MindForge 的"
         "差异化前提之一就是 source-grounded + human-approved。\n\n"
         "常用：\n"
-        "  approve --card <path>     — 单卡晋升（最安全主路径）\n"
-        "  approve --source-id <id>  — 基于 state.json 反查卡片再晋升\n"
+        "  approve --card <path> --confirm     — 单卡晋升（最安全主路径）\n"
+        "  approve --source-id <id> --confirm  — 基于 state.json 反查卡片再晋升\n"
         "  approve list              — 列出可 approve 的 ai_draft 卡片（安全摘要）\n"
         "  approve --all --dry-run   — 预览批量晋升（不写文件）\n"
     ),
@@ -107,7 +107,7 @@ def approve(
     confirm: bool = typer.Option(
         False,
         "--confirm",
-        help="--all 真正执行所需的显式确认（搭配可选 --limit）",
+        help="真正写入 human_approved 所需的显式确认（单卡 / source-id / --all 都需要）。",
     ),
     limit: int = typer.Option(
         0,
@@ -129,6 +129,17 @@ def approve(
 
     # ── --card 主路径 ─────────────────────────────────────────────
     if card is not None:
+        if not confirm:
+            console.print(
+                "[red]approve requires --confirm before writing human_approved.[/red]"
+            )
+            console.print(
+                f"Target: {card}\n"
+                "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
+                f"Safe preview: mindforge approve show --card {card} --config {config}",
+                markup=False,
+            )
+            raise typer.Exit(code=2)
         _do_single_approve(card, cfg)
         return
 
@@ -142,6 +153,17 @@ def approve(
             render_lookup_error(console, lookup)
             raise typer.Exit(code=lookup.error.exit_code)
         assert lookup.card_path is not None
+        if not confirm:
+            console.print(
+                "[red]approve requires --confirm before writing human_approved.[/red]"
+            )
+            console.print(
+                f"Resolved target: {lookup.card_path}\n"
+                "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
+                f"Safe preview: mindforge approve show --card {lookup.card_path} --config {config}",
+                markup=False,
+            )
+            raise typer.Exit(code=2)
         _do_single_approve(lookup.card_path, cfg)
         return
 
@@ -274,6 +296,11 @@ def approve_show(
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"), "--config", "-c", help="mindforge.yaml 路径"
     ),
+    show_content: bool = typer.Option(
+        False,
+        "--show-content",
+        help="显式展示 draft 正文；默认只显示 frontmatter 安全摘要。",
+    ),
 ) -> None:
     """查看待 approve 卡片的安全摘要；不读取正文、不改变状态。
 
@@ -292,3 +319,8 @@ def approve_show(
         render_approval_show_error(console, preview)
         raise typer.Exit(code=preview.error.exit_code)
     render_approval_show(console, preview, card)
+    if show_content and preview.card_path is not None:
+        from .cards import read_card_body
+
+        console.print("[bold]Draft content (--show-content)[/bold]")
+        console.print(read_card_body(preview.card_path), markup=False)

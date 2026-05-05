@@ -458,6 +458,14 @@ def _do_bm25_recall(
     weight_review_due: float | None = None,
 ) -> None:
     """BM25 / hybrid CLI wrapper；核心检索逻辑在 recall_service。"""
+    if not query.strip():
+        console.print("[red]query is empty; local lexical recall needs a keyword.[/red]")
+        console.print(
+            "This is local lexical recall only: not RAG, not embedding, no LLM call.\n"
+            "Safe next command: mindforge recall --query <keyword>",
+            markup=False,
+        )
+        raise typer.Exit(code=2)
     cfg = load_cfg(config, read_env=False)
     recall_query = RecallQuery(
         query=query,
@@ -485,6 +493,10 @@ def _do_bm25_recall(
 
     for warning in result.warnings:
         console.print(f"[yellow]{warning}[/yellow]")
+    if output_format != "json":
+        console.print(
+            "[dim]Boundary: local lexical recall only; not RAG, not embedding, no LLM call.[/dim]"
+        )
 
     # 不把 query 原文写入 telemetry/runs；只记录是否提供 + hash 化指纹。
     kw_provided, kw_hash = _hash_keyword(query)

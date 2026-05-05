@@ -226,10 +226,18 @@ def test_init_force_overwrites_template_only(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_approve_card_still_works_backward_compat(tmp_path: Path) -> None:
+def test_approve_card_requires_confirm_for_real_write(tmp_path: Path) -> None:
     cfg_path = _make_min_cfg(tmp_path)
     card = tmp_path / "vault" / "20-Knowledge-Cards" / "c1.md"
     res = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    assert res.exit_code == 2, res.output
+    assert "--confirm" in res.output
+    assert "human_approved" not in card.read_text("utf-8")
+
+    res = runner.invoke(
+        app,
+        ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"],
+    )
     assert res.exit_code == 0, res.output
     assert "approved" in res.output.lower()
     # 真的被改了
@@ -370,7 +378,7 @@ def test_approve_source_id_resolves_card(tmp_path: Path) -> None:
 
     res = runner.invoke(
         app,
-        ["approve", "--source-id", "sha1:fake-c1", "--config", str(cfg_path)],
+        ["approve", "--source-id", "sha1:fake-c1", "--config", str(cfg_path), "--confirm"],
     )
     assert res.exit_code == 0, res.output
     assert "human_approved" in target.read_text("utf-8")
