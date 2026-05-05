@@ -11,6 +11,7 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import console, load_cfg
+from .app_context import resolve_config_path
 from .presenters.doctor import doctor_icon as _pres_doctor_icon
 from .presenters.doctor import ok_dir as _pres_ok_dir
 from .services.doctor import compute_doctor_hints as _svc_compute_doctor_hints
@@ -36,10 +37,15 @@ def _print_runtime_section(config: Path) -> bool:
     console.print("[bold]Runtime[/bold]")
     console.print(f"  {_doctor_icon('ok')} Python            : {platform.python_version()} ({sys.executable})")
     console.print(f"  {_doctor_icon('info')} Platform          : {platform.platform()}")
-    config_status = "ok" if config.exists() else "error"
-    config_text = "exists" if config.exists() else "MISSING"
-    console.print(f"  {_doctor_icon(config_status)} config path       : {config}  ({config_text})")
-    if config.exists():
+    try:
+        resolved_config = resolve_config_path(config)
+    except Exception:
+        console.print(f"  {_doctor_icon('error')} config path       : {config}  (MISSING)")
+    else:
+        config_text = "exists" if resolved_config == config else "packaged default"
+        console.print(
+            f"  {_doctor_icon('ok')} config path       : {resolved_config}  ({config_text})"
+        )
         return True
     _divider()
     console.print("[bold]Action items[/bold]")

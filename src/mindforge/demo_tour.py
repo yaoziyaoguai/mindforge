@@ -51,11 +51,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .demo_assets import demo_cubox_fixture_path, demo_vault_path
 from .dogfood_safety import classify_input_path
 from .sources.cubox_api import CuboxApiAdapter
 
 
-# 仓库自带的 Cubox 真实 export fixture: 2 条非敏感、可公开示例条目。
+# 包内 Cubox export fixture: 2 条非敏感、可公开示例条目。
 # 本模块刻意不接受 ``--export`` 参数, 因为 demo 的契约是 "零配置";
 # 真实数据请走 ``mindforge dogfood quickstart`` + 用户自己的 export。
 _DEMO_CUBOX_FIXTURE = Path("tests/fixtures/sample_cubox_api_export.json")
@@ -107,9 +108,9 @@ def run_demo_tour(
 ) -> DemoTourReport:
     """执行 60 秒 demo tour, 返回结构化结果。
 
-    参数都是可选的, 默认走仓库自带的 fixture 与 demo-vault, 让
-    新用户 ``mindforge demo`` 一条命令零参数就能看到效果。tests
-    里可以传入临时 fixture / 临时 vault, 用同一函数验证。
+    参数都是可选的，默认走 package 内置 fixture 与 demo-vault，让安装态
+    新用户 ``mindforge demo`` 一条命令零参数就能看到效果。tests 里仍可
+    传入临时 fixture / 临时 vault，用同一函数验证。
 
     Tour 的 4 步刻意挑选, 覆盖主链路的 4 个关键 seam:
 
@@ -123,8 +124,8 @@ def run_demo_tour(
 
     注意: 不调用真实 LLM, 不写 vault, 不产生 human_approved。
     """
-    fixture = cubox_fixture or _DEMO_CUBOX_FIXTURE
-    vault = demo_vault or _DEMO_VAULT
+    fixture = cubox_fixture or demo_cubox_fixture_path()
+    vault = demo_vault or demo_vault_path()
 
     steps: list[DemoStep] = []
 

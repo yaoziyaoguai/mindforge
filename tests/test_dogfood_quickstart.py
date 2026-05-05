@@ -20,7 +20,7 @@ def test_quickstart_default_vault_exits_zero() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["dogfood", "quickstart"])
     assert result.exit_code == 0, result.output
-    assert "examples/demo-vault" in result.output
+    assert "/tmp/dogfood-vault" in result.output
 
 
 def test_quickstart_explicit_vault() -> None:

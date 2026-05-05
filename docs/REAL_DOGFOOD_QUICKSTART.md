@@ -29,6 +29,14 @@
    created **specifically for MindForge dogfooding**. Do **not** point
    commands at your real personal Obsidian vault.
 
+If you only want the packaged demo vault, create a disposable copy first:
+
+```
+mindforge dogfood init-demo --target /tmp/dogfood-vault
+```
+
+This works from an installed CLI and does not require a repository checkout.
+
 ## The runbook (single command)
 
 Before printing the runbook, check that your target is still safe:
@@ -185,7 +193,7 @@ not mean to write to:**
 **Strong recommendations to make rollback trivial:**
 
 - Use a **disposable** project vault for your first runs (e.g.,
-  `cp -r examples/demo-vault /tmp/dogfood-vault` and pass
+  `mindforge dogfood init-demo --target /tmp/dogfood-vault` and pass
   `--vault /tmp/dogfood-vault`).
 - Keep your project vault **under git** so any unwanted write is one
   `git restore` away.

@@ -93,7 +93,7 @@ def classify_input_path(
         if f"/{marker}" in resolved_str or resolved_str.endswith(marker):
             return CLASS_SYNTHETIC
 
-    # README / quickstart 推荐用户先复制 examples/demo-vault 到 /tmp 做
+    # README / quickstart 推荐用户用 package demo asset 在 /tmp 创建
     # disposable project vault。它会保留 .obsidian 形状，但目标是可删除副本，
     # 且 readiness/preflight 仍不读取内容、不写 vault；因此在用户显式声明
     # non-sensitive 时允许通过。home 下真实个人 vault 不会命中此分支。
@@ -250,11 +250,13 @@ def render_dogfood_readiness_report(report: dict[str, Any]) -> str:
     else:
         lines.append("Fix first:")
         lines.append("  mindforge demo")
-        lines.append("  mindforge dogfood quickstart --vault examples/demo-vault")
+        lines.append("  mindforge dogfood init-demo --target /tmp/dogfood-vault")
+        lines.append("  mindforge dogfood quickstart --vault /tmp/dogfood-vault")
     lines.append("")
     lines.append(
         "Cleanup: use a disposable vault copy, e.g. "
-        "cp -r examples/demo-vault /tmp/dogfood-vault; rollback = delete that copy."
+        "mindforge dogfood init-demo --target /tmp/dogfood-vault; "
+        "rollback = delete that copy."
     )
     return "\n".join(lines)
 
@@ -384,8 +386,9 @@ def render_preflight_report(report: dict[str, Any]) -> str:
     else:
         lines.append("")
         lines.append("Refused. Safe alternatives:")
-        lines.append("  - mindforge dogfood plan --vault examples/demo-vault")
-        lines.append("  - mindforge dogfood preflight examples/demo-vault")
+        lines.append("  - mindforge dogfood init-demo --target /tmp/dogfood-vault")
+        lines.append("  - mindforge dogfood plan --vault /tmp/dogfood-vault")
+        lines.append("  - mindforge dogfood preflight /tmp/dogfood-vault --declare-non-sensitive")
     return "\n".join(lines)
 
 

@@ -36,7 +36,8 @@ Before copying a real-data dogfood runbook, verify that the current path is
 still fake-default and dry-run safe:
 
 ```bash
-mindforge dogfood readiness --vault examples/demo-vault
+mindforge dogfood init-demo --target /tmp/dogfood-vault
+mindforge dogfood readiness --vault /tmp/dogfood-vault
 ```
 
 Once you want to bring your own vault and inbox, continue with the full
@@ -77,7 +78,7 @@ mindforge strategies list
 To try the product without using your own data:
 
 ```bash
-cp -R examples/demo-vault /tmp/dogfood-vault
+mindforge dogfood init-demo --target /tmp/dogfood-vault
 mindforge doctor --vault /tmp/dogfood-vault
 mindforge dogfood readiness --vault /tmp/dogfood-vault
 mindforge commands
@@ -96,9 +97,10 @@ mindforge obsidian stage --vault /tmp/dogfood-vault --source 02-Knowledge/agent-
 rm -rf /tmp/dogfood-vault
 ```
 
-The demo vault is fictional and safe to inspect. Copying it to `/tmp` keeps
-generated `ai_draft` cards and runtime files out of repository fixtures; cleanup
-is deleting that disposable copy. See [examples/demo-vault/README.md](examples/demo-vault/README.md).
+The demo vault is fictional and safe to inspect. `dogfood init-demo` works from
+an installed CLI, not only from a repository checkout. Creating it under `/tmp`
+keeps generated `ai_draft` cards and runtime files out of repository fixtures;
+cleanup is deleting that disposable copy. See [examples/demo-vault/README.md](examples/demo-vault/README.md).
 
 ## What It Does
 

@@ -24,7 +24,7 @@
 > tag / no v1.0.** Recommended first-run limit is **`--limit 5`**; never
 > exceed `--limit 20` on early runs; there is **no full-Cubox-sync**
 > command. Use a disposable project vault (e.g.,
-> `cp -r examples/demo-vault /tmp/dogfood-vault`) so rollback = delete
+> `mindforge dogfood init-demo --target /tmp/dogfood-vault`) so rollback = delete
 > the directory. Full guide, including rollback / token-safety /
 > boundary-guarantee sections, in
 > [`REAL_DOGFOOD_QUICKSTART.md`](REAL_DOGFOOD_QUICKSTART.md).
@@ -34,7 +34,7 @@
 >
 > **想直接看效果？** 用仓库自带的 demo vault 一键跑：
 > ```bash
-> cp -R examples/demo-vault /tmp/dogfood-vault
+> mindforge dogfood init-demo --target /tmp/dogfood-vault
 > mindforge doctor --vault /tmp/dogfood-vault
 > mindforge dogfood readiness --vault /tmp/dogfood-vault
 > mindforge commands
@@ -56,8 +56,9 @@
 > ```
 > （demo vault 完全虚构，详见 [`examples/demo-vault/README.md`](../examples/demo-vault/README.md)）
 >
-> 提示：`process` 会写一张本地 `ai_draft` demo 卡，所以推荐先复制到
-> `/tmp/dogfood-vault`。想重置 demo 状态时，删除这个 disposable 副本即可。
+> 提示：`process` 会写一张本地 `ai_draft` demo 卡，所以推荐用
+> `dogfood init-demo` 创建 `/tmp/dogfood-vault`。想重置 demo 状态时，
+> 删除这个 disposable 副本即可。这个命令从安装态 CLI 也可用，不依赖仓库根。
 >
 > 不知道下一步该敲哪条命令？随时跑 **`mindforge next`** 看建议，
 > 或 **`mindforge commands`** 看按场景分组的命令地图。完整文档地图见

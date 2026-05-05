@@ -120,7 +120,10 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
             ))
     else:
         rows.append(("warn", "state.json", f"missing · {state_path}"))
-        actions.append(("recommended", "state.json 缺失 → 运行: mindforge scan"))
+        actions.append((
+            "recommended",
+            f"state.json 缺失 → 运行: mindforge scan --vault {cfg.vault.root}",
+        ))
 
     cards_dir = cfg.vault.cards_path
     rows.append(("ok" if cards_dir.is_dir() else "error", "cards dir", str(cards_dir)))
@@ -157,12 +160,17 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
         rows.append(("error", "package assets", f"unreadable · {type(e).__name__}: {e}"))
         actions.append(("critical", "package assets 不可读 → 检查安装包或重新安装 MindForge"))
 
-    demo = Path("examples/demo-vault")
-    rows.append((
-        "ok" if demo.is_dir() else "info",
-        "demo vault",
-        str(demo) if demo.is_dir() else "not in current cwd",
-    ))
+    try:
+        from ..demo_assets import demo_vault_path
+
+        demo = demo_vault_path()
+        rows.append(("ok", "demo vault", f"packaged asset · {demo}"))
+    except Exception as e:  # noqa: BLE001
+        rows.append(("warn", "demo vault", f"packaged asset unavailable · {type(e).__name__}: {e}"))
+        actions.append((
+            "recommended",
+            "demo vault 不可用 → 重新安装 MindForge 或检查 package data",
+        ))
     try:
         from ..cards import filter_cards, iter_cards
 

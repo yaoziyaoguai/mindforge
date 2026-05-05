@@ -116,6 +116,15 @@ def test_cli_demo_smoke_exits_zero_and_renders_text() -> None:
     assert "What is safe" in result.output
 
 
+def test_cli_demo_default_works_from_non_repo_cwd(tmp_path: Path, monkeypatch) -> None:
+    """安装态 smoke：demo 默认资产必须来自 package resources。"""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["demo"])
+    assert result.exit_code == 0, result.output
+    assert "parsed 2 cubox items" in result.output
+    assert "Dogfood path classification" in result.output
+
+
 def test_cli_demo_json_outputs_valid_schema() -> None:
     result = runner.invoke(app, ["demo", "--json"])
     assert result.exit_code == 0, result.output

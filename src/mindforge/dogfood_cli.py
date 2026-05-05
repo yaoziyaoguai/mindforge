@@ -15,12 +15,57 @@ from .cli_runtime import console
 
 dogfood_app = typer.Typer(add_completion=False, help="非敏感本地 dogfooding 计划与 checklist")
 
+
+@dogfood_app.command("init-demo")
+def dogfood_init_demo(
+    target: Path = typer.Option(
+        ...,
+        "--target",
+        help="要创建的 disposable demo vault 目录；已存在时默认拒绝覆盖。",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="显式覆盖已存在的 --target。只删除 target 本身，不扫描其它目录。",
+    ),
+) -> None:
+    """从 package assets 创建安装态可用的 disposable demo vault。
+
+    中文学习型说明：这是安装态 dogfood 的 bootstrap 命令，不是业务管线。
+    它只复制 MindForge 自带的虚构 demo vault 到用户指定目标；不读取真实
+    vault、不读 `.env`、不调 LLM/Cubox API、不写 human_approved。
+    """
+    from .demo_assets import init_demo_vault
+
+    try:
+        result = init_demo_vault(target, force=force)
+    except FileExistsError:
+        console.print(f"target already exists: {target}", markup=False)
+        console.print(
+            "Next: choose a new --target, delete the disposable directory, or rerun with --force.",
+            markup=False,
+        )
+        raise typer.Exit(code=2) from None
+
+    t = result.target
+    console.print("[bold]MindForge demo vault initialized[/bold]")
+    print(f"target       : {t}")
+    print(f"files_copied : {result.files_copied}")
+    print("safety       : packaged fictional demo data only; no .env, no LLM, no approve")
+    print("")
+    print("Next:")
+    print(f"  mindforge dogfood readiness --vault {t}")
+    print(f"  mindforge dogfood quickstart --vault {t}")
+    print(f"  mindforge doctor --vault {t}")
+    print(f"  rm -rf {t}")
+
+
 @dogfood_app.command("plan")
 def dogfood_plan(
     vault: Path | None = typer.Option(
         None,
         "--vault",
-        help="非敏感 disposable vault 副本路径；省略时使用全局 --vault 或 examples/demo-vault",
+        help="非敏感 disposable vault 副本路径；省略时使用全局 --vault 或 /tmp/dogfood-vault",
     ),
 ) -> None:
     """输出非敏感 dogfooding 命令路径；不执行、不读 .env、不写 vault。
@@ -30,7 +75,7 @@ def dogfood_plan(
     """
     import os as _os
 
-    chosen = vault or Path(_os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault"))
+    chosen = vault or Path(_os.environ.get("MINDFORGE_VAULT_OVERRIDE", "/tmp/dogfood-vault"))
     console.print("[bold]MindForge non-sensitive dogfooding plan[/bold]")
     console.print(f"vault copy: {chosen}")
     print("Safety: disposable non-sensitive copy only; no .env, no real LLM, no Obsidian formal-note writes.")
@@ -64,7 +109,7 @@ def dogfood_preflight(
         ...,
         help=(
             "要 dogfood 的输入路径; 不会被读取或遍历, 只做静态分类。"
-            "推荐 examples/demo-vault 下的 synthetic 路径。"
+            "安装态推荐先运行 `mindforge dogfood init-demo --target /tmp/dogfood-vault`。"
         ),
     ),
     config: Path = typer.Option(
@@ -114,7 +159,7 @@ def dogfood_readiness(
         None,
         "--vault",
         help=(
-            "项目专用 / disposable vault 路径; 省略时使用 examples/demo-vault。"
+            "项目专用 / disposable vault 路径; 省略时使用 /tmp/dogfood-vault。"
             "本命令只做静态路径分类, 不读取 vault 内容。"
         ),
     ),
@@ -150,7 +195,7 @@ def dogfood_readiness(
     )
 
     chosen_vault = vault or Path(
-        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault")
+        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "/tmp/dogfood-vault")
     )
     app_cfg = load_app_config(config)
     report = dogfood_readiness_report(
@@ -209,7 +254,7 @@ def dogfood_quickstart(
         None,
         "--vault",
         help=(
-            "项目专用 / demo vault 路径; 省略时使用 examples/demo-vault。"
+            "项目专用 / demo vault 路径; 省略时使用 /tmp/dogfood-vault。"
             "新用户应**只**指定项目专用 vault, 永不指定真实 home Obsidian vault。"
         ),
     ),
@@ -233,7 +278,7 @@ def dogfood_quickstart(
     import os as _os
 
     chosen_vault = vault or Path(
-        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "examples/demo-vault")
+        _os.environ.get("MINDFORGE_VAULT_OVERRIDE", "/tmp/dogfood-vault")
     )
     print("MindForge real dogfooding quickstart (read-only runbook)")
     print("=========================================================")
@@ -257,7 +302,8 @@ def dogfood_quickstart(
     print("        no full Cubox sync exists — JSON export is opt-in per item.")
     print("Rollback: every step above is dry-run by default; obsidian stage")
     print("        --write only touches <vault>/staging/. Use a disposable")
-    print("        project vault (cp -r examples/demo-vault /tmp/dogfood-vault).")
+    print("        project vault:")
+    print("        mindforge dogfood init-demo --target /tmp/dogfood-vault")
     print("Token: Cubox API token is a secret. Never paste, never commit,")
     print("        never print. cubox-readiness only ever returns a bool.")
     print("")
