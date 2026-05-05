@@ -129,7 +129,9 @@ def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
     quickstart = text.split("## Quick Start", 1)[1].split("\n## ", 1)[0]
 
     assert "cd /Users/jinkun.wang/MindForgeVault" in quickstart
+    assert "cwd-first / vault-first" in quickstart
     assert "explicit `--vault`" in quickstart
-    assert "current vault" in quickstart
+    assert "cwd/ancestor vault" in quickstart
+    assert "only needs `00-Inbox/`" in quickstart
     assert "configs/mindforge.yaml" in quickstart
     assert 'mindforge recall --query "MindForge"' in quickstart

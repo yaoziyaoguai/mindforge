@@ -15,7 +15,12 @@ import typer
 from . import process_presenter as _pp
 from .cards import iter_cards
 from .checkpoint import Checkpoint
-from .cli_runtime import console, load_cfg, override_active_profile
+from .cli_runtime import (
+    console,
+    load_cfg,
+    override_active_profile,
+    render_active_vault_resolution_notice,
+)
 from .env_loader import load_dotenv_silently
 from .llm import LLMClient, build_providers
 from .models import ItemState, StageRecord
@@ -574,6 +579,7 @@ def process(
     """
     cfg = load_cfg(config, read_env=False)
     cfg = override_active_profile(cfg, profile)
+    render_active_vault_resolution_notice(cfg)
 
     runtime = _resolve_runtime_or_exit(
         cfg=cfg,

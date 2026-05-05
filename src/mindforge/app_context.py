@@ -57,7 +57,12 @@ class ActiveVaultDecision:
         return self.root != self.configured_root
 
 
-def load_app_config(config_path: Path, *, vault_override: Path | None = None) -> MindForgeConfig:
+def load_app_config(
+    config_path: Path,
+    *,
+    vault_override: Path | None = None,
+    cwd: Path | None = None,
+) -> MindForgeConfig:
     """加载 config 并应用本次命令的 vault override；不读 `.env`。
 
     中文学习型说明：是否加载 `.env` 仍由 CLI 入口显式决定。这里保持纯
@@ -68,7 +73,7 @@ def load_app_config(config_path: Path, *, vault_override: Path | None = None) ->
         cfg = load_mindforge_config(config_path)
     except ConfigError as e:
         raise AppContextError("invalid_config", str(e)) from e
-    decision = resolve_active_vault(cfg, vault_override=vault_override)
+    decision = resolve_active_vault(cfg, vault_override=vault_override, cwd=cwd)
     return apply_active_vault(cfg, decision)
 
 
@@ -89,9 +94,14 @@ def resolve_config_path(config_path: Path) -> Path:
     raise AppContextError("missing_config", f"配置文件不存在：{config_path}")
 
 
-def build_app_context(config_path: Path, *, vault_override: Path | None = None) -> AppContext:
+def build_app_context(
+    config_path: Path,
+    *,
+    vault_override: Path | None = None,
+    cwd: Path | None = None,
+) -> AppContext:
     """构建 console-independent AppContext；不创建目录、不写文件。"""
-    cfg = load_app_config(config_path, vault_override=vault_override)
+    cfg = load_app_config(config_path, vault_override=vault_override, cwd=cwd)
     return AppContext(
         config=cfg,
         paths=AppPaths(

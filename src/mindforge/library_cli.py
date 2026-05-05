@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from .cli_runtime import console, load_cfg
+from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
 from .library_presenter import (
     render_library_detail,
     render_library_list,
@@ -30,6 +30,7 @@ def library(
     if ctx.invoked_subcommand is not None:
         return
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     render_library_stats(console, build_library_inventory(cfg).stats)
 
 
@@ -39,6 +40,7 @@ def library_stats(
 ) -> None:
     """显示知识库统计摘要。"""
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     render_library_stats(console, build_library_inventory(cfg).stats)
 
 
@@ -49,6 +51,7 @@ def library_list(
 ) -> None:
     """列出卡片安全 metadata；默认不显示正文。"""
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     render_library_list(console, build_library_inventory(cfg, limit=limit))
 
 
@@ -64,6 +67,7 @@ def library_show(
 ) -> None:
     """查看单张卡片 metadata；正文需显式 --show-content。"""
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     result = show_library_card(cfg, card, show_content=show_content)
     if hasattr(result, "exit_code"):
         console.print(f"[red]{result.message}[/red]")  # type: ignore[attr-defined]

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import typer
 
-from .cli_runtime import console, load_cfg
+from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
 from .config import MindForgeConfig
 from .run_logger import RunLogger
 
@@ -126,6 +126,7 @@ def approve(
     if ctx.invoked_subcommand is not None:
         return  # 让子命令接管
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
 
     # ── --card 主路径 ─────────────────────────────────────────────
     if card is not None:
@@ -272,6 +273,8 @@ def approve_list(
     )
 
     cfg = load_cfg(config, read_env=False)
+    if format_.lower() != "json":
+        render_active_vault_resolution_notice(cfg)
     wanted = {s.strip() for s in status.split(",") if s.strip()}
     res = list_approval_candidates(
         cfg,
@@ -314,6 +317,7 @@ def approve_show(
     )
 
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     preview = preview_approval_card(cfg, card)
     if preview.error is not None:
         render_approval_show_error(console, preview)

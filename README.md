@@ -25,11 +25,9 @@ mindforge demo
 mindforge init --interactive
 ```
 
-如果你第一次选择默认路径，通常会得到：
-
-```text
-/Users/jinkun.wang/MindForgeVault
-```
+MindForge 是 cwd-first / vault-first：程序安装目录只放程序，用户数据放在你
+选择的 vault 目录里。你可以选择默认路径，也可以在任意项目目录创建自己的
+local vault。
 
 创建第一条 Markdown：
 
@@ -61,12 +59,20 @@ mindforge recall --query "MindForge"
 第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
 为 `human_approved`。默认 `fake` provider 不调用真实 LLM。
 
-Vault resolution rule: explicit `--vault` wins first, then MindForge detects the
-current vault if you run commands inside a vault root or its subdirectory, then
-falls back to `configs/mindforge.yaml`. If you run commands from the project repo
-instead of `/Users/jinkun.wang/MindForgeVault`, either keep `vault.root` correct
-or pass `--vault /Users/jinkun.wang/MindForgeVault`. CLI next commands always
-print the active vault they are using.
+Vault resolution rule: explicit `--vault` wins first, then MindForge detects a
+cwd/ancestor vault, then falls back to `configs/mindforge.yaml`. A fresh vault
+only needs `00-Inbox/` to be detected, so this works:
+
+```bash
+mkdir -p /tmp/my-mindforge-vault/00-Inbox/ManualNotes
+cd /tmp/my-mindforge-vault
+mindforge scan
+```
+
+If you run commands from the source repo or another non-vault directory, pass
+`--vault <path>` or run `mindforge init --interactive`. When cwd vault and
+configured vault differ, CLI output says `using cwd vault; configured vault is
+...`; Next commands print the active vault they are using.
 
 ## Three Concepts You Need First
 

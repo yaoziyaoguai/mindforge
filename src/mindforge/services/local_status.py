@@ -81,9 +81,9 @@ def build_local_status_snapshot(
     思路在这里沉淀为 terminal-friendly snapshot。
     """
 
-    context = build_app_context(config_path, vault_override=vault_override)
-    cfg = context.config
     cwd = cwd or Path.cwd()
+    context = build_app_context(config_path, vault_override=vault_override, cwd=cwd)
+    cfg = context.config
     cards_scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     card_counts: dict[str, int] = {}
     for card in cards_scan.cards:
@@ -144,6 +144,11 @@ def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
 
 def _vault_status(cfg: MindForgeConfig) -> dict[str, Any]:
     root = cfg.vault.root
+    active_meta = (
+        cfg.raw.get("_mindforge_active_vault", {})
+        if isinstance(cfg.raw, dict)
+        else {}
+    )
     required = {
         "inbox": cfg.vault.inbox_path,
         "cards": cfg.vault.cards_path,
@@ -164,6 +169,15 @@ def _vault_status(cfg: MindForgeConfig) -> dict[str, Any]:
             for name, path in required.items()
         },
         "is_real_environment": _is_real_environment(root),
+        "resolution": {
+            "reason": active_meta.get("reason") if isinstance(active_meta, dict) else None,
+            "configured_root": (
+                active_meta.get("configured_root") if isinstance(active_meta, dict) else None
+            ),
+            "configured_differs": bool(active_meta.get("configured_differs"))
+            if isinstance(active_meta, dict)
+            else False,
+        },
     }
 
 

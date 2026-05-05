@@ -28,6 +28,7 @@ from .cli_runtime import (
     load_cfg as _load_cfg,
     normalize_post_command_global_options as _normalize_post_command_global_options,
     override_active_profile as _override_active_profile,
+    render_active_vault_resolution_notice,
 )
 from .cubox_cli import cubox_app
 from .daily_cli import (
@@ -286,16 +287,9 @@ def scan(
 ) -> None:
     """扫描 inbox 目录，把每个文件解析为 SourceDocument 并登记到 state.json。"""
     cfg = _load_cfg(config, read_env=False)
-    active_meta = cfg.raw.get("_mindforge_active_vault", {}) if isinstance(cfg.raw, dict) else {}
-    reason = active_meta.get("reason") if isinstance(active_meta, dict) else None
-    configured_root = active_meta.get("configured_root") if isinstance(active_meta, dict) else None
-    configured_differs = bool(active_meta.get("configured_differs")) if isinstance(active_meta, dict) else False
     console.print(f"active vault: {cfg.vault.root}", markup=False, soft_wrap=True)
     console.print(f"state path  : {cfg.state.state_path}", markup=False, soft_wrap=True)
-    if configured_differs:
-        console.print(
-            f"[yellow]vault resolution: using {reason}; configured vault is {configured_root}[/yellow]"
-        )
+    render_active_vault_resolution_notice(cfg)
     scanner = Scanner(cfg)  # type: ignore[arg-type]
     cp = Checkpoint.load(cfg.state.state_path, backup=cfg.state.backup_state)  # type: ignore[attr-defined]
 

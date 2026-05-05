@@ -13,6 +13,7 @@ import yaml
 from typer.testing import CliRunner
 
 from mindforge.cli import app
+from mindforge.cards import read_card_frontmatter
 
 runner = CliRunner()
 
@@ -192,3 +193,86 @@ def test_scan_from_fresh_inbox_child_detects_ancestor_vault(
     assert "external-smoke-note.md" in result.output
     assert f"active vault: {fresh}" in result.output
     assert f"Next: mindforge process --profile fake --limit 1 --vault {fresh}" in result.output
+
+
+def test_repo_runtime_mindforge_is_not_mistaken_for_user_vault(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    configured = _make_vault(tmp_path / "configured-vault", "old.md")
+    repo_like = tmp_path / "repo"
+    (repo_like / ".mindforge").mkdir(parents=True)
+    (repo_like / "configs").mkdir()
+    (repo_like / "configs" / "mindforge.yaml").write_text("version: 0.7\n", encoding="utf-8")
+    cfg = _write_config(tmp_path, configured)
+    monkeypatch.chdir(repo_like)
+
+    result = runner.invoke(app, ["scan", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "old.md" in result.output
+    assert f"active vault: {configured}" in result.output
+
+
+def test_status_uses_fresh_cwd_vault_when_configured_vault_differs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    configured = _make_vault(tmp_path / "configured-vault", "old.md")
+    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
+    cfg = _write_config(tmp_path, configured)
+    monkeypatch.chdir(fresh)
+
+    result = runner.invoke(app, ["status", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "ExternalMindForgeVault" in result.output
+    assert f"using cwd vault; configured vault is {configured}" in result.output
+
+
+def test_process_library_approve_index_recall_share_fresh_cwd_vault(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    configured = _make_vault(tmp_path / "configured-vault", "old.md")
+    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
+    cfg = _write_config(tmp_path, configured)
+    monkeypatch.chdir(fresh)
+
+    process = runner.invoke(app, ["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"])
+    assert process.exit_code == 0, process.output
+    assert "external-smoke-note.md" in process.output
+    assert f"using cwd vault; configured vault is {configured}" in process.output
+    assert "Next: mindforge approve list --vault" in process.output
+    assert "ExternalMindForgeVault" in process.output
+    assert not list(configured.joinpath("20-Knowledge-Cards").rglob("*.md"))
+
+    library_draft = runner.invoke(app, ["library", "list", "--config", str(cfg)])
+    assert library_draft.exit_code == 0, library_draft.output
+    assert "external-smoke-note" in library_draft.output
+    assert f"using cwd vault; configured vault is {configured}" in library_draft.output
+
+    card = next(fresh.joinpath("20-Knowledge-Cards").rglob("*.md"))
+    rel_card = card.relative_to(fresh).as_posix()
+    show = runner.invoke(app, ["approve", "show", "--card", rel_card, "--config", str(cfg)])
+    assert show.exit_code == 0, show.output
+    assert f"using cwd vault; configured vault is {configured}" in show.output
+    approve = runner.invoke(app, ["approve", "--card", rel_card, "--confirm", "--config", str(cfg)])
+    assert approve.exit_code == 0, approve.output
+    assert f"using cwd vault; configured vault is {configured}" in approve.output
+    assert read_card_frontmatter(card)["status"] == "human_approved"
+
+    index = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
+    assert index.exit_code == 0, index.output
+    assert f"using cwd vault; configured vault is {configured}" in index.output
+    assert "ExternalMindForgeVault/.mindforge/index" in index.output
+    assert "bm25.json" in index.output
+    assert (fresh / ".mindforge" / "index" / "bm25.json").exists()
+    assert not (configured / ".mindforge" / "index" / "bm25.json").exists()
+
+    recall = runner.invoke(app, ["recall", "--query", "external", "--config", str(cfg)])
+    assert recall.exit_code == 0, recall.output
+    assert f"Vault: vault.root={fresh}" in recall.output
+    assert "external-smoke-note" in recall.output
+    assert f"using cwd vault; configured vault is {configured}" in recall.output
+    assert str(fresh / ".mindforge" / "index" / "bm25.json") in recall.output

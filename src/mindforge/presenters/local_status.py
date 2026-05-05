@@ -121,6 +121,14 @@ def _render_vault(console: Console, vault: dict[str, Any]) -> None:
     console.print("[bold]Vault[/bold]")
     for key in ("path", "exists", "readable", "looks_like_mindforge", "is_real_environment"):
         console.print(f"  {key:<22}: {vault[key]}", markup=False)
+    resolution = vault.get("resolution") or {}
+    if resolution.get("configured_differs"):
+        console.print(
+            "  vault resolution      : "
+            f"using {resolution.get('reason')}; configured vault is {resolution.get('configured_root')}",
+            markup=False,
+            soft_wrap=True,
+        )
 
 
 def _render_provider(console: Console, provider: dict[str, Any]) -> None:

@@ -16,7 +16,7 @@ from .cli_cards import filters_dict as _filters_dict
 from .cli_cards import hash_keyword as _hash_keyword
 from .cli_cards import parse_date as _parse_date
 from .cli_cards import safe_date as _safe_date
-from .cli_runtime import console, load_cfg
+from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
 from .recall_presenter import RecallRenderContext, render_recall_result
 from .recall_service import (
     RecallQuery,
@@ -241,10 +241,13 @@ def _print_rule_recall(
             sort=sort,
         )
     elif output_format == "markdown":
+        render_active_vault_resolution_notice(result.cfg)  # type: ignore[arg-type]
         _print_rule_recall_markdown(result.cards, sort=sort)
     elif output_format == "table":
+        render_active_vault_resolution_notice(result.cfg)  # type: ignore[arg-type]
         _print_rule_recall_table(result.cards, sort=sort)
     else:
+        render_active_vault_resolution_notice(result.cfg)  # type: ignore[arg-type]
         _print_rule_recall_compact(result.cards, sort=sort)
 
 
@@ -491,12 +494,16 @@ def _do_bm25_recall(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=2) from e
 
-    for warning in result.warnings:
-        console.print(f"[yellow]{warning}[/yellow]")
     if output_format != "json":
+        render_active_vault_resolution_notice(cfg)
+        for warning in result.warnings:
+            console.print(f"[yellow]{warning}[/yellow]")
         console.print(
             "[dim]Boundary: local lexical recall only; not RAG, not embedding, no LLM call.[/dim]"
         )
+    else:
+        for warning in result.warnings:
+            console.print(f"[yellow]{warning}[/yellow]")
 
     # 不把 query 原文写入 telemetry/runs；只记录是否提供 + hash 化指纹。
     kw_provided, kw_hash = _hash_keyword(query)
@@ -551,6 +558,7 @@ def index_rebuild(
     from .cards import iter_cards
 
     cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
     if scan.errors:
         console.print(f"[yellow]跳过 {len(scan.errors)} 张损坏卡片[/yellow]")
@@ -630,6 +638,7 @@ def _do_index_status(*, config: Path, output_format: str) -> None:
                 "tokenizer": "ascii_word_plus_cjk_char_v1",
             }, ensure_ascii=False, indent=2))
             return
+        render_active_vault_resolution_notice(cfg)
         console.print("[yellow]索引文件不存在[/yellow]")
         console.print(f"  路径：{idx_path}")
         console.print(f"  当前 vault 卡片数：{len(scan.cards)}")
@@ -675,6 +684,7 @@ def _do_index_status(*, config: Path, output_format: str) -> None:
         return
 
     state_label = "[green]fresh[/green]" if fresh else "[yellow]stale[/yellow]"
+    render_active_vault_resolution_notice(cfg)
     console.print(f"[bold]Index status[/bold] · {state_label}")
     console.print(f"  路径：{idx_path}")
     console.print(f"  built_at：{index.built_at}")

@@ -41,7 +41,14 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
     if read_env:
         load_dotenv_silently(Path.cwd())
     try:
-        return load_app_config(config_path, vault_override=global_vault_override())
+        # cwd-first / vault-first 是 CLI 产品规则，不是 app_context 的偶然默认值。
+        # 这里显式传入 Path.cwd()，确保 scan/process/library/approve/index/recall
+        # 等共享入口都用同一个 active-vault 解析边界。
+        return load_app_config(
+            config_path,
+            vault_override=global_vault_override(),
+            cwd=Path.cwd(),
+        )
     except AppContextError as e:
         if e.kind == "missing_config":
             console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
@@ -56,6 +63,35 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
             "三个字段是否合法。[/dim]"
         )
         raise typer.Exit(code=2) from e
+
+
+def active_vault_resolution_notice(cfg: MindForgeConfig) -> str | None:
+    """返回 cwd vault 覆盖 configured vault 时的用户可读说明。
+
+    中文学习型说明：active vault 决策是产品语义，不只是路径工具函数。
+    当用户站在一个 vault 里运行命令时，MindForge 应该使用 cwd/ancestor vault；
+    如果配置文件里还保留旧 vault，这里负责把"为什么没有用配置里的 vault"
+    讲清楚。JSON 命令不要调用本函数的渲染包装，避免污染机器可读输出。
+    """
+
+    active_meta = (
+        cfg.raw.get("_mindforge_active_vault", {})
+        if isinstance(cfg.raw, dict)
+        else {}
+    )
+    if not isinstance(active_meta, dict) or not active_meta.get("configured_differs"):
+        return None
+    reason = active_meta.get("reason") or "active vault"
+    configured_root = active_meta.get("configured_root") or "(unknown)"
+    return f"vault resolution: using {reason}; configured vault is {configured_root}"
+
+
+def render_active_vault_resolution_notice(cfg: MindForgeConfig) -> None:
+    """在 human CLI 输出中打印 active-vault 选择提示。"""
+
+    notice = active_vault_resolution_notice(cfg)
+    if notice:
+        console.print(notice, markup=False, style="yellow", soft_wrap=True)
 
 
 def override_active_profile(
