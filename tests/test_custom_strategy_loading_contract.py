@@ -522,7 +522,7 @@ def test_loader_error_does_not_leak_python_repr_as_primary_ux(
 
 
 def test_custom_strategy_doc_explains_loading_safety() -> None:
-    """``docs/IMPLEMENTATION.md`` 必须向用户解释 loading 的
+    """``README.md`` 必须向用户解释 loading 的
     关键安全契约：
 
     - 仅显式路径加载；
@@ -533,8 +533,8 @@ def test_custom_strategy_doc_explains_loading_safety() -> None:
     - 不支持 shell strategy。
     """
 
-    p = Path("docs/IMPLEMENTATION.md")
-    assert p.exists(), "docs/IMPLEMENTATION.md 必须存在"
+    p = Path("README.md")
+    assert p.exists(), "README.md 必须存在"
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "explicit path",
@@ -544,7 +544,7 @@ def test_custom_strategy_doc_explains_loading_safety() -> None:
         "no shell",
     ):
         assert token in text, (
-            f"docs/IMPLEMENTATION.md 缺 loading-safety 关键说明 {token!r}"
+            f"README.md 缺 loading-safety 关键说明 {token!r}"
         )
 
 

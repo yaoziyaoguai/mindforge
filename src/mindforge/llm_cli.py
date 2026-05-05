@@ -109,5 +109,5 @@ def llm_ping(
 # M4 — review / recall / project memory
 # ===========================================================================
 #
-# 设计原则（详见 docs/IMPLEMENTATION.md 的 review / recall 说明）：
+# 设计原则（详见 README.md 的 review / recall 说明）：
 # - 五个命令全部不调 LLM、不读 .env、不改源文件、不写 state.json

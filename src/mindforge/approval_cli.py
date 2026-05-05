@@ -17,7 +17,7 @@ from .run_logger import RunLogger
 
 # ---------------------------------------------------------------------------
 # approve — M3 反 AI 污染闸门：显式人工把 ai_draft 卡片晋升为 human_approved
-# 详见 docs/SECURITY.md 的 explicit approval boundary。
+# 详见 README.md 的 explicit approval boundary。
 # ---------------------------------------------------------------------------
 
 

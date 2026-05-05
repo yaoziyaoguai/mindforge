@@ -83,7 +83,7 @@ def dogfood_plan(
     for command, note in _dogfood_command_snippets(chosen):
         print(f"- {command}")
         print(f"  {note}")
-    console.print("Guide: docs/USAGE.md", markup=False)
+    console.print("Guide: README.md", markup=False)
 
 
 def _dogfood_command_snippets(vault: Path) -> list[tuple[str, str]]:
@@ -307,7 +307,7 @@ def dogfood_quickstart(
     print("Token: Cubox API token is a secret. Never paste, never commit,")
     print("        never print. cubox-readiness only ever returns a bool.")
     print("")
-    print("Full guide: docs/USAGE.md")
+    print("Full guide: README.md")
 
 
 def _dogfood_quickstart_steps(

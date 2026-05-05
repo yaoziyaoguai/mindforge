@@ -1,6 +1,6 @@
 """M4 — review mark：把卡片复习结果记录到 frontmatter。
 
-设计契约（详见 docs/IMPLEMENTATION.md 的 review 子系统说明）
+设计契约（详见 README.md 的 review 子系统说明）
 
 1. ``mindforge review mark`` 是 review 字段的**唯一**写入口（沿用 M3
    "审计入口必须唯一"原则）。

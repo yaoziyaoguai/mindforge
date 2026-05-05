@@ -1,6 +1,6 @@
 """M5.7 — 本地使用 telemetry（**严格白名单 + 永不上传**）。
 
-设计契约（详见 docs/SECURITY.md 的 local telemetry 边界）：
+设计契约（详见 README.md 的 local telemetry 边界）：
 
 1. **本地 only**：写到 ``<state.workdir>/telemetry.jsonl``（默认
    ``.mindforge/telemetry.jsonl``），与 ``runs/`` 平级但分文件。

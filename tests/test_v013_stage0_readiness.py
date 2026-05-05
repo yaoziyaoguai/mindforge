@@ -19,9 +19,7 @@ import pytest
 import yaml
 
 
-_USAGE = Path("docs/USAGE.md")
-_SECURITY = Path("docs/SECURITY.md")
-_ROADMAP = Path("docs/ROADMAP.md")
+_README = Path("README.md")
 _FIXTURE_DIR = Path("examples/custom-strategies")
 _FIXTURE_YAML = _FIXTURE_DIR / "user_concept_review.yaml"
 _FIXTURE_README = _FIXTURE_DIR / "README.md"
@@ -46,16 +44,14 @@ _READINESS_REQUIRED_PHRASES: tuple[str, ...] = (
 def test_v013_stage0_readiness_doc_exists() -> None:
     """canonical dogfood 文档存在。"""
 
-    assert _USAGE.exists(), f"missing {_USAGE}"
+    assert _README.exists(), f"missing {_README}"
 
 
 @pytest.mark.parametrize("phrase", _READINESS_REQUIRED_PHRASES)
 def test_v013_stage0_readiness_doc_pins_safety_promise(phrase: str) -> None:
     """每条安全承诺都在文档里出现（大小写不敏感）。"""
 
-    text = "\n".join(
-        p.read_text(encoding="utf-8").lower() for p in (_USAGE, _SECURITY, _ROADMAP)
-    )
+    text = _README.read_text(encoding="utf-8").lower()
     assert phrase.lower() in text, (
         f"canonical docs 缺安全承诺关键字: {phrase!r}"
     )
@@ -64,7 +60,7 @@ def test_v013_stage0_readiness_doc_pins_safety_promise(phrase: str) -> None:
 def test_v013_stage0_readiness_doc_links_current_safety_docs() -> None:
     """Usage 必须让读者能找到 safety/roadmap 边界。"""
 
-    text = _USAGE.read_text(encoding="utf-8")
+    text = _README.read_text(encoding="utf-8")
     assert "real Cubox API" in text
     assert "human_approved" in text
 
@@ -72,7 +68,7 @@ def test_v013_stage0_readiness_doc_links_current_safety_docs() -> None:
 def test_v013_stage0_future_gates_still_present() -> None:
     """Roadmap 必须继续列出 real/RAG/approval 这些 future gates。"""
 
-    text = _ROADMAP.read_text(encoding="utf-8")
+    text = _README.read_text(encoding="utf-8")
     for token in ("Real Cubox", "Real Obsidian", "RAG / embedding", "Approval UX"):
         assert token in text
 

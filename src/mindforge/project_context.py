@@ -1,6 +1,6 @@
 """M5.3 — project context pack 渲染器（**只读**）。
 
-固定结构见 docs/IMPLEMENTATION.md 的 project context 说明。
+固定结构见 README.md 的 project context 说明。
 
 约束（v0.1 → v0.2.2 一脉相承）：
 
@@ -107,7 +107,7 @@ def _append_context_header(
     else:
         lines.append("> 仅含 status=human_approved 的卡片摘要")
     lines.append(
-        "> 字段范围：见 docs/IMPLEMENTATION.md 的 project context 说明\n"
+        "> 字段范围：见 README.md 的 project context 说明\n"
     )
 
 

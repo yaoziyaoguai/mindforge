@@ -1,6 +1,6 @@
 """writer — 渲染 Knowledge Card 模板并落盘。
 
-硬约束（来自 docs/ARCHITECTURE.md 的 Card 写入边界）
+硬约束（来自 README.md 的 Card 写入边界）
 ============================================
 
 - 卡片只写到 ``<vault>/<cards_dir>/<track>/<YYYYMMDD>--<slug>.md``。

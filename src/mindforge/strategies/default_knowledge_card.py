@@ -87,7 +87,7 @@ STRATEGY_STATUS = "implemented"
 
 
 # ---------------------------------------------------------------------------
-# 10 字段 structured_payload schema（与 docs/ROADMAP.md §Default contract 对齐）
+# 10 字段 structured_payload schema（与 README.md 的 default strategy contract 对齐）
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +95,7 @@ STRATEGY_STATUS = "implemented"
 class KnowledgeCardPayload:
     """10 字段 structured_payload。frozen → 调用方无法事后篡改字段。
 
-    字段语义见 docs/ROADMAP.md §v0.9.x Default contract。Slice 4 起这
+    字段语义见 README.md 的 default strategy contract。Slice 4 起这
     10 个字段被装入 envelope 的 ``structured_payload`` 子字典，而非
     envelope 顶层。
     """

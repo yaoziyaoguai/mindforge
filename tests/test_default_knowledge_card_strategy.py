@@ -4,8 +4,8 @@
 ================
 
 v0.9.x KnowledgeStrategy Customization Readiness 已经把
-``DefaultKnowledgeCardStrategy`` 的 10 字段 payload contract 写在
-``docs/ROADMAP.md``（§v0.9.x KnowledgeStrategy 之 Default contract）。
+``DefaultKnowledgeCardStrategy`` 的 10 字段 payload contract 已收敛为
+README-first 文档中的策略边界说明。
 v0.10 Slice 1 的工作就是**先用测试把这个 contract 钉死**，确保
 Slice 2 实现时只能产出符合契约的 payload —— 而不是边写边改 schema。
 
@@ -40,7 +40,7 @@ from mindforge.sources.base import SourceDocument, compute_content_hash
 
 
 # ---------------------------------------------------------------------------
-# 10 字段 contract（与 docs/ROADMAP.md §v0.9.x Default contract 对齐）
+# 10 字段 contract（与 README-first 策略边界对齐）
 # ---------------------------------------------------------------------------
 
 

@@ -1,6 +1,6 @@
 """M3 — `mindforge approve` 反 AI 污染闸门测试。
 
-覆盖矩阵对应 docs/SECURITY.md 的 explicit approval boundary。要点：
+覆盖矩阵对应 README.md 的 explicit approval boundary。要点：
 - ai_draft 可晋升、human_approved 幂等、其他 status 拒绝；
 - approve 不调 LLM、不需要 .env、不改正文、不改源文件；
 - runs jsonl 字段全在白名单；

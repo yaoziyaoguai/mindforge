@@ -36,8 +36,8 @@ release artifacts require a separate named release authorization.
 ## Completion Claim
 
 MindForge is clean enough for long-term local dogfood on non-sensitive or
-project-only data. The current safe path is documented in `USAGE.md`; the
-current product/technical direction is documented in `ROADMAP.md`.
+project-only data. The current safe path and product direction are documented
+in `README.md`.
 
-Opening a future gate requires updating `ROADMAP.md`, this ledger, and the
+Opening a future gate requires updating `README.md`, this ledger, and the
 boundary tests in the same change.

@@ -10,13 +10,11 @@ from pathlib import Path
 
 import pytest
 
-PRIVACY = Path("docs/SECURITY.md")
-PROPOSAL = Path("docs/IMPLEMENTATION.md")
-GATES = Path("docs/ROADMAP.md")
+README = Path("README.md")
 
 
 def test_privacy_contract_exists():
-    assert PRIVACY.exists()
+    assert README.exists()
 
 
 @pytest.mark.parametrize(
@@ -34,11 +32,11 @@ def test_privacy_contract_exists():
     ],
 )
 def test_privacy_contract_token(token: str):
-    assert token in PRIVACY.read_text(encoding="utf-8"), f"missing: {token}"
+    assert token in README.read_text(encoding="utf-8"), f"missing: {token}"
 
 
 def test_proposal_exists_and_marked_unauthorized():
-    text = PROPOSAL.read_text(encoding="utf-8")
+    text = README.read_text(encoding="utf-8")
     assert "review-only" in text
     assert "not `human_approved`" in text
     # 关键约束: 提案不得隐含允许 human_approved 自动产生
@@ -46,7 +44,7 @@ def test_proposal_exists_and_marked_unauthorized():
 
 
 def test_proposal_lists_artifact_kinds():
-    text = PROPOSAL.read_text(encoding="utf-8")
+    text = README.read_text(encoding="utf-8")
     for kind in [
         "preview packets",
         "readiness checks",
@@ -56,7 +54,7 @@ def test_proposal_lists_artifact_kinds():
 
 
 def test_deferred_gates_exists():
-    assert GATES.exists()
+    assert README.exists()
 
 
 @pytest.mark.parametrize(
@@ -71,4 +69,4 @@ def test_deferred_gates_exists():
     ],
 )
 def test_deferred_gates_token(token: str):
-    assert token in GATES.read_text(encoding="utf-8"), f"missing: {token}"
+    assert token in README.read_text(encoding="utf-8"), f"missing: {token}"

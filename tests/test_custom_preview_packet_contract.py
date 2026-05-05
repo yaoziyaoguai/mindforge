@@ -329,12 +329,12 @@ def test_invalid_definition_preview_packet_is_validation_error_kind(
 
 
 def test_custom_strategy_doc_explains_preview_packet_review_only() -> None:
-    """``docs/IMPLEMENTATION.md`` 必须解释 preview packet 是
+    """``README.md`` 必须解释 preview packet 是
     review-only / 不是 ai_draft / 不是 human_approved / future
     implementation 仍需显式 approval。
     """
 
-    p = Path("docs/IMPLEMENTATION.md")
+    p = Path("README.md")
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "preview packet",
@@ -344,7 +344,7 @@ def test_custom_strategy_doc_explains_preview_packet_review_only() -> None:
         "explicit approval",
     ):
         assert token in text, (
-            f"docs/IMPLEMENTATION.md 缺 preview packet review-only 说明 "
+                f"README.md 缺 preview packet review-only 说明 "
             f"{token!r}"
         )
 

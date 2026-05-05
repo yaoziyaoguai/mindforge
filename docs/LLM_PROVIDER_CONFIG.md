@@ -1,7 +1,7 @@
 # LLM Provider Configuration
 
 This focused guide covers real-provider opt-in. Normal users should start with
-[USAGE.md](USAGE.md); the default provider is fake and offline.
+[README.md](../README.md); the default provider is fake and offline.
 
 ---
 

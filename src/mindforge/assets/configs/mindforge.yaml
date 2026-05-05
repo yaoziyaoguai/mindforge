@@ -78,7 +78,7 @@ sources:
       adapter: PdfAdapter
       inbox_subdir: "PDFs"
       file_glob: "*.pdf"
-      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[pdf]'`` 后再开启（详见 docs/IMPLEMENTATION.md）
+      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[pdf]'`` 后再开启（详见 README.md）
 
     docx:
       adapter: DocxAdapter
@@ -285,7 +285,7 @@ logging:
 # - enabled: false 时整个 telemetry 模块静默；
 # - local_only: v0.2.3 固定 true；任何远程 sink 都需要先扩协议；
 # - 写入位置：<state.workdir>/telemetry.jsonl（默认 .mindforge/telemetry.jsonl）；
-# - 字段白名单：见 docs/SECURITY.md，绝不写卡片正文 / prompt /
+# - 字段白名单：见 README.md，绝不写卡片正文 / prompt /
 #   completion / api_key / .env / 全绝对私有路径。
 # -----------------------------------------------------------------------------
 telemetry:

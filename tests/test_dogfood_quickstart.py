@@ -3,7 +3,7 @@
 Quickstart 是 **read-only runbook**, 不执行任何子命令; 测试守护:
 - 命令执行成功;
 - 输出涵盖 Cubox JSON-export + ai_draft + Obsidian dry-run 三段;
-- 命令清单与 docs/USAGE.md 的 dogfood 边界一致, 防止文档漂移;
+- 命令清单与 README.md 的 dogfood 边界一致, 防止文档漂移;
 - 显式声明不调用真实 LLM / 不写 vault / 不产生 human_approved。
 """
 
@@ -57,7 +57,7 @@ def test_quickstart_mentions_safety_boundaries() -> None:
         "No real LLM",
         "No formal Obsidian write",
         "No human_approved is produced",
-        "docs/USAGE.md",
+        "README.md",
         # P2/P3 third-party-review remediation: explicit limit + rollback
         # + token guidance must surface in the runbook output itself, so
         # users who never read the doc still see the boundary reminders.
@@ -92,7 +92,7 @@ def test_quickstart_steps_helper_consistency_with_doc() -> None:
     """命令清单核心路径必须在 canonical usage doc 中出现。"""
     steps = _dogfood_quickstart_steps(Path("examples/demo-vault"), None)
     assert len(steps) == 11
-    doc = Path("docs/USAGE.md").read_text(encoding="utf-8")
+    doc = Path("README.md").read_text(encoding="utf-8")
     # 每条命令的核心动词必须出现在 doc 表格里 (粗匹配, 避免假阳性)。
     for head_str in (
         "mindforge dogfood",
@@ -100,7 +100,7 @@ def test_quickstart_steps_helper_consistency_with_doc() -> None:
         "mindforge obsidian",
         "mindforge approve",
     ):
-        assert head_str in doc, f"USAGE.md 缺少: {head_str!r}"
+        assert head_str in doc, f"README.md 缺少: {head_str!r}"
 
 
 def test_quickstart_doc_covers_p2_p3_review_followups() -> None:
@@ -110,7 +110,7 @@ def test_quickstart_doc_covers_p2_p3_review_followups() -> None:
     boundary guarantees (no full sync / no formal vault write / no
     human_approved / no release/tag)。
     """
-    doc = Path("docs/USAGE.md").read_text(encoding="utf-8")
+    doc = Path("README.md").read_text(encoding="utf-8")
     for literal in (
         # explicit limit guidance
         "`--limit 5`",
@@ -129,4 +129,4 @@ def test_quickstart_doc_covers_p2_p3_review_followups() -> None:
         # explicit re-statement that no human_approved is produced
         "human_approved",
     ):
-        assert literal in doc, f"USAGE.md 缺少: {literal!r}"
+        assert literal in doc, f"README.md 缺少: {literal!r}"

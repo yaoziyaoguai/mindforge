@@ -1,6 +1,6 @@
 """M4 — Knowledge Card 只读读取层。
 
-设计契约（详见 docs/IMPLEMENTATION.md 的 cards / recall 说明）：
+设计契约（详见 README.md 的 cards / recall 说明）：
 
 1. **只读**。本模块永远不写卡片、不写 source、不写 state.json。
 2. **白名单字段**。CardSummary 仅含 §5.3 安全字段；卡片正文段落由调用方

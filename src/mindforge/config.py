@@ -134,7 +134,7 @@ class TriageConfig:
 class ReviewIntervals:
     """review mark 写卡片时按 result 计算 next review_after 的间隔（天）。
 
-    复习字段属于本地 review 子系统；当前实现导览见 docs/IMPLEMENTATION.md。"""
+    复习字段属于本地 review 子系统；当前实现导览见 README.md。"""
 
     remembered: int = 14
     partial: int = 7
@@ -200,7 +200,7 @@ class LoggingConfig:
 
 @dataclass(frozen=True)
 class TelemetryConfig:
-    """本地 telemetry 子配置（边界见 docs/SECURITY.md）。
+    """本地 telemetry 子配置（边界见 README.md）。
 
     - ``enabled``：False 时模块完全静默，不写盘；
     - ``local_only``：v0.2.3 固定 True；任何远程 sink 都需要先扩协议。

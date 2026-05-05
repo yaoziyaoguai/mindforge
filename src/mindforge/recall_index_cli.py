@@ -422,7 +422,7 @@ def _do_rule_recall(
 # ---------------------------------------------------------------------------
 # v0.3 — BM25 lexical recall + index 子命令
 # ---------------------------------------------------------------------------
-# 设计契约（详见 docs/IMPLEMENTATION.md 的 lexical recall 说明）：
+# 设计契约（详见 README.md 的 lexical recall 说明）：
 # 1. BM25 是**纯本地词法检索**，不调用 LLM、不读 .env、不联网。
 # 2. 索引只构建在 Knowledge Card 的安全字段上（frontmatter + 白名单 body
 #    section），永远不索引 source 原文 / Source Excerpt / Human Note。

@@ -7,7 +7,7 @@ v0.9 Source ingestion milestone 的 Slice 2 目标是把"adapter 能做什么"
 显式化：每个 ``SourceAdapter`` 必须在调用前就能告诉调用方它具备哪些
 能力（``local_file`` / ``fake_safe`` / ``dry_run`` / ``real_api`` …），
 让运行时**先看 capability 再决定是否调用**，借鉴自 Airbyte connector spec
-的 ``spec`` + ``discover`` 模式（见 ``docs/ROADMAP.md`` v0.9 §A
+的 ``spec`` + ``discover`` 模式（当前背景已收敛到 ``README.md``）
 "External research alignment — Source ingestion"）。
 
 当前 ``src/mindforge/sources/base.py`` 的 ``SourceAdapter`` 只暴露

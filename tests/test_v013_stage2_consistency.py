@@ -119,11 +119,7 @@ def test_capability_matrix_section_consistency():
     Roadmap / Usage 必须保持关闭状态语义 (no real-by-default,
     no auto-approval, no real vault writes, no Cubox real ingestion);
     """
-    text = (
-        Path("docs/ROADMAP.md").read_text(encoding="utf-8")
-        + "\n"
-        + Path("docs/USAGE.md").read_text(encoding="utf-8")
-    )
+    text = Path("README.md").read_text(encoding="utf-8")
     assert "Real LLM enabled by default" in text
     assert "Real Cubox API calls enabled by default" in text
     assert "Hidden automatic approval" in text

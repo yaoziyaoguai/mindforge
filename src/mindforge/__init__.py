@@ -10,7 +10,7 @@
 - ``mindforge.{triager,distiller,linker,writer}`` — 加工与落盘（M2/M3）
 - ``mindforge.cli``      — 命令行入口（M1 起逐步加入 scan/status/process）
 
-当前架构契约以 ``docs/ARCHITECTURE.md`` 和 ``docs/IMPLEMENTATION.md`` 为准。
+当前用户与架构入口以 ``README.md`` 为准。
 """
 
 try:

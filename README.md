@@ -1,31 +1,318 @@
 # MindForge
 
-MindForge is a local-first personal AI learning memory workbench. It helps one
-person turn local sources into reviewable `ai_draft` cards, explicitly approve
-useful cards into `human_approved` memory, and search that approved knowledge
-locally from CLI or Web.
+MindForge is a local-first personal AI learning memory tool.
 
-Current state: MindForge has a real-data CLI usability path and a first local
-Web console slice. It is ready for careful real dogfood on non-sensitive local
-data. It is not a SaaS product, not a multi-user admin system, not a RAG stack,
-and not an Obsidian plugin.
+MindForge 帮你把本地资料整理成可以 review、recall、项目化使用的知识卡片。
+默认安全模式不联网、不调用真实 LLM、不自动 approve。AI 只能生成
+`ai_draft`；只有你显式确认后，卡片才会变成 `human_approved`。
 
-## Quick Start
+MindForge 是 single-user 的本地工具，不是 SaaS，不是多用户后台，not RAG，
+not embedding，也不是 Obsidian plugin。
+
+## Quick Start: First 10 Minutes
+
+先跑零配置演示：
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[dev]'
-
-mindforge demo            # no API key, no network, no real provider
-mindforge status
-mindforge config status
-mindforge workspace status
-mindforge web --open
+mindforge demo
 ```
 
-For the first real-data run, use a disposable or non-sensitive project vault and
-start with read-only/status commands before any write-capable action.
+`mindforge demo` needs no API key, no `.env`, and no real provider.
+
+再初始化你的本地工作区：
+
+```bash
+mindforge init --interactive
+```
+
+如果你第一次选择默认路径，通常会得到：
+
+```text
+/Users/jinkun.wang/MindForgeVault
+```
+
+创建第一条 Markdown：
+
+```bash
+mkdir -p /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes
+cat > /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes/first-note.md <<'EOF'
+# 我的第一条 MindForge 笔记
+
+今天我开始测试 MindForge。
+我希望它能帮我把学习资料整理成可以复习和召回的知识卡片。
+EOF
+```
+
+跑通最小流程：
+
+```bash
+mindforge scan
+mindforge process --profile fake --limit 1
+mindforge approve list
+mindforge approve show --card <path> --show-content
+mindforge approve --card <path> --confirm
+```
+
+第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
+为 `human_approved`。默认 `fake` provider 不调用真实 LLM。
+
+## Three Concepts You Need First
+
+1. **Vault**
+   MindForge 的本地工作区。例子：
+   `/Users/jinkun.wang/MindForgeVault`。
+
+2. **Inbox**
+   原始资料入口。第一天只需要用 `00-Inbox/ManualNotes`。
+
+3. **Approve**
+   MindForge 先生成 `ai_draft`。只有你显式 approve 后，才会变成
+   `human_approved`。这是核心安全边界。
+
+## What Init Creates
+
+第一次看到很多目录是正常的。第一天只需要关注：
+
+- `00-Inbox/ManualNotes`
+- `20-Knowledge-Cards`
+- `configs/mindforge.yaml`
+
+其他目录先不用管：
+
+- `00-Inbox/Cubox`: Cubox 导出内容；Cubox 只是数据源。
+- `00-Inbox/WebClips`: 网页剪藏。
+- `00-Inbox/ChatExports`: 聊天记录导出。
+- `00-Inbox/PDFs` / `00-Inbox/Docs`: 高级或后续入口。
+- `30-Projects`: 项目上下文，第一天不用管。
+- `80-Reviews`: 复习，第一天不用管。
+- `90-System`: 系统辅助，第一天不用管。
+- `_attachments`: 附件，第一天不用管。
+
+`00-Inbox/` 是原始资料入口。`00-Inbox/ManualNotes/` 最适合新手第一天使用，
+直接放普通 Markdown。
+
+`20-Knowledge-Cards/` 是知识卡片输出区，`ai_draft` 和 `human_approved` 都和
+这里有关。新手不要手动乱改 generated 内容。
+
+`20 / 30 / 80 / 90` 这些目录是后续完整知识工作流准备的，不是第一天必须
+理解。不要随便删除即可。
+
+## Config Files
+
+### `configs/mindforge.yaml`
+
+这是普通用户最重要的基础配置文件。第一天只需要关心：
+
+- `vault.root`: MindForgeVault 在哪里。
+- `llm.active_profile`: 默认 `fake`，不调用真实 LLM。
+- `telemetry.local_only`: 只写本地，不上传。
+
+极简示例：
+
+```yaml
+version: 0.1
+vault:
+  root: /Users/jinkun.wang/MindForgeVault
+  inbox_root: 00-Inbox
+  cards_dir: 20-Knowledge-Cards
+llm:
+  active_profile: fake
+telemetry:
+  enabled: true
+  local_only: true
+```
+
+第一天只需要确认 `vault.root` 是否正确，其他一般不用改。
+
+### `configs/learning_tracks.yaml`
+
+学习路线 / review 配置。第一天不用管；不影响 `scan / process / approve`
+的最小流程。
+
+### `configs/llm.example.yaml`
+
+真实 LLM provider 的配置样例。默认 `fake` provider 不需要它。只有你明确
+要接真实 LLM 时才看。
+
+### `.env.example`
+
+secret/API key 样例。真正使用时复制成 `.env`。`.env` 不能提交到 git。
+MindForge 只显示 key 是否存在，不打印 secret 值。第一天不需要真实 `.env`。
+
+## Markdown Sources Are Sources, Not Knowledge Types
+
+Cubox Markdown、Plain Markdown、WebClip Markdown、ChatExport 不是不同知识
+类型。
+
+它们只是不同 source adapter：
+
+- `ManualNotes`: 你手写的普通 Markdown。
+- `Cubox`: 从 Cubox 导出的内容，可能带 URL、高亮、原文信息。
+- `WebClips`: 网页剪藏。
+- `ChatExports`: 聊天记录导出。
+
+MindForge 内部会把它们统一成 `SourceDocument`。用户不需要记很多“知识类型”，
+只需要知道这些是不同来源的资料入口。Cubox 只是一个数据源入口，不是
+MindForge 的中心架构。
+
+## Safety Model
+
+- 默认 `fake provider`，也叫 fake-default。
+- `real-opt-in` 才能进入真实 provider 配置路径；Real Provider Opt-In 需要
+  你显式改配置和命令，不是默认行为；explicit opt-in 是真实调用的最低门槛。
+- 不联网，不调用真实 LLM；no real LLM。
+- 不调用真实 Cubox API。
+- does not call a real LLM。
+- does not call the real Cubox API。
+- no real Cubox。
+- 不自动 approve。
+- does not auto-approve。
+- No automatic approve。
+- 不自动写正式 Obsidian note。
+- `.env` secret 不打印；只显示 key 是否存在。
+- does not print `.env` secret values。
+- no `.env` is read by default status/readiness paths。
+- `approve` 必须显式 `--confirm`。
+- `human_approved` 只能由 explicit approval / human decision gate 产生。
+- Human Decision Gate Map: `ai_draft -> mindforge approve --confirm -> human_approved`。
+- Recall 是 local lexical recall / BM25，本地词法检索，不是 RAG /
+  embedding / semantic search / semantic merge。
+- No RAG / embedding。
+- No Obsidian plugin。
+- 不自动整理真实 vault。
+- does not automatically modify a real private vault。
+- 不做 git tag、release automation、force push。
+- 默认 dogfood 路径是 dry-run 或 read-only，真实写入必须明确确认。
+- every dogfooding session must be a dry-run by default。
+- no write occurs into a real obsidian vault unless a future human-authorized
+  write gate is added。
+- no human_approved card is generated by automation。
+- no custom strategy is executed by discovery or preview。
+- local-first privacy contract: local files stay local, secret values are not
+  printed, and writes require an explicit human action。
+- no tag, no force push。
+
+Real ≠ Approved: real provider output is still review-only until a human uses
+the human decision gate.
+
+## Common Commands
+
+### First Status Commands
+
+| Command | Use |
+|---|---|
+| `mindforge demo` | 零配置演示 |
+| `mindforge init --interactive` | 初始化本地工作区 |
+| `mindforge status` | 查看整体状态 |
+| `mindforge doctor` | 检查配置和安全状态 |
+| `mindforge scan` | 扫描 Inbox |
+| `mindforge process --profile fake --limit 1` | 安全处理一条资料 |
+| `mindforge approve list` | 查看 `ai_draft` |
+| `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
+| `mindforge approve --card <path> --confirm` | 显式确认生成 `human_approved` |
+| `mindforge recall "query"` | 本地词法召回，不是 RAG |
+
+### Safe Real Dogfood
+
+Dogfood helper:
+
+```bash
+mindforge dogfood init-demo --target /tmp/dogfood-vault
+mindforge dogfood readiness --vault /tmp/dogfood-vault
+mindforge dogfood quickstart --vault /tmp/dogfood-vault
+```
+
+The quickstart prints a manual runbook only. It does not execute the listed
+commands, does not read `.env` contents, does not call a real LLM, does not
+call the real Cubox API, does not write formal Obsidian notes, and does not
+produce `human_approved`.
+
+For Cubox JSON export dry-run:
+
+```bash
+mindforge cubox dry-run --export /path/to/cubox-export.json
+mindforge cubox preview-ai-draft --export /path/to/cubox-export.json --limit 5
+```
+
+Start with `--limit 5`; do not exceed `--limit 20` during first runs. MindForge
+does not support full Cubox account sync, has no `--all` ingestion, and does
+not call the real Cubox API on this path.
+
+Obsidian dogfood remains staged/dry-run only:
+
+```bash
+mindforge obsidian next --vault /path/to/project-vault
+mindforge obsidian doctor --vault /path/to/project-vault
+mindforge obsidian scan --vault /path/to/project-vault --limit 20
+mindforge obsidian links --vault /path/to/project-vault
+mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run
+mindforge obsidian preflight --vault /path/to/project-vault --manifest <export>.manifest.json
+```
+
+Use a disposable, non-sensitive vault copy. No formal Obsidian note writes.
+No formal Obsidian notes are written. No default real LLM path. No telemetry upload.
+No `.env`, real LLM, real Cubox API, or auto-approve. This is a
+staged workflow: manifests, include/exclude filters, and diff preview are
+review aids only.
+
+Rollback rule: first dogfood runs should happen in a disposable or git-tracked
+project vault. Use `git status`, `git restore`, or remove specific staged files
+to roll back. Do not run broad destructive cleanup commands against a real vault.
+
+### Real Provider Opt-In
+
+Real provider usage is intentionally outside the first-run path. Treat it as
+`real-opt-in`: inspect `configs/llm.example.yaml`, copy only needed key names to
+your local `.env`, keep `.env` untracked, run `mindforge doctor`, then process a
+single item with an explicit profile only after you understand billing/privacy
+risk. Some guarded dogfood commands may expose an explicit `--allow-real` flag;
+do not use it until you have reviewed the target vault and provider cost.
+Readiness checks show key presence only and do not call the provider.
+
+### Approval
+
+Approval is the only supported `ai_draft -> human_approved` transition.
+`mindforge approve list` and `mindforge approve show --card <path>` are review
+steps. `mindforge approve --card <path> --confirm` is the write boundary.
+
+### Standard Quality Gate
+
+Maintainers should run `git diff --check`, `ruff check .`, and `python -m
+pytest` before landing documentation or behavior changes.
+
+### Future Gate Notes
+
+- sample folder / no-persist / dry-run modes are preferred for first real
+  dogfood.
+- diff preview and backup expectations are mandatory before any future formal
+  vault write gate.
+- G1 Real Cubox ingestion, G2 Real Obsidian formal-note write, G3 Approval UX,
+  G4 Custom executable strategy runtime, G5 RAG / embedding / semantic merge,
+  and G6 Public release / git tag remain future gates.
+
+## Architecture In One Page
+
+```text
+SourceAdapter
+  -> SourceDocument
+  -> processing pipeline
+  -> ai_draft
+  -> explicit approval
+  -> human_approved
+  -> recall / review / project context
+```
+
+- AI 只能生成 `ai_draft`。
+- `human_approved` 必须显式 approve。
+- Processor / KnowledgeStrategy 只依赖 `SourceDocument`。
+- Cubox 只是 `SourceAdapter`，不是架构中心。
+- Obsidian / OPS 是人类知识工作台，不存机器 runtime/state/cache/index/logs/
+  vector/graph 派生层。
+- BM25/local lexical recall 是当前检索路径，不是 RAG。
+- 当前不做 RAG / embedding / semantic merge。
+- 当前不做 Obsidian plugin。
+- 当前不自动整理真实 vault。
+- Web first slice 是 localhost-only Local Console，默认绑定 `127.0.0.1`。
 
 ## Strategy Discovery
 
@@ -38,33 +325,121 @@ Strategy status has three meanings: `implemented` is ready to run, `preview` is
 usable but still evolving, and `planned` is registered for visibility but is not
 executed.
 
-## Core Safety Rules
+Custom strategies are declarative metadata definitions. Use explicit
+`--custom-path` to expose a local definition. Discovery is not execution;
+loading is not execution. Custom definitions load from an explicit path only:
+there is no implicit scan of your home directory, vault, or `.env`. A validation error
+should be read as a schema/config problem, not as execution output.
+MindForge does no arbitrary Python plugin loading, no arbitrary python runtime,
+no shell strategy, and no executable strategy runtime.
+Preview packets are review-only: not ai_draft, not human_approved, not
+`ai_draft`, and not `human_approved`. Any future implementation still needs
+explicit approval.
 
-- Local-first by default: CLI and Web read local files and bind Web to
-  `127.0.0.1` unless explicitly changed.
-- Fake provider is the safe default. Real LLM providers are opt-in and readiness
-  checks must not call the provider.
-- `.env` handling is presence-only in user output. Secret values must never be
-  printed, logged, snapshotted, or committed.
-- AI can only create `ai_draft`. `human_approved` requires an explicit human
-  approve action.
-- Approval writes must show the target and require confirmation.
-- Recall is local lexical search over approved cards. It is not RAG, embedding,
-  or semantic search.
-- MindForge does not automatically organize a real Obsidian vault.
+Preview to future implementation remains a gated path: a preview definition can
+only become a future implementation after design review, tests, and explicit
+human authorization. It must not introduce arbitrary Python, shell execution,
+default real LLM usage, or automatic approval.
 
-## Canonical Docs
+Review-only artifact kinds include preview packets, readiness checks, and real smoke output.
+None of these artifacts is a Knowledge Card or an approval event.
 
-- [Architecture](docs/ARCHITECTURE.md) - product shape, data flow, boundaries,
-  and non-goals.
-- [Implementation](docs/IMPLEMENTATION.md) - code tour for CLI, Web, services,
-  readiness, approval, recall, and tests.
-- [Roadmap](docs/ROADMAP.md) - current state, completed milestones, next work,
-  and explicit non-directions.
-- [Usage](docs/USAGE.md) - safe local install, status checks, real dogfood,
-  draft review, approval, recall, and troubleshooting.
+## Implementation Map
 
-Additional focused references remain available when needed:
-[DESIGN.md](DESIGN.md) for the Web design system,
-[docs/SECURITY.md](docs/SECURITY.md) for safety invariants, and
-[docs/TESTING.md](docs/TESTING.md) for verification commands.
+Start reading code here:
+
+- `src/mindforge/cli.py`: top-level Typer command registry.
+- `src/mindforge/status_cli.py`: real-data status / doctor-style output.
+- `src/mindforge/app_context.py`: local config/path context.
+- `src/mindforge/sources/base.py`, `src/mindforge/sources/registry.py`,
+  `src/mindforge/scanner.py`: SourceAdapter and SourceDocument path.
+- `src/mindforge/provider_readiness.py`: provider readiness without real calls.
+- `src/mindforge/cubox_readiness.py`: Cubox readiness without real API calls.
+- `src/mindforge/approval_service.py`, `src/mindforge/approver.py`: approval
+  boundary.
+- `src/mindforge/recall_service.py`, `src/mindforge/lexical_index.py`: local
+  lexical recall.
+- `src/mindforge/web_cli.py`, `src/mindforge_web/`, `web/src/`: local Web
+  console.
+- `tests/`: behavior tests and architecture boundary tests.
+
+CLI and Web should stay thin adapters. Services hold business semantics;
+presenters hold output shape. New behavior should not hide inside command
+bodies or routers.
+
+## Current Roadmap
+
+Done:
+
+- Web first slice.
+- Real Data CLI Usability.
+- Documentation cleanup.
+
+Current:
+
+- README-first onboarding.
+- Local dogfood on non-sensitive or project-only data.
+
+Next:
+
+- Non-sensitive real vault dogfood.
+- Onboarding polish.
+- Packaging/install readiness.
+
+Not current direction:
+
+- RAG / embedding / semantic merge.
+- Obsidian plugin.
+- Real LLM enabled by default.
+- Real Cubox API calls enabled by default.
+- Hidden automatic approval.
+- Automatic organization of a real vault.
+- Cloud sync, accounts, OAuth, payments, hosting, or multi-user permissions.
+
+Future gates remain explicit: Real Cubox ingestion, Real Obsidian formal-note
+write, Approval UX polish, custom executable strategy runtime, RAG / embedding /
+semantic merge, and public release / git tag all require fresh design review and
+named human authorization. No automation may create a tag.
+
+## FAQ
+
+**我需要先配置真实 LLM 吗？**
+
+不需要。默认 `fake` provider 就能安全跑通流程。
+
+**为什么生成这么多目录？**
+
+它们是为完整知识工作流准备的。第一次只关注
+`00-Inbox/ManualNotes` 和 `20-Knowledge-Cards`。
+
+**Cubox / WebClip / ManualNotes 都是 Markdown，为什么分目录？**
+
+主要是为了保留来源语义和 adapter 处理差异，不代表知识类型不同。
+
+**approve 会发生什么？**
+
+`approve` 会把一张 `ai_draft` 显式晋升为 `human_approved`。不确定时先不要
+approve。
+
+**会不会自动读我的 Obsidian vault？**
+
+不会。只有你把路径指向某个 vault 并运行相应命令时，MindForge 才会处理
+对应路径。Obsidian 路径默认是 read-only / staged。
+
+**会不会打印 API key？**
+
+不会。MindForge 只显示 key 是否存在，不打印 secret 值。
+
+**recall 是不是 RAG？**
+
+不是。当前 recall 是本地词法检索 / BM25，不是 RAG、embedding、semantic
+search 或 semantic merge。
+
+## For Maintainers
+
+- [DESIGN.md](DESIGN.md): Web design-system discipline.
+- [docs/TESTING.md](docs/TESTING.md): quality gates and smoke checks.
+- [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md): real provider opt-in.
+- [docs/CUBOX_DRY_RUN.md](docs/CUBOX_DRY_RUN.md): Cubox JSON export dry-run.
+- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md):
+  compact future-gate guard ledger.

@@ -1,6 +1,6 @@
 """M4 — recall / review / project memory 最小闭环测试。
 
-覆盖矩阵对应 docs/IMPLEMENTATION.md 中 review / recall 的只读边界。
+覆盖矩阵对应 README.md 中 review / recall 的只读边界。
 
 设计原则：
 - 全部使用真实 vault + fake LLM，复用 M2 端到端 fixture；

@@ -292,20 +292,17 @@ def test_cli_process_unknown_strategy_message_hints_strategies_list() -> None:
     ],
 )
 def test_readme_or_docs_mentions_strategy_discovery(phrase: str) -> None:
-    """README 或 docs/ROADMAP 必须提到 strategy 发现入口与两个内建策略名，
+    """README 必须提到 strategy 发现入口与两个内建策略名，
     这样新用户在没看代码前也能知道有哪些可选项。
-
-    Red 期望：当前 README / ROADMAP 没有 ``strategies list`` 的引用。
     """
 
     candidates = [
         Path("README.md"),
-        Path("docs/ROADMAP.md"),
     ]
     haystack = "\n".join(p.read_text(encoding="utf-8") for p in candidates if p.exists())
     assert phrase in haystack, (
-        f"README + docs/ROADMAP 未提到 {phrase!r}；"
-        "Slice 2 Green 必须在 README 或 ROADMAP 中加入 strategy discovery 段。"
+        f"README 未提到 {phrase!r}；"
+        "README-first 文档必须保留 strategy discovery 段。"
     )
 
 

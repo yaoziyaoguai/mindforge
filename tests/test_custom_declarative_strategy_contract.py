@@ -398,7 +398,7 @@ def test_custom_module_source_has_no_arbitrary_execution_imports() -> None:
 
 
 def test_custom_strategy_doc_exists_and_explains_declarative_safety() -> None:
-    """``docs/IMPLEMENTATION.md`` 必须向用户解释关键安全契约：
+    """``README.md`` 必须向用户解释关键安全契约：
 
     - declarative 才被支持；
     - 不支持 arbitrary Python plugin；
@@ -407,8 +407,8 @@ def test_custom_strategy_doc_exists_and_explains_declarative_safety() -> None:
     - ai_draft 永远只是 ai_draft；最终人审动作由 approver 单独执行。
     """
 
-    p = Path("docs/IMPLEMENTATION.md")
-    assert p.exists(), "docs/IMPLEMENTATION.md 尚不存在"
+    p = Path("README.md")
+    assert p.exists(), "README.md 尚不存在"
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "declarative",
@@ -417,7 +417,7 @@ def test_custom_strategy_doc_exists_and_explains_declarative_safety() -> None:
         "ai_draft",
         "explicit opt-in",
     ):
-        assert token in text, f"docs/IMPLEMENTATION.md 缺关键说明 {token!r}"
+        assert token in text, f"README.md 缺关键说明 {token!r}"
 
 
 # ---------------------------------------------------------------------------

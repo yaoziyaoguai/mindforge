@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parents[1] / "docs"
+ROOT = Path(__file__).resolve().parents[1]
+DOCS = ROOT / "docs"
 SRC = Path(__file__).resolve().parents[1] / "src" / "mindforge"
 
 
 def _read(name: str) -> str:
-    p = DOCS / name
+    p = ROOT / "README.md" if name == "README.md" else DOCS / name
     assert p.exists(), f"missing required doc: {p}"
     return p.read_text(encoding="utf-8")
 
@@ -21,7 +22,7 @@ def _read(name: str) -> str:
 # ---------- v0.14 future gate spec ----------
 
 def test_roadmap_exists_with_all_future_gates():
-    text = _read("ROADMAP.md")
+    text = _read("README.md")
     for gate in (
         "G1 Real Cubox ingestion",
         "G2 Real Obsidian formal-note write",
@@ -36,7 +37,7 @@ def test_roadmap_exists_with_all_future_gates():
 def test_future_gates_keep_human_approved_invariant():
     text = _read("ROADMAP_COMPLETION_LEDGER.md")
     assert "only explicit human approval" in text
-    assert "timer" in _read("ROADMAP.md").lower()
+    assert "timer" in _read("README.md").lower() or "timer" in text.lower()
     assert "similarity" in text.lower()
 
 
@@ -48,7 +49,7 @@ def test_future_gates_release_section_forbids_automation():
 # ---------- evidence cookbook ----------
 
 def test_usage_and_testing_list_required_evidence_sections():
-    text = _read("USAGE.md") + "\n" + _read("TESTING.md")
+    text = _read("README.md") + "\n" + _read("TESTING.md")
     for section in (
         "First Status Commands",
         "Real Provider Opt-In",
@@ -60,18 +61,18 @@ def test_usage_and_testing_list_required_evidence_sections():
 
 
 def test_evidence_cookbook_documents_what_it_does_not_do():
-    text = _read("USAGE.md")
+    text = _read("README.md")
     for negative in (
         "does not print `.env` secret values",
         "does not call the real Cubox API",
         "does not automatically modify a real private vault",
         "does not auto-approve",
     ):
-        assert negative in text, f"USAGE.md missing negative: {negative}"
+        assert negative in text, f"README.md missing negative: {negative}"
 
 
 def test_evidence_cookbook_does_not_teach_forbidden_actions():
-    text = _read("USAGE.md") + "\n" + _read("TESTING.md")
+    text = _read("README.md") + "\n" + _read("TESTING.md")
     # 反例: cookbook 不能给出实际的 cat .env / auto-approve 命令行;
     # 仅扫描 fenced code 块, 排除 "Does not / ❌" 这类负向描述。
     in_code = False

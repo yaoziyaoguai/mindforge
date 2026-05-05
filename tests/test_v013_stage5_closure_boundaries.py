@@ -70,14 +70,14 @@ def test_release_readiness_references_quality_gates():
 
 
 def test_release_readiness_says_no_tag_no_release():
-    text = _read(DOCS / "ROADMAP.md")
+    text = _read(Path("README.md"))
     lower = text.lower()
     assert "no tag" in lower
     assert "tag" in lower
 
 
 def test_release_readiness_records_future_gates():
-    text = _read(DOCS / "ROADMAP.md")
+    text = _read(Path("README.md"))
     for gate in (
         "Real Cubox ingestion",
         "Real Obsidian",
@@ -91,7 +91,7 @@ def test_release_readiness_records_future_gates():
 # ---------- real-safe journey ----------
 
 def test_real_safe_journey_documents_both_paths():
-    text = _read(DOCS / "USAGE.md")
+    text = _read(Path("README.md"))
     # fake-safe 默认必须出现
     assert "fake" in text.lower()
     assert "fake" in text.lower()
@@ -104,7 +104,7 @@ def test_real_safe_journey_documents_both_paths():
 
 
 def test_real_safe_journey_lists_what_user_did_not_do():
-    text = _read(DOCS / "USAGE.md")
+    text = _read(Path("README.md"))
     for negative in (
         "does not call a real LLM",
         "does not call the real Cubox API",
@@ -118,7 +118,7 @@ def test_real_safe_journey_lists_what_user_did_not_do():
 # ---------- roadmap stage closure references ----------
 
 def test_roadmap_records_all_v013_stages():
-    text = _read(DOCS / "ROADMAP.md")
+    text = _read(Path("README.md"))
     for stage in (
         "Web first slice",
         "Real Data CLI Usability",
@@ -162,10 +162,8 @@ def test_no_v013_doc_promises_a_tag():
         "tagged as v0.13",
     ]
     for doc_name in (
-        "ROADMAP.md",
+        "../README.md",
         "ROADMAP_COMPLETION_LEDGER.md",
-        "USAGE.md",
-        "SECURITY.md",
     ):
         text = _read(DOCS / doc_name)
         for phrase in forbidden_tag_phrases:

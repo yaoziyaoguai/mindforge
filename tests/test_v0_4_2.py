@@ -775,9 +775,9 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
 
 
 def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
-    """canonical usage 文档必须强调非敏感、安全边界。"""
+    """README-first 文档必须强调非敏感、安全边界。"""
     root = Path(__file__).resolve().parent.parent
-    doc = root / "docs" / "USAGE.md"
+    doc = root / "README.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
     for required in [
@@ -793,11 +793,11 @@ def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
 
 
 def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
-    """canonical roadmap/usage 不应宣称新大功能已实现。"""
+    """README-first 文档不应宣称新大功能已实现。"""
     root = Path(__file__).resolve().parent.parent
-    doc = root / "docs" / "ROADMAP.md"
+    doc = root / "README.md"
     assert doc.exists()
-    text = doc.read_text(encoding="utf-8") + "\n" + (root / "docs" / "USAGE.md").read_text(encoding="utf-8")
+    text = doc.read_text(encoding="utf-8")
     for boundary in (
         "Real LLM enabled by default",
         "does not print `.env` secret values",

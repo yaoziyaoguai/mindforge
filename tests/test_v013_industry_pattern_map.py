@@ -12,9 +12,7 @@ from pathlib import Path
 import pytest
 
 DOCS = (
-    Path("docs/ARCHITECTURE.md"),
-    Path("docs/ROADMAP.md"),
-    Path("docs/USAGE.md"),
+    Path("README.md"),
 )
 
 REQUIRED_TOKENS = [

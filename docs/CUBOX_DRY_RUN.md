@@ -127,4 +127,4 @@ cubox_cli.cubox_dry_run         ← 薄 CLI adapter（解析 args / 处理用户
    的 `sources.enabled` 后，走 `mindforge scan`；`SourceMux` 是 opt-in，
    接入位置由调用方显式决定。
 
-详见 [`USAGE.md`](./USAGE.md) 与 [`SECURITY.md`](./SECURITY.md)。
+普通上手路径见 [`README.md`](../README.md)。
