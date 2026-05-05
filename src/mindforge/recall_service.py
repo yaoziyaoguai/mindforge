@@ -90,6 +90,8 @@ class RecallIndexInfo:
     source: str
     used_disk: bool
     path: Path
+    vault_root: Path
+    cards_dir: str
     stale: bool
     suggest_rebuild: bool
     card_counts: dict[str, int]
@@ -154,8 +156,25 @@ def run_bm25_recall(cfg: MindForgeConfig, query: RecallQuery) -> RecallSearchRes
                     )
                 index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
             else:
-                used_disk = True
-                index_source = "disk"
+                disk_diff = lx.diff_index(index, card_scan.cards)
+                if disk_diff.fresh:
+                    used_disk = True
+                    index_source = "disk"
+                else:
+                    index_stale = True
+                    index_source = "memory-rebuilt-stale"
+                    if query.output_format != "json":
+                        warnings.append(
+                            "提示：磁盘索引与当前 vault cards 不一致；"
+                            "本次内存即时重建。建议运行 `mindforge index rebuild`。"
+                        )
+                    index = lx.build_index(
+                        card_scan.cards,
+                        field_weights=fw,
+                        k1=cur_k1,
+                        b=cur_b,
+                        config_hash=cur_hash,
+                    )
         except (lx.IndexFormatError, OSError, ValueError) as e:
             index_source = "memory-rebuilt-error"
             warnings.append(f"索引文件不可用（{e}）；改为内存即时构建。")
@@ -211,6 +230,8 @@ def run_bm25_recall(cfg: MindForgeConfig, query: RecallQuery) -> RecallSearchRes
             source=index_source,
             used_disk=used_disk,
             path=idx_path,
+            vault_root=cfg.vault.root,
+            cards_dir=cfg.vault.cards_dir,
             stale=index_stale,
             suggest_rebuild=recall_should_suggest_rebuild(index_source, index_stale),
             card_counts=stats,
@@ -315,6 +336,7 @@ def recall_search_summary(result: RecallSearchResult) -> str:
     suggest = "yes" if result.index.suggest_rebuild else "no"
     return (
         f"Search query: {result.query.query}\n"
+        f"Vault: vault.root={result.index.vault_root} cards_dir={result.index.cards_dir}\n"
         f"Index: {index_label} (source={result.index.source}, suggest_rebuild={suggest}, path={result.index.path})\n"
         f"Cards: approved={stats['human_approved']} ai_draft={stats['ai_draft']} total={stats['total']}\n"
         f"{LEXICAL_RECALL_BOUNDARY_LINE}\n"
@@ -344,7 +366,8 @@ def recall_no_result_next_action(stats: dict[str, int] | None = None) -> str:
         counts = f"当前 approved cards={stats['human_approved']}，ai_draft={stats['ai_draft']}。"
     return (
         f"{counts}下一步：运行 `mindforge index rebuild`；如只有草稿，先运行 "
-        "`mindforge approve list`；如资料不足，继续 process。也可以缩短 query、"
+        "`mindforge approve list`；然后重试 `mindforge recall --query \"...\"`。"
+        "如资料不足，继续 process。也可以缩短 query、"
         "换同义词，或改用更具体的 title/track 关键词。"
     )
 

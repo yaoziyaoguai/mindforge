@@ -147,6 +147,39 @@ def test_recall_service_returns_approved_card_for_query(tmp_path: Path) -> None:
     assert result.hits[0].status == "human_approved"
     assert "agent" in result.hits[0].matched_terms_list
     assert result.index.card_counts["human_approved"] == 2
+    assert result.index.vault_root == cfg.vault.root
+    assert result.index.cards_dir == cfg.vault.cards_dir
+
+
+def test_recall_service_marks_disk_index_stale_when_cards_change(tmp_path: Path) -> None:
+    """磁盘索引存在但卡片集合变了时，应临时重建并提示用户持久 rebuild。"""
+
+    from mindforge import lexical_index as lx
+    from mindforge.cards import iter_cards
+
+    cfg = load_mindforge_config(_make_recall_cfg(tmp_path))
+    fw = lx.resolve_field_weights(cfg.search.bm25.fields)
+    old_index = lx.build_index(
+        iter_cards(cfg.vault.root, cfg.vault.cards_dir).cards,
+        field_weights=fw,
+        k1=cfg.search.bm25.k1,
+        b=cfg.search.bm25.b,
+        config_hash=lx.compute_config_hash(field_weights=fw, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b),
+    )
+    old_index.save(lx.default_index_path(cfg.state.workdir))
+    _write_card(
+        cfg.vault.cards_path,
+        "new-agent",
+        {"id": "new-agent", "title": "New Agent", "status": "human_approved"},
+        "## AI Summary\nnew agent memory\n",
+    )
+
+    result = run_bm25_recall(cfg, _query(query="new"))
+
+    assert [hit.id for hit in result.hits] == ["new-agent"]
+    assert result.index.source == "memory-rebuilt-stale"
+    assert result.index.stale is True
+    assert result.index.suggest_rebuild is True
 
 
 def test_recall_service_include_drafts_boundary(tmp_path: Path) -> None:

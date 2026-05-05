@@ -585,8 +585,36 @@ def test_recall_missing_index_says_temporary_index_and_rebuild(tmp_path: Path) -
     res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent"])
 
     assert res.exit_code == 0, res.output
+    assert "vault.root" in res.output
+    assert "cards_dir" in res.output
     assert "temporary in-memory index" in res.output
     assert "suggest_rebuild=yes" in res.output
+
+
+def test_recall_stale_disk_index_suggests_rebuild_after_card_change(tmp_path: Path) -> None:
+    """approve/process 后卡片变化时，recall 要说明磁盘索引已 stale 并建议 rebuild。"""
+
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "agent-card", {
+        "id": "agent-card",
+        "title": "Agent card",
+        "status": "human_approved",
+    })
+    rebuild = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
+    assert rebuild.exit_code == 0, rebuild.output
+    _write_card(cards, "new-agent-card", {
+        "id": "new-agent-card",
+        "title": "New Agent card",
+        "status": "human_approved",
+    })
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "new"])
+
+    assert res.exit_code == 0, res.output
+    assert "source=memory-rebuilt-stale" in res.output
+    assert "suggest_rebuild=yes" in res.output
+    assert "index rebuild" in res.output
 
 
 def test_recall_include_drafts_marks_draft_risk(tmp_path: Path) -> None:

@@ -51,6 +51,8 @@ mindforge process --profile fake --limit 1
 mindforge approve list
 mindforge approve show --card <path> --show-content
 mindforge approve --card <path> --confirm
+mindforge index rebuild
+mindforge recall --query "MindForge"
 ```
 
 第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
@@ -210,7 +212,7 @@ the human decision gate.
 | `mindforge approve list` | 查看 `ai_draft` |
 | `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
 | `mindforge approve --card <path> --confirm` | 显式确认生成 `human_approved` |
-| `mindforge recall "query"` | 本地词法召回，不是 RAG |
+| `mindforge recall --query "query"` | 本地词法召回，不是 RAG |
 
 ### Safe Real Dogfood
 

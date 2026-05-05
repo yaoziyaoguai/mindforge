@@ -99,6 +99,66 @@ def test_approve_promotes_ai_draft_to_human_approved(
     assert item.approved_at is not None
 
 
+def test_approve_accepts_vault_relative_card_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用户从 approve list/show 复制的是 vault-relative path，也应该可直接 approve。
+
+    中文学习型说明：真实 dogfood 里 ``approve list`` 暴露的是 vault 内相对路径；
+    CLI adapter 不能逼普通用户再手动拼绝对路径。路径解析集中在
+    approval_service，approve CLI 只传用户输入。
+    """
+
+    cfg_path, vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    rel = card.relative_to(vault)
+
+    r = runner.invoke(app, ["approve", "--card", rel.as_posix(), "--config", str(cfg_path), "--confirm"])
+
+    assert r.exit_code == 0, r.output
+    assert _read_fm(card)["status"] == "human_approved"
+
+
+def test_approve_accepts_existing_cwd_relative_card_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """如果用户传的是当前目录下真实存在的相对路径，优先按 cwd-relative 解析。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    rel = card.relative_to(tmp_path)
+
+    r = runner.invoke(app, ["approve", "--card", rel.as_posix(), "--config", str(cfg_path), "--confirm"])
+
+    assert r.exit_code == 0, r.output
+    assert _read_fm(card)["status"] == "human_approved"
+
+
+def test_approve_missing_card_error_explains_path_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """缺失路径要说明尝试过 cwd/vault 解析，避免用户不知道该检查哪一层。"""
+
+    cfg_path, _vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(
+        app,
+        [
+            "approve",
+            "--card",
+            "20-Knowledge-Cards/missing.md",
+            "--config",
+            str(cfg_path),
+            "--confirm",
+        ],
+    )
+
+    assert r.exit_code == 2, r.output
+    assert "card path could not be resolved" in r.output
+    assert "cwd-relative" in r.output
+    assert "vault-relative" in r.output
+    assert "vault.root" in r.output
+    assert "approve list" in r.output
+
+
 # ---------------------------------------------------------------------------
 # (2) approve 不修改正文
 # ---------------------------------------------------------------------------
@@ -246,7 +306,14 @@ def test_approve_rejects_missing_card(
     cfg_path, _v, _s, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     r = runner.invoke(
         app,
-        ["approve", "--card", str(tmp_path / "no-such-card.md"), "--config", str(cfg_path)],
+        [
+            "approve",
+            "--card",
+            str(tmp_path / "no-such-card.md"),
+            "--config",
+            str(cfg_path),
+            "--confirm",
+        ],
     )
     assert r.exit_code == 2, r.output
 

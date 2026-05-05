@@ -81,6 +81,8 @@ def _result(*, explain: bool = False, hits: bool = True) -> RecallSearchResult:
             source="memory-temp",
             used_disk=False,
             path=Path(".mindforge/index/bm25.json"),
+            vault_root=Path("/tmp/mindforge-vault"),
+            cards_dir="20-Knowledge-Cards",
             stale=False,
             suggest_rebuild=True,
             card_counts={"human_approved": 1, "ai_draft": 1, "total": 2},
@@ -101,6 +103,8 @@ def test_recall_presenter_builds_json_payload_without_business_ranking() -> None
 
     assert payload["engine"] == "bm25"
     assert payload["query"]["query_hash"] == "abc123"
+    assert payload["index"]["vault_root"] == "/tmp/mindforge-vault"
+    assert payload["index"]["cards_dir"] == "20-Knowledge-Cards"
     assert payload["items"][0]["id"] == "agent-approved"
     assert payload["items"][0]["score"] == 1.25
 

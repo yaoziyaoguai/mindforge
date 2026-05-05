@@ -313,8 +313,9 @@ def render_execution_success(
     )
     console.print(
         "[dim]边界：这是一次显式人工 approve；MindForge 不会让 AI 自动写入 "
-        "human_approved。下一步可运行 `mindforge recall --query ...` 或 "
-        "`mindforge review weekly` 使用这张卡片。[/dim]"
+        "human_approved。下一步先运行 `mindforge index rebuild`，再运行 "
+        "`mindforge recall --query \"...\"` 或 `mindforge review weekly` "
+        "使用这张卡片。[/dim]"
     )
     if effect.state_missing:
         console.print(
