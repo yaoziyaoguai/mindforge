@@ -109,14 +109,23 @@ def build_app_context(config_path: Path, *, vault_override: Path | None = None) 
 def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
     """从 cwd 向上寻找 MindForge vault root；找不到返回 None。
 
-    当前判断只使用目录形状：``00-Inbox`` 与 ``20-Knowledge-Cards`` 同时存在。
-    这是 init 后 vault 的最小稳定信号，避免依赖 repo 配置或真实私人内容。
+    当前判断只使用目录形状：``00-Inbox`` 或 ``20-Knowledge-Cards`` 任一
+    存在即可。fresh external vault 可能刚创建 ``00-Inbox``，还没有 cards
+    目录；CLI 仍应把它当作当前 vault。``.mindforge`` 仅作为非项目目录的
+    兼容信号，避免把 MindForge 源码 repo 的 runtime 目录误判成 vault。
     """
 
     current = (cwd or Path.cwd()).expanduser().resolve()
     candidates = (current, *current.parents)
     for candidate in candidates:
-        if (candidate / "00-Inbox").is_dir() and (candidate / "20-Knowledge-Cards").is_dir():
+        if (
+            (candidate / "00-Inbox").is_dir()
+            or (candidate / "20-Knowledge-Cards").is_dir()
+            or (
+                (candidate / ".mindforge").is_dir()
+                and not (candidate / "configs" / "mindforge.yaml").exists()
+            )
+        ):
             return candidate
     return None
 

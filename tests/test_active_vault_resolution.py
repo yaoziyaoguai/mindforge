@@ -99,6 +99,13 @@ def _make_vault(path: Path, note_name: str = "second-note.md") -> Path:
     return path
 
 
+def _make_fresh_inbox_vault(path: Path, note_name: str = "external-smoke-note.md") -> Path:
+    inbox = path / "00-Inbox" / "ManualNotes"
+    inbox.mkdir(parents=True)
+    inbox.joinpath(note_name).write_text("# external smoke\n\nbody\n", encoding="utf-8")
+    return path
+
+
 def test_scan_from_vault_root_uses_cwd_vault_and_consistent_next_command(
     tmp_path: Path,
     monkeypatch,
@@ -149,3 +156,39 @@ def test_explicit_vault_wins_over_cwd_vault(tmp_path: Path, monkeypatch) -> None
     assert "cwd.md" not in result.output
     assert f"active vault: {explicit}" in result.output
     assert (explicit / ".mindforge" / "state.json").exists()
+
+
+def test_scan_from_fresh_inbox_only_vault_uses_cwd_vault(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    configured = _make_vault(tmp_path / "configured-vault", "old.md")
+    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
+    cfg = _write_config(tmp_path, configured)
+    monkeypatch.chdir(fresh)
+
+    result = runner.invoke(app, ["scan", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "external-smoke-note.md" in result.output
+    assert "old.md" not in result.output
+    assert f"active vault: {fresh}" in result.output
+    assert f"state path  : {fresh / '.mindforge' / 'state.json'}" in result.output
+    assert f"Next: mindforge process --profile fake --limit 1 --vault {fresh}" in result.output
+
+
+def test_scan_from_fresh_inbox_child_detects_ancestor_vault(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    configured = _make_vault(tmp_path / "configured-vault", "old.md")
+    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
+    cfg = _write_config(tmp_path, configured)
+    monkeypatch.chdir(fresh / "00-Inbox" / "ManualNotes")
+
+    result = runner.invoke(app, ["scan", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "external-smoke-note.md" in result.output
+    assert f"active vault: {fresh}" in result.output
+    assert f"Next: mindforge process --profile fake --limit 1 --vault {fresh}" in result.output
