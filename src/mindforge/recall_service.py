@@ -354,8 +354,9 @@ def recall_status_label(status: str) -> str:
 
 def recall_hit_next_action() -> str:
     return (
-        "下一步：用 `mindforge review weekly` 安排复习；需要更多材料时运行 "
-        "`mindforge process --profile fake --limit 1`，再手动 approve。"
+        "下一步：手动 approve 后可用 `mindforge review weekly` 安排复习；"
+        "需要更多材料时运行 `mindforge watch add <file-or-folder>` 或 "
+        "`mindforge import <file-or-folder>`。"
     )
 
 

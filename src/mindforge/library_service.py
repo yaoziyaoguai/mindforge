@@ -106,7 +106,7 @@ def _stats(
     if by_status.get("ai_draft", 0) == 0 and by_status.get("human_approved", 0) > 0:
         next_action = "mindforge index rebuild"
     if not cards:
-        next_action = "mindforge scan"
+        next_action = "mindforge watch add <file-or-folder>"
     return LibraryStats(
         vault_root=cfg.vault.root,
         cards_dir=cfg.vault.cards_dir,

@@ -34,7 +34,7 @@ def render_library_stats(console: Console, stats: LibraryStats) -> None:
 def render_library_list(console: Console, inventory: LibraryInventory) -> None:
     if not inventory.cards:
         console.print("[yellow]知识库暂无 Knowledge Cards。[/yellow]")
-        console.print("下一步：mindforge scan", markup=False)
+        console.print("下一步：mindforge watch add <file-or-folder>", markup=False)
         return
     table = Table(title=f"Knowledge Library · {inventory.stats.total_cards} cards")
     for col in (

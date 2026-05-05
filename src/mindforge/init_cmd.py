@@ -198,13 +198,15 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 把要处理的资料放进 00-Inbox/ 的子目录（Cubox / WebClips / ChatExports / PDFs / Docs / ManualNotes）",
+        "1) 把要处理的资料放进 00-Inbox/ManualNotes，或准备一个外部文件/文件夹",
         "2) 编辑 configs/mindforge.yaml 选择 llm.active_profile（默认 fake，不调真实 LLM）",
         "3) 如需真实 LLM：把 .env.example 复制为 .env 并填入 API key（.env 必须在 .gitignore）",
-        "4) mindforge scan          # 扫描 inbox",
-        "5) mindforge process --profile fake --limit 1   # 跑一遍 5-stage pipeline",
-        "6) mindforge approve list  # 看看产出哪些 ai_draft",
-        "7) mindforge approve --card 20-Knowledge-Cards/...md  # 显式人工 approve",
-        "8) mindforge review due / mindforge recall / mindforge project context  # 日用",
-        "9) mindforge doctor        # 任何时刻自检",
+        "4) mindforge watch list    # 查看 default 00-Inbox watched source",
+        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md   # 注册并立即生成 ai_draft",
+        "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
+        "7) mindforge approve list  # 看看产出哪些 ai_draft",
+        "8) mindforge approve --card 20-Knowledge-Cards/...md --confirm  # 显式人工 approve",
+        "9) mindforge review due / mindforge recall --query <keyword> / mindforge project context  # 日用",
+        "10) mindforge scan / mindforge process --profile fake --limit 1  # advanced/troubleshooting",
+        "11) mindforge doctor       # 任何时刻自检",
     ]

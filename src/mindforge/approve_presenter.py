@@ -159,8 +159,8 @@ def render_approval_list(
     if not rows:
         console.print("[yellow]没有待 approve 的卡片。[/yellow]")
         console.print(
-            "[dim]下一步：如果 inbox 有新资料，先运行 `mindforge scan`，再运行 "
-            "`mindforge process --profile fake --limit 1` 生成 ai_draft；"
+            "[dim]下一步：如果有新资料，运行 `mindforge watch add <file-or-folder>` "
+            "或 `mindforge import <file-or-folder>` 生成 ai_draft；默认 profile fake，"
             "MindForge 不会自动 approve。[/dim]"
         )
         return

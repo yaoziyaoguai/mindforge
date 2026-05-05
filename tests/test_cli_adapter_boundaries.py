@@ -358,17 +358,22 @@ def test_cli_runtime_uses_env_loader_not_direct_dotenv() -> None:
     )
 
 
-def test_process_cli_uses_llm_provider_factory() -> None:
-    """正向断言：``process_cli.py`` 必须通过 ``mindforge.llm.build_providers``
-    工厂构造 provider，而不是直接 import ``openai`` / ``anthropic``。
+def test_process_execution_uses_llm_provider_factory() -> None:
+    """正向断言：process 执行组合根必须通过 provider factory 构造 LLM。
 
-    拆分后只有 process adapter 负责构造 LLMClient；root ``cli.py`` 不再
-    持有 provider 细节，避免重新膨胀成巨石入口。
+    watch/import 复用 process 执行原语后，provider 构造从 ``process_cli.py``
+    下沉到 ``process_executor.py``。CLI adapter 只保留参数解析和用户输出；
+    复用层才持有 ``LLMClient`` / ``build_providers`` 细节，避免把业务执行逻辑
+    复制到 watch/import 或塞回顶层 CLI。
     """
     process_tree = ast.parse((SRC_DIR / "process_cli.py").read_text(encoding="utf-8"))
-    assert "mindforge.llm" in _all_imported_names(process_tree), (
-        "process_cli.py 必须 import mindforge.llm 以走 provider factory"
+    executor_tree = ast.parse((SRC_DIR / "process_executor.py").read_text(encoding="utf-8"))
+    assert "mindforge.process_executor" in _all_imported_names(process_tree), (
+        "process_cli.py 必须委托 process_executor 运行共享 process 原语"
     )
-    assert "build_providers" in _all_call_names(process_tree), (
-        "process_cli.py 必须调用 build_providers 工厂构造 LLM provider"
+    assert "mindforge.llm" in _all_imported_names(executor_tree), (
+        "process_executor.py 必须 import mindforge.llm 以走 provider factory"
+    )
+    assert "build_providers" in _all_call_names(executor_tree), (
+        "process_executor.py 必须调用 build_providers 工厂构造 LLM provider"
     )

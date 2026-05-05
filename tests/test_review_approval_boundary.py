@@ -341,9 +341,13 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # process_cli.py 只在命令 docstring/help 中声明默认 ai_draft 与
             # 必须人工晋升的边界；实际 process 写卡路径不会产生 human_approved。
             "process_cli.py",
-            # review_cli.py 是 review adapter，只读取 human_approved 卡片做
-            # 到期/统计展示；不写卡片状态。
-            "review_cli.py",
+            # process_executor.py 是 process/watch/import 共享执行原语。这里的
+            # human_approved 只用于构建已审核 source 的只读索引，避免重复处理
+            # 已 approve source；它不写卡片状态，也不产生审批副作用。
+            "process_executor.py",
+                # review_cli.py 是 review adapter，只读取 human_approved 卡片做
+                # 到期/统计展示；不写卡片状态。
+                "review_cli.py",
             # recall_index_cli.py 是 recall/index adapter，只用 human_approved
             # 作为默认检索过滤条件；不负责 approve。
             "recall_index_cli.py",

@@ -107,8 +107,10 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "导入 / 处理资料",
         [
-            ("mindforge scan", "扫 inbox，建 SourceDocument，刷 state.json"),
-            ("mindforge process --profile fake --limit N", "离线 fake provider 生成 ai_draft"),
+            ("mindforge watch list", "查看 default 00-Inbox 与用户添加的 watched sources"),
+            ("mindforge watch add <file-or-folder>", "注册 watched source，并立即生成 ai_draft"),
+            ("mindforge import <file-or-folder>", "一次性导入当前内容，不加入 watch registry"),
+            ("mindforge scan / process --profile fake --limit N", "advanced/troubleshooting 底层 pipeline"),
             ("mindforge status", "查看 state.json 中的处理进度"),
         ],
     ),

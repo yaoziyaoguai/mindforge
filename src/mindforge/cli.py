@@ -65,6 +65,7 @@ from .init_config_cli import (
     init,
     setup_cmd,
 )
+from .import_cli import import_cmd
 from .llm_cli import llm_app
 from .llm import build_providers
 from .library_cli import library_app
@@ -72,8 +73,9 @@ from .models import ItemState
 from .next_suggestions import NextSuggestion, compact_next_suggestions, next_suggestions
 from .obsidian_cli import _obsidian_dogfood_command_snippets, obsidian_app
 from .env_loader import load_dotenv_silently
-from .process_cli import _finalize_process_run, _process_one_result, process
+from .process_cli import _finalize_process_run, process
 from .processors import Pipeline  # noqa: F401 -- 保留向后兼容 re-export
+from .process_executor import process_one_result as _process_one_result
 from .project_cli import project_app
 from .provider_cli import provider_app
 from .recall_index_cli import (
@@ -105,6 +107,7 @@ from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
 from .vault_cli import vault_app
 from .web_cli import web
+from .watch_cli import watch_app
 from .workspace_cli import workspace_app
 
 __all__ = [
@@ -166,7 +169,9 @@ app = typer.Typer(
         "  mindforge demo               — 60 秒 fake/safe tour，零配置即可看到端到端效果\n\n"
         "常用命令：\n"
         "  mindforge demo               — 60 秒新用户 tour，无需 API key / 网络 / vault\n"
-        "  scan / process / status      — 把 inbox 文件加工成 Knowledge Cards\n"
+        "  watch add <path>             — 注册 watched source，并立即生成 ai_draft\n"
+        "  import <path>                — 一次性导入文件/文件夹，不加入 watch registry\n"
+        "  scan / process / status      — advanced/troubleshooting 底层 pipeline 命令\n"
         "  approve --card <path>        — 把 ai_draft 卡片晋升为 human_approved\n"
         "  recall / review due          — 检索与复习已审核卡片\n"
         "  project context <name> [...] — 拼装可粘贴给编程助手的项目上下文包\n"
@@ -504,6 +509,7 @@ def _legacy_status(
 # tests, shell completion, and external introspection see stable command names
 # instead of Typer's anonymous flattened sub-app placeholders.
 app.command()(process)
+app.command("import")(import_cmd)
 app.command()(recall)
 app.command()(init)
 app.command("setup")(setup_cmd)
@@ -530,6 +536,7 @@ app.add_typer(telemetry_app, name="telemetry")
 app.add_typer(vault_app, name="vault")
 app.add_typer(cubox_app, name="cubox")
 app.add_typer(workspace_app, name="workspace")
+app.add_typer(watch_app, name="watch")
 
 
 def main() -> None:

@@ -45,8 +45,8 @@ EOF
 
 ```bash
 cd /Users/jinkun.wang/MindForgeVault
-mindforge scan
-mindforge process --profile fake --limit 1
+mindforge watch list
+mindforge watch add 00-Inbox/ManualNotes/first-note.md
 mindforge approve list
 mindforge approve show --card <path> --show-content
 mindforge approve --card <path> --confirm
@@ -59,6 +59,21 @@ mindforge recall --query "MindForge"
 第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
 为 `human_approved`。默认 `fake` provider 不调用真实 LLM。
 
+`watch add` 的第一版不是后台监听：它会注册这个文件或文件夹，并立即处理当前
+内容生成 `ai_draft`。未来的 polling / filesystem hook 会接在 watched source
+registry 后面，本阶段没有 daemon、没有 `watch run/start/stop`。
+
+如果你只是一次性导入一个文件或文件夹，不想持续关注它，用：
+
+```bash
+mindforge import /path/to/file-or-folder
+```
+
+`import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。
+
+`00-Inbox/` 是系统自带的 default watched source。它不是一个额外命令，也不
+需要删除；`mindforge watch list` 会展示它。
+
 Vault resolution rule: explicit `--vault` wins first, then MindForge detects a
 cwd/ancestor vault, then falls back to `configs/mindforge.yaml`. A fresh vault
 only needs `00-Inbox/` to be detected, so this works:
@@ -66,7 +81,7 @@ only needs `00-Inbox/` to be detected, so this works:
 ```bash
 mkdir -p /tmp/my-mindforge-vault/00-Inbox/ManualNotes
 cd /tmp/my-mindforge-vault
-mindforge scan
+mindforge watch list
 ```
 
 If you run commands from the source repo or another non-vault directory, pass
@@ -153,7 +168,7 @@ telemetry:
 
 ### `configs/learning_tracks.yaml`
 
-学习路线 / review 配置。第一天不用管；不影响 `scan / process / approve`
+学习路线 / review 配置。第一天不用管；不影响 `watch / import / approve`
 的最小流程。
 
 ### `configs/llm.example.yaml`
@@ -232,8 +247,10 @@ the human decision gate.
 | `mindforge init --interactive` | 初始化本地工作区 |
 | `mindforge status` | 查看整体状态 |
 | `mindforge doctor` | 检查配置和安全状态 |
-| `mindforge scan` | 扫描 Inbox |
-| `mindforge process --profile fake --limit 1` | 安全处理一条资料 |
+| `mindforge watch list` | 查看 default `00-Inbox` 和用户添加的 watched sources |
+| `mindforge watch add <file-or-folder>` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
+| `mindforge watch delete <file-or-folder-or-id>` | 只删除 watched source registry 记录，不删除 source 或 cards |
+| `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources |
 | `mindforge approve list` | 查看 `ai_draft` |
 | `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
 | `mindforge approve --card <path> --confirm` | 显式确认生成 `human_approved` |
@@ -242,6 +259,18 @@ the human decision gate.
 | `mindforge library show <card-id-or-path>` | 查看单张卡片 metadata；`--show-content` 才显示 card body |
 | `mindforge index rebuild` | 刷新本地 BM25 index |
 | `mindforge recall --query "query"` | 本地词法召回，不是 RAG |
+
+### Advanced / Troubleshooting
+
+`scan` 和 `process` 仍然保留，适合排障、脚本化或检查底层 pipeline：
+
+```bash
+mindforge scan
+mindforge process --profile fake --limit 1
+```
+
+普通 first-run 用户优先使用 `watch add` 或 `import`，不用先理解
+`state.json` / checkpoint / pipeline 的中间状态。
 
 ### Safe Real Dogfood
 
