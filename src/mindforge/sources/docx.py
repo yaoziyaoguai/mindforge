@@ -32,7 +32,7 @@ class DocxAdapter(SourceAdapter):
                 "    pip install 'mindforge[docx]'\n"
                 "或:\n"
                 "    pip install python-docx\n"
-                "详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md。"
+                "详见 docs/IMPLEMENTATION.md 的 source adapter 说明。"
             ) from e
 
         p = Path(path)

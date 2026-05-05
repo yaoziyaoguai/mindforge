@@ -1,7 +1,7 @@
-"""v0.13 Stage 1 — 隐私契约 / 提案 / deferred gates 文档断言。
+"""Privacy contract / future gate documentation assertions.
 
-钉死 3 份 canonical 文档的关键 token, 防止以后被静默修改、复制漂移
-或字段语义反转。
+历史 privacy/gate/proposal 文档已经合并进 canonical docs；这里钉住关键
+token，防止语义反转。
 """
 
 from __future__ import annotations
@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-PRIVACY = Path("docs/LOCAL_FIRST_PRIVACY_CONTRACT.md")
-PROPOSAL = Path("docs/PROPOSAL_REVIEWABLE_ARTIFACT.md")
-GATES = Path("docs/V0_13_REAL_INGESTION_DEFERRED_GATES.md")
+PRIVACY = Path("docs/SECURITY.md")
+PROPOSAL = Path("docs/IMPLEMENTATION.md")
+GATES = Path("docs/ROADMAP.md")
 
 
 def test_privacy_contract_exists():
@@ -39,8 +39,8 @@ def test_privacy_contract_token(token: str):
 
 def test_proposal_exists_and_marked_unauthorized():
     text = PROPOSAL.read_text(encoding="utf-8")
-    assert "proposal-only" in text or "proposal only" in text.lower()
-    assert "NOT authorized" in text or "未授权" in text
+    assert "review-only" in text
+    assert "not `human_approved`" in text
     # 关键约束: 提案不得隐含允许 human_approved 自动产生
     assert "human_approved" in text
 
@@ -48,10 +48,9 @@ def test_proposal_exists_and_marked_unauthorized():
 def test_proposal_lists_artifact_kinds():
     text = PROPOSAL.read_text(encoding="utf-8")
     for kind in [
-        "preview_packet",
-        "ai_draft_preview",
-        "readiness_report",
-        "real_smoke_result",
+        "preview packets",
+        "readiness checks",
+        "real smoke",
     ]:
         assert kind in text, f"missing artifact kind: {kind}"
 
@@ -63,14 +62,12 @@ def test_deferred_gates_exists():
 @pytest.mark.parametrize(
     "token",
     [
-        "测试账号",
         "sample folder",
         "no-persist",
         "dry-run",
         "human_approved",
-        "--allow-real",
-        "--allow-write",
-        "Path.home()",
+        "diff preview",
+        "backup",
     ],
 )
 def test_deferred_gates_token(token: str):

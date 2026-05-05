@@ -4,7 +4,7 @@
 
 - 守住 ``configs/mindforge.yaml`` 默认 ``active_profile: fake`` 不被
   静默切到真实 profile;
-- 守住 capability matrix §8 与 §6 "Excluded" 列表不漂移;
+- 守住 canonical roadmap / usage 的 excluded 列表不漂移;
 - 守住 ``mindforge llm ping`` 与 ``mindforge provider readiness`` 在
   fake-default 下给出语义一致的判定;
 - 守住 provider readiness JSON 输出 schema 稳定 (含 invariants)。
@@ -114,17 +114,17 @@ def test_llm_ping_and_provider_readiness_agree_on_fake_default(clean_env):
 
 
 def test_capability_matrix_section_consistency():
-    """§8 不能撤销 §6 Excluded 中已经声明 ❌ 的不变量。
+    """Canonical docs 不能撤销已声明的 excluded 不变量。
 
-    §6 列出的 ❌ 必须在 §8 仍是关闭状态的语义 (no real-by-default,
+    Roadmap / Usage 必须保持关闭状态语义 (no real-by-default,
     no auto-approval, no real vault writes, no Cubox real ingestion);
-    若 §8 行允许某项 by default = ✅, 则与 §6 矛盾。
     """
-    text = Path("docs/V0_12_CAPABILITY_MATRIX.md").read_text(encoding="utf-8")
-    assert "## 6. What is *not* in v0.12" in text or "## 6." in text
-    assert "## 8. v0.13 Stage 1" in text
-    # §8 必须明确列出 'Real provider opt-in (profile 切换)' 默认 ❌
-    assert "Real provider opt-in" in text
-    assert "❌ 默认" in text
-    # 与 §6 一致性宣言
-    assert "§6 不需要修改" in text or "§6 \"Excluded\" 列表" in text
+    text = (
+        Path("docs/ROADMAP.md").read_text(encoding="utf-8")
+        + "\n"
+        + Path("docs/USAGE.md").read_text(encoding="utf-8")
+    )
+    assert "Real LLM enabled by default" in text
+    assert "Real Cubox API calls enabled by default" in text
+    assert "Hidden automatic approval" in text
+    assert "does not automatically modify a real private vault" in text

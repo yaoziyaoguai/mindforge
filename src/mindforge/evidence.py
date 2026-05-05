@@ -1,6 +1,6 @@
 """M5.3 后续 — 项目笔记的 evidence block 幂等更新器。
 
-设计契约（详见 docs/M5_3_PROJECT_CONTEXT_PROTOCOL.md §10）：
+设计契约（详见 docs/IMPLEMENTATION.md 的 project evidence 说明）：
 
 1. **只更新受控区块**：在 ``30-Projects/<name>.md`` 中找
    ``<!-- MINDFORGE:EVIDENCE:START -->`` 与

@@ -13,7 +13,7 @@ WebClip 工具（Obsidian Web Clipper / MarkDownload / SingleFile to Markdown）
 
 只要在 adapter 内消化掉这些差异，下游 Triager / Distiller / Linker / Writer
 可以一行都不改 —— 这就是抽象的意义。如果直接在 processor 里 ``if
-source_type == "webclip"`` 就破坏了 v0.1 的契约（详见 docs/MINDFORGE_PROTOCOL.md）。
+source_type == "webclip"`` 就破坏了 SourceAdapter 契约（详见 docs/ARCHITECTURE.md）。
 
 边界
 ----

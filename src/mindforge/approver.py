@@ -1,6 +1,6 @@
 """M3 — human approval：把 ai_draft 卡片显式晋升为 human_approved。
 
-设计契约（详见 ``docs/M3_HUMAN_APPROVAL_PROTOCOL.md``）
+设计契约（详见 ``docs/SECURITY.md`` 的 approval boundary 与 ``docs/ARCHITECTURE.md`` 的状态链路）
 
 1. 这是 MindForge 的**反 AI 污染闸门**：``ai_draft → human_approved`` 这一
    状态转移在整个 v0.1 中只有 ``mindforge approve`` CLI 一个入口能触发；

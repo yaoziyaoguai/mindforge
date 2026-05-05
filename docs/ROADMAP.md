@@ -26,6 +26,11 @@ MindForge can now start real local dogfood on non-sensitive data:
   safe draft review, explicit approval, and lexical recall over local data.
 - Documentation cleanup: canonical architecture, implementation, roadmap, usage,
   and concise README.
+- Strategy and source architecture: SourceAdapter normalization,
+  KnowledgeStrategy metadata/discovery, default fake strategy path, and
+  declarative custom strategy previews.
+- Obsidian binding readiness: read-only scan/link/stage/preflight path for
+  disposable or project-only vaults, with formal-note writes still gated.
 
 ## Next Recommended Work
 
@@ -52,13 +57,25 @@ MindForge is deliberately not pursuing these in the current roadmap:
 
 ## Future Gates
 
-Some archived documents still describe future gates and historical evidence.
-They are retained as guard material, not as active roadmap forks:
+Some future capabilities remain explicitly gated:
 
-- `V0_14_FUTURE_GATES.md` - future gated capabilities.
-- `ROADMAP_COMPLETION_LEDGER.md` - test-pinned ledger for safety status rows.
-- `LOCAL_FIRST_PRIVACY_CONTRACT.md` - privacy and fake-default contract.
-- `RFC_G1_CUBOX_REAL_INGESTION.md` - future Cubox HTTP ingestion discussion.
+- G1 Real Cubox ingestion: sample folder / sample-folder scope, item cap, dry-run-first, and
+  no-persist preview before any real API path.
+- G2 Real Obsidian formal-note write: diff preview, per-write confirmation,
+  backup, rollback, and no automatic vault organization.
+- G3 Approval UX: ergonomics only; never timer-based, similarity-based, or
+  model-driven auto-approval.
+- G4 Custom executable strategy runtime: not active; any future work would need
+  an out-of-process sandbox and explicit capability limits.
+- G5 RAG / embedding / semantic merge: not active; any future retrieval work
+  must remain local-first by default and produce suggestions, not merges.
+- G6 Public release / git tag: requires named human authorization; automation
+  must not create tags.
+
+There is no tag and no release attached to the current local dogfood closure.
+
+`ROADMAP_COMPLETION_LEDGER.md` remains as a compact guard ledger while tests
+still use it to protect these buckets.
 
 Opening any gated capability requires a fresh design review, updated tests, and
 explicit user authorization. It is not unlocked by editing this roadmap.

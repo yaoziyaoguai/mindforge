@@ -9,11 +9,16 @@ before changing it.
 - `src/mindforge/cli.py` - top-level Typer command registry.
 - `src/mindforge/status_cli.py` - real-data CLI status and doctor-style output.
 - `src/mindforge/app_context.py` - local config/path context resolution.
+- `src/mindforge/sources/base.py`, `src/mindforge/sources/registry.py`, and
+  `src/mindforge/scanner.py` - SourceAdapter discovery and SourceDocument
+  normalization.
 - `src/mindforge/provider_readiness.py` and `src/mindforge/cubox_readiness.py`
   - readiness checks that avoid real external calls.
 - `src/mindforge/approval_service.py` and `src/mindforge/approver.py` -
   approval workflow and single-card promotion boundary.
 - `src/mindforge/recall_service.py` - local lexical recall use case.
+- `src/mindforge/lexical_index.py` and `src/mindforge/recall_index_cli.py` -
+  BM25/local index build and inspection.
 - `src/mindforge/web_cli.py` - `mindforge web` CLI adapter.
 - `src/mindforge_web/` - FastAPI app, routers, schemas, and Web facade.
 - `web/src/` - React Local Console implementation.
@@ -76,6 +81,18 @@ When configuration is complex, presenters should explain:
 3. How to fix it.
 4. The safest next command.
 
+## Source Adapters
+
+Adapters convert source-specific files or exports into `SourceDocument`.
+Current adapter families include Markdown/plain notes, Cubox JSON export,
+webclip/chat export, optional PDF/docx text extraction, and read-only
+Obsidian-flavored Markdown. Cubox HTTP ingestion is not active; the supported
+Cubox path is local JSON export inspection and preview.
+
+PDF/docx support is intentionally conservative. Missing optional dependencies
+or textless scanned PDFs should fail with a friendly explanation rather than
+attempt OCR.
+
 ## Approval Boundary
 
 Approval code is intentionally narrow. The service layer delegates the actual
@@ -97,6 +114,31 @@ Recall is local lexical search. The implementation is in `recall_service.py`
 and supporting index/card modules. It reads approved cards by default and should
 describe itself honestly as lexical retrieval, not RAG or embeddings.
 
+The local index is derived state. It can be rebuilt from approved cards and must
+not become a source of truth or a vector store.
+
+## Custom Strategies
+
+Custom strategies are declarative metadata definitions. Users expose local
+definitions with an explicit `--custom-path`. Discovery is not execution,
+loading is not execution, and explicit path loading is required. MindForge does
+no implicit home scan, no implicit vault scan, and does not read `.env` to
+discover custom definitions. Validation error output should tell the user what
+field failed without running the strategy.
+
+MindForge does no arbitrary Python plugin loading, no arbitrary python runtime,
+no shell strategy, and no executable strategy runtime. Real provider use remains
+explicit opt-in.
+
+Preview packets are review-only: not ai_draft, not human_approved, not
+`ai_draft`, and not `human_approved`. Any future implementation still needs
+explicit approval. The preview to future implementation path is: keep the
+definition declarative, add a reviewed built-in implementation, preserve fake
+default behavior, and keep approval separate.
+
+Review-only artifact kinds include preview packets, readiness checks, and real smoke output.
+None of these artifacts is a Knowledge Card or an approval event.
+
 ## Config and Workspace
 
 Configuration and path resolution belong in context/readiness modules, not in
@@ -115,6 +157,11 @@ coverage areas:
 - secret non-disclosure assertions.
 - provider and Cubox readiness without real external calls.
 - recall lexical behavior and empty-query guidance.
+- source adapter normalization without downstream source-specific coupling.
+- custom strategy declarative-only loading/discovery.
+- no user-input subprocess or arbitrary dynamic plugin imports.
+- no RAG/embedding/semantic merge implementation entry points.
+- no automated git tag/release behavior.
 
 When changing docs only, do not edit tests unless a doc path is intentionally
 renamed and the test is a documentation-contract test.

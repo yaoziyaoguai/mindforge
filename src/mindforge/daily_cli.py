@@ -196,7 +196,7 @@ def commands_cmd() -> None:
             console.print(f"    {escape(desc)}")
         console.print("")
     console.print(
-        "[dim]说明：完整使用手册见 docs/USER_GUIDE.md，新手上路见 docs/GETTING_STARTED.md。"
+        "[dim]说明：完整使用手册见 docs/USAGE.md。"
         "本命令不读 .env、不发 HTTP、不调用 LLM。[/dim]"
     )
 

@@ -6,7 +6,7 @@
 - 文件首行 marker 用于幂等覆盖判定。
 
 为什么 PDF/Docx 仅最小文本抽取：
-- 不做 OCR / 表格 / 复杂版式（详见 ``docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md``）；
+- 不做 OCR / 表格 / 复杂版式（详见 ``docs/IMPLEMENTATION.md`` 的 adapter 边界）；
 - 依赖通过 ``[project.optional-dependencies]`` 声明，未安装时 lazy 报错。
 
 为什么 doctor 不读 .env：

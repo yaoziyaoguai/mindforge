@@ -34,7 +34,7 @@ Red 期望
 ========
 
 绝大多数测试因为 CLI ``--custom-path`` 选项尚不存在、discover_strategies
-公开 API 尚不存在、CUSTOM_STRATEGY.md 尚未补 discovery UX 段落而失败；
+公开 API 尚不存在、IMPLEMENTATION.md 尚未补 discovery UX 段落而失败；
 少量 sanity baseline 测试保护现有 ``mindforge strategies list``
 继续工作。所有失败必须是清晰的 production gap，而不是 import 错误 /
 测试 bug / fixture 缺失 / 环境问题。
@@ -408,7 +408,7 @@ def test_discover_strategies_default_returns_only_builtins() -> None:
 
 
 def test_custom_strategy_doc_explains_discovery_ux() -> None:
-    """``docs/CUSTOM_STRATEGY.md`` 必须新增一节，向用户解释 discovery
+    """``docs/IMPLEMENTATION.md`` 必须向用户解释 custom strategy discovery
     的关键 UX 与边界：
 
     - 如何用显式 ``--custom-path`` 让 CLI 看到 custom 定义；
@@ -420,7 +420,7 @@ def test_custom_strategy_doc_explains_discovery_ux() -> None:
     - 默认不调真实 LLM。
     """
 
-    p = Path("docs/CUSTOM_STRATEGY.md")
+    p = Path("docs/IMPLEMENTATION.md")
     assert p.exists()
     text = p.read_text(encoding="utf-8").lower()
     for token in (
@@ -432,7 +432,7 @@ def test_custom_strategy_doc_explains_discovery_ux() -> None:
         "no shell",
     ):
         assert token in text, (
-            f"docs/CUSTOM_STRATEGY.md 缺 discovery 关键说明 {token!r}"
+            f"docs/IMPLEMENTATION.md 缺 discovery 关键说明 {token!r}"
         )
 
 

@@ -1,6 +1,6 @@
 """v0.3 — BM25 lexical recall（纯本地词法检索）。
 
-设计契约（详见 docs/M5_4_LEXICAL_RECALL_PROTOCOL.md）：
+设计契约（详见 docs/IMPLEMENTATION.md 的 lexical recall 说明）：
 
 1. **零依赖、纯本地**：不调用 LLM、不读 .env、不联网、不引入向量库。
 2. **安全索引**：只索引 Knowledge Card 自身的安全字段与 AI 已生成的结构化

@@ -7,7 +7,7 @@
 - **lazy import**：未安装 ``pypdf`` 时只在调用 ``load()`` 时报错，
   ``mindforge`` 的其他命令仍然可用。
 
-为什么不做 OCR？详见 ``docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md``。
+为什么不做 OCR？当前 source adapter 边界见 ``docs/IMPLEMENTATION.md``。
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class PdfAdapter(SourceAdapter):
                 "    pip install 'mindforge[pdf]'\n"
                 "或:\n"
                 "    pip install pypdf\n"
-                "详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md。"
+                "详见 docs/IMPLEMENTATION.md 的 source adapter 说明。"
             ) from e
 
         p = Path(path)
@@ -72,7 +72,7 @@ class PdfAdapter(SourceAdapter):
             raise PdfNoTextError(
                 f"未能从 PDF {p.name} 抽取任何文本（很可能是扫描件）。"
                 "MindForge v0.x 不做 OCR；请用其他工具先 OCR 后再放回 inbox，"
-                "或直接归档。详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md。"
+                "或直接归档。详见 docs/IMPLEMENTATION.md 的 source adapter 说明。"
             )
 
         title = _pick_title(reader, p)

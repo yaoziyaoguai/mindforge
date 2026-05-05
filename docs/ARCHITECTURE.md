@@ -28,6 +28,23 @@ specific upstream product.
 AI output is advisory. It can produce `ai_draft` cards only. A card becomes
 long-term memory only through an explicit approval action performed by the user.
 
+## Source And Card Contracts
+
+`SourceDocument` is the information-hiding boundary between adapters and the
+processing pipeline. Adapters may understand Cubox exports, Markdown files,
+web clips, chat exports, PDF/docx text extraction, or Obsidian-flavored
+Markdown, but downstream processors should only see normalized source fields.
+
+Core source fields include stable identifiers, `source_type`, `source_path`,
+adapter metadata, title, timestamps where available, safe metadata, content
+hash, highlights, and `raw_text`. The raw source body is allowed inside the
+pipeline, but user-facing status, readiness, recall, logs, and telemetry should
+prefer summaries and safe fields.
+
+Knowledge Cards are Markdown artifacts with frontmatter. Newly generated cards
+default to `status: ai_draft`; recall and review use `human_approved` by
+default. Draft inclusion is always explicit.
+
 ## Boundaries
 
 ### CLI
@@ -60,7 +77,9 @@ domain decisions.
 
 ### Provider and Readiness
 
-The fake provider is the default safe path. Real providers are opt-in. Provider
+The fake provider is the default safe path. A fake provider keeps first-run
+dogfood offline and cheap. Real providers are opt-in. A real provider can be
+used only after explicit profile selection and readiness/smoke checks. Provider
 readiness reports configuration state and key presence, but must not call a real
 LLM. Cubox readiness follows the same rule: report local configuration/path
 state, do not call the real Cubox API during readiness checks.
@@ -113,14 +132,25 @@ MindForge currently does not do:
 - Domain names over generic helpers: avoid `common` or `utils` dumping grounds.
 - Tests protect behavior and boundaries, not arbitrary file-size metrics.
 
+## Product Landscape
+
+MindForge borrows selectively from neighboring tools without copying their
+product shape. OpenAI Agents SDK and LangGraph show why explicit runtime
+boundaries matter; Dify shows why MindForge should not become a hosted workflow
+builder; Obsidian, Logseq, Tana, Anytype, Readwise, and Cubox show useful
+personal knowledge and source-capture patterns. The differentiation is a
+local-first, single-user approval pipeline: source-grounded drafts become
+durable memory only after explicit human review.
+
 ## Focused Protocols
 
-The canonical architecture above is intentionally short. Detailed historical
-protocols remain available because code and tests still reference them:
+The canonical architecture above is the source of truth for active design.
+Historical protocol documents have been retired into this page and the focused
+references. Keep future design changes here instead of creating new milestone
+documents.
 
-- [Human Approval Protocol](M3_HUMAN_APPROVAL_PROTOCOL.md)
-- [Recall / Review Protocol](M4_RECALL_REVIEW_PROTOCOL.md)
-- [SourceAdapter Protocol](SOURCE_ADAPTER_PROTOCOL.md)
-- [Lexical Recall Protocol](M5_4_LEXICAL_RECALL_PROTOCOL.md)
-- [Local-First Privacy Contract](LOCAL_FIRST_PRIVACY_CONTRACT.md)
+Focused references:
+
 - [Security](SECURITY.md)
+- [Implementation](IMPLEMENTATION.md)
+- [Usage](USAGE.md)

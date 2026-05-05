@@ -11,11 +11,8 @@ git diff --check
 git status --short
 ```
 
-At tag `v0.5.0`, the full test suite was:
-
-```text
-357 passed, 2 skipped
-```
+Run the full suite after documentation governance changes when tests or CLI help
+references are touched.
 
 ## Onboarding Smoke
 
@@ -77,6 +74,8 @@ mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format jso
 - Recall must not index raw sources or secret-bearing artifacts.
 - Obsidian binding must not edit formal notes, move files, rewrite wikilinks, or
   write runtime state into the vault.
+- Custom strategies remain declarative-only.
+- Future-gated capabilities stay absent until explicitly authorized.
 
 ## Troubleshooting
 

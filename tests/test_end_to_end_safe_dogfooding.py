@@ -146,7 +146,7 @@ def test_demo_does_not_require_api_key_env(monkeypatch):
 
 
 def test_readme_dogfood_quickstart_command_resolves():
-    """README/GETTING_STARTED 中推荐的 ``mindforge demo`` 命令必须真的能跑。
+    """README/USAGE 中推荐的首个 ``mindforge`` 命令必须真的能跑。
 
     中文学习：用最直接的方式防 docs drift —— 直接 invoke README 中第一条
     推荐命令；如果 GREEN 失败说明文档 / CLI 已经漂移，必须先修。

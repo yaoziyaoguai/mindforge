@@ -4,7 +4,7 @@
 - ``DocxAdapter`` 已迁移到 ``mindforge.sources.docx``；
 
 本文件仅作为旧 import 路径（``from mindforge.sources.stubs import ...``）
-的兼容层。M5.1 协议见 ``docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md``。
+的兼容层。当前 adapter 边界见 ``docs/IMPLEMENTATION.md``。
 """
 
 from .docx import DocxAdapter
