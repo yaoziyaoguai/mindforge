@@ -102,6 +102,7 @@ from .scanner import Scanner
 from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
 from .vault_cli import vault_app
+from .web_cli import web
 
 __all__ = [
     "app",
@@ -460,6 +461,7 @@ app.command()(init)
 app.command("setup")(setup_cmd)
 app.command()(doctor)
 app.command()(version)
+app.command()(web)
 app.command("commands")(commands_cmd)
 app.command("start")(start_cmd)
 app.command("today")(today_cmd)
