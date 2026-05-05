@@ -66,6 +66,7 @@ from .init_config_cli import (
 )
 from .llm_cli import llm_app
 from .llm import build_providers
+from .library_cli import library_app
 from .models import ItemState
 from .next_suggestions import NextSuggestion, compact_next_suggestions, next_suggestions
 from .obsidian_cli import _obsidian_dogfood_command_snippets, obsidian_app
@@ -508,6 +509,7 @@ app.command("start")(start_cmd)
 app.command("today")(today_cmd)
 app.command("next")(next_cmd)
 app.add_typer(llm_app, name="llm")
+app.add_typer(library_app, name="library")
 app.add_typer(backup_app, name="backup")
 app.add_typer(config_app, name="config")
 app.add_typer(dogfood_app, name="dogfood")

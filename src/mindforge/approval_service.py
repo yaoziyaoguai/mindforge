@@ -17,6 +17,7 @@ from .cards import CardLoadValueError, CardLoadError, CardSummary, iter_cards, r
 from .checkpoint import Checkpoint
 from .config import MindForgeConfig
 from .models import ItemState
+from .source_archive_service import SourceArchiveEffect, archive_source_for_approved_card
 
 
 APPROVAL_PREVIEW_FIELDS: tuple[str, ...] = (
@@ -114,6 +115,7 @@ class ApprovalExecutionResult:
     """
 
     effect: ApprovalEffect | None = None
+    source_archive: SourceArchiveEffect | None = None
     error: ApprovalServiceError | None = None
 
     @property
@@ -311,7 +313,13 @@ def approve_explicit_card(
         )
     assert resolved.path is not None
     try:
-        return ApprovalExecutionResult(effect=approve_card(resolved.path, cfg=cfg))
+        effect = approve_card(resolved.path, cfg=cfg)
+        archive_effect = (
+            archive_source_for_approved_card(cfg, resolved.path)
+            if effect.kind == "approved"
+            else None
+        )
+        return ApprovalExecutionResult(effect=effect, source_archive=archive_effect)
     except ApprovalError as exc:
         return ApprovalExecutionResult(
             error=ApprovalServiceError(

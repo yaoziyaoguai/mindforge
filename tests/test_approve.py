@@ -175,18 +175,21 @@ def test_approve_preserves_body(
 
 
 # ---------------------------------------------------------------------------
-# (3) approve 不修改源文件
+# (3) approve 归档源文件但不删除证据
 # ---------------------------------------------------------------------------
 
 
-def test_approve_does_not_touch_source(
+def test_approve_archives_source_without_losing_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg_path, _v, src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    cfg_path, vault, src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     src_bytes = src.read_bytes()
     r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
-    assert src.read_bytes() == src_bytes
+    archived = vault / "00-Inbox" / "_processed" / "ManualNotes" / src.name
+    assert not src.exists()
+    assert archived.read_bytes() == src_bytes
+    assert "source_archive_path:" in card.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

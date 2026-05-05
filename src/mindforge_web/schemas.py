@@ -134,12 +134,73 @@ class SourceStatus(BaseModel):
     exists: bool
     file_count: int
     error_count: int = 0
+    processed_count: int = 0
+    pending_files: list[str] = Field(default_factory=list)
+    processed_files: list[str] = Field(default_factory=list)
     next_action: NextAction | None = None
 
 
 class SourcesResponse(BaseModel):
     sources: list[SourceStatus]
+    bucket_counts: dict[str, dict[str, int]] = Field(default_factory=dict)
     available_imports: list[StatusItem]
+    next_actions: list[NextAction]
+
+
+class LibraryCardResponse(BaseModel):
+    id: str | None
+    title: str | None
+    status: str
+    status_explanation: str
+    track: str | None
+    source_type: str | None
+    adapter_name: str | None
+    source_title: str | None
+    source_path: str | None
+    source_archive_path: str | None
+    source_missing: bool
+    profile: str | None
+    provider: str | None
+    created_at: str | None = None
+    approved_at: str | None = None
+    updated_at: str | None = None
+    rel_path: str
+    fake_provider_note: str | None = None
+
+
+class LibraryStatsResponse(BaseModel):
+    vault_root: str
+    cards_dir: str
+    total_cards: int
+    by_status: dict[str, int]
+    by_track: dict[str, int]
+    by_provider: dict[str, int]
+    recent_count: int
+    index_path: str
+    index_exists: bool
+    next_action: str
+
+
+class LibraryCardsResponse(BaseModel):
+    stats: LibraryStatsResponse
+    cards: list[LibraryCardResponse]
+
+
+class LibraryCardDetailResponse(BaseModel):
+    card: LibraryCardResponse
+    body: str | None = None
+
+
+class WorkflowSummaryResponse(BaseModel):
+    vault_root: str
+    cards_dir: str
+    inbox_pending_count: int
+    processed_source_count: int
+    ai_draft_count: int
+    human_approved_count: int
+    index: RecallStatus
+    provider: ProviderStatus
+    source_bucket_counts: dict[str, dict[str, int]]
     next_actions: list[NextAction]
 
 

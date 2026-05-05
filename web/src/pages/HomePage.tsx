@@ -1,8 +1,8 @@
-import type { HomeStatusResponse } from "../api/types";
+import type { HomeStatusResponse, WorkflowSummaryResponse } from "../api/types";
 import { NextActionCard } from "../components/NextActionCard";
 import { StatusCard } from "../components/StatusCard";
 
-export function HomePage({ data, onNavigate }: { data: HomeStatusResponse; onNavigate: (href: string) => void }) {
+export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusResponse; workflow?: WorkflowSummaryResponse; onNavigate: (href: string) => void }) {
   return (
     <div className="space-y-6">
       <header>
@@ -11,6 +11,7 @@ export function HomePage({ data, onNavigate }: { data: HomeStatusResponse; onNav
       </header>
       <div className="grid gap-4 md:grid-cols-3">
         <StatusCard label="Workspace items" value={data.workspace.state_item_count} status={data.workspace.state_exists ? "ok" : "warn"} detail={data.workspace.state_path} />
+        <StatusCard label="Pending sources" value={workflow?.inbox_pending_count ?? "-"} status={(workflow?.inbox_pending_count ?? 0) > 0 ? "warn" : "ok"} detail="Inbox sources waiting for scan/process" />
         <StatusCard label="Pending drafts" value={data.safety.pending_drafts_count} status={data.safety.pending_drafts_count > 0 ? "warn" : "ok"} detail="ai_draft waiting for review" />
         <StatusCard label="Approved cards" value={data.vault.approved_card_count} status={data.vault.approved_card_count > 0 ? "ok" : "info"} detail="human_approved available to recall" />
       </div>

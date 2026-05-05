@@ -9,6 +9,7 @@ export function SourceList({ sources }: { sources: SourceStatus[] }) {
             <th className="px-4 py-3 font-medium">Source</th>
             <th className="px-4 py-3 font-medium">Path</th>
             <th className="px-4 py-3 font-medium">Files</th>
+            <th className="px-4 py-3 font-medium">Processed</th>
             <th className="px-4 py-3 font-medium">Status</th>
           </tr>
         </thead>
@@ -21,6 +22,7 @@ export function SourceList({ sources }: { sources: SourceStatus[] }) {
               </td>
               <td className="px-4 py-3 text-muted">{source.path}</td>
               <td className="px-4 py-3">{source.file_count}</td>
+              <td className="px-4 py-3">{source.processed_count}</td>
               <td className={source.exists ? "px-4 py-3 text-safe" : "px-4 py-3 text-warn"}>
                 {source.exists ? "ready" : "missing folder"}
               </td>

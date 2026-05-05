@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { getConfigStatus } from "./api/config";
 import { getDrafts } from "./api/drafts";
 import { getHomeStatus } from "./api/home";
+import { getLibraryCards, getWorkflowSummary } from "./api/library";
 import { getSources } from "./api/sources";
-import type { ConfigStatusResponse, DraftsResponse, HomeStatusResponse, SafetySummary, SourcesResponse } from "./api/types";
+import type { ConfigStatusResponse, DraftsResponse, HomeStatusResponse, LibraryCardsResponse, SafetySummary, SourcesResponse, WorkflowSummaryResponse } from "./api/types";
 import { AppShell } from "./components/AppShell";
 import { ErrorState } from "./components/ErrorState";
 import { HomePage } from "./pages/HomePage";
@@ -11,12 +12,15 @@ import { SetupPage } from "./pages/SetupPage";
 import { SourcesPage } from "./pages/SourcesPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { RecallPage } from "./pages/RecallPage";
+import { LibraryPage } from "./pages/LibraryPage";
 
 type PageData = {
   home?: HomeStatusResponse;
   config?: ConfigStatusResponse;
   sources?: SourcesResponse;
   drafts?: DraftsResponse;
+  library?: LibraryCardsResponse;
+  workflow?: WorkflowSummaryResponse;
 };
 
 export default function App() {
@@ -36,9 +40,13 @@ export default function App() {
       const home = await getHomeStatus();
       setSafety(home.safety);
       const next: PageData = { home };
+      if (path === "/" || path.startsWith("/library") || path.startsWith("/sources")) {
+        next.workflow = await getWorkflowSummary();
+      }
       if (path.startsWith("/setup")) next.config = await getConfigStatus();
       if (path.startsWith("/sources")) next.sources = await getSources();
       if (path.startsWith("/drafts")) next.drafts = await getDrafts();
+      if (path.startsWith("/library")) next.library = await getLibraryCards();
       setData(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load MindForge status");
@@ -59,8 +67,9 @@ export default function App() {
   if (!content && path.startsWith("/setup") && data.config) content = <SetupPage data={data.config} />;
   if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} />;
   if (!content && path.startsWith("/drafts") && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
+  if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} />;
   if (!content && path.startsWith("/recall")) content = <RecallPage />;
-  if (!content && data.home) content = <HomePage data={data.home} onNavigate={navigate} />;
+  if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) content = <div className="text-sm text-muted">Loading...</div>;
 
   return (

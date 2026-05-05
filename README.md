@@ -51,6 +51,8 @@ mindforge process --profile fake --limit 1
 mindforge approve list
 mindforge approve show --card <path> --show-content
 mindforge approve --card <path> --confirm
+mindforge library stats
+mindforge library list
 mindforge index rebuild
 mindforge recall --query "MindForge"
 ```
@@ -95,6 +97,15 @@ mindforge recall --query "MindForge"
 
 `20-Knowledge-Cards/` 是知识卡片输出区，`ai_draft` 和 `human_approved` 都和
 这里有关。新手不要手动乱改 generated 内容。
+
+Source 和 Card 不是同一个东西：`00-Inbox/` 里的文件是原始证据，
+`20-Knowledge-Cards/` 里的文件是加工后的知识卡片。`process` 阶段不会移动
+source；生成 `ai_draft` 后 source 仍留在原始 Inbox。只有你显式 approve 成功
+后，MindForge 才会把 vault 内的 source 移到
+`00-Inbox/_processed/<adapter>/`，例如
+`00-Inbox/_processed/ManualNotes/`。原始 source 不会被默认删除，card
+frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
+`adapter_name` 等 provenance。
 
 `20 / 30 / 80 / 90` 这些目录是后续完整知识工作流准备的，不是第一天必须
 理解。不要随便删除即可。
@@ -212,6 +223,10 @@ the human decision gate.
 | `mindforge approve list` | 查看 `ai_draft` |
 | `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
 | `mindforge approve --card <path> --confirm` | 显式确认生成 `human_approved` |
+| `mindforge library stats` | 查看知识库总览、状态计数、index 状态 |
+| `mindforge library list` | 列出卡片 metadata 和 source provenance |
+| `mindforge library show <card-id-or-path>` | 查看单张卡片 metadata；`--show-content` 才显示 card body |
+| `mindforge index rebuild` | 刷新本地 BM25 index |
 | `mindforge recall --query "query"` | 本地词法召回，不是 RAG |
 
 ### Safe Real Dogfood
@@ -306,6 +321,9 @@ SourceAdapter
 
 - AI 只能生成 `ai_draft`。
 - `human_approved` 必须显式 approve。
+- Source 是原始证据，Card 是加工结果；Card 不替代 Source。
+- approve 成功后，vault 内 pending source 会移动到
+  `00-Inbox/_processed/<adapter>/` 作为已处理证据保留。
 - Processor / KnowledgeStrategy 只依赖 `SourceDocument`。
 - Cubox 只是 `SourceAdapter`，不是架构中心。
 - Obsidian / OPS 是人类知识工作台，不存机器 runtime/state/cache/index/logs/
@@ -315,6 +333,10 @@ SourceAdapter
 - 当前不做 Obsidian plugin。
 - 当前不自动整理真实 vault。
 - Web first slice 是 localhost-only Local Console，默认绑定 `127.0.0.1`。
+  当前 Web 增量提供 workflow / sources / drafts / library / recall 可见性：
+  展示 source bucket、ai_draft、human_approved library、card provenance 和
+  index guidance。Web 复用后端 service，不读取 source 正文，不显示 `.env`
+  secret，也不重写 CLI 业务规则。
 
 ## Strategy Discovery
 
@@ -359,6 +381,10 @@ Start reading code here:
 - `src/mindforge/cubox_readiness.py`: Cubox readiness without real API calls.
 - `src/mindforge/approval_service.py`, `src/mindforge/approver.py`: approval
   boundary.
+- `src/mindforge/library_service.py`, `src/mindforge/library_cli.py`: Knowledge
+  Library inventory and card provenance.
+- `src/mindforge/source_archive_service.py`: processed source archive after
+  explicit approve.
 - `src/mindforge/recall_service.py`, `src/mindforge/lexical_index.py`: local
   lexical recall.
 - `src/mindforge/web_cli.py`, `src/mindforge_web/`, `web/src/`: local Web
@@ -376,6 +402,8 @@ Done:
 - Web first slice.
 - Real Data CLI Usability.
 - Documentation cleanup.
+- Product visibility and workflow support: CLI library inventory, processed
+  source archive, Web workflow/library visibility.
 
 Current:
 
@@ -421,7 +449,14 @@ named human authorization. No automation may create a tag.
 **approve 会发生什么？**
 
 `approve` 会把一张 `ai_draft` 显式晋升为 `human_approved`。不确定时先不要
-approve。
+approve。approve 成功后，MindForge 会把对应 vault Inbox source 移到
+`00-Inbox/_processed/<adapter>/`，保留原始证据并让 Inbox 更像待处理队列。
+
+**原始 source 会不会被删除？**
+
+不会默认删除。Source 是证据，Card 是知识加工结果。vault 内 source 在
+approve 后会移动到 `_processed` 归档区；vault 外部 source 默认不移动，只在
+card metadata 里保留路径。
 
 **会不会自动读我的 Obsidian vault？**
 

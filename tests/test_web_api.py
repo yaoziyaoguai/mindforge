@@ -107,8 +107,15 @@ projects:
 tags:
   - web
 source_type: manual_note
+adapter_name: PlainMarkdownAdapter
+source_path: 00-Inbox/ManualNotes/source-note.md
+source_archive_path: ""
+source_missing: false
 source_title: Safe source
 value_score: 8
+profile: fake
+stage_models:
+  distill: { alias: fake_alias, provider: fake, model: fake }
 ---
 
 ## Distilled Note
@@ -129,6 +136,46 @@ def _client(tmp_path: Path, monkeypatch) -> tuple[TestClient, Path]:
     monkeypatch.chdir(tmp_path)
     app = create_app(config_path=cfg_path, host="127.0.0.1")
     return TestClient(app), cards
+
+
+def test_web_workflow_library_and_source_visibility_are_metadata_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, cards = _client(tmp_path, monkeypatch)
+    card = _write_draft(cards)
+    source = tmp_path / "dogfood-vault" / "00-Inbox" / "ManualNotes" / "source-note.md"
+    source.write_text("SOURCE_BODY_MUST_NOT_LEAK", encoding="utf-8")
+    processed = (
+        tmp_path
+        / "dogfood-vault"
+        / "00-Inbox"
+        / "_processed"
+        / "ManualNotes"
+        / "done.md"
+    )
+    processed.parent.mkdir(parents=True)
+    processed.write_text("PROCESSED_BODY_MUST_NOT_LEAK", encoding="utf-8")
+
+    workflow = client.get("/api/workflow/summary").json()
+    library = client.get("/api/library/cards").json()
+    detail = client.get("/api/library/card", params={"ref": "draft-1"}).json()
+    sources = client.get("/api/sources").json()
+    combined = f"{workflow} {library} {detail} {sources}"
+
+    assert workflow["vault_root"].endswith("dogfood-vault")
+    assert workflow["ai_draft_count"] == 1
+    assert workflow["human_approved_count"] == 0
+    assert workflow["source_bucket_counts"]["pending"]["ManualNotes"] == 1
+    assert workflow["source_bucket_counts"]["processed"]["ManualNotes"] == 1
+    assert library["cards"][0]["source_path"] == "00-Inbox/ManualNotes/source-note.md"
+    assert library["cards"][0]["source_missing"] is False
+    assert detail["card"]["id"] == "draft-1"
+    assert detail["card"]["fake_provider_note"]
+    assert "body" not in detail
+    assert "SOURCE_BODY_MUST_NOT_LEAK" not in combined
+    assert "PROCESSED_BODY_MUST_NOT_LEAK" not in combined
+    assert card.exists()
 
 
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:

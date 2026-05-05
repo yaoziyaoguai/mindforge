@@ -14,6 +14,12 @@ from mindforge.app_context import build_app_context
 from mindforge.cards import iter_cards
 from mindforge.checkpoint import Checkpoint, CheckpointError
 from mindforge.lexical_index import default_index_path
+from mindforge.library_service import (
+    LibraryCardDetail,
+    LibraryLookupError,
+    build_library_inventory,
+    show_library_card,
+)
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
 
 from mindforge_web.schemas import (
@@ -22,6 +28,10 @@ from mindforge_web.schemas import (
     DraftsResponse,
     HealthResponse,
     HomeStatusResponse,
+    LibraryCardDetailResponse,
+    LibraryCardResponse,
+    LibraryCardsResponse,
+    LibraryStatsResponse,
     NextAction,
     RecallHit,
     RecallResponse,
@@ -31,6 +41,7 @@ from mindforge_web.schemas import (
     StatusItem,
     VaultStatus,
     WorkspaceStatus,
+    WorkflowSummaryResponse,
 )
 from mindforge_web.services.web_config_service import WebConfigService
 from mindforge_web.services.web_review_service import WebReviewService
@@ -166,9 +177,47 @@ class WebFacade:
         ]
         return SourcesResponse(
             sources=sources,
+            bucket_counts=self.source_service.bucket_counts(),
             available_imports=self.source_service.available_imports(),
             next_actions=next_actions,
         )
+
+    def workflow_summary(self) -> WorkflowSummaryResponse:
+        inventory = build_library_inventory(self.cfg, limit=500)
+        bucket_counts = self.source_service.bucket_counts()
+        pending_count = sum(bucket_counts.get("pending", {}).values())
+        processed_count = sum(bucket_counts.get("processed", {}).values())
+        return WorkflowSummaryResponse(
+            vault_root=str(self.cfg.vault.root),
+            cards_dir=self.cfg.vault.cards_dir,
+            inbox_pending_count=pending_count,
+            processed_source_count=processed_count,
+            ai_draft_count=inventory.stats.by_status.get("ai_draft", 0),
+            human_approved_count=inventory.stats.by_status.get("human_approved", 0),
+            index=self.recall_status(
+                approved_count=inventory.stats.by_status.get("human_approved", 0)
+            ),
+            provider=self.config_service.provider_status(),
+            source_bucket_counts=bucket_counts,
+            next_actions=self._next_actions(
+                self.vault_status(status_counts=inventory.stats.by_status),
+                self.safety_summary(status_counts=inventory.stats.by_status),
+                self.recall_status(),
+            ),
+        )
+
+    def library_cards(self) -> LibraryCardsResponse:
+        inventory = build_library_inventory(self.cfg, limit=500)
+        return LibraryCardsResponse(
+            stats=_library_stats_response(inventory.stats),
+            cards=[_library_card_response(card) for card in inventory.cards],
+        )
+
+    def library_card_detail(self, ref: str, *, show_content: bool = False) -> LibraryCardDetailResponse | None:
+        detail = show_library_card(self.cfg, ref, show_content=show_content)
+        if isinstance(detail, LibraryLookupError):
+            return None
+        return _library_detail_response(detail)
 
     def drafts(self) -> DraftsResponse:
         drafts, errors = self.review_service.list_drafts()
@@ -377,3 +426,49 @@ class WebFacade:
                 )
             )
         return actions
+
+
+def _library_stats_response(stats) -> LibraryStatsResponse:
+    return LibraryStatsResponse(
+        vault_root=str(stats.vault_root),
+        cards_dir=stats.cards_dir,
+        total_cards=stats.total_cards,
+        by_status=stats.by_status,
+        by_track=stats.by_track,
+        by_provider=stats.by_provider,
+        recent_count=stats.recent_count,
+        index_path=str(stats.index_path),
+        index_exists=stats.index_exists,
+        next_action=stats.next_action,
+    )
+
+
+def _library_card_response(card) -> LibraryCardResponse:
+    summary = card.summary
+    return LibraryCardResponse(
+        id=summary.id,
+        title=summary.title,
+        status=summary.status,
+        status_explanation=card.status_explanation,
+        track=summary.track,
+        source_type=summary.source_type,
+        adapter_name=summary.adapter_name,
+        source_title=summary.source_title,
+        source_path=summary.source_path,
+        source_archive_path=summary.source_archive_path,
+        source_missing=card.source_missing,
+        profile=summary.profile,
+        provider=summary.provider,
+        created_at=summary.created_at.isoformat() if summary.created_at else None,
+        approved_at=None,
+        updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
+        rel_path=summary.rel_path,
+        fake_provider_note=card.fake_provider_note,
+    )
+
+
+def _library_detail_response(detail: LibraryCardDetail) -> LibraryCardDetailResponse:
+    return LibraryCardDetailResponse(
+        card=_library_card_response(detail.card),
+        body=detail.body,
+    )

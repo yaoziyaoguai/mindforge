@@ -324,7 +324,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # Full Repo Decomposition milestone — backup_cli.py 从 cli.py 抽出
         # backup export adapter，只读导出 human_approved 卡片的安全摘要；
         # 不写卡片状态，也不产生任何 approval side effect。
-        "backup_cli.py",
+            "backup_cli.py",
+            # library_service.py 是只读 inventory 查询面，只统计和展示
+            # human_approved / ai_draft 状态，不产生审批副作用。
+            "library_service.py",
         # real-data CLI status presenter 只读展示 approved 计数；不写状态、
         # 不调用 approval_service，也不产生 human_approved。
         "local_status.py",

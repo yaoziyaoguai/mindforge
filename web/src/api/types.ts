@@ -109,12 +109,68 @@ export interface SourceStatus {
   exists: boolean;
   file_count: number;
   error_count: number;
+  processed_count: number;
+  pending_files: string[];
+  processed_files: string[];
   next_action?: NextAction | null;
 }
 
 export interface SourcesResponse {
   sources: SourceStatus[];
+  bucket_counts: Record<string, Record<string, number>>;
   available_imports: StatusItem[];
+  next_actions: NextAction[];
+}
+
+export interface LibraryCardResponse {
+  id?: string | null;
+  title?: string | null;
+  status: string;
+  status_explanation: string;
+  track?: string | null;
+  source_type?: string | null;
+  adapter_name?: string | null;
+  source_title?: string | null;
+  source_path?: string | null;
+  source_archive_path?: string | null;
+  source_missing: boolean;
+  profile?: string | null;
+  provider?: string | null;
+  created_at?: string | null;
+  approved_at?: string | null;
+  updated_at?: string | null;
+  rel_path: string;
+  fake_provider_note?: string | null;
+}
+
+export interface LibraryStatsResponse {
+  vault_root: string;
+  cards_dir: string;
+  total_cards: number;
+  by_status: Record<string, number>;
+  by_track: Record<string, number>;
+  by_provider: Record<string, number>;
+  recent_count: number;
+  index_path: string;
+  index_exists: boolean;
+  next_action: string;
+}
+
+export interface LibraryCardsResponse {
+  stats: LibraryStatsResponse;
+  cards: LibraryCardResponse[];
+}
+
+export interface WorkflowSummaryResponse {
+  vault_root: string;
+  cards_dir: string;
+  inbox_pending_count: number;
+  processed_source_count: number;
+  ai_draft_count: number;
+  human_approved_count: number;
+  index: RecallStatus;
+  provider: ProviderStatus;
+  source_bucket_counts: Record<string, Record<string, number>>;
   next_actions: NextAction[];
 }
 

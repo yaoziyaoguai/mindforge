@@ -321,6 +321,11 @@ def render_execution_success(
         console.print(
             "[yellow]注意：state.json 中找不到对应 item，仅更新了卡片文件。[/yellow]"
         )
+    if result.source_archive is not None:
+        archive = result.source_archive
+        console.print(f"source archive: {archive.kind} · {archive.message}", markup=False)
+        if archive.archive_path is not None:
+            console.print(f"source_archive_path: {archive.archive_path}", markup=False)
 
 
 # ---------------------------------------------------------------------------
