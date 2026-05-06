@@ -236,14 +236,23 @@ class WebFacade:
         *,
         frequency: str | None = None,
         recursive: bool | None = None,
+        process_now: bool = True,
     ) -> IngestionActionResponse:
-        return self.source_service.watch_add(path, frequency=frequency, recursive=recursive)
+        return self.source_service.watch_add(
+            path,
+            frequency=frequency,
+            recursive=recursive,
+            process_now=process_now,
+        )
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
         return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)
+
+    def watch_frequency(self, ref: str, frequency: str) -> IngestionActionResponse:
+        return self.source_service.watch_frequency(ref, frequency)
 
     def import_source(self, path: Path) -> IngestionActionResponse:
         return self.source_service.import_source(path)

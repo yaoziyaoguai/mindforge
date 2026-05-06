@@ -268,6 +268,11 @@ class IngestionRequest(BaseModel):
     path: str
     frequency: str | None = None
     recursive: bool | None = None
+    process_now: bool = True
+
+
+class FrequencyUpdateRequest(BaseModel):
+    frequency: str
 
 
 class IngestionActionResponse(BaseModel):

@@ -1,5 +1,5 @@
 import type { SourcesResponse } from "../api/types";
-import { addWatchedSource, copySourcePath, deleteWatchedSource, importSource, revealSourcePath, scanWatchedSources } from "../api/sources";
+import { addWatchedSource, copySourcePath, deleteWatchedSource, revealSourcePath, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
 import { SourceList } from "../components/SourceList";
 import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
@@ -15,18 +15,17 @@ export function SourcesPage({
 }) {
   const [path, setPath] = useState("");
   const [frequency, setFrequency] = useState("manual");
+  const [rowFrequencies, setRowFrequencies] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function run(action: "watch" | "import") {
+  async function addSource(processNow: boolean) {
     if (!path.trim()) return;
     setBusy(true);
-    setResult(null);
+    setResult(processNow ? "Processing..." : "Adding source...");
     try {
-      const response = action === "watch"
-        ? await addWatchedSource(path.trim(), frequency, true)
-        : await importSource(path.trim());
-      setResult(`${response.message}; processed=${response.counts.processed ?? 0}, skipped=${response.counts.skipped ?? 0}`);
+      const response = await addWatchedSource(path.trim(), frequency, true, processNow);
+      setResult(formatRunSummary(response.message, response.counts));
       await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Request failed");
@@ -49,15 +48,29 @@ export function SourcesPage({
     }
   }
 
-  async function scanWatch(ref?: string, allSources = false) {
+  async function editFrequency(ref: string, currentFrequency: string) {
     setBusy(true);
     setResult(null);
     try {
-      const response = await scanWatchedSources(ref, allSources);
-      setResult(`${response.message}; scanned=${response.counts.scanned ?? 0}, processed=${response.counts.processed ?? 0}, skipped=${response.counts.skipped ?? 0}`);
+      const response = await updateWatchedSourceFrequency(ref, rowFrequencies[ref] ?? currentFrequency);
+      setResult(response.message);
       await onRefresh?.();
     } catch (error) {
-      setResult(error instanceof Error ? error.message : "Scan failed");
+      setResult(error instanceof Error ? error.message : "Edit frequency failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanWatch(ref?: string, allSources = false) {
+    setBusy(true);
+    setResult("Processing...");
+    try {
+      const response = await scanWatchedSources(ref, allSources);
+      setResult(formatRunSummary(response.message, response.counts));
+      await onRefresh?.();
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : "Process failed");
     } finally {
       setBusy(false);
     }
@@ -91,38 +104,54 @@ export function SourcesPage({
         <p className="mt-1 text-sm text-muted">MindForge monitors local files and folders. New or changed supported files create draft knowledge cards; approval is always explicit.</p>
       </header>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
-        <div className="grid gap-3 md:grid-cols-[1fr_160px_auto_auto]">
-          <input
-            className="min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm"
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="/path/to/file-or-folder"
-            value={path}
-          />
-          <select className="rounded-md border border-line bg-white px-3 py-2 text-sm" value={frequency} onChange={(event) => setFrequency(event.target.value)}>
-            {["manual", "hourly", "daily", "weekly", "every 1h", "every 6h", "every 12h", "every 24h"].map((item) => (
-              <option key={item} value={item}>{item}</option>
-            ))}
-          </select>
-          <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("watch")} type="button">
-            Add watched folder
-          </button>
-          <button className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("import")} type="button">
-            Import once
-          </button>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-ink">Add a file or folder</h2>
+          <p className="mt-1 text-sm text-muted">
+            MindForge automatically detects whether the path is a file or folder. Folders are scanned recursively. Frequency applies only to the top-level source you add, not to files inside the folder.
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            Manual means no automatic scanning. Use Process now when you want MindForge to check this source. Automation only creates ai_draft. human_approved requires explicit approval.
+          </p>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2 text-sm">
-          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("watch")} type="button">
-            Add watched file
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_auto_auto]">
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-ink">Path input</span>
+            <input
+              className="min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm"
+              onChange={(event) => setPath(event.target.value)}
+              placeholder="/path/to/file-or-folder"
+              value={path}
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-ink">Frequency</span>
+            <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm" value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+              {frequencyOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+          <button className="self-end rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(false)} type="button">
+            {busy ? "Processing..." : "Add source"}
           </button>
-          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, false)} type="button">
-            Scan now
-          </button>
-          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, true)} type="button">
-            Scan all
+          <button className="self-end rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(true)} type="button">
+            {busy ? "Processing..." : "Add and process now"}
           </button>
         </div>
         <p className="mt-3 text-sm text-muted">{data.ingestion.safety_note}</p>
         {result ? <p className="mt-3 text-sm text-primary">{result}</p> : null}
+        <details className="mt-4 rounded-md border border-line p-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink">More actions</summary>
+          <p className="mt-2 text-sm text-muted">Using Cubox? Export articles into a local folder, then add that folder as a source.</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-sm">
+            <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, false)} type="button">
+              Process all due sources
+            </button>
+            <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, true)} type="button">
+              Process all sources now
+            </button>
+          </div>
+        </details>
       </section>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <h2 className="text-lg font-semibold text-ink">Watched sources</h2>
@@ -178,16 +207,33 @@ export function SourcesPage({
                   <td className="px-4 py-3 text-muted">
                     <div>{source.frequency}</div>
                     <div className="text-xs">{source.due_status === "Due" ? "Due" : source.due_status}</div>
+                    {source.can_delete ? (
+                      <select
+                        className="mt-2 w-full rounded-md border border-line bg-white px-2 py-1 text-xs"
+                        disabled={busy}
+                        onChange={(event) => setRowFrequencies({ ...rowFrequencies, [source.id]: event.target.value })}
+                        value={rowFrequencies[source.id] ?? source.frequency}
+                      >
+                        {frequencyOptions.map((item) => (
+                          <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
+                      </select>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-muted">{source.last_scan_at ?? source.last_processed_at ?? source.last_seen_at ?? "-"}</td>
                   <td className="px-4 py-3 text-muted">{source.next_scan_at ?? "-"}</td>
                   <td className="px-4 py-3">
                     <button className="mb-2 block rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(source.id)} type="button">
-                      Scan now
+                      {busy ? "Processing..." : "Process now"}
                     </button>
                     {source.can_delete ? (
+                      <button className="mb-2 block rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => editFrequency(source.id, source.frequency)} type="button">
+                        Edit frequency
+                      </button>
+                    ) : null}
+                    {source.can_delete ? (
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source.id)} type="button">
-                        Delete watch
+                        Remove
                       </button>
                     ) : (
                       <span className="text-xs text-muted">default cannot be deleted</span>
@@ -213,4 +259,23 @@ export function SourcesPage({
       </section>
     </div>
   );
+}
+
+const frequencyOptions = [
+  { value: "manual", label: "Manual" },
+  { value: "hourly", label: "Hourly" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "every 1h", label: "Every 1h" },
+  { value: "every 6h", label: "Every 6h" },
+  { value: "every 12h", label: "Every 12h" },
+  { value: "every 24h", label: "Every 24h" },
+];
+
+function formatRunSummary(message: string, counts: Record<string, number>) {
+  const filesScanned = counts.scanned ?? counts.seen ?? counts.processed ?? 0;
+  const skipped = counts.skipped ?? 0;
+  const draftsCreated = counts.processed ?? 0;
+  const errors = counts.failed ?? 0;
+  return `${message}; files scanned=${filesScanned}, skipped=${skipped}, drafts created=${draftsCreated}, errors=${errors}`;
 }

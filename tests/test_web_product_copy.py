@@ -108,6 +108,12 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Copy API key env name" in setup
     assert "Copy API key value" not in setup
     assert "present (" in setup
+    assert "No model provider configured" in setup
+    assert "Configure a provider to generate AI drafts." in setup
+    assert "You can still add and monitor sources" in setup
+    assert "fake-fast" not in setup
+    assert "fake://" not in setup
+    assert "fake_default" not in setup
     assert "Environment variable presence" in checklist
     assert "Process environment diagnostics" in checklist
     assert "Env keys" not in checklist
@@ -117,18 +123,15 @@ def test_setup_page_uses_effective_env_config_language() -> None:
 def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
 
-    assert "Sources & watched folders" in setup
-    assert "Add local files or folders you want MindForge to monitor" in setup
-    assert "Current watched sources count" in setup
-    assert "Default inbox path" in setup
+    assert "Default watched inbox" in setup
+    assert "MindForge can process files placed in this inbox. Add more files or folders from Sources." in setup
     assert "Manage sources" in setup
     assert "Cubox JSON export path" not in setup
     assert "Cubox import path" not in setup
-    assert "Cubox export folder" in setup
-    assert "MindForge does not read Cubox app internals" in setup
-    assert "MindForge does not call Cubox cloud APIs in this mode" in setup
-    assert "Cubox is optional" in setup
-    assert "Approval is always explicit" in setup
+    assert "Cubox export folder" not in setup
+    assert "Obsidian inbox" not in setup
+    assert "Downloads folder" not in setup
+    assert "Manual notes folder" not in setup
 
 
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
@@ -150,9 +153,25 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Changed since last scan" in sources
     assert "Deleted since last scan" in sources
     assert "New since last scan" in sources
-    assert "Scan now" in sources
-    assert "Add watched file" in sources
-    assert "Add watched folder" in sources
+    assert "Add a file or folder" in sources
+    assert "Add source" in sources
+    assert "Add and process now" in sources
+    assert "Process now" in sources
+    assert "Edit frequency" in sources
+    assert "Processing..." in sources
+    assert "MindForge automatically detects whether the path is a file or folder." in sources
+    assert "Folders are scanned recursively." in sources
+    assert "Frequency applies only to the top-level source you add" in sources
+    assert "Manual means no automatic scanning." in sources
+    assert "Automation only creates ai_draft." in sources
+    assert "human_approved requires explicit approval." in sources
+    assert "files scanned" in sources
+    assert "skipped" in sources
+    assert "drafts created" in sources
+    assert "Add watched file" not in sources
+    assert "Add watched folder" not in sources
+    assert "Import once" not in sources
+    assert "Scan now" not in sources
     assert "Skipped reasons" in combined
     assert "supported=" in combined
     assert "failed=" in combined

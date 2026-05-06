@@ -620,10 +620,12 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     watch_file = tmp_path / "watch-file.md"
     watch_folder = tmp_path / "watch-folder"
     import_file = tmp_path / "import-file.md"
+    registered_only_file = tmp_path / "registered-only.md"
     watch_file.write_text("# Watch File\n\nWATCH_BODY_MUST_NOT_LEAK\n", encoding="utf-8")
     watch_folder.mkdir()
     (watch_folder / "watch-folder-note.md").write_text("# Watch Folder\n\nbody\n", encoding="utf-8")
     import_file.write_text("# Import File\n\nIMPORT_BODY_MUST_NOT_LEAK\n", encoding="utf-8")
+    registered_only_file.write_text("# Registered Only\n\nbody\n", encoding="utf-8")
 
     listed = client.get("/api/sources/watch").json()
     assert listed["watched_sources"][0]["id"] == "default-inbox"
@@ -632,18 +634,33 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
 
     added_file = client.post("/api/sources/watch", json={"path": str(watch_file)}).json()
     added_folder = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
+    registered_only = client.post(
+        "/api/sources/watch",
+        json={"path": str(registered_only_file), "process_now": False},
+    ).json()
 
     assert added_file["ok"] is True
     assert added_file["mode"] == "watch_add"
     assert added_file["counts"]["processed"] == 1
     assert added_file["added_to_registry"] is True
     assert added_folder["counts"]["processed"] == 1
+    assert registered_only["added_to_registry"] is True
+    assert registered_only["counts"]["processed"] == 0
+
+    frequency_update = client.patch(
+        f"/api/sources/watch/{registered_only['watch_id']}/frequency",
+        json={"frequency": "daily"},
+    ).json()
+    assert frequency_update["ok"] is True
+    assert "top-level source only" in frequency_update["message"]
 
     registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
     assert {source.path for source in registry.sources} == {
         watch_file.resolve(),
         watch_folder.resolve(),
+        registered_only_file.resolve(),
     }
+    assert next(source for source in registry.sources if source.path == registered_only_file.resolve()).frequency == "daily"
 
     deleted = client.delete(f"/api/sources/watch/{registry.sources[0].id}").json()
     assert deleted["ok"] is True
@@ -658,7 +675,7 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert imported["mode"] == "import"
     assert imported["counts"]["processed"] == 1
     assert imported["added_to_registry"] is False
-    assert len(WatchRegistry.load(vault / ".mindforge" / "watched_sources.json").sources) == 1
+    assert len(WatchRegistry.load(vault / ".mindforge" / "watched_sources.json").sources) == 2
     assert len(list(cards.rglob("*.md"))) == 3
     assert all("status: ai_draft" in card.read_text(encoding="utf-8") for card in cards.rglob("*.md"))
 

@@ -20,7 +20,15 @@ from mindforge.ingestion_service import (
 )
 from mindforge.scanner import Scanner
 from mindforge.source_discovery import discover_source_results, enumerate_supported_source_files
-from mindforge.watch_registry import delete_watch_source, is_due, registry_path_for_vault
+from mindforge.watch_registry import (
+    add_watch_source,
+    delete_watch_source,
+    find_watch_source,
+    is_due,
+    next_scan_after,
+    registry_path_for_vault,
+    update_watch_source,
+)
 
 from mindforge_web.schemas import (
     IngestionActionResponse,
@@ -116,7 +124,34 @@ class WebSourceService:
         *,
         frequency: str | None = None,
         recursive: bool | None = None,
+        process_now: bool = True,
     ) -> IngestionActionResponse:
+        # Web 顶部的 Add source 只表达“开始监控这个顶层 source”；
+        # 真正解析/生成 draft 仍必须通过现有 ingestion pipeline 显式触发。
+        if not process_now:
+            registry_path = registry_path_for_vault(self.cfg.vault.root)
+            registry_result = add_watch_source(
+                self.cfg.vault.root,
+                registry_path,
+                path,
+                frequency=frequency or "manual",
+                recursive=recursive,
+            )
+            return IngestionActionResponse(
+                ok=True,
+                mode="watch_add",
+                target=str(registry_result.source.path),
+                counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
+                message=(
+                    "watch source registered; process now when ready"
+                    if registry_result.added
+                    else "watch source already registered; no processing run started"
+                ),
+                added_to_registry=registry_result.added,
+                registry_path=str(registry_path),
+                watch_id=registry_result.source.id,
+                next_actions=_ingestion_next_actions(),
+            )
         summary = watch_add_source(
             self.cfg,
             path,
@@ -183,6 +218,39 @@ class WebSourceService:
                     href="/sources",
                 )
             ],
+        )
+
+    def watch_frequency(self, ref: str, frequency: str) -> IngestionActionResponse:
+        registry_path = registry_path_for_vault(self.cfg.vault.root)
+        source = find_watch_source(self.cfg.vault.root, registry_path, ref)
+        if source is None or source.is_default:
+            return IngestionActionResponse(
+                ok=False,
+                mode="watch_frequency",
+                target=ref,
+                counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
+                message="watched source not found or frequency cannot be changed",
+                added_to_registry=False,
+                registry_path=str(registry_path),
+            )
+        updated = update_watch_source(
+            self.cfg.vault.root,
+            registry_path,
+            source.id,
+            frequency=frequency,
+            next_scan_at=next_scan_after(source.last_scan_at, frequency),
+        )
+        assert updated is not None
+        return IngestionActionResponse(
+            ok=True,
+            mode="watch_frequency",
+            target=str(updated.path),
+            counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
+            message="watch frequency updated for the top-level source only",
+            added_to_registry=False,
+            registry_path=str(registry_path),
+            watch_id=updated.id,
+            next_actions=_ingestion_next_actions(),
         )
 
     def import_source(self, path: Path) -> IngestionActionResponse:

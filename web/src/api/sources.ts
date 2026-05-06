@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "./client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 import type {
   IngestionActionResponse,
   PathActionResponse,
@@ -15,12 +15,16 @@ export function getWatchedSources() {
   return apiGet<WatchSourcesResponse>("/api/sources/watch");
 }
 
-export function addWatchedSource(path: string, frequency = "manual", recursive = true) {
-  return apiPost<IngestionActionResponse>("/api/sources/watch", { path, frequency, recursive });
+export function addWatchedSource(path: string, frequency = "manual", recursive = true, processNow = true) {
+  return apiPost<IngestionActionResponse>("/api/sources/watch", { path, frequency, recursive, process_now: processNow });
 }
 
 export function deleteWatchedSource(ref: string) {
   return apiDelete<IngestionActionResponse>(`/api/sources/watch/${encodeURIComponent(ref)}`);
+}
+
+export function updateWatchedSourceFrequency(ref: string, frequency: string) {
+  return apiPatch<IngestionActionResponse>(`/api/sources/watch/${encodeURIComponent(ref)}/frequency`, { frequency });
 }
 
 export function importSource(path: string) {

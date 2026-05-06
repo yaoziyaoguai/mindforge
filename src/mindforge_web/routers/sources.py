@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from mindforge_web.deps import get_facade
 from mindforge_web.schemas import (
+    FrequencyUpdateRequest,
     IngestionActionResponse,
     IngestionRequest,
     NextAction,
@@ -40,6 +41,7 @@ def watch_add(
         Path(payload.path),
         frequency=payload.frequency,
         recursive=payload.recursive,
+        process_now=payload.process_now,
     )
 
 
@@ -55,6 +57,15 @@ def watch_scan(
 @router.delete("/watch/{ref:path}", response_model=IngestionActionResponse)
 def watch_delete(ref: str, facade: WebFacade = Depends(get_facade)) -> IngestionActionResponse:
     return facade.watch_delete(ref)
+
+
+@router.patch("/watch/{ref:path}/frequency", response_model=IngestionActionResponse)
+def watch_frequency(
+    ref: str,
+    payload: FrequencyUpdateRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> IngestionActionResponse:
+    return facade.watch_frequency(ref, payload.frequency)
 
 
 @router.post("/import", response_model=IngestionActionResponse)
