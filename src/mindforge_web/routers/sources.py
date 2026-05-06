@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends
 
 from mindforge_web.deps import get_facade
-from mindforge_web.schemas import NextAction, SourcesResponse, UnavailableResponse
+from mindforge_web.schemas import (
+    IngestionActionResponse,
+    IngestionRequest,
+    NextAction,
+    SourcesResponse,
+    UnavailableResponse,
+    WatchSourcesResponse,
+)
 from mindforge_web.services.web_facade import WebFacade
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -14,14 +23,40 @@ def sources(facade: WebFacade = Depends(get_facade)) -> SourcesResponse:
     return facade.sources()
 
 
+@router.get("/watch", response_model=WatchSourcesResponse)
+def watch_sources(facade: WebFacade = Depends(get_facade)) -> WatchSourcesResponse:
+    return facade.watch_sources()
+
+
+@router.post("/watch", response_model=IngestionActionResponse)
+def watch_add(
+    payload: IngestionRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> IngestionActionResponse:
+    return facade.watch_add(Path(payload.path))
+
+
+@router.delete("/watch/{ref:path}", response_model=IngestionActionResponse)
+def watch_delete(ref: str, facade: WebFacade = Depends(get_facade)) -> IngestionActionResponse:
+    return facade.watch_delete(ref)
+
+
+@router.post("/import", response_model=IngestionActionResponse)
+def import_source(
+    payload: IngestionRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> IngestionActionResponse:
+    return facade.import_source(Path(payload.path))
+
+
 @router.post("/import-local", response_model=UnavailableResponse)
 def import_local(_facade: WebFacade = Depends(get_facade)) -> UnavailableResponse:
     return UnavailableResponse(
-        reason="Web v1 没有安全的本地 import write service；请把文件放入 configured inbox 后运行 scan/process。",
+        reason="兼容旧入口：请改用 /api/sources/import。它会一次性导入并只生成 ai_draft。",
         next_action=NextAction(
-            label="Use CLI scan",
-            description="先通过现有 CLI 路径写 state，避免 Web 重写 source/import 业务。",
-            command="mindforge scan",
+            label="Use Web import",
+            description="Web import 不加入 watched sources，也不会自动 approve。",
+            href="/sources",
         ),
     )
 

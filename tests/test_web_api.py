@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 from fastapi.testclient import TestClient
 
+from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
 
 
@@ -229,3 +230,69 @@ def test_web_reject_and_imports_are_honest_unavailable(tmp_path: Path, monkeypat
     assert reject["available"] is False
     assert import_local["available"] is False
     assert import_cubox["available"] is False
+
+
+def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web ingestion 必须复用 watch/import 语义，而不是暴露 scan/process 主流程。
+
+    这些动作使用临时 source；断言重点是 registry/card/source 的状态边界：
+    watch delete 只删 registry，import 不进 registry，所有自动化只生成 ai_draft。
+    """
+
+    client, cards = _client(tmp_path, monkeypatch)
+    vault = tmp_path / "dogfood-vault"
+    watch_file = tmp_path / "watch-file.md"
+    watch_folder = tmp_path / "watch-folder"
+    import_file = tmp_path / "import-file.md"
+    watch_file.write_text("# Watch File\n\nWATCH_BODY_MUST_NOT_LEAK\n", encoding="utf-8")
+    watch_folder.mkdir()
+    (watch_folder / "watch-folder-note.md").write_text("# Watch Folder\n\nbody\n", encoding="utf-8")
+    import_file.write_text("# Import File\n\nIMPORT_BODY_MUST_NOT_LEAK\n", encoding="utf-8")
+
+    listed = client.get("/api/sources/watch").json()
+    assert listed["watched_sources"][0]["id"] == "default-inbox"
+    assert listed["watched_sources"][0]["is_default"] is True
+    assert listed["watched_sources"][0]["can_delete"] is False
+
+    added_file = client.post("/api/sources/watch", json={"path": str(watch_file)}).json()
+    added_folder = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
+
+    assert added_file["ok"] is True
+    assert added_file["mode"] == "watch_add"
+    assert added_file["counts"]["processed"] == 1
+    assert added_file["added_to_registry"] is True
+    assert added_folder["counts"]["processed"] == 1
+
+    registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
+    assert {source.path for source in registry.sources} == {
+        watch_file.resolve(),
+        watch_folder.resolve(),
+    }
+
+    deleted = client.delete(f"/api/sources/watch/{registry.sources[0].id}").json()
+    assert deleted["ok"] is True
+    assert deleted["source_deleted"] is False
+    assert deleted["cards_deleted"] is False
+    assert watch_file.exists()
+    assert len(list(cards.rglob("*.md"))) == 2
+
+    imported = client.post("/api/sources/import", json={"path": str(import_file)}).json()
+
+    assert imported["ok"] is True
+    assert imported["mode"] == "import"
+    assert imported["counts"]["processed"] == 1
+    assert imported["added_to_registry"] is False
+    assert len(WatchRegistry.load(vault / ".mindforge" / "watched_sources.json").sources) == 1
+    assert len(list(cards.rglob("*.md"))) == 3
+    assert all("status: ai_draft" in card.read_text(encoding="utf-8") for card in cards.rglob("*.md"))
+
+    after = client.get("/api/sources").json()
+    combined = f"{listed} {added_file} {imported} {after}"
+    assert "WATCH_BODY_MUST_NOT_LEAK" not in combined
+    assert "IMPORT_BODY_MUST_NOT_LEAK" not in combined
+    assert "human_approved 必须显式确认" in combined
+    assert after["ingestion"]["primary_entry"] == "watch/import"
+    assert "advanced" in after["ingestion"]["advanced_note"].lower()

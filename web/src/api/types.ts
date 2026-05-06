@@ -115,10 +115,52 @@ export interface SourceStatus {
   next_action?: NextAction | null;
 }
 
+export interface WatchedSourceResponse {
+  id: string;
+  path: string;
+  path_type: "file" | "folder";
+  is_default: boolean;
+  kind: "default" | "user-added";
+  status: string;
+  added_at: string;
+  last_seen_at?: string | null;
+  last_processed_at?: string | null;
+  fingerprint?: string | null;
+  can_delete: boolean;
+  error?: string | null;
+}
+
+export interface WatchSourcesResponse {
+  vault_root: string;
+  registry_path: string;
+  watched_sources: WatchedSourceResponse[];
+  next_actions: NextAction[];
+}
+
+export interface IngestionActionResponse {
+  ok: boolean;
+  mode: string;
+  target: string;
+  counts: Record<string, number>;
+  message: string;
+  added_to_registry: boolean;
+  registry_path?: string | null;
+  watch_id?: string | null;
+  source_deleted: boolean;
+  cards_deleted: boolean;
+  next_actions: NextAction[];
+}
+
 export interface SourcesResponse {
   sources: SourceStatus[];
   bucket_counts: Record<string, Record<string, number>>;
+  watched_sources: WatchedSourceResponse[];
   available_imports: StatusItem[];
+  ingestion: {
+    primary_entry: string;
+    safety_note: string;
+    advanced_note: string;
+  };
   next_actions: NextAction[];
 }
 

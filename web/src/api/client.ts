@@ -14,6 +14,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const response = await fetch(path, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(await errorText(response));
+  return response.json() as Promise<T>;
+}
+
 async function errorText(response: Response): Promise<string> {
   try {
     const payload = await response.json();

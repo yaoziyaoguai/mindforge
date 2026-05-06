@@ -28,6 +28,7 @@ from mindforge_web.schemas import (
     DraftsResponse,
     HealthResponse,
     HomeStatusResponse,
+    IngestionActionResponse,
     LibraryCardDetailResponse,
     LibraryCardResponse,
     LibraryCardsResponse,
@@ -40,6 +41,7 @@ from mindforge_web.schemas import (
     SourcesResponse,
     StatusItem,
     VaultStatus,
+    WatchSourcesResponse,
     WorkspaceStatus,
     WorkflowSummaryResponse,
 )
@@ -170,17 +172,32 @@ class WebFacade:
         sources = self.source_service.list_sources()
         next_actions = [
             NextAction(
-                label="Scan sources",
-                description="扫描 configured inbox，把 source 状态写入 state.json。",
-                command=f"mindforge scan --vault {self.cfg.vault.root}",
+                label="Watch or import source",
+                description="Web 主入口是 watch/import；自动化只生成 ai_draft。",
+                href="/sources",
             )
         ]
+        watches = self.source_service.watch_sources()
         return SourcesResponse(
             sources=sources,
             bucket_counts=self.source_service.bucket_counts(),
+            watched_sources=watches.watched_sources,
             available_imports=self.source_service.available_imports(),
+            ingestion=self.source_service.ingestion_status(),
             next_actions=next_actions,
         )
+
+    def watch_sources(self) -> WatchSourcesResponse:
+        return self.source_service.watch_sources()
+
+    def watch_add(self, path: Path) -> IngestionActionResponse:
+        return self.source_service.watch_add(path)
+
+    def watch_delete(self, ref: str) -> IngestionActionResponse:
+        return self.source_service.watch_delete(ref)
+
+    def import_source(self, path: Path) -> IngestionActionResponse:
+        return self.source_service.import_source(path)
 
     def workflow_summary(self) -> WorkflowSummaryResponse:
         inventory = build_library_inventory(self.cfg, limit=500)
@@ -225,8 +242,8 @@ class WebFacade:
         if not drafts:
             empty = NextAction(
                 label="Create drafts",
-                description="没有 ai_draft。先 scan/process，或检查 Sources 页的 inbox 状态。",
-                command=f"mindforge process --profile fake --limit 1 --vault {self.cfg.vault.root}",
+                description="没有 ai_draft。先在 Sources 页 watch add 或 import 文件/文件夹。",
+                href="/sources",
             )
         return DraftsResponse(drafts=drafts, scan_errors=errors, empty_state=empty)
 
@@ -412,9 +429,9 @@ class WebFacade:
         if recall.approved_card_count == 0:
             actions.append(
                 NextAction(
-                    label="Approve first card",
-                    description="Recall 需要 human_approved cards；先完成一张 draft review。",
-                    href="/drafts",
+                    label="Watch or import source",
+                    description="还没有 approved cards；先添加 source 生成 ai_draft，再显式 approve。",
+                    href="/sources",
                 )
             )
         if not actions:
@@ -472,3 +489,4 @@ def _library_detail_response(detail: LibraryCardDetail) -> LibraryCardDetailResp
         card=_library_card_response(detail.card),
         body=detail.body,
     )
+    WatchSourcesResponse,

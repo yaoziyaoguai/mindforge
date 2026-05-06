@@ -140,10 +140,58 @@ class SourceStatus(BaseModel):
     next_action: NextAction | None = None
 
 
+class WatchedSourceResponse(BaseModel):
+    id: str
+    path: str
+    path_type: Literal["file", "folder"]
+    is_default: bool
+    kind: Literal["default", "user-added"]
+    status: str
+    added_at: str
+    last_seen_at: str | None = None
+    last_processed_at: str | None = None
+    fingerprint: str | None = None
+    can_delete: bool
+    error: str | None = None
+
+
+class WatchSourcesResponse(BaseModel):
+    vault_root: str
+    registry_path: str
+    watched_sources: list[WatchedSourceResponse]
+    next_actions: list[NextAction]
+
+
+class IngestionRequest(BaseModel):
+    path: str
+
+
+class IngestionActionResponse(BaseModel):
+    ok: bool
+    mode: str
+    target: str
+    counts: dict[str, int]
+    message: str
+    added_to_registry: bool
+    registry_path: str | None = None
+    watch_id: str | None = None
+    source_deleted: bool = False
+    cards_deleted: bool = False
+    next_actions: list[NextAction] = Field(default_factory=list)
+
+
+class IngestionSummaryStatus(BaseModel):
+    primary_entry: str
+    safety_note: str
+    advanced_note: str
+
+
 class SourcesResponse(BaseModel):
     sources: list[SourceStatus]
     bucket_counts: dict[str, dict[str, int]] = Field(default_factory=dict)
+    watched_sources: list[WatchedSourceResponse] = Field(default_factory=list)
     available_imports: list[StatusItem]
+    ingestion: IngestionSummaryStatus
     next_actions: list[NextAction]
 
 
