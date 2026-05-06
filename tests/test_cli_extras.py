@@ -16,6 +16,15 @@ from mindforge import env_loader as el
 
 runner = CliRunner()
 
+
+def test_root_help_documents_cwd_first_vault_resolution() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "优先级：explicit --vault" in result.output
+    assert "cwd/ancestor vault > configured vault.root" in result.output
+    assert "> fallback" in result.output
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATE_PATH = REPO_ROOT / "templates" / "knowledge_card.md.j2"

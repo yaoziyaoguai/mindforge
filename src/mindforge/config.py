@@ -25,6 +25,8 @@ from typing import Any
 
 import yaml
 
+from .assets_runtime import bundled_text
+
 # v0.1 固定的 5 个 stage（与 prompts/ 下子目录一一对应）
 REQUIRED_STAGES: tuple[str, ...] = (
     "triage",
@@ -331,6 +333,130 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+def _load_internal_defaults() -> dict[str, Any]:
+    """读取 package 内置 full config defaults。
+
+    中文学习型说明：新用户的 ``configs/mindforge.yaml`` 是 override，不再承担
+    sources/state/search/prompts 等系统默认细节。这里把 internal full config
+    作为运行时默认值，再让用户 YAML 覆盖它；CLI/provider/ingestion 不需要
+    知道这层合并存在。
+    """
+
+    try:
+        data = yaml.safe_load(bundled_text("configs", "mindforge.yaml"))
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"内置 mindforge defaults YAML 解析失败: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError("内置 mindforge defaults 顶层必须是 YAML 对象")
+    return data
+
+
+def _deep_merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """递归合并 config：dict 合并，scalar/list 由用户 override 覆盖。"""
+
+    merged = dict(defaults)
+    for key, value in overrides.items():
+        default_value = merged.get(key)
+        if isinstance(default_value, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge_defaults(default_value, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
+    """把用户层简化 provider profile 映射成 internal stage/model 结构。
+
+    用户模板里的 ``llm.profiles.openai_compatible`` 只声明 provider 和 env var
+    名；完整 pipeline 仍需要五个 stage 的 alias 映射与 ``llm.models``。本函数
+    在配置层完成翻译，保持 watch/import/process 的业务管线不感知 provider
+    配置 UX 的简化。
+    """
+
+    llm = raw.get("llm")
+    if not isinstance(llm, dict):
+        return raw
+    profiles = llm.get("profiles")
+    if not isinstance(profiles, dict):
+        return raw
+    models = llm.setdefault("models", {})
+    if not isinstance(models, dict):
+        return raw
+
+    _expand_real_provider_profile(
+        profiles,
+        models,
+        profile_name="openai_compatible",
+        provider_type="openai_compatible",
+        provider_name="openai_compatible",
+        alias="openai_strong",
+        fallback_base_url="https://api.openai.com/v1",
+        fallback_model="gpt-4o-mini",
+    )
+    _expand_real_provider_profile(
+        profiles,
+        models,
+        profile_name="anthropic",
+        provider_type="anthropic_compatible",
+        provider_name="anthropic",
+        alias="anthropic_strong",
+        fallback_base_url="https://api.anthropic.com",
+        fallback_model="claude-3-5-haiku-latest",
+    )
+
+    fake_profile = profiles.get("fake")
+    if (
+        isinstance(fake_profile, dict)
+        and fake_profile.get("provider") == "fake"
+        and not all(stage in fake_profile for stage in REQUIRED_STAGES)
+    ):
+        fake_profile.update(
+            {
+                "triage": "fake_fast",
+                "distill": "fake_strong",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_strong",
+                "action_extraction": "fake_strong",
+            }
+        )
+    return raw
+
+
+def _expand_real_provider_profile(
+    profiles: dict[str, Any],
+    models: dict[str, Any],
+    *,
+    profile_name: str,
+    provider_type: str,
+    provider_name: str,
+    alias: str,
+    fallback_base_url: str,
+    fallback_model: str,
+) -> None:
+    profile = profiles.get(profile_name)
+    if not isinstance(profile, dict):
+        return
+    if all(stage in profile for stage in REQUIRED_STAGES):
+        return
+    if profile.get("provider") != provider_name:
+        return
+
+    default_base_url = str(profile.get("default_base_url") or fallback_base_url)
+    default_model = str(profile.get("default_model") or fallback_model)
+    models[alias] = {
+        "provider": provider_name,
+        "type": provider_type,
+        "base_url": default_base_url,
+        "api_key_env": profile.get("api_key_env"),
+        "base_url_env": profile.get("base_url_env"),
+        "model_env": profile.get("model_env"),
+        "model": default_model,
+        "timeout_seconds": int(profile.get("timeout_seconds") or 120),
+        "max_retries": int(profile.get("max_retries") or 2),
+    }
+    profile.update({stage: alias for stage in REQUIRED_STAGES})
+
+
 def _parse_vault(raw: dict[str, Any], *, ctx: str) -> VaultConfig:
     vault_raw = _require(raw, "vault", dict, ctx=ctx)
     return VaultConfig(
@@ -460,7 +586,12 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
     的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
     """
     p = Path(path)
-    raw = _read_yaml(p)
+    user_raw = _read_yaml(p)
+    if not any(key in user_raw for key in ("version", "vault", "llm", "telemetry")):
+        raise ConfigError(
+            f"{p}: 不是有效的 MindForge 配置；至少需要 version/vault/llm/telemetry 之一"
+        )
+    raw = _expand_user_profile_overrides(_deep_merge_defaults(_load_internal_defaults(), user_raw))
     base_dir = Path.cwd()
     ctx = str(p)
 
@@ -657,11 +788,13 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
                 f"v0.1 必须覆盖 {list(REQUIRED_STAGES)}"
             )
         for stage, alias in pmap.items():
+            if stage not in REQUIRED_STAGES:
+                continue
             if alias not in models:
                 raise ConfigError(
                     f"llm.profiles.{pname}.{stage}={alias!r} 不在 llm.models 中"
                 )
-        profiles[pname] = dict(pmap)
+        profiles[pname] = {stage: str(pmap[stage]) for stage in REQUIRED_STAGES}
 
     # active_profile 是否需要 api_key？仅检查 active_profile 涉及的 model
     active_aliases = set(profiles[active_profile].values())

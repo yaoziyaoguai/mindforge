@@ -21,6 +21,7 @@ from mindforge.config import (
     load_learning_tracks,
     load_mindforge_config,
 )
+from mindforge.init_cmd import build_plan, execute_plan
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
@@ -75,6 +76,131 @@ def test_real_mindforge_yaml_loads() -> None:
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"
+
+
+def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
+    """init 输出的是用户 override，而不是 internal full config dump。
+
+    中文学习型说明：运行时仍需要 sources/state/search/prompts 等系统默认值，
+    但这些属于 MindForge 内置 defaults。新用户第一天看到的 YAML 只应该承载
+    vault、provider env 映射和 telemetry 这类用户决策。
+    """
+
+    project_root = tmp_path / "project"
+    vault = tmp_path / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    generated = project_root / "configs" / "mindforge.yaml"
+    text = generated.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(text)
+
+    assert sorted(p.relative_to(project_root).as_posix() for p in project_root.rglob("*") if p.is_file()) == [
+        ".env.example",
+        "configs/mindforge.yaml",
+    ]
+    assert set(parsed) == {"version", "vault", "llm", "telemetry"}
+    assert parsed["vault"]["root"] == str(vault)
+    assert parsed["llm"]["active_profile"] == "openai_compatible"
+    assert {"openai_compatible", "anthropic", "fake"} <= set(parsed["llm"]["profiles"])
+    assert parsed["llm"]["profiles"]["openai_compatible"]["api_key_env"] == "MINDFORGE_OPENAI_API_KEY"
+    assert parsed["llm"]["profiles"]["openai_compatible"]["base_url_env"] == "MINDFORGE_OPENAI_BASE_URL"
+    assert parsed["llm"]["profiles"]["openai_compatible"]["model_env"] == "MINDFORGE_OPENAI_MODEL"
+    assert parsed["llm"]["profiles"]["openai_compatible"]["default_model"] == "gpt-4o-mini"
+    assert parsed["llm"]["profiles"]["anthropic"]["api_key_env"] == "MINDFORGE_ANTHROPIC_API_KEY"
+    assert parsed["llm"]["profiles"]["anthropic"]["base_url_env"] == "MINDFORGE_ANTHROPIC_BASE_URL"
+    assert parsed["llm"]["profiles"]["anthropic"]["model_env"] == "MINDFORGE_ANTHROPIC_MODEL"
+    assert parsed["llm"]["profiles"]["anthropic"]["default_model"] == "claude-3-5-haiku-latest"
+    assert parsed["llm"]["profiles"]["fake"]["purpose"] == "offline_demo_ci_deterministic_tests"
+    assert parsed["telemetry"]["local_only"] is True
+
+    forbidden = (
+        "sources:",
+        "registry:",
+        "state:",
+        "runs_dir",
+        "index_file",
+        "obsidian:",
+        "include_dirs",
+        "exclude_dirs",
+        "search:",
+        "bm25:",
+        "hybrid:",
+        "prompts:",
+        "triage:",
+        "record_prompts",
+        "record_outputs",
+        "cheap-model",
+        "strong-model",
+        "qwen_coder_fast",
+        "qwen_coder_strong",
+    )
+    for marker in forbidden:
+        assert marker not in text
+
+
+def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    vault = tmp_path / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    text = (project_root / ".env.example").read_text(encoding="utf-8")
+
+    for marker in (
+        "MINDFORGE_OPENAI_API_KEY",
+        "MINDFORGE_OPENAI_BASE_URL",
+        "MINDFORGE_OPENAI_MODEL",
+        "MINDFORGE_ANTHROPIC_API_KEY",
+        "MINDFORGE_ANTHROPIC_BASE_URL",
+        "MINDFORGE_ANTHROPIC_MODEL",
+    ):
+        assert marker in text
+    assert "sk-" not in text
+    assert "MINDFORGE_LLM_API_KEY" not in text
+
+
+def test_minimal_user_override_merges_with_internal_defaults(tmp_path: Path) -> None:
+    """极简用户 YAML 必须能和 internal defaults 合并成完整运行配置。"""
+
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    vault = tmp_path / "vault"
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "{vault}"
+llm:
+  active_profile: fake
+  profiles:
+    fake:
+      provider: fake
+      purpose: offline_demo_ci_deterministic_tests
+telemetry:
+  enabled: true
+  local_only: true
+""".format(vault=vault),
+        encoding="utf-8",
+    )
+
+    cfg = load_mindforge_config(cfg_path)
+
+    assert cfg.vault.root == vault
+    assert cfg.vault.inbox_root == "00-Inbox"
+    assert cfg.sources.active_entries()
+    assert cfg.state.state_file == "state.json"
+    assert cfg.prompts.for_stage("distill") == "v1"
+    assert cfg.search.bm25.enabled is True
+    assert cfg.llm.active_profile == "fake"
 
 
 def test_real_learning_tracks_yaml_loads() -> None:
@@ -238,15 +364,17 @@ def test_source_type_unknown(tmp_path: Path) -> None:
 
 def test_enabled_not_in_registry(tmp_path: Path) -> None:
     data = _minimal_valid_config()
-    data["sources"]["enabled"].append("pdf")
+    data["sources"]["enabled"].append("ghost_source")
     p = _write_yaml(tmp_path, data)
-    with pytest.raises(ConfigError, match="pdf"):
+    with pytest.raises(ConfigError, match="ghost_source"):
         load_mindforge_config(p)
 
 
-def test_missing_required_top_field(tmp_path: Path) -> None:
+def test_missing_required_top_field_uses_internal_defaults(tmp_path: Path) -> None:
+    """用户 override 可以省略 internal defaults 已覆盖的顶层配置。"""
+
     data = _minimal_valid_config()
     data.pop("triage")
     p = _write_yaml(tmp_path, data)
-    with pytest.raises(ConfigError, match="triage"):
-        load_mindforge_config(p)
+    cfg = load_mindforge_config(p)
+    assert cfg.triage.default_track == "unrouted"

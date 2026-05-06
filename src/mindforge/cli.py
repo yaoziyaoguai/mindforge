@@ -194,7 +194,10 @@ def _global_options(
     vault: Path | None = typer.Option(
         None,
         "--vault",
-        help="临时覆盖配置中的 vault.root（不修改 yaml）。优先级：CLI > config > 默认。",
+        help=(
+            "临时覆盖 active vault（不修改 yaml）。优先级：explicit --vault > "
+            "cwd/ancestor vault > configured vault.root > fallback。"
+        ),
     ),
     obsidian_vault: Path | None = typer.Option(
         None,

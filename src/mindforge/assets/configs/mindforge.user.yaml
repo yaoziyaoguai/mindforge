@@ -1,0 +1,45 @@
+# MindForge user config.
+#
+# Secrets must stay in shell env or local .env.
+# Do not put API keys in this YAML.
+# Do not put secrets in YAML.
+#
+# This file is a user-level override. MindForge keeps source registry,
+# state/index paths, prompt versions, search defaults, and other runtime details
+# as internal package defaults, then merges this file on top at runtime.
+
+version: 0.1
+
+vault:
+  root: "/Users/jinkun.wang/MindForgeVault"
+
+llm:
+  # Choose one: openai_compatible, anthropic, fake.
+  # openai_compatible / anthropic are real dogfood profiles.
+  # fake is only for offline demo / CI / deterministic tests.
+  active_profile: openai_compatible
+
+  profiles:
+    openai_compatible:
+      provider: openai_compatible
+      api_key_env: MINDFORGE_OPENAI_API_KEY
+      base_url_env: MINDFORGE_OPENAI_BASE_URL
+      model_env: MINDFORGE_OPENAI_MODEL
+      default_base_url: "https://api.openai.com/v1"
+      default_model: "gpt-4o-mini"
+
+    anthropic:
+      provider: anthropic
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      model_env: MINDFORGE_ANTHROPIC_MODEL
+      default_base_url: "https://api.anthropic.com"
+      default_model: "claude-3-5-haiku-latest"
+
+    fake:
+      provider: fake
+      purpose: offline_demo_ci_deterministic_tests
+
+telemetry:
+  enabled: true
+  local_only: true

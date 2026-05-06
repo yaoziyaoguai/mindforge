@@ -540,7 +540,7 @@ def _build_config_init_plan(*, output: Path, vault: Path, force: bool) -> dict[s
     from .assets_runtime import bundled_text
 
     content = _replace_yaml_scalar_in_block(
-        bundled_text("configs", "mindforge.yaml"),
+        bundled_text("configs", "mindforge.user.yaml"),
         block_name="vault",
         key="root",
         value=str(vault.expanduser().resolve()),

@@ -162,9 +162,17 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 - `vault.root`: MindForgeVault 在哪里。
 - `llm.active_profile`: 真实 dogfood 主路径可以选 `openai_compatible` 或
   `anthropic`。
-- `llm.models.openai_*` / `llm.models.anthropic_*`: 只声明 env 变量名映射
-  和非 secret 默认值；真实 key/base_url/model 放 shell env 或 `.env`。
+- `llm.profiles.openai_compatible` / `llm.profiles.anthropic`: 只声明 env
+  变量名映射和非 secret 默认值；真实 key/base_url/model 放 shell env 或 `.env`。
 - `telemetry.local_only`: 只写本地，不上传。
+
+新项目里的 YAML 是 user override，不是 MindForge internal full config dump。
+`sources.registry`、state/index 路径、prompt versions、search 权重和 logging
+细节由 package 内置 defaults 承担，运行时会做：
+
+```text
+internal defaults + configs/mindforge.yaml override = effective config
+```
 
 极简示例：
 
@@ -172,25 +180,26 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 version: 0.1
 vault:
   root: /Users/jinkun.wang/MindForgeVault
-  inbox_root: 00-Inbox
-  cards_dir: 20-Knowledge-Cards
 llm:
   active_profile: openai_compatible
-  models:
-    openai_fast:
-      type: openai_compatible
+  profiles:
+    openai_compatible:
+      provider: openai_compatible
       api_key_env: MINDFORGE_OPENAI_API_KEY
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       model_env: MINDFORGE_OPENAI_MODEL
-      base_url: https://api.openai.com/v1
-      model: gpt-4o-mini
-    anthropic_fast:
-      type: anthropic_compatible
+      default_base_url: https://api.openai.com/v1
+      default_model: gpt-4o-mini
+    anthropic:
+      provider: anthropic
       api_key_env: MINDFORGE_ANTHROPIC_API_KEY
       base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
       model_env: MINDFORGE_ANTHROPIC_MODEL
-      base_url: https://api.anthropic.com
-      model: claude-3-5-haiku-latest
+      default_base_url: https://api.anthropic.com
+      default_model: claude-3-5-haiku-latest
+    fake:
+      provider: fake
+      purpose: offline_demo_ci_deterministic_tests
 telemetry:
   enabled: true
   local_only: true
@@ -206,6 +215,20 @@ telemetry:
 secret/API key 样例。真正使用时复制成 `.env`。`.env` 不能提交到 git。
 MindForge 只显示 key 是否存在，不打印 secret 值。也可以不用 `.env`，直接
 用 shell `export MINDFORGE_OPENAI_API_KEY=...`。
+
+### Existing vault / old config
+
+旧 vault 不会被自动迁移。新 `mindforge init` 只影响新项目；如果你的
+`configs/mindforge.yaml` 是早期生成的 legacy full config，MindForge 仍会
+支持它，但不会自动删除旧字段或覆盖正式 vault。
+
+迁移建议：
+
+- 先备份旧 `configs/mindforge.yaml`。
+- 在临时空目录运行 `mindforge init`，查看新生成的极简模板。
+- 手动把正式配置替换成新模板，并保留原来的 `vault.root`。
+- API key、base_url、model 仍放 `.env` 或 shell env，不要写进 YAML。
+- 如果不确定，不要直接覆盖正式 vault；先在临时 vault 验证。
 
 ## Markdown Sources Are Sources, Not Knowledge Types
 

@@ -37,6 +37,7 @@ VAULT_DIRS: tuple[str, ...] = (
 
 
 PlanAction = Literal["create_dir", "copy_file", "skip_exists", "overwrite_force"]
+USER_CONFIG_ASSET = "mindforge.user.yaml"
 
 
 @dataclass(frozen=True)
@@ -92,9 +93,9 @@ def build_plan(
     # 用户项目里制造多个 LLM 配置入口。
     template_files: tuple[tuple[Path, Path, str], ...] = (
         (
-            repo_root / "configs" / "mindforge.yaml",
+            repo_root / "configs" / USER_CONFIG_ASSET,
             project_root / "configs" / "mindforge.yaml",
-            "mindforge config",
+            "mindforge user override config",
         ),
     )
     for src, dst, note in template_files:
@@ -111,7 +112,7 @@ def build_plan(
 
     # 3) .env.example —— 不创建真实 .env
     env_example_dst = project_root / ".env.example"
-    env_example_src = repo_root / ".env.example"
+    env_example_src = repo_root / "configs" / "env.example"
     if env_example_dst.exists():
         items.append(
             PlanItem(
@@ -152,7 +153,13 @@ def execute_plan(plan: InitPlan) -> list[str]:
         elif it.action == "copy_file":
             it.target.parent.mkdir(parents=True, exist_ok=True)
             if it.source is not None and it.source.exists():
-                it.target.write_bytes(it.source.read_bytes())
+                if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
+                    it.target.write_text(
+                        _render_user_config_template(it.source, vault_root=plan.vault_root),
+                        encoding="utf-8",
+                    )
+                else:
+                    it.target.write_bytes(it.source.read_bytes())
             else:
                 # inline 默认（.env.example fallback）
                 it.target.write_text(_inline_default_for(it.target), encoding="utf-8")
@@ -160,7 +167,13 @@ def execute_plan(plan: InitPlan) -> list[str]:
         elif it.action == "overwrite_force":
             it.target.parent.mkdir(parents=True, exist_ok=True)
             if it.source is not None and it.source.exists():
-                it.target.write_bytes(it.source.read_bytes())
+                if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
+                    it.target.write_text(
+                        _render_user_config_template(it.source, vault_root=plan.vault_root),
+                        encoding="utf-8",
+                    )
+                else:
+                    it.target.write_bytes(it.source.read_bytes())
             else:
                 it.target.write_text(_inline_default_for(it.target), encoding="utf-8")
             actions.append(f"overwrite {it.target}")
@@ -172,12 +185,41 @@ def execute_plan(plan: InitPlan) -> list[str]:
 def _inline_default_for(target: Path) -> str:
     if target.name == ".env.example":
         return (
-            "# MindForge .env example — copy to .env and fill in real values.\n"
-            "# .env MUST be in .gitignore. MindForge never reads .env content;\n"
-            "# providers read it via env vars.\n"
-            "# MINDFORGE_LLM_API_KEY=sk-...\n"
+            "# MindForge local environment.\n"
+            "# Copy this file to .env or export these variables in your shell.\n"
+            "# Do not commit real API keys.\n\n"
+            "# OpenAI-compatible provider\n"
+            "MINDFORGE_OPENAI_API_KEY=your-openai-compatible-api-key\n"
+            "MINDFORGE_OPENAI_BASE_URL=https://api.openai.com/v1\n"
+            "MINDFORGE_OPENAI_MODEL=gpt-4o-mini\n\n"
+            "# Anthropic provider\n"
+            "MINDFORGE_ANTHROPIC_API_KEY=your-anthropic-api-key\n"
+            "MINDFORGE_ANTHROPIC_BASE_URL=https://api.anthropic.com\n"
+            "MINDFORGE_ANTHROPIC_MODEL=claude-3-5-haiku-latest\n"
         )
     return ""
+
+
+def _render_user_config_template(source: Path, *, vault_root: Path) -> str:
+    """渲染 init 用户 YAML，只替换 vault.root 并保留注释。
+
+    这里不使用 ``yaml.safe_dump``：用户配置文件的注释就是第一天 setup UX 的一
+    部分。这个 helper 刻意只认识模板里的一行 root，避免把它扩成通用 YAML
+    编辑器。
+    """
+
+    lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_vault = False
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not line.startswith(" ") and stripped.endswith(":"):
+            in_vault = stripped == "vault:"
+            continue
+        if in_vault and line.startswith("  ") and stripped.startswith("root:"):
+            newline = "\n" if line.endswith("\n") else ""
+            lines[idx] = f'  root: "{vault_root}"{newline}'
+            break
+    return "".join(lines)
 
 
 def is_initialized(vault_root: Path, project_root: Path) -> bool:

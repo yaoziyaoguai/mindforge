@@ -147,7 +147,7 @@ def test_search_config_defaults_when_missing(tmp_path: Path):
     cfg = load_mindforge_config(cfg_path)
     assert cfg.search.bm25.k1 == 1.5
     assert cfg.search.bm25.b == 0.75
-    assert cfg.search.bm25.fields == {}
+    assert cfg.search.bm25.fields["title"] == pytest.approx(5.0)
     assert cfg.search.hybrid.weights["bm25"] == pytest.approx(0.75)
 
 
