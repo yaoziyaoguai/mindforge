@@ -295,17 +295,38 @@ class WebConfigService:
             base_url_env = model.base_url_env if model is not None else None
             model_env = model.model_env if model is not None else None
 
+        api_key_present = self._process_env_present(api_key_env)
+        effective_base_url, base_url_source = self._effective_non_secret_value(
+            env_name=base_url_env,
+            default_value=default_base_url,
+        )
+        effective_model, model_source = self._effective_non_secret_value(
+            env_name=model_env,
+            default_value=default_model,
+        )
         return EditableProviderConfig(
             name=name,
             type=provider_type,
             default_base_url=default_base_url,
             default_model=default_model,
             api_key_env=api_key_env,
-            api_key_status="present" if self._env_present(api_key_env) else "missing",
+            api_key_status="present" if api_key_present else "missing",
+            api_key_env_configured=bool(api_key_env),
+            api_key_secret_present=api_key_present,
+            api_key_masked_value=_masked_secret(os.environ.get(api_key_env, ""))
+            if api_key_present and api_key_env
+            else None,
+            api_key_status_label=_api_key_status_label(api_key_env, api_key_present),
             base_url_env=base_url_env,
             base_url_env_present=self._env_present(base_url_env),
+            base_url_env_status=self._process_env_status(base_url_env),
+            effective_base_url=effective_base_url,
+            base_url_source=base_url_source,
             model_env=model_env,
             model_env_present=self._env_present(model_env),
+            model_env_status=self._process_env_status(model_env),
+            effective_model=effective_model,
+            model_source=model_source,
         )
 
     def _env_present(self, env_name: str | None) -> bool:
@@ -313,6 +334,27 @@ class WebConfigService:
             return False
         dotenv = self._read_dotenv_presence()
         return env_name in os.environ or env_name in dotenv.keys
+
+    def _process_env_present(self, env_name: str | None) -> bool:
+        return bool(env_name and env_name in os.environ and os.environ[env_name])
+
+    def _process_env_status(self, env_name: str | None) -> str:
+        if not env_name:
+            return "not_configured"
+        return "present" if self._process_env_present(env_name) else "missing"
+
+    def _effective_non_secret_value(
+        self,
+        *,
+        env_name: str | None,
+        default_value: str | None,
+    ) -> tuple[str | None, str]:
+        if self._process_env_present(env_name):
+            assert env_name is not None
+            return os.environ[env_name], "env"
+        if default_value:
+            return default_value, "config_default"
+        return None, "missing"
 
     def _model_for_provider(self, raw: dict[str, Any], provider: str):
         llm = raw.get("llm")
@@ -429,6 +471,21 @@ def _str_or_none(value: Any) -> str | None:
 def _assign_if_present(target: dict[str, Any], key: str, value: str | None) -> None:
     if value is not None:
         target[key] = value
+
+
+def _masked_secret(value: str) -> str:
+    suffix = value[-4:] if len(value) >= 4 else value
+    prefix = "sk-" if value.startswith("sk-") else ""
+    return f"{prefix}****{suffix}"
+
+
+def _api_key_status_label(env_name: str | None, present: bool) -> str:
+    if present:
+        raw = os.environ.get(env_name or "", "")
+        return f"present ({_masked_secret(raw)})"
+    if env_name:
+        return "env name configured, value missing"
+    return "env name missing"
 
 
 def _is_dangerous_vault_path(path: Path) -> bool:

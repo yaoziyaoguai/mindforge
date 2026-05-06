@@ -311,7 +311,8 @@ def test_setup_editor_saves_allowed_non_secret_fields_and_refreshes_status(
 
     assert editable["vault"]["root"].endswith("dogfood-vault")
     assert editable["llm"]["active_provider"] == "fake"
-    assert editable["llm"]["providers"]["real"]["api_key_status"] == "present"
+    assert editable["llm"]["providers"]["real"]["api_key_env_configured"] is True
+    assert editable["llm"]["providers"]["real"]["api_key_secret_present"] is False
     assert "never-return-this" not in f"{editable}"
 
     new_vault = tmp_path / "new-vault"
@@ -373,6 +374,90 @@ def test_setup_editor_validates_paths_and_never_writes_api_key_values(
     assert refused.status_code == 400
     assert "hidden-secret" not in refused.text
     assert "must-not-be-written" not in config_text
+
+
+def test_setup_effective_provider_config_distinguishes_env_names_defaults_and_masked_secret(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    secret_value = "sk-ant-" + "test-secret-value-" + "abcd"
+    raw["llm"] = {
+        "active": "anthropic",
+        "providers": {
+            "anthropic": {
+                "type": "anthropic",
+                "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
+                "model_env": "MINDFORGE_ANTHROPIC_MODEL",
+                "default_base_url": "https://api.anthropic.com",
+                "default_model": "claude-3-5-haiku-latest",
+            },
+            "fake": {"type": "fake"},
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_MODEL", raising=False)
+    monkeypatch.setenv("MINDFORGE_ANTHROPIC_API_KEY", secret_value)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    provider = editable["llm"]["providers"]["anthropic"]
+    combined = f"{editable} {capsys.readouterr()}"
+
+    assert editable["llm"]["active_provider"] == "anthropic"
+    assert provider["api_key_env"] == "MINDFORGE_ANTHROPIC_API_KEY"
+    assert provider["api_key_env_configured"] is True
+    assert provider["api_key_secret_present"] is True
+    assert provider["api_key_masked_value"] == "sk-****abcd"
+    assert provider["api_key_status_label"] == "present (sk-****abcd)"
+    assert provider["base_url_env"] == "MINDFORGE_ANTHROPIC_BASE_URL"
+    assert provider["base_url_env_status"] == "missing"
+    assert provider["effective_base_url"] == "https://api.anthropic.com"
+    assert provider["base_url_source"] == "config_default"
+    assert provider["model_env"] == "MINDFORGE_ANTHROPIC_MODEL"
+    assert provider["model_env_status"] == "missing"
+    assert provider["effective_model"] == "claude-3-5-haiku-latest"
+    assert provider["model_source"] == "config_default"
+    assert secret_value not in combined
+
+
+def test_setup_effective_provider_config_reports_configured_secret_name_when_value_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "active": "anthropic",
+        "providers": {
+            "anthropic": {
+                "type": "anthropic",
+                "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
+                "model_env": "MINDFORGE_ANTHROPIC_MODEL",
+                "default_base_url": "https://api.anthropic.com",
+                "default_model": "claude-3-5-haiku-latest",
+            }
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    provider = client.get("/api/config/editable").json()["llm"]["providers"]["anthropic"]
+
+    assert provider["api_key_env_configured"] is True
+    assert provider["api_key_secret_present"] is False
+    assert provider["api_key_masked_value"] is None
+    assert provider["api_key_status_label"] == "env name configured, value missing"
+    assert provider["effective_base_url"] == "https://api.anthropic.com"
+    assert provider["effective_model"] == "claude-3-5-haiku-latest"
 
 
 def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, monkeypatch) -> None:

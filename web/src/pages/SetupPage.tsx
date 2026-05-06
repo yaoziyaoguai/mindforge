@@ -91,6 +91,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     setMessage("Reverted");
   }
 
+  async function copyText(value: string | null | undefined, label: string) {
+    if (!value) return;
+    await navigator.clipboard?.writeText(value);
+    setMessage(`${label} copied`);
+  }
+
   return (
     <div className="space-y-6">
       <header>
@@ -163,13 +169,38 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-ink">API key env name</span>
                 <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.providers[form.active_provider]?.api_key_env ?? ""} onChange={(event) => updateProviderField("api_key_env", event.target.value)} />
-                <span className="text-xs text-muted">API key value: {activeProvider.api_key_status}</span>
+                <span className="text-xs text-muted">
+                  API key value: {activeProvider.api_key_secret_present && activeProvider.api_key_masked_value ? `present (${activeProvider.api_key_masked_value})` : activeProvider.api_key_status_label}
+                </span>
+                <button className="block text-xs text-primary" onClick={() => copyText(form.providers[form.active_provider]?.api_key_env, "API key env name")} type="button">
+                  Copy API key env name
+                </button>
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-ink">Base URL / model env names</span>
                 <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.providers[form.active_provider]?.base_url_env ?? ""} onChange={(event) => updateProviderField("base_url_env", event.target.value)} />
                 <input className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2" value={form.providers[form.active_provider]?.model_env ?? ""} onChange={(event) => updateProviderField("model_env", event.target.value)} />
               </label>
+              <div className="rounded-md border border-line p-3 text-sm">
+                <div className="font-medium text-ink">Effective base URL</div>
+                <div className="mt-1 break-all text-muted">{activeProvider.effective_base_url ?? "missing"}</div>
+                <div className="mt-1 text-xs text-muted">env: {activeProvider.base_url_env_status} · {sourceLabel(activeProvider.base_url_source)}</div>
+                {activeProvider.effective_base_url ? (
+                  <button className="mt-2 text-xs text-primary" onClick={() => copyText(activeProvider.effective_base_url, "Base URL")} type="button">
+                    Copy base URL
+                  </button>
+                ) : null}
+              </div>
+              <div className="rounded-md border border-line p-3 text-sm">
+                <div className="font-medium text-ink">Effective model</div>
+                <div className="mt-1 break-all text-muted">{activeProvider.effective_model ?? "missing"}</div>
+                <div className="mt-1 text-xs text-muted">env: {activeProvider.model_env_status} · {sourceLabel(activeProvider.model_source)}</div>
+                {activeProvider.effective_model ? (
+                  <button className="mt-2 text-xs text-primary" onClick={() => copyText(activeProvider.effective_model, "Model")} type="button">
+                    Copy model
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -198,6 +229,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       <ConfigChecklist items={data.checklist} keys={[...data.configured_keys, ...data.missing_keys]} />
     </div>
   );
+}
+
+function sourceLabel(source: "env" | "config_default" | "missing") {
+  if (source === "env") return "source: env";
+  if (source === "config_default") return "source: config default";
+  return "source: missing";
 }
 
 function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {

@@ -133,10 +133,20 @@ class EditableProviderConfig(BaseModel):
     default_model: str | None = None
     api_key_env: str | None = None
     api_key_status: Literal["present", "missing", "hidden"]
+    api_key_env_configured: bool = False
+    api_key_secret_present: bool = False
+    api_key_masked_value: str | None = None
+    api_key_status_label: str
     base_url_env: str | None = None
     base_url_env_present: bool = False
+    base_url_env_status: Literal["present", "missing", "not_configured"] = "not_configured"
+    effective_base_url: str | None = None
+    base_url_source: Literal["env", "config_default", "missing"] = "missing"
     model_env: str | None = None
     model_env_present: bool = False
+    model_env_status: Literal["present", "missing", "not_configured"] = "not_configured"
+    effective_model: str | None = None
+    model_source: Literal["env", "config_default", "missing"] = "missing"
 
 
 class EditableLLMConfig(BaseModel):

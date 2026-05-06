@@ -95,6 +95,25 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "api_key_value" not in setup
 
 
+def test_setup_page_uses_effective_env_config_language() -> None:
+    setup = _read("pages/SetupPage.tsx")
+    checklist = _read("components/ConfigChecklist.tsx")
+    combined = "\n".join([setup, checklist])
+
+    assert "Effective base URL" in setup
+    assert "Effective model" in setup
+    assert "source: config default" in setup
+    assert "Copy base URL" in setup
+    assert "Copy model" in setup
+    assert "Copy API key env name" in setup
+    assert "Copy API key value" not in setup
+    assert "present (" in setup
+    assert "Environment variable presence" in checklist
+    assert "Process environment diagnostics" in checklist
+    assert "Env keys" not in checklist
+    assert "0 configured" not in combined
+
+
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     sources = _read("pages/SourcesPage.tsx")
     source_list = _read("components/SourceList.tsx")

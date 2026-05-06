@@ -106,10 +106,20 @@ export interface EditableProviderConfig {
   default_model?: string | null;
   api_key_env?: string | null;
   api_key_status: "present" | "missing" | "hidden";
+  api_key_env_configured: boolean;
+  api_key_secret_present: boolean;
+  api_key_masked_value?: string | null;
+  api_key_status_label: string;
   base_url_env?: string | null;
   base_url_env_present: boolean;
+  base_url_env_status: "present" | "missing" | "not_configured";
+  effective_base_url?: string | null;
+  base_url_source: "env" | "config_default" | "missing";
   model_env?: string | null;
   model_env_present: boolean;
+  model_env_status: "present" | "missing" | "not_configured";
+  effective_model?: string | null;
+  model_source: "env" | "config_default" | "missing";
 }
 
 export interface SetupEditableConfigResponse {

@@ -143,10 +143,13 @@ class WebFacade:
             ),
             StatusItem(
                 key="env",
-                label=".env keys",
+                label="Process environment diagnostics",
                 status="ok" if not missing else "warn",
-                value=f"{len(configured)} configured / {len(missing)} missing",
-                detail="只显示 key name 与 presence，不显示 value。",
+                value=f"{len(configured)} env vars present",
+                detail=(
+                    "Advanced diagnostics only. Provider defaults may still supply "
+                    "effective non-secret model/base URL values."
+                ),
             ),
             self.config_service.cubox_status_item(),
         ]

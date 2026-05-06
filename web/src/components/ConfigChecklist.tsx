@@ -24,8 +24,9 @@ export function ConfigChecklist({ items, keys }: { items: StatusItem[]; keys: En
           </details>
         ))}
       </div>
-      <div className="rounded-md border border-line bg-panel p-4">
-        <h3 className="font-medium text-ink">Env keys</h3>
+      <details className="rounded-md border border-line bg-panel p-4">
+        <summary className="cursor-pointer font-medium text-ink">Environment variable presence</summary>
+        <p className="mt-2 text-sm text-muted">Process environment diagnostics for configured env names. Config defaults may still provide effective non-secret values.</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {keys.map((key) => (
             <div key={key.name} className="flex items-center justify-between rounded border border-line px-3 py-2 text-sm">
@@ -36,14 +37,14 @@ export function ConfigChecklist({ items, keys }: { items: StatusItem[]; keys: En
             </div>
           ))}
         </div>
-      </div>
+      </details>
     </section>
   );
 }
 
 function explainItem(item: StatusItem): string {
   if (item.key === "provider") return "Model provider readiness is shown without exposing API key values. Keys are present, missing, or hidden.";
-  if (item.key === "env") return ".env is represented as present/missing key names only; secret values are never returned to the browser.";
+  if (item.key === "env") return "Process environment diagnostics are separate from config defaults and effective provider values.";
   if (item.key === "vault") return "Vault writes require explicit local actions such as saving a card body or approving a draft.";
   if (item.key === "config") return "MindForge loaded this config file for local use. Web does not edit provider secrets.";
   return item.detail ?? item.value;
