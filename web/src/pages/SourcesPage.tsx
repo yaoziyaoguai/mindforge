@@ -4,7 +4,15 @@ import { SourceList } from "../components/SourceList";
 import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
 
-export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNavigate: (href: string) => void }) {
+export function SourcesPage({
+  data,
+  onNavigate,
+  onRefresh,
+}: {
+  data: SourcesResponse;
+  onNavigate: (href: string) => void;
+  onRefresh?: () => Promise<void>;
+}) {
   const [path, setPath] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,6 +26,7 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
         ? await addWatchedSource(path.trim())
         : await importSource(path.trim());
       setResult(`${response.message}; processed=${response.counts.processed ?? 0}, skipped=${response.counts.skipped ?? 0}`);
+      await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Request failed");
     } finally {
@@ -31,6 +40,7 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
     try {
       const response = await deleteWatchedSource(ref);
       setResult(response.message);
+      await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Request failed");
     } finally {
@@ -102,6 +112,9 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
                   <td className="px-4 py-3">
                     <div className="font-medium text-ink">{source.id}</div>
                     <div className="text-xs text-muted">{source.path_type} · {source.kind}</div>
+                    {source.path_type === "folder" ? (
+                      <div className="mt-1 text-xs text-muted">{source.recursive ? "Recursive: yes" : "Recursive: no"}</div>
+                    ) : null}
                   </td>
                   <td className="max-w-[320px] px-4 py-3 text-muted">
                     <div className="truncate">{source.path}</div>
@@ -114,8 +127,19 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
                       </button>
                     </div>
                   </td>
-                  <td className="px-4 py-3">{source.status === "active" ? "Watching" : source.status}</td>
-                  <td className="px-4 py-3 text-muted">{source.last_processed_at ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    <div>{source.status_label || (source.status === "active" ? "Watching" : source.status)}</div>
+                    <div className="mt-1 text-xs text-muted">{source.generated_knowledge_status}</div>
+                    <div className="mt-1 text-xs text-muted">
+                      supported={source.supported_file_count} processed={source.processed_count} skipped={source.skipped_count} failed={source.failed_count}
+                    </div>
+                    {Object.keys(source.skipped_reason_summary).length ? (
+                      <div className="mt-1 text-xs text-muted">
+                        Skipped reasons: {Object.entries(source.skipped_reason_summary).map(([reason, count]) => `${reason} ${count}`).join(", ")}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-muted">{source.last_processed_at ?? source.last_seen_at ?? "-"}</td>
                   <td className="px-4 py-3">
                     {source.can_delete ? (
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source.id)} type="button">

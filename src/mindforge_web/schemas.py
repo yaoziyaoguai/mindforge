@@ -240,6 +240,16 @@ class WatchedSourceResponse(BaseModel):
     fingerprint: str | None = None
     can_delete: bool
     error: str | None = None
+    recursive: bool = False
+    supported_file_count: int = 0
+    processed_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    skipped_reason_summary: dict[str, int] = Field(default_factory=dict)
+    generated_knowledge_status: str = "No generated knowledge"
+    generated_card_count: int = 0
+    generated_card_paths: list[str] = Field(default_factory=list)
+    status_label: str = "Watching"
 
 
 class WatchSourcesResponse(BaseModel):

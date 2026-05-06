@@ -325,6 +325,24 @@ def test_watch_add_folder_and_delete_preserves_source_and_cards(tmp_path: Path, 
     assert WatchRegistry.load(vault / ".mindforge" / "watched_sources.json").sources == ()
 
 
+def test_watch_add_folder_recursively_processes_nested_supported_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    folder = tmp_path / "folder"
+    nested = folder / "nested" / "folder-note.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("# Folder Recursive\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["watch", "add", str(folder), "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+    assert len(_card_paths(vault)) == 1
+
+
 def test_import_file_and_folder_do_not_register_watch(tmp_path: Path, monkeypatch) -> None:
     cfg, vault = _write_config(tmp_path)
     monkeypatch.chdir(vault)
@@ -343,6 +361,25 @@ def test_import_file_and_folder_do_not_register_watch(tmp_path: Path, monkeypatc
     assert "imported" in imported_file.output
     assert "imported" in imported_folder.output
     assert len(_card_paths(vault)) == 2
+    assert not (vault / ".mindforge" / "watched_sources.json").exists()
+
+
+def test_import_folder_uses_recursive_scan_policy_without_registering_watch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    folder = tmp_path / "import-folder"
+    nested = folder / "nested" / "import-recursive.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("# Import Recursive\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(folder), "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+    assert len(_card_paths(vault)) == 1
     assert not (vault / ".mindforge" / "watched_sources.json").exists()
 
 
@@ -526,17 +563,17 @@ def test_active_anthropic_missing_key_fails_not_skips(
     assert _card_paths(vault) == []
 
 
-def test_two_different_new_files_with_same_content_are_both_processed(
+def test_two_different_new_files_with_same_content_skip_duplicate_hash(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """content 相同但路径不同的文件是两个 source document，不能互相 dedupe。"""
+    """content_hash 已生成过知识时，不因路径不同重复生成 draft。"""
 
     cfg, vault = _write_config(tmp_path)
     monkeypatch.chdir(vault)
     first = vault / "00-Inbox" / "ManualNotes" / "same-a.md"
     second = vault / "00-Inbox" / "ManualNotes" / "same-b.md"
-    body = "# Same Content\n\nidentical body\n"
+    body = "---\ntitle: Same Content\n---\n\nidentical body\n"
     first.write_text(body, encoding="utf-8")
     second.write_text(body, encoding="utf-8")
 
@@ -546,34 +583,37 @@ def test_two_different_new_files_with_same_content_are_both_processed(
     assert imported_first.exit_code == 0, imported_first.output
     assert imported_second.exit_code == 0, imported_second.output
     assert "processed=1 skipped=0 failed=0 seen=1" in imported_first.output
-    assert "processed=1 skipped=0 failed=0 seen=1" in imported_second.output
-    assert len(_card_paths(vault)) == 2
+    assert "processed=0 skipped=1 failed=0 seen=1" in imported_second.output
+    assert "reason: duplicate_content_hash" in imported_second.output
+    assert len(_card_paths(vault)) == 1
 
 
 def test_folder_import_keeps_same_content_different_files_in_same_batch(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """同批次 dedupe 也必须以 source path 为边界。
+    """同批次 duplicate content_hash 只生成一张 draft，并解释 skipped 原因。
 
-    中文学习型说明：SourceDocument 的正文 hash 可以相同，但 watch/import
-    面向的是用户文件。两个不同文件即使内容相同，也应各自生成待审核 draft，
-    不能因为 content_hash 相同就在 SourceMux 层被丢弃。
+    中文学习型说明：folder watch/import 的扫描边界仍然是文件，但同一次
+    ingestion 内如果 parser 产出相同 content_hash，下游知识卡会重复。
+    因此 batch 内按 content_hash 去重，重复项以 duplicate_content_hash
+    进入 skipped diagnostics。
     """
 
     cfg, vault = _write_config(tmp_path)
     monkeypatch.chdir(vault)
     folder = vault / "00-Inbox" / "ManualNotes" / "same-folder"
     folder.mkdir()
-    body = "# Same Batch\n\nidentical body\n"
+    body = "---\ntitle: Same Batch\n---\n\nidentical body\n"
     (folder / "same-1.md").write_text(body, encoding="utf-8")
     (folder / "same-2.md").write_text(body, encoding="utf-8")
 
     result = runner.invoke(app, ["import", str(folder), "--provider", "fake", "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert "processed=2 skipped=0 failed=0 seen=2" in result.output
-    assert len(_card_paths(vault)) == 2
+    assert "processed=1 skipped=1 failed=0 seen=2" in result.output
+    assert "reason: duplicate_content_hash" in result.output
+    assert len(_card_paths(vault)) == 1
 
 
 def test_repeated_import_reports_precise_already_processed_skip(

@@ -14,6 +14,7 @@ from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
 from mindforge.ingestion_service import import_sources, watch_add_source, watch_sources_for_display
 from mindforge.scanner import Scanner
+from mindforge.source_discovery import discover_source_results, enumerate_supported_source_files
 from mindforge.watch_registry import delete_watch_source, registry_path_for_vault
 
 from mindforge_web.schemas import (
@@ -81,14 +82,20 @@ class WebSourceService:
 
     def watch_sources(self) -> WatchSourcesResponse:
         registry_path = registry_path_for_vault(self.cfg.vault.root)
+        generated_cards = tuple(iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir).cards)
         return WatchSourcesResponse(
             vault_root=str(self.cfg.vault.root),
             registry_path=str(registry_path),
-            watched_sources=[_watch_response(source) for source in watch_sources_for_display(self.cfg)],
+            watched_sources=[
+                self._watch_response(source, generated_cards)
+                for source in watch_sources_for_display(self.cfg)
+            ],
             next_actions=[
                 NextAction(
                     label="Add watched source",
-                    description="注册 file/folder 并立即处理当前内容；只会生成 ai_draft。",
+                    description=(
+                        "注册 file/folder 并立即处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
+                    ),
                 ),
                 NextAction(
                     label="Review drafts",
@@ -192,7 +199,10 @@ class WebSourceService:
                 label="Watch file or folder",
                 status="ok",
                 value="available",
-                detail="注册 watched source，并立即处理当前内容生成 ai_draft；不会自动 approve。",
+                detail=(
+                    "注册 watched source，并立即处理当前内容生成 ai_draft；folder 默认递归扫描。"
+                    "不会自动 approve。"
+                ),
                 next_action=NextAction(
                     label="Add watch",
                     description="支持 file/folder；后续 daemon/hook 不在本阶段。",
@@ -203,13 +213,80 @@ class WebSourceService:
                 label="Import file or folder",
                 status="ok",
                 value="available",
-                detail="一次性处理当前内容生成 ai_draft；不会加入 watched sources。",
+                detail=(
+                    "一次性处理当前内容生成 ai_draft；folder 使用同一套递归扫描策略，"
+                    "不会加入 watched sources。"
+                ),
                 next_action=NextAction(
                     label="Import once",
                     description="适合一次性导入外部 file/folder。",
                 ),
             ),
         ]
+
+    def _watch_response(self, source, generated_cards) -> WatchedSourceResponse:
+        scan = enumerate_supported_source_files(self.cfg, source.path) if source.path.exists() else None
+        supported_count = len(scan.candidates) if scan is not None else 0
+        skipped_summary = dict(scan.skipped_reason_summary) if scan is not None else {}
+        failed_count = 0
+        processed_hashes = {
+            card.source_content_hash: card
+            for card in generated_cards
+            if card.source_content_hash
+        }
+        if source.path.exists():
+            for result in discover_source_results(self.cfg, source.path):
+                if not result.ok:
+                    failed_count += 1
+                    skipped_summary["parse_failed"] = skipped_summary.get("parse_failed", 0) + 1
+                    continue
+                doc = result.document
+                if doc is None:
+                    continue
+                matched_card = processed_hashes.get(doc.content_hash)
+                if matched_card is not None:
+                    reason = (
+                        "already_processed"
+                        if _same_source_path(self.cfg, matched_card.source_path, doc.source_path)
+                        else "duplicate_content_hash"
+                    )
+                    skipped_summary[reason] = skipped_summary.get(reason, 0) + 1
+        card_paths = [
+            card.path
+            for card in generated_cards
+            if _card_matches_watch_source(self.cfg, source.path, card.source_path)
+        ]
+        generated_status = "Has generated knowledge" if card_paths else "No generated knowledge"
+        status_label = _watch_status_label(
+            raw_status=source.status,
+            failed_count=failed_count,
+            generated_card_count=len(card_paths),
+            supported_count=supported_count,
+        )
+        return WatchedSourceResponse(
+            id=source.id,
+            path=str(source.path),
+            path_type=source.path_type,
+            is_default=source.is_default,
+            kind="default" if source.is_default else "user-added",
+            status=source.status,
+            added_at=source.added_at,
+            last_seen_at=source.last_seen_at,
+            last_processed_at=source.last_processed_at,
+            fingerprint=source.fingerprint,
+            can_delete=not source.is_default,
+            error=source.error,
+            recursive=source.path_type == "folder",
+            supported_file_count=supported_count,
+            processed_count=len(card_paths),
+            skipped_count=sum(skipped_summary.values()),
+            failed_count=failed_count,
+            skipped_reason_summary=skipped_summary,
+            generated_knowledge_status=generated_status,
+            generated_card_count=len(card_paths),
+            generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
+            status_label=status_label,
+        )
 
     def _generated_cards_by_source_subdir(self) -> dict[str, list[Path]]:
         by_subdir: dict[str, list[Path]] = {}
@@ -266,21 +343,53 @@ def _display_status(
     return "Imported"
 
 
-def _watch_response(source) -> WatchedSourceResponse:
-    return WatchedSourceResponse(
-        id=source.id,
-        path=str(source.path),
-        path_type=source.path_type,
-        is_default=source.is_default,
-        kind="default" if source.is_default else "user-added",
-        status=source.status,
-        added_at=source.added_at,
-        last_seen_at=source.last_seen_at,
-        last_processed_at=source.last_processed_at,
-        fingerprint=source.fingerprint,
-        can_delete=not source.is_default,
-        error=source.error,
-    )
+def _card_matches_watch_source(cfg: MindForgeConfig, watched_path: Path, source_path: str | None) -> bool:
+    if not source_path:
+        return False
+    candidate = Path(source_path).expanduser()
+    if not candidate.is_absolute():
+        candidate = cfg.vault.root / candidate
+    try:
+        resolved_candidate = candidate.resolve()
+        resolved_watch = watched_path.resolve()
+    except OSError:
+        return False
+    if resolved_watch.is_file():
+        return resolved_candidate == resolved_watch
+    if resolved_watch.is_dir():
+        return resolved_candidate == resolved_watch or resolved_candidate.is_relative_to(resolved_watch)
+    return False
+
+
+def _same_source_path(cfg: MindForgeConfig, left: str | None, right: str | None) -> bool:
+    if not left or not right:
+        return False
+    return _resolve_source_path(cfg, left) == _resolve_source_path(cfg, right)
+
+
+def _resolve_source_path(cfg: MindForgeConfig, value: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = cfg.vault.root / path
+    return path.resolve()
+
+
+def _watch_status_label(
+    *,
+    raw_status: str,
+    failed_count: int,
+    generated_card_count: int,
+    supported_count: int,
+) -> str:
+    if raw_status == "missing":
+        return "Missing"
+    if raw_status == "error" or failed_count:
+        return "Failed"
+    if generated_card_count:
+        return "Processed"
+    if supported_count:
+        return "Watching"
+    return "No generated knowledge"
 
 
 def _ingestion_next_actions() -> list[NextAction]:

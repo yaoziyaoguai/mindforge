@@ -125,6 +125,10 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Processed" in combined
     assert "Has generated knowledge" in combined
     assert "Adapter ready" in combined
+    assert "Recursive: yes" in combined
+    assert "Skipped reasons" in combined
+    assert "supported=" in combined
+    assert "failed=" in combined
     assert "Open generated knowledge" in combined
     assert "\"ready\"" not in source_list
     assert "Approved" not in source_list

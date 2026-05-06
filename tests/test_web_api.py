@@ -654,6 +654,54 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert "advanced" in after["ingestion"]["advanced_note"].lower()
 
 
+def test_sources_api_returns_recursive_folder_watch_diagnostics(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, cards = _client(tmp_path, monkeypatch)
+    watch_folder = tmp_path / "watch-folder"
+    supported = watch_folder / "nested" / "supported.md"
+    unsupported = watch_folder / "nested" / "unsupported.csv"
+    temp_file = watch_folder / "~$draft.md"
+    hidden = watch_folder / ".hidden.md"
+    generated = watch_folder / "20-Knowledge-Cards" / "generated.md"
+    supported.parent.mkdir(parents=True)
+    for path, body in (
+        (supported, "# Supported\n\nSUPPORTED_BODY_MUST_NOT_LEAK\n"),
+        (unsupported, "UNSUPPORTED_BODY_MUST_NOT_LEAK\n"),
+        (temp_file, "# Temp\n\nTEMP_BODY_MUST_NOT_LEAK\n"),
+        (hidden, "# Hidden\n\nHIDDEN_BODY_MUST_NOT_LEAK\n"),
+        (generated, "# Generated\n\nGENERATED_BODY_MUST_NOT_LEAK\n"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    added = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
+    response = client.get("/api/sources").json()
+    watched = next(item for item in response["watched_sources"] if item["path"] == str(watch_folder.resolve()))
+    combined = f"{added} {response}"
+
+    assert added["ok"] is True
+    assert watched["path_type"] == "folder"
+    assert watched["recursive"] is True
+    assert watched["supported_file_count"] == 1
+    assert watched["processed_count"] == 1
+    assert watched["failed_count"] == 0
+    assert watched["skipped_reason_summary"]["unsupported_extension"] == 1
+    assert watched["skipped_reason_summary"]["temp_file"] == 1
+    assert watched["skipped_reason_summary"]["hidden_file"] == 1
+    assert watched["status_label"] in {"Watching", "Processed", "Has generated knowledge"}
+    assert len(list(cards.rglob("*.md"))) == 1
+    assert watched["status_label"] != "ready"
+    assert watched["status"] != "ready"
+    assert "Approved" not in combined
+    assert "SUPPORTED_BODY_MUST_NOT_LEAK" not in combined
+    assert "UNSUPPORTED_BODY_MUST_NOT_LEAK" not in combined
+    assert "TEMP_BODY_MUST_NOT_LEAK" not in combined
+    assert "HIDDEN_BODY_MUST_NOT_LEAK" not in combined
+    assert "GENERATED_BODY_MUST_NOT_LEAK" not in combined
+
+
 def test_sources_path_actions_are_allowlisted_and_do_not_read_file_content(
     tmp_path: Path,
     monkeypatch,

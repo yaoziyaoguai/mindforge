@@ -8,6 +8,7 @@ source，不重写 Adapter 抽象，也不调用 process pipeline。
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 from .config import MindForgeConfig
@@ -23,6 +24,13 @@ _SKIP_DIR_NAMES: frozenset[str] = frozenset(
         "_ignored",
         "_rejected",
         "20-Knowledge-Cards",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        "target",
         "runtime",
         "index",
         "cache",
@@ -31,6 +39,80 @@ _SKIP_DIR_NAMES: frozenset[str] = frozenset(
         "runs",
     }
 )
+
+
+@dataclass(frozen=True)
+class SourceScanPolicy:
+    recursive: bool = True
+    skip_hidden_dirs: bool = True
+    skip_hidden_files: bool = True
+    max_file_size_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class SourceFileCandidate:
+    path: Path
+
+
+@dataclass(frozen=True)
+class SkippedSourceFile:
+    path: Path
+    reason: str
+
+
+@dataclass(frozen=True)
+class SourceFileEnumeration:
+    candidates: tuple[SourceFileCandidate, ...]
+    skipped: tuple[SkippedSourceFile, ...]
+    recursive: bool
+
+    @property
+    def skipped_reason_summary(self) -> dict[str, int]:
+        summary: dict[str, int] = {}
+        for item in self.skipped:
+            summary[item.reason] = summary.get(item.reason, 0) + 1
+        return summary
+
+
+def enumerate_supported_source_files(
+    cfg: MindForgeConfig,
+    targets: Path | Iterable[Path],
+    policy: SourceScanPolicy | None = None,
+) -> SourceFileEnumeration:
+    """按统一 folder watch/import policy 枚举可交给 parser 的 source 文件。
+
+    中文学习型说明：这里故意只返回候选文件和 skipped reason，不返回
+    ``SourceDocument``，更不生成 Knowledge Card。folder scanner 的边界是
+    “发现文件”；parser/adapter 才负责把文件解析成 ``SourceDocument``；
+    process pipeline 才负责生成 ai_draft，避免 watch folder 变成第二套管线。
+    """
+
+    scan_policy = policy or SourceScanPolicy()
+    adapters = build_active_adapters(cfg.sources)
+    entries = tuple(cfg.sources.active_entries())
+    candidates: list[SourceFileCandidate] = []
+    skipped: list[SkippedSourceFile] = []
+    seen_candidates: set[Path] = set()
+    seen_skipped: set[tuple[Path, str]] = set()
+    target_list = [targets] if isinstance(targets, Path) else list(targets)
+    for target in target_list:
+        for event in _iter_scanned_files(cfg, target, scan_policy, adapters, entries):
+            if isinstance(event, SourceFileCandidate):
+                if event.path in seen_candidates:
+                    continue
+                seen_candidates.add(event.path)
+                candidates.append(event)
+                continue
+            key = (event.path, event.reason)
+            if key in seen_skipped:
+                continue
+            seen_skipped.add(key)
+            skipped.append(event)
+    return SourceFileEnumeration(
+        candidates=tuple(candidates),
+        skipped=tuple(skipped),
+        recursive=scan_policy.recursive,
+    )
 
 
 def discover_source_results(
@@ -45,45 +127,127 @@ def discover_source_results(
     """
 
     adapters = build_active_adapters(cfg.sources)
-    seen: set[Path] = set()
-    target_list = [targets] if isinstance(targets, Path) else list(targets)
-    for target in target_list:
-        for path in _iter_candidate_files(target):
-            resolved = path.resolve()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            result = _load_with_first_matching_adapter(cfg, adapters, resolved)
-            if result is not None:
-                yield result
+    scan = enumerate_supported_source_files(cfg, targets)
+    for candidate in scan.candidates:
+        resolved = candidate.path
+        result = _load_with_first_matching_adapter(cfg, adapters, resolved)
+        if result is not None:
+            yield result
 
 
-def _iter_candidate_files(target: Path) -> Iterator[Path]:
-    path = target.expanduser()
+def _iter_scanned_files(
+    cfg: MindForgeConfig,
+    target: Path,
+    policy: SourceScanPolicy,
+    adapters: dict[str, SourceAdapter],
+    entries,
+) -> Iterator[SourceFileCandidate | SkippedSourceFile]:
+    path = target.expanduser().resolve()
     if path.is_file():
-        yield path
+        yield _candidate_or_skip(cfg, path, policy, adapters, entries)
         return
-    if not path.exists():
+    if not path.exists() or not path.is_dir():
         return
-    if not path.is_dir():
+    if _is_generated_output_dir(cfg, path):
+        yield SkippedSourceFile(path=path, reason="generated_output")
         return
-    yield from _walk_dir(path)
+    yield from _walk_scanned_dir(cfg, path, policy, adapters, entries)
 
 
-def _walk_dir(root: Path) -> Iterator[Path]:
+def _walk_scanned_dir(
+    cfg: MindForgeConfig,
+    root: Path,
+    policy: SourceScanPolicy,
+    adapters: dict[str, SourceAdapter],
+    entries,
+) -> Iterator[SourceFileCandidate | SkippedSourceFile]:
     for child in sorted(root.iterdir()):
-        if child.is_dir():
-            if _should_skip_dir(child):
+        resolved = child.resolve()
+        if resolved.is_dir():
+            dir_reason = _skip_dir_reason(cfg, resolved, policy)
+            if dir_reason is not None:
+                yield SkippedSourceFile(path=resolved, reason=dir_reason)
                 continue
-            yield from _walk_dir(child)
+            if policy.recursive:
+                yield from _walk_scanned_dir(cfg, resolved, policy, adapters, entries)
             continue
-        if child.is_file():
-            yield child
+        if resolved.is_file():
+            yield _candidate_or_skip(cfg, resolved, policy, adapters, entries)
 
 
-def _should_skip_dir(path: Path) -> bool:
+def _candidate_or_skip(
+    cfg: MindForgeConfig,
+    path: Path,
+    policy: SourceScanPolicy,
+    adapters: dict[str, SourceAdapter],
+    entries,
+) -> SourceFileCandidate | SkippedSourceFile:
+    file_reason = _skip_file_reason(cfg, path, policy, adapters, entries)
+    if file_reason is not None:
+        return SkippedSourceFile(path=path, reason=file_reason)
+    return SourceFileCandidate(path=path)
+
+
+def _skip_dir_reason(
+    cfg: MindForgeConfig,
+    path: Path,
+    policy: SourceScanPolicy,
+) -> str | None:
     name = path.name
-    return name.startswith(".") or name in _SKIP_DIR_NAMES
+    if _is_generated_output_dir(cfg, path) or name == cfg.vault.cards_path.name:
+        return "generated_output"
+    if name in _SKIP_DIR_NAMES or (policy.skip_hidden_dirs and name.startswith(".")):
+        return "ignored_directory"
+    return None
+
+
+def _skip_file_reason(
+    cfg: MindForgeConfig,
+    path: Path,
+    policy: SourceScanPolicy,
+    adapters: dict[str, SourceAdapter],
+    entries,
+) -> str | None:
+    name = path.name
+    if _is_generated_output_file(cfg, path):
+        return "generated_output"
+    if name == ".DS_Store" or (policy.skip_hidden_files and name.startswith(".")):
+        return "hidden_file"
+    if name.startswith("~$") or name.endswith(".tmp") or name.endswith(".swp"):
+        return "temp_file"
+    if policy.max_file_size_bytes is not None and path.stat().st_size > policy.max_file_size_bytes:
+        return "too_large"
+    if not _has_matching_adapter(path, adapters, entries):
+        return "unsupported_extension"
+    return None
+
+
+def _has_matching_adapter(path: Path, adapters: dict[str, SourceAdapter], entries) -> bool:
+    path_str = str(path)
+    for entry in entries:
+        adapter = adapters[entry.source_type]
+        if not path.match(entry.file_glob) and not adapter.can_handle(path_str):
+            continue
+        if adapter.can_handle(path_str):
+            return True
+    return False
+
+
+def _is_generated_output_dir(cfg: MindForgeConfig, path: Path) -> bool:
+    generated_roots = _generated_output_roots(cfg)
+    return any(path == root or path.is_relative_to(root) for root in generated_roots)
+
+
+def _is_generated_output_file(cfg: MindForgeConfig, path: Path) -> bool:
+    return any(path.is_relative_to(root) for root in _generated_output_roots(cfg))
+
+
+def _generated_output_roots(cfg: MindForgeConfig) -> tuple[Path, ...]:
+    return (
+        cfg.vault.cards_path.resolve(),
+        cfg.state.workdir.resolve(),
+        cfg.state.runs_path.resolve(),
+    )
 
 
 def _load_with_first_matching_adapter(
@@ -124,4 +288,11 @@ def _safe_load(adapter: SourceAdapter, source_type: str, path: Path) -> ScanResu
         )
 
 
-__all__ = ["discover_source_results"]
+__all__ = [
+    "SkippedSourceFile",
+    "SourceFileCandidate",
+    "SourceFileEnumeration",
+    "SourceScanPolicy",
+    "discover_source_results",
+    "enumerate_supported_source_files",
+]

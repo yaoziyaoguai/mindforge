@@ -174,9 +174,17 @@ def _ingest_targets_summary(
     if not target.exists():
         raise RuntimeError(f"File not found: {target}")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
-    mux = SourceMux(key_fn=_document_identity_key)
-    results = list(mux.iter_deduped(discover_source_results(cfg, target)))
-    if not results:
+    mux = SourceMux()
+    results: list = []
+    duplicate_skips: list = []
+    for result in discover_source_results(cfg, target):
+        kept = mux.feed(result)
+        if kept is not None:
+            results.append(kept)
+            continue
+        if result.document is not None:
+            duplicate_skips.append((result, result.document))
+    if not results and not duplicate_skips:
         # 中文学习型说明：seen=0 表示没有输入，不是一次成功处理。这里不创建
         # RunLogger、不保存 checkpoint，避免 missing/empty import 把 processed
         # registry、fingerprint 或 run state 污染到后续真实处理。
@@ -206,10 +214,20 @@ def _ingest_targets_summary(
         for result in results:
             counts["seen"] += 1
             counts["failed"] += 1
+        skipped_details = []
+        for _result, doc in duplicate_skips:
+            counts["seen"] += 1
+            counts["skipped"] += 1
+            skipped_details.append(_skip_detail(
+                doc,
+                reason="duplicate_content_hash",
+                matched_record=doc.content_hash,
+            ))
         return IngestionSummary(
             mode=command,
             target=target,
             counts=counts,
+            skipped=tuple(skipped_details),
             provider_failure=provider_failure_detail(cfg, str(exc)),
             strategy=strategy,
         )
@@ -219,9 +237,24 @@ def _ingest_targets_summary(
         raise RuntimeError(str(exc)) from exc
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
+    processed_content_hashes = _build_processed_content_hash_index(parts.checkpoint)
     skipped_details: list[SkippedDocumentDetail] = []
     with RunLogger(cfg.state.runs_path, command=command) as logger:
         parts.pipeline.logger = logger
+        for result, doc in duplicate_skips:
+            counts["seen"] += 1
+            _emit_skip(
+                result=result,
+                doc=doc,
+                logger=logger,
+                counts=counts,
+                reason="duplicate_content_hash",
+            )
+            skipped_details.append(_skip_detail(
+                doc,
+                reason="duplicate_content_hash",
+                matched_record=doc.content_hash,
+            ))
         for result in results:
             counts["seen"] += 1
             if not result.ok:
@@ -261,6 +294,21 @@ def _ingest_targets_summary(
                     doc,
                     reason="already_processed",
                     matched_record=processed_match.state_key,
+                ))
+                continue
+            duplicate_match = processed_content_hashes.get(doc.content_hash)
+            if duplicate_match is not None:
+                _emit_skip(
+                    result=result,
+                    doc=doc,
+                    logger=logger,
+                    counts=counts,
+                    reason="duplicate_content_hash",
+                )
+                skipped_details.append(_skip_detail(
+                    doc,
+                    reason="duplicate_content_hash",
+                    matched_record=duplicate_match.state_key,
                 ))
                 continue
             try:
@@ -325,6 +373,21 @@ def _build_processed_source_index(checkpoint) -> dict[tuple[str, str], Processed
     return keys
 
 
+def _build_processed_content_hash_index(checkpoint) -> dict[str, ProcessedSourceMatch]:
+    """构建 content_hash 级 dedupe 索引。
+
+    中文学习型说明：同一个 source 的 unchanged 文件优先走 already_processed，
+    不同路径但相同 parser content_hash 的文件走 duplicate_content_hash。
+    这样用户能区分“这个文件没变”和“这个内容已经从别处生成过知识”。
+    """
+
+    keys: dict[str, ProcessedSourceMatch] = {}
+    for item in checkpoint.all_items():
+        if item.status == "processed" and item.card_path:
+            keys[item.content_hash] = ProcessedSourceMatch(state_key=item.state_key)
+    return keys
+
+
 def _processed_match(
     source_id: str,
     content_hash: str,
@@ -345,17 +408,6 @@ def _emit_skip(*, result, doc: SourceDocument, logger, counts: dict[str, int], r
         status=reason,
         skip_reason=reason,
     )
-
-
-def _document_identity_key(doc: SourceDocument) -> str:
-    """同批次 dedupe key 必须精确到具体 source document。
-
-    中文学习型说明：content_hash 只能说明“正文和关键 metadata 一样”，不能说明
-    “是同一个用户文件”。watch/import 的产品语义是 file/folder ingestion，
-    同内容不同文件仍是两个可审核 source，不能互相误伤。
-    """
-
-    return f"{doc.source_type}::{_normalized_source_path(doc.source_path)}"
 
 
 def _normalized_source_path(source_path: str) -> str:

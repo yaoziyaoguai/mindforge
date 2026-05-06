@@ -207,6 +207,16 @@ export interface WatchedSourceResponse {
   fingerprint?: string | null;
   can_delete: boolean;
   error?: string | null;
+  recursive: boolean;
+  supported_file_count: number;
+  processed_count: number;
+  skipped_count: number;
+  failed_count: number;
+  skipped_reason_summary: Record<string, number>;
+  generated_knowledge_status: string;
+  generated_card_count: number;
+  generated_card_paths: string[];
+  status_label: string;
 }
 
 export interface WatchSourcesResponse {
