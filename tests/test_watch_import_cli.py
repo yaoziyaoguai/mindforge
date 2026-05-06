@@ -71,6 +71,13 @@ def _write_config(tmp_path: Path, *, active_profile: str = "fake") -> tuple[Path
                             "review_questions": "openai_alias",
                             "action_extraction": "openai_alias",
                         },
+                        "anthropic": {
+                            "triage": "anthropic_alias",
+                            "distill": "anthropic_alias",
+                            "link_suggestion": "anthropic_alias",
+                            "review_questions": "anthropic_alias",
+                            "action_extraction": "anthropic_alias",
+                        },
                     },
                     "models": {
                         "fake_alias": {
@@ -87,6 +94,17 @@ def _write_config(tmp_path: Path, *, active_profile: str = "fake") -> tuple[Path
                             "base_url": "https://example.invalid/v1",
                             "api_key_env": "MINDFORGE_OPENAI_API_KEY",
                             "model": "gpt-4o-mini",
+                            "timeout_seconds": 5,
+                            "max_retries": 0,
+                        },
+                        "anthropic_alias": {
+                            "provider": "anthropic",
+                            "type": "anthropic_compatible",
+                            "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
+                            "base_url": "https://api.anthropic.com",
+                            "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                            "model_env": "MINDFORGE_ANTHROPIC_MODEL",
+                            "model": "claude-3-5-haiku-latest",
                             "timeout_seconds": 5,
                             "max_retries": 0,
                         },
@@ -172,7 +190,30 @@ def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
     )
 
     assert result.exit_code == 2, result.output
-    assert "real provider requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Do not put secrets in YAML" in result.output
+    assert "fake/demo remains available with --profile fake" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_watch_add_anthropic_missing_key_fails_without_fake_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.watch_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "anthropic-note.md"
+    source.write_text("# Anthropic Note\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["watch", "add", str(source), "--profile", "anthropic", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
     assert "fake/demo remains available with --profile fake" in result.output
     assert _card_paths(vault) == []
@@ -237,7 +278,30 @@ def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
     )
 
     assert result.exit_code == 2, result.output
-    assert "real provider requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Set it via shell export or local .env" in result.output
+    assert "fake/demo remains available with --profile fake" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_import_anthropic_missing_key_fails_without_fake_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "anthropic-import.md"
+    source.write_text("# Anthropic Import\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["import", str(source), "--profile", "anthropic", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
     assert "fake/demo remains available with --profile fake" in result.output
     assert _card_paths(vault) == []

@@ -112,8 +112,11 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
 
     assert "mindforge init" in quickstart_block
     assert "MINDFORGE_OPENAI_API_KEY" in quickstart_block
+    assert "MINDFORGE_ANTHROPIC_API_KEY" in quickstart_block
+    assert "openai_compatible" in quickstart_block
+    assert "anthropic" in quickstart_block
     assert "mindforge watch add" in quickstart_block
-    assert "--profile openai_compatible" in quickstart_block
+    assert "<profile>" in quickstart_block
     assert "mindforge approve" in quickstart_block
     assert "mindforge approve 1 --confirm" in quickstart_block
     assert 'mindforge recall --query' in quickstart_block

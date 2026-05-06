@@ -47,8 +47,21 @@ class IngestionSummary:
     registry_path: Path | None = None
 
 
+REAL_PROVIDER_KEY_ERRORS = {
+    "MINDFORGE_OPENAI_API_KEY": (
+        "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY. "
+        "Set it via shell export or local .env. Do not put secrets in YAML. "
+        "fake/demo remains available with --profile fake."
+    ),
+    "MINDFORGE_ANTHROPIC_API_KEY": (
+        "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY. "
+        "Set it via shell export or local .env. Do not put secrets in YAML. "
+        "fake/demo remains available with --profile fake."
+    ),
+}
+
 REAL_PROVIDER_KEY_ERROR = (
-    "real provider requires MINDFORGE_OPENAI_API_KEY. "
+    "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY. "
     "Set it via shell export or local .env. Do not put secrets in YAML. "
     "fake/demo remains available with --profile fake."
 )
@@ -116,8 +129,9 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
     try:
         parts = build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy="five_stage")
     except ProviderError as exc:
-        if _looks_like_missing_openai_key(str(exc)):
-            raise RuntimeError(REAL_PROVIDER_KEY_ERROR) from exc
+        friendly = _friendly_missing_key_error(str(exc))
+        if friendly:
+            raise RuntimeError(friendly) from exc
         raise
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     approved_sources = build_approved_source_index(cfg)
@@ -169,8 +183,9 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
                     dry_run=False,
                 )
             except ProviderError as exc:
-                if _looks_like_missing_openai_key(str(exc)):
-                    raise RuntimeError(REAL_PROVIDER_KEY_ERROR) from exc
+                friendly = _friendly_missing_key_error(str(exc))
+                if friendly:
+                    raise RuntimeError(friendly) from exc
                 raise
         finalize_process_run(
             cp=parts.checkpoint,
@@ -202,8 +217,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _looks_like_missing_openai_key(message: str) -> bool:
-    return "MINDFORGE_OPENAI_API_KEY" in message and (
+def _friendly_missing_key_error(message: str) -> str | None:
+    for env_name, friendly in REAL_PROVIDER_KEY_ERRORS.items():
+        if env_name in message and _looks_like_missing_key(message):
+            return friendly
+    return None
+
+
+def _looks_like_missing_key(message: str) -> bool:
+    return (
         "未设置" in message or "requires" in message or "要求环境变量" in message
     )
 

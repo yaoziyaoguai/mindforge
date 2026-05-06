@@ -206,13 +206,35 @@ def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
     text = (tmp_path / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
     assert "# MindForge 主配置" in text
     assert "active_profile: openai_compatible" in text
+    assert "active_profile: openai_compatible" in text
+    assert "anthropic:" in text
     assert "MINDFORGE_OPENAI_API_KEY" in text
+    assert "MINDFORGE_OPENAI_MODEL" in text
+    assert "MINDFORGE_ANTHROPIC_API_KEY" in text
+    assert "MINDFORGE_ANTHROPIC_MODEL" in text
     assert "https://api.openai.com/v1" in text
+    assert "https://api.anthropic.com" in text
     assert "Do not put secrets in YAML" in text
     assert "fake" in text
     assert "offline demo / CI / deterministic tests" in text
     assert "Advanced / Troubleshooting" in text
     assert str(target) in text
+
+
+def test_env_example_lists_openai_and_anthropic_without_secret_values() -> None:
+    text = Path(".env.example").read_text(encoding="utf-8")
+    for name in (
+        "MINDFORGE_OPENAI_API_KEY",
+        "MINDFORGE_OPENAI_BASE_URL",
+        "MINDFORGE_OPENAI_MODEL",
+        "MINDFORGE_ANTHROPIC_API_KEY",
+        "MINDFORGE_ANTHROPIC_BASE_URL",
+        "MINDFORGE_ANTHROPIC_MODEL",
+    ):
+        assert name in text
+    assert "sk-" not in text
+    assert "sk-ant" not in text
+    assert "sk-proj" not in text
 
 
 def test_init_is_idempotent(tmp_path: Path) -> None:

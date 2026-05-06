@@ -2,7 +2,8 @@
 # MindForge 主配置
 #
 # 普通用户只需要看这一份配置。API key / secret 不要写进 YAML；
-# use MINDFORGE_OPENAI_API_KEY from shell env or local .env.
+# use MINDFORGE_OPENAI_API_KEY / MINDFORGE_ANTHROPIC_API_KEY from shell env
+# or local .env.
 # Do not put secrets in YAML.
 #
 # 顶层结构：
@@ -130,9 +131,9 @@ triage:
 # LLM 配置（核心）
 #
 # 三层：
-#   active_profile  — 选择当前生效的 profile。真实 dogfood 主路径使用
-#                     openai_compatible；fake 只给 offline demo / CI /
-#                     deterministic tests。
+#   active_profile  — 选择当前生效的 profile。真实 dogfood 主路径可以使用
+#                     openai_compatible 或 anthropic；fake 只给 offline demo /
+#                     CI / deterministic tests。
 #   profiles        — 每个 profile = "stage → model_alias" 映射
 #   models          — 每个 model_alias 的具体 provider 配置
 #
@@ -145,7 +146,7 @@ triage:
 # -----------------------------------------------------------------------------
 llm:
   # 真实 dogfood 默认：watch/import/process 会使用这个 profile。
-  # 缺少 MINDFORGE_OPENAI_API_KEY 时命令会友好失败，不会 fallback 到 fake。
+  # 可改成 anthropic。缺少对应 API key 时命令会友好失败，不会 fallback 到 fake。
   active_profile: openai_compatible
 
   profiles:
@@ -165,6 +166,15 @@ llm:
       link_suggestion: qwen_coder_fast
       review_questions: qwen_coder_strong
       action_extraction: qwen_coder_strong
+
+    # —— 真实主路径：Anthropic-compatible / Claude ——
+    # secret 只通过 MINDFORGE_ANTHROPIC_API_KEY 提供；base_url/model 可用 env 覆盖。
+    anthropic:
+      triage: anthropic_fast
+      distill: anthropic_strong
+      link_suggestion: anthropic_fast
+      review_questions: anthropic_strong
+      action_extraction: anthropic_strong
 
     # —— 真实主路径：OpenAI-compatible 云端（OpenAI 官方 / 自建网关）——
     # secret 只通过 MINDFORGE_OPENAI_API_KEY 提供；base_url 可选。
@@ -195,7 +205,7 @@ llm:
       type: fake
       model: fake-strong
 
-    # —— Anthropic-compatible：通过 .env 注入 base_url / api_key；
+    # —— DashScope Anthropic-compatible：通过 .env 注入 base_url / api_key；
     # 模型名内置稳妥默认，并允许通过 model_env 覆盖（同 endpoint 切 fast/strong）。
     qwen_coder_fast:
       provider: dashscope_coding_plan
@@ -219,6 +229,29 @@ llm:
       timeout_seconds: 240
       max_retries: 2
 
+    # —— Anthropic-compatible / Claude：env 变量名映射 + 非 secret 默认值 ——
+    anthropic_fast:
+      provider: anthropic
+      type: anthropic_compatible
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      base_url: "https://api.anthropic.com"
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      model_env: MINDFORGE_ANTHROPIC_MODEL
+      model: "claude-3-5-haiku-latest"
+      timeout_seconds: 120
+      max_retries: 2
+
+    anthropic_strong:
+      provider: anthropic
+      type: anthropic_compatible
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      base_url: "https://api.anthropic.com"
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      model_env: MINDFORGE_ANTHROPIC_MODEL
+      model: "claude-3-5-haiku-latest"
+      timeout_seconds: 240
+      max_retries: 2
+
     # —— OpenAI-compatible 云端 ——
     openai_fast:
       provider: openai_compatible
@@ -226,6 +259,7 @@ llm:
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       base_url: "https://api.openai.com/v1"
       api_key_env: MINDFORGE_OPENAI_API_KEY
+      model_env: MINDFORGE_OPENAI_MODEL
       model: "gpt-4o-mini"
       timeout_seconds: 120
       max_retries: 2
@@ -236,6 +270,7 @@ llm:
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       base_url: "https://api.openai.com/v1"
       api_key_env: MINDFORGE_OPENAI_API_KEY
+      model_env: MINDFORGE_OPENAI_MODEL
       model: "gpt-4o-mini"
       timeout_seconds: 240
       max_retries: 2

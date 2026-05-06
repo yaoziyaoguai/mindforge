@@ -34,12 +34,23 @@ cat > /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes/first-note.md <<'EO
 EOF
 ```
 
-设置真实 provider 的 API key。可以用 shell export，也可以放在当前项目或
-vault 上级目录的本地 `.env`；不要写进 YAML：
+选择一个 real provider：`openai_compatible` 或 `anthropic`。可以用 shell
+export，也可以放在当前项目或 vault 上级目录的本地 `.env`；不要写进 YAML。
+OpenAI-compatible 需要：
+
+- `MINDFORGE_OPENAI_API_KEY`
+- `MINDFORGE_OPENAI_BASE_URL`
+- `MINDFORGE_OPENAI_MODEL`
+
+Anthropic-compatible / Claude 需要：
+
+- `MINDFORGE_ANTHROPIC_API_KEY`
+- `MINDFORGE_ANTHROPIC_BASE_URL`
+- `MINDFORGE_ANTHROPIC_MODEL`
 
 ```bash
 export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
-mindforge llm ping --profile openai_compatible
+mindforge llm ping --profile <profile>
 ```
 
 跑通最小流程：
@@ -47,7 +58,7 @@ mindforge llm ping --profile openai_compatible
 ```bash
 cd /Users/jinkun.wang/MindForgeVault
 mindforge watch list
-mindforge watch add 00-Inbox/ManualNotes/first-note.md --profile openai_compatible
+mindforge watch add 00-Inbox/ManualNotes/first-note.md --profile <profile>
 mindforge approve list
 mindforge approve
 mindforge approve 1 --confirm
@@ -59,7 +70,7 @@ mindforge recall --query "MindForge"
 short ref 和 source 摘要；`mindforge approve 1 --confirm` 是显式人工动作，
 不是自动 approve。approve 成功后 MindForge 会默认刷新本地 recall index，
 所以通常不需要手动运行 `mindforge index rebuild`。如果缺少
-`MINDFORGE_OPENAI_API_KEY`，真实 provider 会友好失败；MindForge 不会偷偷
+对应 provider 的 API key，真实 provider 会友好失败；MindForge 不会偷偷
 fallback 到 fake。
 
 `watch add` 的第一版不是后台监听：它会注册这个文件或文件夹，并立即处理当前
@@ -69,7 +80,7 @@ registry 后面，本阶段没有 daemon、没有 `watch run/start/stop`。
 如果你只是一次性导入一个文件或文件夹，不想持续关注它，用：
 
 ```bash
-mindforge import /path/to/file-or-folder --profile openai_compatible
+mindforge import /path/to/file-or-folder --profile <profile>
 ```
 
 `import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。
@@ -149,8 +160,10 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 这是普通用户最重要的基础配置文件。第一天只需要关心：
 
 - `vault.root`: MindForgeVault 在哪里。
-- `llm.active_profile`: 真实 dogfood 主路径建议 `openai_compatible`。
-- `llm.models.openai_*`: 默认 `gpt-4o-mini`；secret 通过 env 提供。
+- `llm.active_profile`: 真实 dogfood 主路径可以选 `openai_compatible` 或
+  `anthropic`。
+- `llm.models.openai_*` / `llm.models.anthropic_*`: 只声明 env 变量名映射
+  和非 secret 默认值；真实 key/base_url/model 放 shell env 或 `.env`。
 - `telemetry.local_only`: 只写本地，不上传。
 
 极简示例：
@@ -168,15 +181,23 @@ llm:
       type: openai_compatible
       api_key_env: MINDFORGE_OPENAI_API_KEY
       base_url_env: MINDFORGE_OPENAI_BASE_URL
+      model_env: MINDFORGE_OPENAI_MODEL
       base_url: https://api.openai.com/v1
       model: gpt-4o-mini
+    anthropic_fast:
+      type: anthropic_compatible
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
+      model_env: MINDFORGE_ANTHROPIC_MODEL
+      base_url: https://api.anthropic.com
+      model: claude-3-5-haiku-latest
 telemetry:
   enabled: true
   local_only: true
 ```
 
-第一天只需要确认 `vault.root`、`llm.active_profile` 和
-`MINDFORGE_OPENAI_API_KEY` 是否正确。`learning_tracks.yaml` 使用 package
+第一天只需要确认 `vault.root`、`llm.active_profile` 和对应 provider 的 env
+是否正确。`learning_tracks.yaml` 使用 package
 内置默认值，不再由 init 默认生成。`llm.example.yaml` 不再是新用户项目里的
 第二个配置入口；主配置入口就是 `configs/mindforge.yaml`。
 
@@ -345,18 +366,20 @@ to roll back. Do not run broad destructive cleanup commands against a real vault
 ### Real Provider Opt-In
 
 Real Provider Setup: 真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的
-`llm.active_profile: openai_compatible`。只把 API key 放进 shell env 或本地
-`.env`：
+`llm.active_profile: openai_compatible` 或 `llm.active_profile: anthropic`。
+只把 API key / base_url / model 放进 shell env 或本地 `.env`：
 
 ```bash
 export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
-mindforge llm ping --profile openai_compatible
-mindforge watch add /path/to/non-sensitive-note.md --profile openai_compatible
+export MINDFORGE_OPENAI_MODEL="gpt-4o-mini"
+mindforge llm ping --profile <profile>
+mindforge watch add /path/to/non-sensitive-note.md --profile <profile>
 ```
 
 `llm ping` 只检查 key 是否存在，不发 HTTP。`watch add` / `import` 会生成
 `ai_draft`，不会自动 approve。缺 key 时命令会提示：
-`real provider requires MINDFORGE_OPENAI_API_KEY`，并说明可以用
+`real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY` 或
+`real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY`，并说明可以用
 `--profile fake` 跑离线 demo/testing。
 
 底层 synthetic provider smoke 仍需要显式 `--allow-real`；普通 Quick Start

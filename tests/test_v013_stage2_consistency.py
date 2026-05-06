@@ -28,8 +28,9 @@ def clean_env(monkeypatch):
     """中和 .env 自动加载并清掉所有 alias 声明的 api_key/base_url env;
     保证 readiness/ping 测试不被开发者本地 shell 状态污染。"""
     monkeypatch.setattr("mindforge.cli.load_dotenv_silently", lambda *_a, **_k: None)
+    from mindforge.assets_runtime import bundled_asset_path_for_process
     from mindforge.app_context import load_app_config
-    cfg = load_app_config(Path("configs/mindforge.yaml"))
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     for mc in cfg.llm.models.values():
         if mc.api_key_env:
             monkeypatch.delenv(mc.api_key_env, raising=False)
@@ -62,7 +63,14 @@ def test_bundled_config_active_profile_is_real_dogfood():
 def test_provider_readiness_json_schema(clean_env):
     result = runner.invoke(
         app,
-        ["provider", "readiness", "--config", "configs/mindforge.yaml", "--format", "json"],
+        [
+            "provider",
+            "readiness",
+            "--config",
+            "src/mindforge/assets/configs/mindforge.yaml",
+            "--format",
+            "json",
+        ],
     )
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
@@ -78,8 +86,8 @@ def test_provider_readiness_json_schema(clean_env):
         "real_output_is_review_only",
     ):
         assert invariants[k] is True, f"invariant {k} flipped"
-    # default config → opt_in_state must be fake_default
-    assert report["opt_in"]["opt_in_state"] == "fake_default"
+    # real dogfood default config 缺 key 时必须清楚显示 profile_only，不 fallback fake。
+    assert report["opt_in"]["opt_in_state"] == "profile_only"
 
 
 def test_readiness_unknown_format_rejected():
@@ -90,25 +98,23 @@ def test_readiness_unknown_format_rejected():
     assert result.exit_code == 2
 
 
-def test_llm_ping_and_provider_readiness_agree_on_fake_default(clean_env):
-    """两个 surface 在 fake-default 下都不应该报告 missing required env。
+def test_llm_ping_and_provider_readiness_agree_on_real_profile_missing_env(clean_env):
+    """真实 dogfood 默认 profile 缺 key 时，两个 surface 都应提示缺 env。
 
-    避免 readiness 与 llm ping 在 'fake 是否安全' 这个最基本判断上
-    出现漂移; 漂移 = 用户看到两份矛盾报告 = 安全契约信任下降。
+    这里不调用真实 provider，只验证 readiness/ping 的 presence-only 诊断一致。
     """
 
-    ping = runner.invoke(app, ["llm", "ping", "--config", "configs/mindforge.yaml"])
-    assert ping.exit_code == 0, ping.output
-    # fake provider 没有 required env, 不应该出现 MISSING
-    assert "MISSING" not in ping.output
+    config = "src/mindforge/assets/configs/mindforge.yaml"
+    ping = runner.invoke(app, ["llm", "ping", "--config", config])
+    assert ping.exit_code == 1, ping.output
+    assert "MISSING" in ping.output
 
     readiness = runner.invoke(
-        app,
-        ["provider", "readiness", "--config", "configs/mindforge.yaml", "--format", "json"],
+        app, ["provider", "readiness", "--config", config, "--format", "json"],
     )
     assert readiness.exit_code == 0
     report = json.loads(readiness.output)
-    assert report["opt_in"]["opt_in_state"] == "fake_default"
+    assert report["opt_in"]["opt_in_state"] == "profile_only"
     assert report["opt_in"]["can_run_real_smoke"] is False
 
 

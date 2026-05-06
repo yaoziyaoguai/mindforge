@@ -190,11 +190,11 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 编辑 configs/mindforge.yaml 确认 llm.active_profile=openai_compatible",
-        "2) 设置 MINDFORGE_OPENAI_API_KEY（shell export 或本地 .env；不要写进 YAML）",
-        "3) mindforge llm ping --profile openai_compatible  # 只检查 env presence，不发 HTTP",
+        "1) 选择 real provider：llm.active_profile=openai_compatible 或 anthropic",
+        "2) 设置对应 env：MINDFORGE_OPENAI_* 或 MINDFORGE_ANTHROPIC_*（不要写进 YAML）",
+        "3) mindforge llm ping --profile <profile>  # 只检查 env presence，不发 HTTP",
         "4) mindforge watch list    # 查看 default 00-Inbox watched source",
-        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md --profile openai_compatible",
+        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md --profile <profile>",
         "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
         "7) mindforge approve list  # 看看产出哪些 ai_draft",
         "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
