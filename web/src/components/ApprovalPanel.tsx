@@ -14,7 +14,11 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
     setMessage(null);
     try {
       const response: ApprovalResponse = await approveDraft(id, { confirm: true, reviewed_source: reviewed });
-      setMessage(response.message);
+      setMessage(
+        response.index_updated
+          ? `${response.message} Recall index updated.`
+          : response.message
+      );
       if (response.ok) onApproved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Approve failed");

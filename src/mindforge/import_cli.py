@@ -17,6 +17,7 @@ from .env_loader import load_dotenv_silently
 from .ingestion_diagnostics import print_ingestion_diagnostics
 from .ingestion_service import import_sources
 from .process_service import FAKE_PROFILE
+from .strategy_selection import StrategySelectionError, resolve_strategy_selection
 
 
 def import_cmd(
@@ -42,18 +43,37 @@ def import_cmd(
             "不会绕过 already_processed / already_approved。"
         ),
     ),
+    strategy: str | None = typer.Option(
+        None,
+        "--strategy",
+        help="临时覆盖 strategy.active；只影响本次 import，不修改 YAML。",
+    ),
 ) -> None:
     """一次性处理当前内容，不加入 watched source registry。"""
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
     render_active_vault_resolution_notice(cfg)
+    try:
+        selected_strategy = resolve_strategy_selection(cfg, explicit_strategy=strategy)
+    except StrategySelectionError as exc:
+        console.print(str(exc), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2) from exc
+    console.print(
+        f"active strategy: {selected_strategy.strategy_id} ({selected_strategy.source})",
+        markup=False,
+    )
     source_path = resolve_source_path_for_cli(cfg, target)
-    if cfg.llm.active_profile != FAKE_PROFILE:
+    if cfg.llm.active_profile != FAKE_PROFILE and selected_strategy.metadata.provider_mode != "deterministic":
         # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
         load_dotenv_silently(Path.cwd())
     try:
-        summary = import_sources(cfg, source_path, bypass_triage_gate=force)
+        summary = import_sources(
+            cfg,
+            source_path,
+            bypass_triage_gate=force,
+            strategy=selected_strategy,
+        )
     except RuntimeError as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc

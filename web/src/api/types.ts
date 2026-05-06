@@ -170,14 +170,23 @@ export interface LibraryCardResponse {
   status: string;
   status_explanation: string;
   track?: string | null;
+  source_id?: string | null;
   source_type?: string | null;
   adapter_name?: string | null;
   source_title?: string | null;
   source_path?: string | null;
+  source_content_hash?: string | null;
   source_archive_path?: string | null;
   source_missing: boolean;
   profile?: string | null;
   provider?: string | null;
+  strategy_id?: string | null;
+  strategy_version?: string | null;
+  schema_version?: string | null;
+  prompt_version?: string | null;
+  prompt_versions: Record<string, string>;
+  stage_models: Record<string, unknown>;
+  run_id?: string | null;
   created_at?: string | null;
   approved_at?: string | null;
   updated_at?: string | null;
@@ -226,8 +235,18 @@ export interface DraftSummary {
   projects: string[];
   tags: string[];
   source_type?: string | null;
+  source_id?: string | null;
   source_title?: string | null;
+  source_path?: string | null;
+  source_content_hash?: string | null;
   value_score?: number | null;
+  strategy_id?: string | null;
+  strategy_version?: string | null;
+  schema_version?: string | null;
+  prompt_version?: string | null;
+  prompt_versions: Record<string, string>;
+  stage_models: Record<string, unknown>;
+  run_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -254,6 +273,9 @@ export interface ApprovalResponse {
   previous_status?: string | null;
   new_status?: string | null;
   idempotent: boolean;
+  index_updated: boolean;
+  index_path?: string | null;
+  index_error?: string | null;
 }
 
 export interface UnavailableResponse {

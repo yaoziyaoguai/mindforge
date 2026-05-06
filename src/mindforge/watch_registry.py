@@ -34,6 +34,7 @@ class WatchedSource:
     last_seen_at: str | None = None
     last_processed_at: str | None = None
     fingerprint: str | None = None
+    strategy_id: str | None = None
     status: WatchStatus = "active"
     error: str | None = None
 
@@ -111,7 +112,13 @@ def list_watch_sources(vault_root: Path, registry_path: Path | None = None) -> t
     return (default_inbox_watch(vault_root), *registry.sources)
 
 
-def add_watch_source(vault_root: Path, registry_path: Path, source_path: Path) -> AddWatchResult:
+def add_watch_source(
+    vault_root: Path,
+    registry_path: Path,
+    source_path: Path,
+    *,
+    strategy_id: str | None = None,
+) -> AddWatchResult:
     canonical = source_path.expanduser().resolve()
     registry = WatchRegistry.load(registry_path)
     for source in registry.sources:
@@ -125,6 +132,7 @@ def add_watch_source(vault_root: Path, registry_path: Path, source_path: Path) -
         added_at=_now(),
         last_seen_at=_now() if canonical.exists() else None,
         fingerprint=_fingerprint(canonical),
+        strategy_id=strategy_id,
         status="active" if canonical.exists() else "missing",
     )
     WatchRegistry(sources=(*registry.sources, watched)).save(registry_path)
@@ -160,6 +168,7 @@ def update_watch_source(
                 last_processed_at if last_processed_at is not None else source.last_processed_at
             ),
             fingerprint=fingerprint if fingerprint is not None else source.fingerprint,
+            strategy_id=source.strategy_id,
             status=status if status is not None else source.status,
             error=error,
         )
@@ -200,6 +209,7 @@ def _source_to_dict(source: WatchedSource) -> dict[str, Any]:
         "last_seen_at": source.last_seen_at,
         "last_processed_at": source.last_processed_at,
         "fingerprint": source.fingerprint,
+        "strategy_id": source.strategy_id,
         "status": source.status,
         "error": source.error,
     }
@@ -215,6 +225,7 @@ def _source_from_dict(data: dict[str, Any]) -> WatchedSource:
         last_seen_at=data.get("last_seen_at"),
         last_processed_at=data.get("last_processed_at"),
         fingerprint=data.get("fingerprint"),
+        strategy_id=data.get("strategy_id"),
         status=data.get("status", "active"),
         error=data.get("error"),
     )

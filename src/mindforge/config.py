@@ -277,6 +277,19 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class StrategyConfig:
+    """知识抽取策略配置。
+
+    中文学习型说明：provider selection 与 strategy selection 是两条正交轴。
+    ``llm.active`` 决定“用哪个 provider/model”，``strategy.active`` 决定
+    “用哪种知识抽取/卡片组织方式”。配置层只记录用户意图；是否可执行由
+    strategy registry 在运行边界验证，避免 config.py 反向依赖 runtime。
+    """
+
+    active: str = "five_stage"
+
+
+@dataclass(frozen=True)
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -292,6 +305,7 @@ class MindForgeConfig:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    strategy: StrategyConfig = field(default_factory=StrategyConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -658,6 +672,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
     telemetry_cfg = _parse_telemetry(raw)
     obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
     search_cfg = _parse_search(raw.get("search") or {})
+    strategy_cfg = _parse_strategy(raw.get("strategy") or {})
 
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
@@ -672,8 +687,25 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         telemetry=telemetry_cfg,
         obsidian=obsidian_cfg,
         search=search_cfg,
+        strategy=strategy_cfg,
         raw=raw,
     )
+
+
+def _parse_strategy(raw: Any) -> StrategyConfig:
+    """解析 ``strategy.active``，缺失时稳定回退 five_stage。
+
+    中文学习型说明：这里不校验 strategy 是否存在/可执行。那属于 registry
+    运行边界；如果在 config 层 import registry，会让纯配置 loader 意外承担
+    strategy runtime 知识，也会让错误来源不清晰。
+    """
+
+    if not isinstance(raw, dict):
+        raise ConfigError(f"strategy 必须是 YAML 对象，得到 {type(raw).__name__}")
+    active = str(raw.get("active") or "five_stage").strip()
+    if not active:
+        raise ConfigError("strategy.active 不能为空")
+    return StrategyConfig(active=active)
 
 
 def _parse_obsidian(raw: Any) -> "ObsidianConfig":

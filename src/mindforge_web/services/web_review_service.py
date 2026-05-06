@@ -18,6 +18,7 @@ from mindforge.approval_service import (
 )
 from mindforge.cards import CardSummary, read_card_body
 from mindforge.config import MindForgeConfig
+from mindforge.lexical_index import rebuild_index_for_config
 
 from mindforge_web.schemas import (
     ApprovalResponse,
@@ -90,6 +91,19 @@ class WebReviewService:
             )
         assert result.effect is not None
         effect = result.effect
+        index_updated = False
+        index_path = None
+        index_error = None
+        if effect.kind == "approved":
+            try:
+                # 中文学习型说明：Web approve 与 CLI approve 共享“人审后刷新
+                # BM25”的本地索引边界；这里不读 .env、不调 provider，只重建
+                # approved card 的本地 lexical index。
+                rebuilt = rebuild_index_for_config(self.cfg)
+                index_updated = True
+                index_path = str(rebuilt.path)
+            except Exception as exc:  # pragma: no cover - UI 用结构化错误兜底
+                index_error = f"{type(exc).__name__}: {exc}"
         return ApprovalResponse(
             ok=True,
             status=effect.kind,
@@ -98,6 +112,9 @@ class WebReviewService:
             previous_status=effect.prev_status,
             new_status=effect.new_status,
             idempotent=effect.kind == "already_approved",
+            index_updated=index_updated,
+            index_path=index_path,
+            index_error=index_error,
         )
 
     def reject_unavailable(self) -> UnavailableResponse:
@@ -144,8 +161,18 @@ class WebReviewService:
             projects=list(card.projects),
             tags=list(card.tags),
             source_type=card.source_type,
+            source_id=card.source_id,
             source_title=card.source_title,
+            source_path=card.source_path,
+            source_content_hash=card.source_content_hash,
             value_score=card.value_score,
+            strategy_id=card.strategy_id,
+            strategy_version=card.strategy_version,
+            schema_version=card.schema_version,
+            prompt_version=card.prompt_version,
+            prompt_versions=dict(card.prompt_versions),
+            stage_models=dict(card.stage_models),
+            run_id=card.run_id,
             created_at=card.created_at.isoformat() if card.created_at else None,
             updated_at=card.updated_at.isoformat() if card.updated_at else None,
         )
@@ -154,6 +181,9 @@ class WebReviewService:
     def _source_context(card: CardSummary, fields: dict[str, Any]) -> dict[str, Any]:
         return {
             "source_type": card.source_type,
+            "source_id": card.source_id,
+            "source_path": card.source_path,
+            "source_content_hash": card.source_content_hash,
             "source_title": card.source_title,
             "source_url": card.source_url,
             "track": card.track,

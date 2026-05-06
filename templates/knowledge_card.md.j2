@@ -24,17 +24,16 @@ created_at: {{ run.created_at }}
 strategy_id: "{{ run.strategy_id }}"
 strategy_version: "{{ run.strategy_version }}"
 schema_version: "{{ run.schema_version }}"
-prompt_version: "distill@{{ run.prompts.distill_version }}"
-prompt_versions:
-  triage: "{{ run.prompt_versions.triage }}"
-  distill: "{{ run.prompt_versions.distill }}"
-  link_suggestion: "{{ run.prompt_versions.link_suggestion }}"
-  review_questions: "{{ run.prompt_versions.review_questions }}"
-  action_extraction: "{{ run.prompt_versions.action_extraction }}"
+prompt_version: "{% if run.prompt_versions.get('distill') %}distill@{{ run.prompt_versions.get('distill') }}{% else %}{% endif %}"
+prompt_versions:{% if run.prompt_versions %}
+{% for stage, version in run.prompt_versions.items() %}  {{ stage }}: "{{ version }}"
+{% endfor %}{% else %} {}
+{% endif %}
 profile: "{{ run.profile }}"
-stage_models:
+stage_models:{% if run.stage_models %}
 {% for stage, info in run.stage_models.items() %}  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
-{% endfor %}run_id: "{{ run.run_id }}"
+{% endfor %}{% else %} {}
+{% endif %}run_id: "{{ run.run_id }}"
 ---
 
 ## Source Excerpt

@@ -108,15 +108,28 @@ projects:
 tags:
   - web
 source_type: manual_note
+source_id: src_draft_1
 adapter_name: PlainMarkdownAdapter
 source_path: 00-Inbox/ManualNotes/source-note.md
+source_content_hash: sha256:provenancehash
 source_archive_path: ""
 source_missing: false
 source_title: Safe source
 value_score: 8
+strategy_id: five_stage
+strategy_version: 0.10.0
+schema_version: "1"
+prompt_version: distill@v1
+prompt_versions:
+  triage: v1
+  distill: v1
+  link_suggestion: v1
+  review_questions: v1
+  action_extraction: v1
 profile: fake
 stage_models:
   distill: { alias: fake_alias, provider: fake, model: fake }
+run_id: run-web-provenance
 ---
 
 ## Distilled Note
@@ -170,8 +183,15 @@ def test_web_workflow_library_and_source_visibility_are_metadata_only(
     assert workflow["source_bucket_counts"]["pending"]["ManualNotes"] == 1
     assert workflow["source_bucket_counts"]["processed"]["ManualNotes"] == 1
     assert library["cards"][0]["source_path"] == "00-Inbox/ManualNotes/source-note.md"
+    assert library["cards"][0]["source_id"] == "src_draft_1"
+    assert library["cards"][0]["source_content_hash"] == "sha256:provenancehash"
+    assert library["cards"][0]["strategy_id"] == "five_stage"
+    assert library["cards"][0]["prompt_versions"]["distill"] == "v1"
+    assert library["cards"][0]["run_id"] == "run-web-provenance"
     assert library["cards"][0]["source_missing"] is False
     assert detail["card"]["id"] == "draft-1"
+    assert detail["card"]["strategy_version"] == "0.10.0"
+    assert detail["card"]["schema_version"] == "1"
     assert detail["card"]["fake_provider_note"]
     assert "body" not in detail
     assert "SOURCE_BODY_MUST_NOT_LEAK" not in combined
@@ -200,8 +220,13 @@ def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, mon
 
     drafts = client.get("/api/drafts").json()
     assert [draft["id"] for draft in drafts["drafts"]] == ["draft-1"]
+    assert drafts["drafts"][0]["strategy_id"] == "five_stage"
+    assert drafts["drafts"][0]["source_id"] == "src_draft_1"
+    assert drafts["drafts"][0]["prompt_versions"]["triage"] == "v1"
     detail = client.get("/api/drafts/draft-1").json()
     assert "safe draft body" in detail["body"].lower()
+    assert detail["draft"]["source_content_hash"] == "sha256:provenancehash"
+    assert detail["frontmatter"]["run_id"] == "run-web-provenance"
 
     refused = client.post(
         "/api/drafts/draft-1/approve",
@@ -216,7 +241,13 @@ def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, mon
     ).json()
     assert approved["ok"] is True
     assert approved["new_status"] == "human_approved"
+    assert approved["index_updated"] is True
+    assert approved["index_path"]
+    assert Path(approved["index_path"]).exists()
     assert "status: human_approved" in card.read_text(encoding="utf-8")
+    approved_fm = yaml.safe_load(card.read_text(encoding="utf-8").split("---", 2)[1])
+    assert approved_fm["strategy_id"] == "five_stage"
+    assert approved_fm["prompt_versions"]["distill"] == "v1"
 
 
 def test_web_reject_and_imports_are_honest_unavailable(tmp_path: Path, monkeypatch) -> None:

@@ -202,13 +202,22 @@ class LibraryCardResponse(BaseModel):
     status_explanation: str
     track: str | None
     source_type: str | None
+    source_id: str | None = None
     adapter_name: str | None
     source_title: str | None
     source_path: str | None
+    source_content_hash: str | None = None
     source_archive_path: str | None
     source_missing: bool
     profile: str | None
     provider: str | None
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    schema_version: str | None = None
+    prompt_version: str | None = None
+    prompt_versions: dict[str, str] = Field(default_factory=dict)
+    stage_models: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = None
     created_at: str | None = None
     approved_at: str | None = None
     updated_at: str | None = None
@@ -268,8 +277,18 @@ class DraftSummary(BaseModel):
     projects: list[str]
     tags: list[str]
     source_type: str | None
+    source_id: str | None = None
     source_title: str | None
+    source_path: str | None = None
+    source_content_hash: str | None = None
     value_score: int | None
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    schema_version: str | None = None
+    prompt_version: str | None = None
+    prompt_versions: dict[str, str] = Field(default_factory=dict)
+    stage_models: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -306,6 +325,9 @@ class ApprovalResponse(BaseModel):
     previous_status: str | None = None
     new_status: str | None = None
     idempotent: bool = False
+    index_updated: bool = False
+    index_path: str | None = None
+    index_error: str | None = None
 
 
 class RecallHit(BaseModel):

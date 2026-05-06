@@ -21,6 +21,7 @@ from .env_loader import load_dotenv_silently
 from .ingestion_diagnostics import print_ingestion_diagnostics
 from .ingestion_service import watch_add_source, watch_sources_for_display
 from .process_service import FAKE_PROFILE
+from .strategy_selection import StrategySelectionError, resolve_strategy_selection
 from .watch_registry import delete_watch_source, registry_path_for_vault
 
 watch_app = typer.Typer(
@@ -44,18 +45,32 @@ def watch_add(
         "--provider",
         help="高级临时覆盖 llm.active 指向的 provider（不修改 YAML）。",
     ),
+    strategy: str | None = typer.Option(
+        None,
+        "--strategy",
+        help="为该 watched source 持久化 strategy_id；不修改 YAML。",
+    ),
 ) -> None:
     """注册 watched source，并立即生成 ai_draft 候选。"""
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
     render_active_vault_resolution_notice(cfg)
+    try:
+        selected_strategy = resolve_strategy_selection(cfg, explicit_strategy=strategy)
+    except StrategySelectionError as exc:
+        console.print(str(exc), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2) from exc
+    console.print(
+        f"active strategy: {selected_strategy.strategy_id} ({selected_strategy.source})",
+        markup=False,
+    )
     source_path = resolve_source_path_for_cli(cfg, target)
-    if cfg.llm.active_profile != FAKE_PROFILE:
+    if cfg.llm.active_profile != FAKE_PROFILE and selected_strategy.metadata.provider_mode != "deterministic":
         # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
         load_dotenv_silently(Path.cwd())
     try:
-        summary = watch_add_source(cfg, source_path)
+        summary = watch_add_source(cfg, source_path, strategy=selected_strategy)
     except RuntimeError as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
@@ -69,6 +84,7 @@ def watch_add(
     )
     print_ingestion_diagnostics(console, summary)
     console.print(f"watch id: {registry_result.source.id}", markup=False)
+    console.print(f"strategy_id: {registry_result.source.strategy_id or '-'}", markup=False)
     console.print(f"registry: {summary.registry_path}", markup=False, soft_wrap=True)
 
 
@@ -106,7 +122,7 @@ def watch_list(
             f"- {source.id} · {source.path_type} · {kind} · status={source.status} · "
             f"path={source.path} · last_seen={source.last_seen_at or '-'} · "
             f"last_processed={source.last_processed_at or '-'} · "
-            f"fingerprint={source.fingerprint or '-'}",
+            f"strategy_id={source.strategy_id or '-'} · fingerprint={source.fingerprint or '-'}",
             markup=False,
             soft_wrap=True,
         )

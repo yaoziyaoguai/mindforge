@@ -18,6 +18,8 @@ from typing import Any
 
 from jinja2 import DictLoader, Environment, FileSystemLoader, select_autoescape
 
+from .card_envelope import normalize_card_payload_for_writer
+
 
 @dataclass(frozen=True)
 class WriteResult:
@@ -73,8 +75,9 @@ class CardWriter:
         # 理解 strategy-specific keys，也不分发 strategy_id —— 这条边
         # 界由 ``test_card_writer_does_not_read_envelope_top_level_strategy_keys``
         # 守护，防止 writer 演化为多策略巨石。
+        normalized_payload = normalize_card_payload_for_writer(card_payload)
         try:
-            structured = card_payload["structured_payload"]
+            structured = normalized_payload["structured_payload"]
             card = structured["card"]
         except (KeyError, TypeError) as exc:
             raise KeyError(

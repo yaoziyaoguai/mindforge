@@ -38,6 +38,7 @@ class CardSummary:
     source_path: str | None = None
     source_title: str | None = None
     source_url: str | None = None
+    source_content_hash: str | None = None
     source_archive_path: str | None = None
     source_missing: bool = False
     value_score: int | None = None
@@ -54,6 +55,13 @@ class CardSummary:
     known_risks: tuple[str, ...] = ()
     profile: str | None = None
     provider: str | None = None
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    schema_version: str | None = None
+    prompt_version: str | None = None
+    prompt_versions: dict[str, str] = field(default_factory=dict)
+    stage_models: dict[str, Any] = field(default_factory=dict)
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -223,6 +231,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         source_path=_str_or_none(data.get("source_path")),
         source_title=_str_or_none(data.get("source_title")),
         source_url=_str_or_none(data.get("source_url")),
+        source_content_hash=_str_or_none(data.get("source_content_hash")),
         source_archive_path=_str_or_none(data.get("source_archive_path")),
         source_missing=_bool_or_false(data.get("source_missing")),
         value_score=_int_or_none(data.get("value_score")),
@@ -236,6 +245,13 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         known_risks=_str_tuple(data.get("known_risks")),
         profile=_str_or_none(data.get("profile")),
         provider=_provider_from_stage_models(data.get("stage_models")),
+        strategy_id=_str_or_none(data.get("strategy_id")),
+        strategy_version=_str_or_none(data.get("strategy_version")),
+        schema_version=_str_or_none(data.get("schema_version")),
+        prompt_version=_str_or_none(data.get("prompt_version")),
+        prompt_versions=_str_dict(data.get("prompt_versions")),
+        stage_models=_dict_or_empty(data.get("stage_models")),
+        run_id=_str_or_none(data.get("run_id")),
     )
 
 
@@ -258,6 +274,16 @@ def _int_or_none(v: Any) -> int | None:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _str_dict(v: Any) -> dict[str, str]:
+    if not isinstance(v, dict):
+        return {}
+    return {str(k): str(val) for k, val in v.items() if val is not None}
+
+
+def _dict_or_empty(v: Any) -> dict[str, Any]:
+    return dict(v) if isinstance(v, dict) else {}
 
 
 def _bool_or_false(v: Any) -> bool:

@@ -35,6 +35,13 @@ from .run_logger import RunLogger
 from .source_discovery import discover_source_results
 from .source_mux import SourceMux
 from .sources.base import SourceDocument
+from .strategy_selection import (
+    StrategySelection,
+    StrategySelectionError,
+    resolve_strategy_selection,
+    strategy_error_from_build_error,
+)
+from .strategies import NotYetImplementedStrategyError, UnknownStrategyError
 from .watch_registry import (
     AddWatchResult,
     add_watch_source,
@@ -52,6 +59,7 @@ class IngestionSummary:
     provider_failure: ProviderFailureDetail | None = None
     registry_result: AddWatchResult | None = None
     registry_path: Path | None = None
+    strategy: StrategySelection | None = None
 
 
 def import_sources(
@@ -59,14 +67,17 @@ def import_sources(
     target: Path,
     *,
     bypass_triage_gate: bool = False,
+    strategy: StrategySelection | None = None,
 ) -> IngestionSummary:
     """一次性导入当前内容，不写 watched source registry。"""
 
+    selected_strategy = strategy or resolve_strategy_selection(cfg)
     summary = _ingest_targets_summary(
         cfg,
         target,
         command="import",
         bypass_triage_gate=bypass_triage_gate,
+        strategy=selected_strategy,
     )
     return IngestionSummary(
         mode="import",
@@ -74,10 +85,16 @@ def import_sources(
         counts=summary.counts,
         skipped=summary.skipped,
         provider_failure=summary.provider_failure,
+        strategy=selected_strategy,
     )
 
 
-def watch_add_source(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
+def watch_add_source(
+    cfg: MindForgeConfig,
+    target: Path,
+    *,
+    strategy: StrategySelection | None = None,
+) -> IngestionSummary:
     """注册 watched source，并立即处理当前内容。
 
     第一版 watch add 不是后台监听：它只登记来源 + 做一次当前内容 ingestion。
@@ -86,13 +103,24 @@ def watch_add_source(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
 
     if not target.exists():
         raise RuntimeError(f"File not found: {target}")
+    selected_strategy = strategy or resolve_strategy_selection(cfg)
     registry_path = registry_path_for_vault(cfg.vault.root)
-    registry_result = add_watch_source(cfg.vault.root, registry_path, target)
+    registry_result = add_watch_source(
+        cfg.vault.root,
+        registry_path,
+        target,
+        strategy_id=selected_strategy.strategy_id,
+    )
+    effective_strategy = resolve_strategy_selection(
+        cfg,
+        watched_strategy=registry_result.source.strategy_id,
+    )
     summary = _ingest_targets_summary(
         cfg,
         registry_result.source.path,
         command="watch_add",
         bypass_triage_gate=False,
+        strategy=effective_strategy,
     )
     counts = summary.counts
     processed = counts.get("processed", 0)
@@ -115,6 +143,7 @@ def watch_add_source(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
         provider_failure=summary.provider_failure,
         registry_result=registry_result,
         registry_path=registry_path,
+        strategy=effective_strategy,
     )
 
 
@@ -140,6 +169,7 @@ def _ingest_targets_summary(
     *,
     command: str,
     bypass_triage_gate: bool,
+    strategy: StrategySelection,
 ) -> IngestionSummary:
     if not target.exists():
         raise RuntimeError(f"File not found: {target}")
@@ -167,7 +197,11 @@ def _ingest_targets_summary(
     if isinstance(runtime, ProcessError):
         raise RuntimeError(runtime.message)
     try:
-        parts = build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy="five_stage")
+        parts = build_process_runtime_parts(
+            cfg=cfg,
+            runtime=runtime,
+            strategy=strategy.strategy_id,
+        )
     except ProviderError as exc:
         for result in results:
             counts["seen"] += 1
@@ -177,7 +211,12 @@ def _ingest_targets_summary(
             target=target,
             counts=counts,
             provider_failure=provider_failure_detail(cfg, str(exc)),
+            strategy=strategy,
         )
+    except (UnknownStrategyError, NotYetImplementedStrategyError) as exc:
+        raise RuntimeError(str(strategy_error_from_build_error(strategy.strategy_id, exc))) from exc
+    except StrategySelectionError as exc:
+        raise RuntimeError(str(exc)) from exc
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
     skipped_details: list[SkippedDocumentDetail] = []
@@ -258,6 +297,7 @@ def _ingest_targets_summary(
         target=target,
         counts=counts,
         skipped=tuple(skipped_details),
+        strategy=strategy,
     )
 
 

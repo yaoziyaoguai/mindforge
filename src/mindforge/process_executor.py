@@ -18,7 +18,7 @@ from .models import ItemState, StageRecord
 from .process_service import ProcessRuntime, summarize_outcome
 from .run_logger import EVENT_SOURCE_ERROR, EVENT_STATE_WRITTEN
 from .scanner import Scanner
-from .strategies import StrategyContext, build_strategy
+from .strategies import StrategyContext, build_strategy, get_strategy_metadata
 from .writer import CardWriter
 
 
@@ -67,14 +67,19 @@ class ProcessRuntimeParts:
 def build_pipeline(*, cfg: MindForgeConfig, runtime: ProcessRuntime, strategy: str):
     """构造 process pipeline；不依赖 Typer/Rich。
 
-    CLI 负责把异常翻译成用户文案；watch/import ingestion 使用固定策略并让错误
-    冒泡为普通异常。这样组合根可以复用，同时不会让 service 反向 import CLI。
+    中文学习型说明：strategy selection 与 provider selection 正交。五段
+    ``five_stage`` 需要 LLM client；deterministic strategy 不需要 provider，
+    也不应因为 active provider 缺 key 而失败。这里按 strategy metadata 决定
+    是否构造 LLMClient，避免 provider 选择反向影响离线策略执行。
     """
 
-    from .llm import LLMClient, build_providers
+    client = None
+    metadata = get_strategy_metadata(strategy)
+    if metadata.provider_mode != "deterministic":
+        from .llm import LLMClient, build_providers
 
-    providers = build_providers(cfg.llm)
-    client = LLMClient(llm_config=cfg.llm, providers=providers)
+        providers = build_providers(cfg.llm)
+        client = LLMClient(llm_config=cfg.llm, providers=providers)
     strategy_ctx = StrategyContext(
         client=client,
         prompts_dir=runtime.assets.prompts_dir,
@@ -204,11 +209,13 @@ def _prompt_versions_dict(cfg: MindForgeConfig) -> dict[str, str]:
 def processed_run_dict(*, cfg: MindForgeConfig, outcome, logger, now: datetime) -> dict[str, object]:
     card_payload = outcome.card_payload or {}
     source_evidence = card_payload.get("source_evidence") or {}
+    strategy_id = str(card_payload.get("strategy_id") or "")
+    prompt_versions = _prompt_versions_dict(cfg) if strategy_id == "five_stage" else {}
     return {
         "created_at": now.isoformat(timespec="seconds"),
         "prompts": {"distill_version": cfg.prompts.distill},
-        "prompt_versions": _prompt_versions_dict(cfg),
-        "strategy_id": str(card_payload.get("strategy_id") or ""),
+        "prompt_versions": prompt_versions,
+        "strategy_id": strategy_id,
         "strategy_version": str(card_payload.get("strategy_version") or ""),
         "schema_version": str(card_payload.get("schema_version") or ""),
         "source_content_hash": str(source_evidence.get("content_hash") or ""),

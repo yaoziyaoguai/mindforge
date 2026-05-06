@@ -31,6 +31,7 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
                 <td className="px-4 py-3">
                   <div className="font-medium text-ink">{card.title ?? "Untitled"}</div>
                   <div className="text-xs text-muted">{card.track ?? "unrouted"}</div>
+                  <div className="text-xs text-muted">strategy:{card.strategy_id ?? "-"}</div>
                 </td>
                 <td className="px-4 py-3">
                   <div>{card.status}</div>
@@ -38,10 +39,13 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
                 </td>
                 <td className="px-4 py-3">
                   <div>{card.source_type ?? "-"}</div>
+                  <div className="text-xs text-muted">id:{card.source_id ?? "-"}</div>
+                  <div className="text-xs text-muted">hash:{card.source_content_hash ?? "-"}</div>
                   <div className="text-xs text-muted">{card.source_missing ? "source missing" : (card.source_archive_path ?? card.source_path ?? "-")}</div>
                 </td>
                 <td className="px-4 py-3">
                   <div>{card.profile ?? card.provider ?? "-"}</div>
+                  <div className="text-xs text-muted">run:{card.run_id ?? "-"}</div>
                   {card.fake_provider_note ? <div className="text-xs text-muted">{card.fake_provider_note}</div> : null}
                 </td>
                 <td className="px-4 py-3 text-muted">{card.rel_path}</td>

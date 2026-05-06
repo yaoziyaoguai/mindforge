@@ -126,6 +126,6 @@ def test_readme_documents_card_provenance_and_prompt_visibility() -> None:
         "mindforge prompts show triage@v1",
         "source content hash",
         "strategy/prompt/source/provider provenance",
-        "does not yet expose `active_strategy`",
+        "strategy.active",
     ):
         assert token in text

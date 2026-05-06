@@ -268,10 +268,11 @@ def test_cli_process_unknown_strategy_message_hints_strategies_list() -> None:
     """
 
     src = Path("src/mindforge/process_cli.py").read_text(encoding="utf-8")
-    # 定位 UnknownStrategyError 翻译块
-    assert "except UnknownStrategyError" in src
-    after = src[src.index("except UnknownStrategyError"):]
-    window = after[:600]
+    # 新路径把 unknown/planned 先归一为 StrategySelectionError，再由
+    # process_cli 统一展示；测试不再绑定 registry 内部异常名。
+    assert "StrategySelectionError" in src
+    after = src[src.index("def _resolve_strategy_or_exit"):]
+    window = after[:900]
     assert "strategies list" in window, (
         "process_cli.py 中 UnknownStrategyError 翻译块未包含 `strategies list` 提示；"
         "Slice 2 Green 必须在错误消息中加入该 discovery 入口。"

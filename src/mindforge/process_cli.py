@@ -2,7 +2,7 @@
 
 中文学习型说明：这里保留 process use-case 的副作用编排：RunLogger、
 Checkpoint、CardWriter 与 Console 输出。纯资源解析仍在 process_service，
-展示文本仍在 process_presenter，strategy 选择仍只来自显式 CLI flag。
+展示文本仍在 process_presenter，strategy 选择走统一 resolver。
 """
 from __future__ import annotations
 
@@ -30,11 +30,11 @@ from .process_executor import (
     process_one_result,
 )
 from .run_logger import RunLogger
-from .strategies import (
-    DEFAULT_STRATEGY_NAME,
-    NotYetImplementedStrategyError,
-    UnknownStrategyError,
-    available_strategies,
+from .strategies import NotYetImplementedStrategyError, UnknownStrategyError
+from .strategy_selection import (
+    StrategySelectionError,
+    resolve_strategy_selection,
+    strategy_error_from_build_error,
 )
 
 process_app = typer.Typer(add_completion=False)
@@ -101,17 +101,8 @@ def _resolve_runtime_or_exit(*, cfg, file, limit, dry_run, prompts_dir, tracks, 
 def _build_process_runtime_parts(*, cfg, runtime, strategy: str) -> ProcessRuntimeParts:
     try:
         return build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy=strategy)
-    except NotYetImplementedStrategyError as e:
-        console.print(
-            f"[yellow]✗ 策略 {strategy!r} 尚未实现（planned / not yet "
-            f"implemented）；{e}[/yellow]"
-        )
-        raise typer.Exit(code=2) from None
-    except UnknownStrategyError:
-        console.print(
-            f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}；"
-            "运行 `mindforge strategies list` 查看所有策略。[/red]"
-        )
+    except (NotYetImplementedStrategyError, UnknownStrategyError) as exc:
+        console.print(f"[red]✗ {strategy_error_from_build_error(strategy, exc)}[/red]")
         raise typer.Exit(code=2) from None
     except ProviderError as exc:
         # 中文学习型说明：process 是 advanced/troubleshooting，但 provider
@@ -237,14 +228,12 @@ def process(
         "--template",
         help="Knowledge Card 模板路径；未传时使用 package 内置模板。",
     ),
-    strategy: str = typer.Option(
-        DEFAULT_STRATEGY_NAME,
+    strategy: str | None = typer.Option(
+        None,
         "--strategy",
         help=(
-            "Knowledge strategy 名称（opt-in）。默认沿用 five_stage（LLM 驱动，"
-            "通过 fake provider 离线可跑）。可选 default_knowledge_card 走"
-            "离线确定性策略。策略选择只依赖此显式选项，绝不从 source/adapter "
-            "反推。"
+            "临时覆盖 strategy.active。默认读取 configs/mindforge.yaml 的 "
+            "strategy.active；缺省为 five_stage。"
         ),
     ),
 ) -> None:
@@ -267,7 +256,8 @@ def process(
         template=template,
     )
 
-    if runtime.provider.requires_real_env:
+    selected_strategy = _resolve_strategy_or_exit(cfg=cfg, explicit_strategy=strategy)
+    if runtime.provider.requires_real_env and selected_strategy.metadata.provider_mode != "deterministic":
         # 中文学习型注释：v0.5.1 把本地 smoke 路径收紧为“不读 .env”。
         # 只有用户显式切到真实 provider 时，才加载 .env 以解析 base_url /
         # api_key 等环境变量；fake provider 必须保持完全离线、无 secret 依赖。
@@ -277,6 +267,25 @@ def process(
     if dry_run:
         console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
     console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
+    console.print(
+        f"active_strategy = [bold]{selected_strategy.strategy_id}[/bold] "
+        f"({selected_strategy.source})"
+    )
 
-    parts = _build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy=strategy)
+    parts = _build_process_runtime_parts(
+        cfg=cfg,
+        runtime=runtime,
+        strategy=selected_strategy.strategy_id,
+    )
     _run_process_loop(cfg=cfg, parts=parts, file=file, limit=limit, dry_run=dry_run)
+
+
+def _resolve_strategy_or_exit(*, cfg, explicit_strategy: str | None):
+    try:
+        return resolve_strategy_selection(cfg, explicit_strategy=explicit_strategy)
+    except StrategySelectionError as exc:
+        message = str(exc)
+        if "strategies list" not in message:
+            message = f"{message} Run `mindforge strategies list` to inspect available strategies."
+        console.print(f"[red]✗ {message}[/red]")
+        raise typer.Exit(code=2) from None
