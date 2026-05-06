@@ -9,7 +9,14 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import console
-from .strategies import StrategyMetadata, list_strategies
+from .config import PromptVersions
+from .strategies import (
+    DEFAULT_STRATEGY_NAME,
+    StrategyMetadata,
+    UnknownStrategyError,
+    get_strategy_metadata,
+    list_strategies,
+)
 
 # v0.11 Slice 1：strategies 子命令组只做"策略发现"。它纯查询 registry
 # 元数据，不会触发 LLMClient 构造、不会读 .env、不会写 workspace、不会
@@ -88,6 +95,38 @@ def strategies_list(
         _print_strategy_meta(definition.to_metadata(), kind="custom")
 
 
+@strategies_app.command("show")
+def strategies_show(
+    strategy_id: str = typer.Argument(..., help="要查看的 strategy id。"),
+) -> None:
+    """展示单个 built-in strategy 的只读说明。
+
+    中文学习型说明：``show`` 是 explain，不是 execute。它只读 registry
+    metadata 和内置 prompt version 映射，不构造 LLMClient、不读 ``.env``、
+    不写 vault。planned strategy 仍可被展示，但明确标记 not executable。
+    """
+
+    try:
+        meta = get_strategy_metadata(strategy_id)
+    except UnknownStrategyError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    _print_strategy_meta(meta, kind="built-in")
+    if meta.strategy_id == DEFAULT_STRATEGY_NAME:
+        console.print("  default: yes")
+    if meta.status == "planned":
+        console.print("  executable: no (planned / not executable)")
+    else:
+        console.print("  executable: yes")
+    console.print("  prompt_versions:")
+    for stage, version in _default_prompt_versions().items():
+        # 当前只有 five_stage 消费五段 prompt；其它 deterministic / planned
+        # strategy 仍展示“not used”，避免用户误以为每个策略都会调这些 prompt。
+        suffix = "" if meta.strategy_id == DEFAULT_STRATEGY_NAME else " (not used by this strategy)"
+        console.print(f"    {stage}: {version}{suffix}")
+
+
 def _print_strategy_meta(meta: StrategyMetadata, *, kind: str) -> None:
     """统一的策略元数据展示（built-in / custom 共用）。
 
@@ -109,3 +148,20 @@ def _print_strategy_meta(meta: StrategyMetadata, *, kind: str) -> None:
         f"output_schema_id: {meta.output_schema_id}"
     )
     console.print(f"  {meta.description}")
+
+
+def _default_prompt_versions() -> dict[str, str]:
+    versions = PromptVersions(
+        triage="v1",
+        distill="v1",
+        link_suggestion="v1",
+        review_questions="v1",
+        action_extraction="v1",
+    )
+    return {
+        "triage": versions.triage,
+        "distill": versions.distill,
+        "link_suggestion": versions.link_suggestion,
+        "review_questions": versions.review_questions,
+        "action_extraction": versions.action_extraction,
+    }

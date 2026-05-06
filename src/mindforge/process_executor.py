@@ -184,10 +184,34 @@ def copy_stage_meta_to_item(item: ItemState, outcome, *, now: datetime) -> None:
         )
 
 
+def _prompt_versions_dict(cfg: MindForgeConfig) -> dict[str, str]:
+    """返回 stage -> prompt version 的安全 provenance。
+
+    中文学习型说明：卡片需要能解释“用了哪些 prompt 版本”，但不能把完整
+    prompt 文本写进 frontmatter。这里仅持久化版本号，既能复现生成链路，
+    又不会泄漏 prompt asset 或 source 正文。
+    """
+
+    return {
+        "triage": cfg.prompts.triage,
+        "distill": cfg.prompts.distill,
+        "link_suggestion": cfg.prompts.link_suggestion,
+        "review_questions": cfg.prompts.review_questions,
+        "action_extraction": cfg.prompts.action_extraction,
+    }
+
+
 def processed_run_dict(*, cfg: MindForgeConfig, outcome, logger, now: datetime) -> dict[str, object]:
+    card_payload = outcome.card_payload or {}
+    source_evidence = card_payload.get("source_evidence") or {}
     return {
         "created_at": now.isoformat(timespec="seconds"),
         "prompts": {"distill_version": cfg.prompts.distill},
+        "prompt_versions": _prompt_versions_dict(cfg),
+        "strategy_id": str(card_payload.get("strategy_id") or ""),
+        "strategy_version": str(card_payload.get("strategy_version") or ""),
+        "schema_version": str(card_payload.get("schema_version") or ""),
+        "source_content_hash": str(source_evidence.get("content_hash") or ""),
         "profile": cfg.llm.active_profile,
         "stage_models": {
             stage: {
@@ -351,6 +375,7 @@ __all__ = [
     "emit_source_error",
     "finalize_process_run",
     "process_one_result",
+    "processed_run_dict",
     "source_path_keys",
     "writer_for_runtime",
 ]

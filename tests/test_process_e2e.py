@@ -133,6 +133,9 @@ def test_process_writes_card_state_and_run_log(tmp_path: Path) -> None:
     assert "source_id:" in card_text
     assert "source_type: plain_markdown" in card_text
     assert "adapter_name: PlainMarkdownAdapter" in card_text
+    assert "strategy_id: \"five_stage\"" in card_text
+    assert "source_content_hash:" in card_text
+    assert "prompt_versions:" in card_text
     assert "prompt_version:" in card_text
     assert "run_id:" in card_text
     # 不能把 raw_text 整段塞进来；body 应来自 distill 的 source_excerpt（fake 占位）
@@ -334,19 +337,38 @@ def _assert_ai_draft_card_contract(vault: Path) -> None:
         "tags",
         "value_score",
         "confidence",
+        "strategy_id",
+        "strategy_version",
+        "schema_version",
         "source_id",
         "source_type",
         "adapter_name",
         "source_path",
+        "source_content_hash",
         "created_at",
         "prompt_version",
+        "prompt_versions",
         "profile",
         "stage_models",
         "run_id",
     ):
         assert required in fm, f"frontmatter 缺关键字段 {required!r}"
     assert fm["status"] == "ai_draft"
+    assert fm["strategy_id"] == "five_stage"
+    assert fm["strategy_version"]
+    assert str(fm["schema_version"]) == "1"
     assert fm["source_type"] == "plain_markdown"
+    assert isinstance(fm["source_content_hash"], str)
+    assert len(fm["source_content_hash"]) >= 12
+    # 中文学习型说明：prompt provenance 记录 stage -> version，不记录完整
+    # prompt 文本。这样新卡可追踪生成材料，同时不会把 prompt asset 塞进卡片。
+    assert fm["prompt_versions"] == {
+        "triage": "v1",
+        "distill": "v1",
+        "link_suggestion": "v1",
+        "review_questions": "v1",
+        "action_extraction": "v1",
+    }
     assert isinstance(fm["stage_models"], dict) and len(fm["stage_models"]) == 5
 
 

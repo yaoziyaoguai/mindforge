@@ -113,14 +113,27 @@ id: card-{source.stem}
 title: Source {source.stem}
 status: ai_draft
 track: agent-runtime
+strategy_id: five_stage
+strategy_version: 0.10.0
+schema_version: "1"
 source_id: source-{source.stem}
 source_type: {source_type}
 adapter_name: TestAdapter
 source_path: "{source}"
 source_title: "{source.stem}"
+source_content_hash: sha256:test-source-hash
 source_archive_path: ""
 source_missing: false
+prompt_versions:
+  triage: v1
+  distill: v1
+  link_suggestion: v1
+  review_questions: v1
+  action_extraction: v1
 profile: fake
+stage_models:
+  triage: {{ alias: fake, provider: fake, model: fake }}
+run_id: run-test
 ---
 
 ## AI Summary
@@ -148,6 +161,15 @@ def test_approve_moves_pending_source_to_processed_archive_and_updates_card(tmp_
     assert not source.exists()
     card_text = card.read_text(encoding="utf-8")
     assert "status: human_approved" in card_text
+    # 中文学习型说明：approve 只完成 ai_draft -> human_approved 的人工闸门
+    # 和 source archive 回写，不能丢掉生成 provenance；这些字段是未来
+    # Web/CLI 展示“这张卡如何生成”的依据。
+    assert "strategy_id: five_stage" in card_text
+    assert "source_content_hash: sha256:test-source-hash" in card_text
+    assert "prompt_versions:" in card_text
+    assert "action_extraction: v1" in card_text
+    assert "stage_models:" in card_text
+    assert "run_id: run-test" in card_text
     assert f'source_path: "{source}"' in card_text or f"source_path: {source}" in card_text
     assert "source_archive_path: 00-Inbox/_processed/ManualNotes/first-note.md" in card_text
     assert "source_missing: false" in card_text

@@ -77,6 +77,7 @@ from .process_cli import _finalize_process_run, process
 from .processors import Pipeline  # noqa: F401 -- 保留向后兼容 re-export
 from .process_executor import process_one_result as _process_one_result
 from .project_cli import project_app
+from .prompt_cli import prompts_app
 from .provider_cli import provider_app
 from .recall_index_cli import (
     _do_bm25_recall,
@@ -535,6 +536,7 @@ app.add_typer(approve_app, name="approve")
 app.add_typer(review_app, name="review")
 app.add_typer(project_app, name="project")
 app.add_typer(strategies_app, name="strategies")
+app.add_typer(prompts_app, name="prompts")
 app.add_typer(index_app, name="index")
 app.add_typer(telemetry_app, name="telemetry")
 app.add_typer(vault_app, name="vault")

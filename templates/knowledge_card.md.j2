@@ -13,12 +13,24 @@ source_id: "{{ source.source_id }}"
 source_type: {{ source.source_type }}
 adapter_name: {{ source.adapter_name }}
 source_path: "{{ source.source_path }}"
+source_content_hash: "{{ run.source_content_hash }}"
+source_archive_path: ""
+source_missing: false
 source_url: "{{ source.source_url | default('') }}"
 source_title: "{{ source.title | default('') }}"
 
 # ── 加工证据链 ──
 created_at: {{ run.created_at }}
+strategy_id: "{{ run.strategy_id }}"
+strategy_version: "{{ run.strategy_version }}"
+schema_version: "{{ run.schema_version }}"
 prompt_version: "distill@{{ run.prompts.distill_version }}"
+prompt_versions:
+  triage: "{{ run.prompt_versions.triage }}"
+  distill: "{{ run.prompt_versions.distill }}"
+  link_suggestion: "{{ run.prompt_versions.link_suggestion }}"
+  review_questions: "{{ run.prompt_versions.review_questions }}"
+  action_extraction: "{{ run.prompt_versions.action_extraction }}"
 profile: "{{ run.profile }}"
 stage_models:
 {% for stage, info in run.stage_models.items() %}  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
