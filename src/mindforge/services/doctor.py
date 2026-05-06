@@ -88,7 +88,12 @@ def config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
     except Exception as e:  # noqa: BLE001
         rows.append(("error", "package assets", f"{type(e).__name__}: {e}", "reinstall MindForge"))
     rows.append(("ok", "env policy", "config UX does not read .env", ""))
-    rows.append(("ok", "llm policy", "setup defaults to fake / no real LLM call", ""))
+    rows.append((
+        "ok",
+        "llm policy",
+        "real dogfood uses env keys; init/config checks do not call LLM",
+        "",
+    ))
     return rows
 
 

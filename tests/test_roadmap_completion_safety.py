@@ -219,16 +219,19 @@ def test_no_automated_git_tag_or_release_in_source():
 
 # ---------- consolidated invariant ----------
 
-def test_default_active_profile_remains_fake_in_shipped_config():
-    """v0.13 closure invariant: shipped ``configs/mindforge.yaml`` 默认
-    ``active_profile: fake``。让用户开箱不付费。"""
-    cfg = (Path(__file__).resolve().parents[1] / "configs" / "mindforge.yaml").read_text(
-        encoding="utf-8"
-    )
-    assert "active_profile: fake" in cfg, (
-        "default config must ship with active_profile: fake; "
-        "real provider stays explicit opt-in"
-    )
+def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
+    """真实 dogfood 后 shipped asset 默认使用 openai_compatible，但不含 secret。"""
+    cfg = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "mindforge"
+        / "assets"
+        / "configs"
+        / "mindforge.yaml"
+    ).read_text(encoding="utf-8")
+    assert "active_profile: openai_compatible" in cfg
+    assert "MINDFORGE_OPENAI_API_KEY" in cfg
+    assert "sk-" not in cfg
 
 
 def test_completion_ledger_doc_exists_with_required_buckets():

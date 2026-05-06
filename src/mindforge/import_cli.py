@@ -6,19 +6,40 @@ from pathlib import Path
 
 import typer
 
-from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
+from .cli_runtime import (
+    console,
+    load_cfg,
+    override_active_profile,
+    render_active_vault_resolution_notice,
+)
+from .env_loader import load_dotenv_silently
 from .ingestion_service import import_sources
+from .process_service import FAKE_PROFILE
 
 
 def import_cmd(
     target: Path = typer.Argument(..., help="一次性导入的文件或文件夹"),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="临时覆盖 llm.active_profile；不修改 YAML。",
+    ),
 ) -> None:
     """一次性处理当前内容，不加入 watched source registry。"""
 
     cfg = load_cfg(config, read_env=False)
+    cfg = override_active_profile(cfg, profile)
     render_active_vault_resolution_notice(cfg)
-    summary = import_sources(cfg, target)
+    if cfg.llm.active_profile != FAKE_PROFILE:
+        # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
+        load_dotenv_silently(Path.cwd())
+    try:
+        summary = import_sources(cfg, target)
+    except RuntimeError as exc:
+        console.print(str(exc), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2) from exc
     console.print("[bold]imported[/bold]")
     console.print(f"target: {summary.target}", markup=False, soft_wrap=True)
     console.print(

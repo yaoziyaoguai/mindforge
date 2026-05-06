@@ -19,6 +19,7 @@ from mindforge.cli import (
     _next_suggestions,
 )
 from mindforge.config import MindForgeConfig, load_mindforge_config
+from mindforge.assets_runtime import bundled_asset_path_for_process
 
 
 def _config_with_missing_vault(tmp_path: Path) -> MindForgeConfig:
@@ -28,7 +29,7 @@ def _config_with_missing_vault(tmp_path: Path) -> MindForgeConfig:
     避免与生产路径漂移。
     """
 
-    cfg = load_mindforge_config(Path("configs/mindforge.yaml"))
+    cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     missing_vault = tmp_path / "missing_vault"
     new_vault = replace(cfg.vault, root=missing_vault)
     return replace(cfg, vault=new_vault)
@@ -100,7 +101,7 @@ def test_root_help_recommends_mindforge_demo_first():
 
 
 def test_readme_quickstart_promotes_mindforge_demo_first():
-    """README Quick Start 必须把 ``mindforge demo`` 作为新用户首选命令暴露。"""
+    """README Quick Start 必须展示真实 dogfood 主路径。"""
 
     text = Path("README.md").read_text(encoding="utf-8")
     quickstart_anchor = "## Quick Start"
@@ -109,17 +110,23 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
     # 取 Quick Start 之后、下一个 ## 之前的片段，避免误把后文的 demo 出现算进来。
     quickstart_block = after_quickstart.split("\n## ", 1)[0]
 
-    assert "mindforge demo" in quickstart_block, "Quick Start 必须出现 mindforge demo"
-    assert "no API key" in quickstart_block, (
-        "Quick Start 必须明确说明 demo 不需要 API key"
-    )
-    assert "no network" in quickstart_block or "no real" in quickstart_block
+    assert "mindforge init" in quickstart_block
+    assert "MINDFORGE_OPENAI_API_KEY" in quickstart_block
+    assert "mindforge watch add" in quickstart_block
+    assert "--profile openai_compatible" in quickstart_block
+    assert "mindforge approve" in quickstart_block
+    assert "mindforge approve 1 --confirm" in quickstart_block
+    assert 'mindforge recall --query' in quickstart_block
+    assert "fake provider" not in quickstart_block.lower()
+    assert "mindforge process --profile fake" not in quickstart_block
 
-    demo_pos = quickstart_block.index("mindforge demo")
-    init_pos = quickstart_block.find("mindforge init")
-    assert init_pos == -1 or demo_pos < init_pos, (
-        "demo 必须排在 init 之前，体现零配置优先"
-    )
+
+def test_readme_marks_fake_and_scan_process_as_non_primary_paths() -> None:
+    text = Path("README.md").read_text(encoding="utf-8")
+    assert "Offline demo / CI / Testing" in text
+    assert "mindforge process --profile fake" in text
+    assert "Advanced / Troubleshooting" in text
+    assert "scan/process" in text
 
 
 def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:

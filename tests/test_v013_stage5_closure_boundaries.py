@@ -129,13 +129,21 @@ def test_roadmap_records_all_v013_stages():
 
 # ---------- repo-level invariants still hold ----------
 
-def test_default_active_profile_remains_fake():
-    yaml_text = (Path(__file__).resolve().parents[1] / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
-    # 找到 active_profile 行, 必须是 fake (not commented out)
+def test_bundled_active_profile_is_real_dogfood():
+    yaml_text = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "mindforge"
+        / "assets"
+        / "configs"
+        / "mindforge.yaml"
+    ).read_text(encoding="utf-8")
     for line in yaml_text.splitlines():
         s = line.strip()
         if s.startswith("active_profile:"):
-            assert "fake" in s, f"default active_profile changed away from fake: {s!r}"
+            assert s == "active_profile: openai_compatible", (
+                f"default active_profile should be real dogfood: {s!r}"
+            )
             break
     else:
         pytest.fail("active_profile not found in configs/mindforge.yaml")

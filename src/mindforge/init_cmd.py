@@ -87,22 +87,14 @@ def build_plan(
         else:
             items.append(PlanItem("create_dir", target, note="vault skeleton"))
 
-    # 2) 配置 + 模板文件（来自仓库 configs/ + .env.example）
+    # 2) 用户第一天只需要一个主配置入口。learning tracks / llm examples
+    # 仍作为 package 内置资产供 process 与文档引用，但 init 不再把它们复制到
+    # 用户项目里制造多个 LLM 配置入口。
     template_files: tuple[tuple[Path, Path, str], ...] = (
         (
             repo_root / "configs" / "mindforge.yaml",
             project_root / "configs" / "mindforge.yaml",
             "mindforge config",
-        ),
-        (
-            repo_root / "configs" / "learning_tracks.yaml",
-            project_root / "configs" / "learning_tracks.yaml",
-            "learning tracks",
-        ),
-        (
-            repo_root / "configs" / "llm.example.yaml",
-            project_root / "configs" / "llm.example.yaml",
-            "llm example",
         ),
     )
     for src, dst, note in template_files:
@@ -198,15 +190,16 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 把要处理的资料放进 00-Inbox/ManualNotes，或准备一个外部文件/文件夹",
-        "2) 编辑 configs/mindforge.yaml 选择 llm.active_profile（默认 fake，不调真实 LLM）",
-        "3) 如需真实 LLM：把 .env.example 复制为 .env 并填入 API key（.env 必须在 .gitignore）",
+        "1) 编辑 configs/mindforge.yaml 确认 llm.active_profile=openai_compatible",
+        "2) 设置 MINDFORGE_OPENAI_API_KEY（shell export 或本地 .env；不要写进 YAML）",
+        "3) mindforge llm ping --profile openai_compatible  # 只检查 env presence，不发 HTTP",
         "4) mindforge watch list    # 查看 default 00-Inbox watched source",
-        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md   # 注册并立即生成 ai_draft",
+        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md --profile openai_compatible",
         "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
         "7) mindforge approve list  # 看看产出哪些 ai_draft",
         "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
-        "9) mindforge review due / mindforge recall --query <keyword> / mindforge project context  # 日用",
-        "10) mindforge scan / mindforge process --profile fake --limit 1  # advanced/troubleshooting",
+        "9) mindforge recall --query <keyword>",
+        "10) Offline demo / CI / Testing: mindforge process --profile fake --limit 1",
+        "11) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
         "11) mindforge doctor       # 任何时刻自检",
     ]

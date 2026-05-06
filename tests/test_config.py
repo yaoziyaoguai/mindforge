@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.config import (
     ConfigError,
     REQUIRED_STAGES,
@@ -31,7 +32,7 @@ CONFIG_DIR = REPO_ROOT / "configs"
 
 
 def test_real_mindforge_yaml_loads() -> None:
-    cfg = load_mindforge_config(CONFIG_DIR / "mindforge.yaml")
+    cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     # vault
     assert cfg.vault.inbox_root == "00-Inbox"
     # sources
@@ -46,21 +47,22 @@ def test_real_mindforge_yaml_loads() -> None:
         "chat_export",
     }
     # llm
-    # 真实 mindforge.yaml 默认走 fake，避免误调用真实模型；切换到 anthropic_coding_plan / openai_compatible 需用户显式改。
-    assert cfg.llm.active_profile == "fake"
+    # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；缺 key 时
+    # watch/import/process 会友好失败，不会 fallback 到 fake。
+    assert cfg.llm.active_profile == "openai_compatible"
     assert "anthropic_coding_plan" in cfg.llm.profiles
     assert "openai_compatible" in cfg.llm.profiles
     for stage in REQUIRED_STAGES:
         m = cfg.llm.resolve_stage(stage)
         assert m.alias in cfg.llm.models
-        assert m.type == "fake"
+        assert m.type == "openai_compatible"
     # 真实路径模型一律不允许把 secret 写进 yaml
-    qcs = cfg.llm.models["qwen_coder_strong"]
-    assert qcs.type == "anthropic_compatible"
-    assert qcs.base_url_env == "MINDFORGE_LLM_BASE_URL"
-    assert qcs.api_key_env == "MINDFORGE_LLM_API_KEY"
-    assert qcs.version_env == "MINDFORGE_LLM_VERSION"
-    assert qcs.base_url == ""  # yaml 里不能写真实 base_url
+    openai = cfg.llm.models["openai_strong"]
+    assert openai.type == "openai_compatible"
+    assert openai.base_url_env == "MINDFORGE_OPENAI_BASE_URL"
+    assert openai.api_key_env == "MINDFORGE_OPENAI_API_KEY"
+    assert openai.model == "gpt-4o-mini"
+    assert openai.base_url == "https://api.openai.com/v1"  # endpoint 不是 secret
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"

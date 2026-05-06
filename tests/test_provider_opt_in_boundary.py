@@ -41,7 +41,7 @@ from mindforge.llm.fake import FakeProvider
 _REPO = Path(__file__).resolve().parent.parent
 _SRC = _REPO / "src" / "mindforge"
 _LLM_DIR = _SRC / "llm"
-_DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
+_DEFAULT_YAML = _REPO / "src" / "mindforge" / "assets" / "configs" / "mindforge.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -49,20 +49,21 @@ _DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
 # ---------------------------------------------------------------------------
 
 
-def test_default_bundled_config_active_profile_is_fake() -> None:
+def test_default_bundled_config_active_profile_is_real_dogfood() -> None:
     text = _DEFAULT_YAML.read_text(encoding="utf-8")
-    # 必须显式声明 active_profile: fake；不允许 active_profile: openai 等
-    assert "active_profile: fake" in text
+    # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；fake 保留为
+    # offline demo / CI / deterministic tests，但不再作为普通用户主路径。
+    assert "active_profile: openai_compatible" in text
     # 逐行扫一遍，确保没有别的 active_profile 行潜藏
     for line in text.splitlines():
         s = line.strip()
         if s.startswith("active_profile:"):
-            assert s == "active_profile: fake", (
-                f"默认 bundled 配置必须 active_profile=fake，发现：{s!r}"
+            assert s == "active_profile: openai_compatible", (
+                f"默认 bundled 配置必须 active_profile=openai_compatible，发现：{s!r}"
             )
 
 
-def test_packaged_default_config_active_profile_is_fake() -> None:
+def test_packaged_default_config_active_profile_is_real_dogfood() -> None:
     """与上一条测试不同：本条断言**安装态**下 ``importlib.resources`` 暴露
     的 packaged 配置同样默认走 fake，避免发布时 yaml 漂移。"""
     from mindforge.assets_runtime import asset_root
@@ -70,7 +71,7 @@ def test_packaged_default_config_active_profile_is_fake() -> None:
     bundled = asset_root().joinpath("configs", "mindforge.yaml").read_text(
         encoding="utf-8"
     )
-    assert "active_profile: fake" in bundled
+    assert "active_profile: openai_compatible" in bundled
 
 
 # ---------------------------------------------------------------------------
@@ -78,14 +79,16 @@ def test_packaged_default_config_active_profile_is_fake() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _load_default_cfg():
+def _load_default_cfg_fake_override():
     from mindforge.config import load_mindforge_config
+    from dataclasses import replace
 
-    return load_mindforge_config(_DEFAULT_YAML)
+    cfg = load_mindforge_config(_DEFAULT_YAML)
+    return replace(cfg, llm=replace(cfg.llm, active_profile="fake"))
 
 
 def test_build_providers_fake_profile_only_constructs_fake_provider() -> None:
-    cfg = _load_default_cfg()
+    cfg = _load_default_cfg_fake_override()
     providers = build_providers(cfg.llm)
     assert providers, "build_providers 至少应返回 fake profile 引用的 alias"
     for alias, p in providers.items():
@@ -115,7 +118,7 @@ def test_build_providers_fake_profile_does_not_read_secret_env(
         return real_get(name, default)
 
     monkeypatch.setattr(os.environ, "get", spy)
-    cfg = _load_default_cfg()
+    cfg = _load_default_cfg_fake_override()
     build_providers(cfg.llm)
     assert accessed == [], (
         f"fake profile 下不应读取 secret env，违规访问：{accessed}"

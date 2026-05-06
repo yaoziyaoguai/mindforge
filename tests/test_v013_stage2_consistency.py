@@ -38,14 +38,13 @@ def clean_env(monkeypatch):
     return monkeypatch
 
 
-def test_default_config_active_profile_is_fake():
-    """configs/mindforge.yaml 默认 profile 必须是 fake。
+def test_bundled_config_active_profile_is_real_dogfood():
+    """package asset 默认 profile 必须是 openai_compatible。
 
-    这是 fake-default 安全契约的最外层防线: 一旦默认 profile 被改成
-    真实 provider, 所有 'real-opt-in' 文档与测试失去保护意义。
+    fake provider 仍保留给 CI/offline demo/deterministic tests；新用户主配置
+    则面向真实 dogfood，缺 key 时由命令友好失败并保持不自动 approve。
     """
-    text = Path("configs/mindforge.yaml").read_text(encoding="utf-8")
-    # 容忍注释行; 仅断言至少一处 active_profile: fake (无引号)
+    text = Path("src/mindforge/assets/configs/mindforge.yaml").read_text(encoding="utf-8")
     found = False
     for line in text.splitlines():
         stripped = line.strip()
@@ -53,8 +52,8 @@ def test_default_config_active_profile_is_fake():
             continue
         if stripped.startswith("active_profile:"):
             value = stripped.split(":", 1)[1].strip().strip("'\"")
-            assert value == "fake", (
-                f"default active_profile must be 'fake'; got {value!r}"
+            assert value == "openai_compatible", (
+                f"default active_profile must be 'openai_compatible'; got {value!r}"
             )
             found = True
     assert found, "active_profile key not found in configs/mindforge.yaml"

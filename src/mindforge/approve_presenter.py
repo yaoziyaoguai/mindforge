@@ -164,8 +164,10 @@ def render_approval_list(
         console.print("[yellow]没有待 approve 的卡片。[/yellow]")
         console.print(
             "[dim]下一步：如果有新资料，运行 `mindforge watch add <file-or-folder>` "
-            "或 `mindforge import <file-or-folder>` 生成 ai_draft；默认 profile fake，"
-            "MindForge 不会自动 approve。[/dim]"
+            "或 `mindforge import <file-or-folder>` 生成 ai_draft；"
+            "缺真实 provider key 时可显式加 `--profile fake` 跑离线 demo/testing；"
+            "MindForge 不会自动 approve。[/dim]",
+            soft_wrap=True,
         )
         return
     refs = build_pending_approval_refs_from_rows(rows)

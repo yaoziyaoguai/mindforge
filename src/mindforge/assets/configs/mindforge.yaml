@@ -1,8 +1,9 @@
 # =============================================================================
-# MindForge 主配置（草案 / Milestone 0）
+# MindForge 主配置
 #
-# ⚠️ 本文件在 M0 阶段是"契约样例"，M1 才会被真正加载。
-# 所有路径示例都以 macOS 个人路径为例，使用前请按需修改。
+# 普通用户只需要看这一份配置。API key / secret 不要写进 YAML；
+# use MINDFORGE_OPENAI_API_KEY from shell env or local .env.
+# Do not put secrets in YAML.
 #
 # 顶层结构：
 #   vault    — Obsidian Vault 的位置与子目录约定
@@ -129,7 +130,9 @@ triage:
 # LLM 配置（核心）
 #
 # 三层：
-#   active_profile  — 选择当前生效的 profile
+#   active_profile  — 选择当前生效的 profile。真实 dogfood 主路径使用
+#                     openai_compatible；fake 只给 offline demo / CI /
+#                     deterministic tests。
 #   profiles        — 每个 profile = "stage → model_alias" 映射
 #   models          — 每个 model_alias 的具体 provider 配置
 #
@@ -141,12 +144,12 @@ triage:
 # 同一 provider 下允许多个 model（如 cheap_cloud / strong_cloud）。
 # -----------------------------------------------------------------------------
 llm:
-  # 默认走 fake，**不会**调用真实模型；切换到真实路径必须显式改 active_profile。
-  # 这样保护：clone 仓库后误执行 `mindforge process` 不会消耗真实配额、不会泄漏 prompt。
-  active_profile: fake
+  # 真实 dogfood 默认：watch/import/process 会使用这个 profile。
+  # 缺少 MINDFORGE_OPENAI_API_KEY 时命令会友好失败，不会 fallback 到 fake。
+  active_profile: openai_compatible
 
   profiles:
-    # —— 安全默认：fake provider，离线、确定性 schema 输出 ——
+    # —— 内部测试路径：offline demo / CI / deterministic tests ——
     fake:
       triage: fake_fast
       distill: fake_strong
@@ -163,7 +166,8 @@ llm:
       review_questions: qwen_coder_strong
       action_extraction: qwen_coder_strong
 
-    # —— 备选：OpenAI-compatible 云端 ——
+    # —— 真实主路径：OpenAI-compatible 云端（OpenAI 官方 / 自建网关）——
+    # secret 只通过 MINDFORGE_OPENAI_API_KEY 提供；base_url 可选。
     openai_compatible:
       triage: openai_fast
       distill: openai_strong
@@ -180,7 +184,7 @@ llm:
       action_extraction: local_strong
 
   models:
-    # —— fake：离线测试 ——
+    # —— fake：offline demo / CI / deterministic tests，不是普通用户真实主路径 ——
     fake_fast:
       provider: fake
       type: fake
@@ -220,8 +224,9 @@ llm:
       provider: openai_compatible
       type: openai_compatible
       base_url_env: MINDFORGE_OPENAI_BASE_URL
+      base_url: "https://api.openai.com/v1"
       api_key_env: MINDFORGE_OPENAI_API_KEY
-      model: "cheap-model"
+      model: "gpt-4o-mini"
       timeout_seconds: 120
       max_retries: 2
 
@@ -229,8 +234,9 @@ llm:
       provider: openai_compatible
       type: openai_compatible
       base_url_env: MINDFORGE_OPENAI_BASE_URL
+      base_url: "https://api.openai.com/v1"
       api_key_env: MINDFORGE_OPENAI_API_KEY
-      model: "strong-model"
+      model: "gpt-4o-mini"
       timeout_seconds: 240
       max_retries: 2
 
@@ -324,3 +330,17 @@ search:
       bm25: 0.75
       value_score: 0.15
       review_due: 0.10
+
+# -----------------------------------------------------------------------------
+# Advanced / Troubleshooting
+#
+# 普通用户主路径是:
+#   mindforge watch add <file-or-folder> --profile openai_compatible
+#   mindforge import <file-or-folder> --profile openai_compatible
+#   mindforge approve
+#   mindforge recall --query "..."
+#
+# scan/process 仍保留给 Advanced / Troubleshooting。fake provider 继续保留给
+# offline demo / CI / deterministic tests:
+#   mindforge process --profile fake --limit 1
+# -----------------------------------------------------------------------------

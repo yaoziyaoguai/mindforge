@@ -28,8 +28,8 @@ config_app = typer.Typer(add_completion=False, help="本地配置 / setup 诊断
 
 def _bundled_repo_root() -> Path:
     # v0.5.2：init 的默认 configs 来自 package assets，而不是仓库根。
-    # 这让 wheel 安装后的 `mindforge init` 仍可复制 mindforge.yaml /
-    # learning_tracks.yaml / llm.example.yaml。vault 目录骨架仍由 VAULT_DIRS
+    # 真实 dogfood 后，init 只复制 mindforge.yaml；learning tracks 等仍作为
+    # package 内置资产被 process 使用。vault 目录骨架仍由 VAULT_DIRS
     # 显式创建，不依赖 repo-root vault_template。
     from .assets_runtime import bundled_asset_path_for_process
 
@@ -283,41 +283,85 @@ def _rewrite_init_config(
     active_profile: str | None,
 ) -> None:
     # 把刚拷过来的 mindforge.yaml 改成本次 init 选择；否则 doctor 会指向模板路径。
+    # 真实 dogfood 后，注释就是配置 UX 的一部分：这里只做文本级字段替换，
+    # 不再 safe_dump 整份 YAML，避免丢失"secret 不进 YAML"等关键说明。
     if not cfg_dst.exists():
         return
     try:
-        import yaml as _yaml
-
-        data = _yaml.safe_load(cfg_dst.read_text(encoding="utf-8")) or {}
-        if not isinstance(data, dict):
-            return
         changed: list[str] = []
-        vault_block = data.setdefault("vault", {})
-        if isinstance(vault_block, dict) and vault_block.get("root") != str(vault_root):
-            vault_block["root"] = str(vault_root)
+        text = cfg_dst.read_text(encoding="utf-8")
+        new_text = _replace_yaml_scalar_in_block(
+            text,
+            block_name="vault",
+            key="root",
+            value=str(vault_root),
+            quote=True,
+        )
+        if new_text != text:
+            text = new_text
             changed.append(f"vault.root → {vault_root}")
         if telemetry_enabled is not None:
-            telemetry = data.setdefault("telemetry", {})
-            if isinstance(telemetry, dict):
-                if telemetry.get("enabled") != telemetry_enabled:
-                    telemetry["enabled"] = telemetry_enabled
-                    changed.append(f"telemetry.enabled → {telemetry_enabled}")
-                if telemetry.get("local_only") is not True:
-                    telemetry["local_only"] = True
-                    changed.append("telemetry.local_only → True")
+            new_text = _replace_yaml_scalar_in_block(
+                text,
+                block_name="telemetry",
+                key="enabled",
+                value="true" if telemetry_enabled else "false",
+                quote=False,
+            )
+            if new_text != text:
+                text = new_text
+                changed.append(f"telemetry.enabled → {telemetry_enabled}")
         if active_profile:
-            llm = data.setdefault("llm", {})
-            if isinstance(llm, dict) and llm.get("active_profile") != active_profile:
-                llm["active_profile"] = active_profile
+            new_text = _replace_yaml_scalar_in_block(
+                text,
+                block_name="llm",
+                key="active_profile",
+                value=active_profile,
+                quote=False,
+            )
+            if new_text != text:
+                text = new_text
                 changed.append(f"llm.active_profile → {active_profile}")
         if changed:
-            cfg_dst.write_text(
-                _yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-                encoding="utf-8",
-            )
+            cfg_dst.write_text(text, encoding="utf-8")
             console.print(f"  rewrote {cfg_dst}  " + "；".join(changed))
     except Exception as e:  # noqa: BLE001
         console.print(f"[yellow]提示：未能改写 mindforge.yaml（{e}），请手工编辑 yaml。[/yellow]")
+
+
+def _replace_yaml_scalar_in_block(
+    text: str,
+    *,
+    block_name: str,
+    key: str,
+    value: str,
+    quote: bool,
+) -> str:
+    """在顶层 YAML block 中替换一个简单 scalar，保留整份模板注释。
+
+    本 helper 刻意很窄：只服务 init 的三处固定字段，不试图成为通用 YAML
+    编辑器。这样避免新增 ruamel.yaml 之类重依赖，也避免 ``safe_dump`` 把
+    用户最需要的配置说明全部抹掉。
+    """
+
+    lines = text.splitlines(keepends=True)
+    in_block = False
+    rendered = f'"{value}"' if quote else value
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not line.startswith(" ") and stripped.endswith(":"):
+            in_block = stripped == f"{block_name}:"
+            continue
+        if in_block and line.startswith("  ") and stripped.startswith(f"{key}:"):
+            comment = ""
+            if "#" in line:
+                before_hash, hash_part = line.split("#", 1)
+                if before_hash.strip().startswith(f"{key}:"):
+                    comment = "  #" + hash_part.rstrip("\n")
+            newline = "\n" if line.endswith("\n") else ""
+            lines[idx] = f"  {key}: {rendered}{comment}{newline}"
+            return "".join(lines)
+    return text
 
 
 @config_app.command("show")
@@ -345,7 +389,10 @@ def config_doctor(
     if not config.exists():
         console.print("[red]✗ config missing[/red]")
         console.print("Next: mindforge config init --output <path> --vault <vault>", markup=False)
-        console.print("Safe defaults: fake provider, no .env, no real LLM, no Obsidian writes.", markup=False)
+        console.print(
+            "Safe defaults: config only; secrets via env/.env; no API call during init.",
+            markup=False,
+        )
         raise typer.Exit(code=2)
     try:
         cfg = load_app_config(config, vault_override=global_vault_override())
@@ -394,7 +441,7 @@ def config_init(
     dry_run: bool = typer.Option(False, "--dry-run", help="只打印计划，不写文件"),
     force: bool = typer.Option(False, "--force", help="允许覆盖已有 config 文件"),
 ) -> None:
-    """生成最小本地配置文件；默认 fake provider 且拒绝覆盖。
+    """生成最小本地配置文件；默认真实 dogfood profile 且拒绝覆盖。
 
     中文学习型说明：这是 setup UX 的轻量入口，不替代 `mindforge init` 的 vault
     骨架创建；它只从 package asset 复制一份安全默认 yaml，并改写少量字段。
@@ -419,10 +466,13 @@ def setup_cmd(
     dry_run: bool = typer.Option(True, "--dry-run/--write", help="默认 dry-run；--write 才落盘 config"),
     force: bool = typer.Option(False, "--force", help="搭配 --write 才允许覆盖 config"),
 ) -> None:
-    """第一天 setup plan：CLI-first、默认 dry-run、默认 fake provider。"""
+    """第一天 setup plan：CLI-first、默认 dry-run、不调用 provider。"""
     console.print("[bold]MindForge setup[/bold]")
     console.print("Mode: dry-run" if dry_run else "Mode: write config", markup=False)
-    console.print("Safety: fake provider, no .env, no real LLM, no Obsidian formal-note writes.", markup=False)
+    console.print(
+        "Safety: writes config only; secrets stay in env/.env; no LLM call; no Obsidian formal-note writes.",
+        markup=False,
+    )
     plan = _build_config_init_plan(output=config, vault=vault, force=force)
     _print_config_init_plan(plan, dry_run=dry_run)
     console.print("Next after setup: mindforge start --config <path>", markup=False)
@@ -486,24 +536,16 @@ def _config_doctor_rows(cfg):
 
 
 def _build_config_init_plan(*, output: Path, vault: Path, force: bool) -> dict[str, object]:
-    """从 package asset 生成安全 config 内容，保留用户显式路径优先。"""
+    """从 package asset 生成主配置内容，保留注释并只替换 vault.root。"""
     from .assets_runtime import bundled_text
-    import yaml as _yaml
 
-    raw = bundled_text("configs", "mindforge.yaml")
-    data = _yaml.safe_load(raw) or {}
-    if not isinstance(data, dict):
-        raise typer.Exit(code=2)
-    vault_block = data.setdefault("vault", {})
-    if isinstance(vault_block, dict):
-        vault_block["root"] = str(vault.expanduser().resolve())
-    llm = data.setdefault("llm", {})
-    if isinstance(llm, dict):
-        llm["active_profile"] = "fake"
-    telemetry = data.setdefault("telemetry", {})
-    if isinstance(telemetry, dict):
-        telemetry["local_only"] = True
-    content = _yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+    content = _replace_yaml_scalar_in_block(
+        bundled_text("configs", "mindforge.yaml"),
+        block_name="vault",
+        key="root",
+        value=str(vault.expanduser().resolve()),
+        quote=True,
+    )
     return {
         "output": output,
         "vault": vault.expanduser().resolve(),
@@ -518,6 +560,9 @@ def _print_config_init_plan(plan: dict[str, object], *, dry_run: bool) -> None:
     console.print(f"output : {plan['output']}")
     console.print(f"vault  : {plan['vault']}")
     console.print(f"exists : {plan['exists']}  force={plan['force']}")
-    console.print("defaults: active_profile=fake, no .env read, no real LLM, no Obsidian writes", markup=False)
+    console.print(
+        "defaults: active_profile=openai_compatible, secrets via env/.env, no API call during init",
+        markup=False,
+    )
     if dry_run:
         console.print("[dim]dry-run: no files written[/dim]")

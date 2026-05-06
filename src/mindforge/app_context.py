@@ -82,7 +82,7 @@ def resolve_config_path(config_path: Path) -> Path:
 
     中文学习型说明：安装态用户经常在任意目录运行 ``mindforge demo`` /
     ``dogfood readiness`` / ``doctor``，当前目录没有 ``configs/mindforge.yaml``
-    是正常状态。只有默认路径缺失时才使用包内 fake-default 配置；如果用户显式
+    是正常状态。只有默认路径缺失时才使用包内配置；如果用户显式
     传了其它 ``--config``，仍严格报错，避免把拼错的路径静默吞掉。
     """
 

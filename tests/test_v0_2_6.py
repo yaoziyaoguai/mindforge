@@ -177,12 +177,42 @@ def test_init_creates_vault_and_configs(tmp_path: Path) -> None:
         assert (target / d).is_dir(), f"missing {d}"
     # configs
     assert (tmp_path / "configs" / "mindforge.yaml").exists()
-    assert (tmp_path / "configs" / "learning_tracks.yaml").exists()
+    assert not (tmp_path / "configs" / "learning_tracks.yaml").exists()
+    assert not (tmp_path / "configs" / "llm.example.yaml").exists()
     # .env.example 而非 .env
     assert (tmp_path / ".env.example").exists()
     assert not (tmp_path / ".env").exists()
     # next steps 提示
     assert "Next steps" in res.output
+
+
+def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
+    tmp_path: Path,
+) -> None:
+    """init 生成的主配置必须自解释。
+
+    中文学习型说明：真实 dogfood 后，``configs/mindforge.yaml`` 是唯一主配置
+    入口。init 只能替换少数字段，不能用 ``yaml.safe_dump`` 重写整份文件，
+    否则注释会消失，新用户又会被 llm.example.yaml 之类旁路配置牵走。
+    """
+
+    target = tmp_path / "newvault"
+    res = runner.invoke(
+        app,
+        ["init", "--vault", str(target), "--project-root", str(tmp_path)],
+    )
+
+    assert res.exit_code == 0, res.output
+    text = (tmp_path / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
+    assert "# MindForge 主配置" in text
+    assert "active_profile: openai_compatible" in text
+    assert "MINDFORGE_OPENAI_API_KEY" in text
+    assert "https://api.openai.com/v1" in text
+    assert "Do not put secrets in YAML" in text
+    assert "fake" in text
+    assert "offline demo / CI / deterministic tests" in text
+    assert "Advanced / Troubleshooting" in text
+    assert str(target) in text
 
 
 def test_init_is_idempotent(tmp_path: Path) -> None:

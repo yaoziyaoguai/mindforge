@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .checkpoint import Checkpoint
 from .config import MindForgeConfig
+from .llm.base import ProviderError
 from .process_executor import (
     build_approved_source_index,
     build_process_runtime_parts,
@@ -22,7 +23,6 @@ from .process_executor import (
     process_one_result,
 )
 from .process_service import (
-    FAKE_PROFILE,
     ProcessError,
     ProcessRequest,
     resolve_process_runtime,
@@ -45,6 +45,13 @@ class IngestionSummary:
     counts: dict[str, int]
     registry_result: AddWatchResult | None = None
     registry_path: Path | None = None
+
+
+REAL_PROVIDER_KEY_ERROR = (
+    "real provider requires MINDFORGE_OPENAI_API_KEY. "
+    "Set it via shell export or local .env. Do not put secrets in YAML. "
+    "fake/demo remains available with --profile fake."
+)
 
 
 def import_sources(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
@@ -106,9 +113,12 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
     )
     if isinstance(runtime, ProcessError):
         raise RuntimeError(runtime.message)
-    if runtime.provider.active_profile != FAKE_PROFILE and runtime.provider.requires_real_env:
-        raise RuntimeError("watch/import real provider path is not enabled in simple ingestion")
-    parts = build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy="five_stage")
+    try:
+        parts = build_process_runtime_parts(cfg=cfg, runtime=runtime, strategy="five_stage")
+    except ProviderError as exc:
+        if _looks_like_missing_openai_key(str(exc)):
+            raise RuntimeError(REAL_PROVIDER_KEY_ERROR) from exc
+        raise
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
@@ -147,16 +157,21 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
                     skip_reason="already_processed",
                 )
                 continue
-            process_one_result(
-                result=result,
-                cp=parts.checkpoint,
-                pipeline=parts.pipeline,
-                logger=logger,
-                writer=parts.writer,
-                cfg=cfg,
-                counts=counts,
-                dry_run=False,
-            )
+            try:
+                process_one_result(
+                    result=result,
+                    cp=parts.checkpoint,
+                    pipeline=parts.pipeline,
+                    logger=logger,
+                    writer=parts.writer,
+                    cfg=cfg,
+                    counts=counts,
+                    dry_run=False,
+                )
+            except ProviderError as exc:
+                if _looks_like_missing_openai_key(str(exc)):
+                    raise RuntimeError(REAL_PROVIDER_KEY_ERROR) from exc
+                raise
         finalize_process_run(
             cp=parts.checkpoint,
             cfg=cfg,
@@ -185,6 +200,12 @@ def _already_processed(
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _looks_like_missing_openai_key(message: str) -> bool:
+    return "MINDFORGE_OPENAI_API_KEY" in message and (
+        "未设置" in message or "requires" in message or "要求环境变量" in message
+    )
 
 
 __all__ = [

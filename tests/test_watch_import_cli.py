@@ -21,7 +21,7 @@ from mindforge.watch_registry import WatchRegistry
 runner = CliRunner()
 
 
-def _write_config(tmp_path: Path) -> tuple[Path, Path]:
+def _write_config(tmp_path: Path, *, active_profile: str = "fake") -> tuple[Path, Path]:
     vault = tmp_path / "vault"
     (vault / "00-Inbox" / "ManualNotes").mkdir(parents=True)
     cfg = tmp_path / "mindforge.yaml"
@@ -55,7 +55,7 @@ def _write_config(tmp_path: Path) -> tuple[Path, Path]:
                 },
                 "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
                 "llm": {
-                    "active_profile": "fake",
+                    "active_profile": active_profile,
                     "profiles": {
                         "fake": {
                             "triage": "fake_alias",
@@ -63,7 +63,14 @@ def _write_config(tmp_path: Path) -> tuple[Path, Path]:
                             "link_suggestion": "fake_alias",
                             "review_questions": "fake_alias",
                             "action_extraction": "fake_alias",
-                        }
+                        },
+                        "openai_compatible": {
+                            "triage": "openai_alias",
+                            "distill": "openai_alias",
+                            "link_suggestion": "openai_alias",
+                            "review_questions": "openai_alias",
+                            "action_extraction": "openai_alias",
+                        },
                     },
                     "models": {
                         "fake_alias": {
@@ -73,7 +80,16 @@ def _write_config(tmp_path: Path) -> tuple[Path, Path]:
                             "model": "fake",
                             "timeout_seconds": 5,
                             "max_retries": 0,
-                        }
+                        },
+                        "openai_alias": {
+                            "provider": "openai_compatible",
+                            "type": "openai_compatible",
+                            "base_url": "https://example.invalid/v1",
+                            "api_key_env": "MINDFORGE_OPENAI_API_KEY",
+                            "model": "gpt-4o-mini",
+                            "timeout_seconds": 5,
+                            "max_retries": 0,
+                        },
                     },
                 },
                 "prompts": {
@@ -132,6 +148,36 @@ def test_watch_add_file_registers_and_generates_ai_draft_once(tmp_path: Path, mo
     assert source.exists()
 
 
+def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """真实 provider 缺 key 时必须友好失败，不能偷偷落回 fake。
+
+    中文学习型说明：watch/import 是真实 dogfood 主入口，但自动化边界仍然只到
+    ``ai_draft``。缺少真实 provider secret 时，正确行为是明确告诉用户如何设置
+    env，而不是用 fake 内容冒充真实模型产物。
+    """
+
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.watch_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "real-provider-note.md"
+    source.write_text("# Real Provider Note\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["watch", "add", str(source), "--profile", "openai_compatible", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "real provider requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Do not put secrets in YAML" in result.output
+    assert "fake/demo remains available with --profile fake" in result.output
+    assert _card_paths(vault) == []
+
+
 def test_watch_add_folder_and_delete_preserves_source_and_cards(tmp_path: Path, monkeypatch) -> None:
     cfg, vault = _write_config(tmp_path)
     monkeypatch.chdir(vault)
@@ -172,6 +218,29 @@ def test_import_file_and_folder_do_not_register_watch(tmp_path: Path, monkeypatc
     assert "imported" in imported_folder.output
     assert len(_card_paths(vault)) == 2
     assert not (vault / ".mindforge" / "watched_sources.json").exists()
+
+
+def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "real-import-note.md"
+    source.write_text("# Real Import Note\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["import", str(source), "--profile", "openai_compatible", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "real provider requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Set it via shell export or local .env" in result.output
+    assert "fake/demo remains available with --profile fake" in result.output
+    assert _card_paths(vault) == []
 
 
 def test_watch_delete_default_and_approve_boundary(tmp_path: Path, monkeypatch) -> None:

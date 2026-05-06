@@ -20,6 +20,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from mindforge.cli import app
+from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.config import MindForgeConfig, load_mindforge_config
 from mindforge.presenters.doctor import doctor_icon, ok_dir
 from mindforge.services.doctor import (
@@ -34,7 +35,7 @@ from mindforge.services.doctor import (
 def _make_cfg(tmp_path: Path) -> MindForgeConfig:
     """复用包内默认 mindforge.yaml，只把 vault.root 与 state.workdir 重定向到 tmp。"""
 
-    cfg = load_mindforge_config(Path("configs/mindforge.yaml"))
+    cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     missing_vault = tmp_path / "vault"
     new_vault = replace(cfg.vault, root=missing_vault)
     new_state = replace(cfg.state, workdir=tmp_path / ".mindforge")

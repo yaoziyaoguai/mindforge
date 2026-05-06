@@ -705,8 +705,8 @@ def test_config_missing_and_bad_yaml_are_actionable(tmp_path: Path) -> None:
     assert "fix YAML" in res.output
 
 
-def test_config_init_defaults_fake_and_refuses_overwrite(tmp_path: Path) -> None:
-    """config init 只写安全默认配置，并默认拒绝覆盖用户文件。"""
+def test_config_init_defaults_real_dogfood_and_refuses_overwrite(tmp_path: Path) -> None:
+    """config init 写真实 dogfood 默认配置，并默认拒绝覆盖用户文件。"""
     cfg = tmp_path / "mindforge.yaml"
     vault = tmp_path / "vault"
 
@@ -718,7 +718,8 @@ def test_config_init_defaults_fake_and_refuses_overwrite(tmp_path: Path) -> None
     written = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
     assert written.exit_code == 0, written.output
     text = cfg.read_text(encoding="utf-8")
-    assert "active_profile: fake" in text
+    assert "active_profile: openai_compatible" in text
+    assert "Do not put secrets in YAML" in text
     assert str(vault.resolve()) in text
 
     second = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
@@ -751,8 +752,8 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
 
     setup = runner.invoke(app, ["setup", "--config", str(run_dir / "new.yaml"), "--vault", str(tmp_path / "vault"), "--dry-run"])
     assert setup.exit_code == 0, setup.output
-    assert "no .env" in setup.output
-    assert "no real LLM" in setup.output
+    assert "secrets stay in env/.env" in setup.output
+    assert "no LLM call" in setup.output
     assert not (run_dir / "new.yaml").exists()
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
@@ -810,7 +811,7 @@ def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
     text = doc.read_text(encoding="utf-8")
     for required in [
         "non-sensitive",
-        "no real LLM",
+        "真实 LLM 只在你配置 `MINDFORGE_OPENAI_API_KEY`",
         "No RAG / embedding",
         "No Obsidian plugin",
         "No automatic approve",
