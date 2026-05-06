@@ -17,6 +17,7 @@ import yaml
 from mindforge.config import MindForgeConfig
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from mindforge.provider_readiness import build_readiness_report
+from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
 
 from mindforge_web.schemas import (
     EditableCuboxConfig,
@@ -113,6 +114,14 @@ class WebConfigService:
 
         raw = self._read_config_raw()
         cubox_export, cubox_import = _cubox_paths(raw)
+        watched_count = len([
+            source
+            for source in list_watch_sources(
+                self.cfg.vault.root,
+                registry_path_for_vault(self.cfg.vault.root),
+            )
+            if not source.is_default
+        ])
         return SetupEditableConfigResponse(
             config_path=str(self.config_path),
             normalized_on_save=True,
@@ -140,7 +149,7 @@ class WebConfigService:
                 key="watched_sources",
                 label="Watched sources",
                 status="info",
-                value="managed on Sources page",
+                value=str(watched_count),
                 detail="Setup 展示同一份 watch 状态入口，不维护第二套 watch 配置。",
                 next_action=NextAction(
                     label="Open Sources",
@@ -184,8 +193,10 @@ class WebConfigService:
                 if value is not None and value.strip() and not value.strip().isidentifier():
                     errors.append(f"{provider}.{field_name} must be an env var name.")
 
-        if patch.cubox_export_path:
-            warnings.append("Cubox JSON path is stored as non-secret local setup metadata.")
+        if patch.cubox_export_path or patch.cubox_import_path:
+            warnings.append(
+                "Cubox is optional help text only in Setup; add its export folder as a watched source."
+            )
 
         return SetupValidationResponse(ok=not errors, errors=errors, warnings=warnings)
 
@@ -215,15 +226,6 @@ class WebConfigService:
 
         for provider, provider_patch in patch.providers.items():
             self._apply_provider_patch(raw, provider, provider_patch)
-
-        if patch.cubox_export_path is not None or patch.cubox_import_path is not None:
-            cubox = raw.setdefault("cubox", {})
-            if not isinstance(cubox, dict):
-                raise ConfigUpdateError(["cubox must be a YAML object"])
-            if patch.cubox_export_path is not None:
-                cubox["export_path"] = patch.cubox_export_path
-            if patch.cubox_import_path is not None:
-                cubox["import_path"] = patch.cubox_import_path
 
         self.config_path.write_text(
             yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),

@@ -1,5 +1,5 @@
 import type { SourcesResponse } from "../api/types";
-import { addWatchedSource, copySourcePath, deleteWatchedSource, importSource, revealSourcePath } from "../api/sources";
+import { addWatchedSource, copySourcePath, deleteWatchedSource, importSource, revealSourcePath, scanWatchedSources } from "../api/sources";
 import { SourceList } from "../components/SourceList";
 import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
@@ -14,6 +14,7 @@ export function SourcesPage({
   onRefresh?: () => Promise<void>;
 }) {
   const [path, setPath] = useState("");
+  const [frequency, setFrequency] = useState("manual");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -23,7 +24,7 @@ export function SourcesPage({
     setResult(null);
     try {
       const response = action === "watch"
-        ? await addWatchedSource(path.trim())
+        ? await addWatchedSource(path.trim(), frequency, true)
         : await importSource(path.trim());
       setResult(`${response.message}; processed=${response.counts.processed ?? 0}, skipped=${response.counts.skipped ?? 0}`);
       await onRefresh?.();
@@ -43,6 +44,20 @@ export function SourcesPage({
       await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanWatch(ref?: string, allSources = false) {
+    setBusy(true);
+    setResult(null);
+    try {
+      const response = await scanWatchedSources(ref, allSources);
+      setResult(`${response.message}; scanned=${response.counts.scanned ?? 0}, processed=${response.counts.processed ?? 0}, skipped=${response.counts.skipped ?? 0}`);
+      await onRefresh?.();
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : "Scan failed");
     } finally {
       setBusy(false);
     }
@@ -73,21 +88,37 @@ export function SourcesPage({
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-ink">Sources</h1>
-        <p className="mt-1 text-sm text-muted">Add original material and review the knowledge generated from it.</p>
+        <p className="mt-1 text-sm text-muted">MindForge monitors local files and folders. New or changed supported files create draft knowledge cards; approval is always explicit.</p>
       </header>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+        <div className="grid gap-3 md:grid-cols-[1fr_160px_auto_auto]">
           <input
             className="min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm"
             onChange={(event) => setPath(event.target.value)}
             placeholder="/path/to/file-or-folder"
             value={path}
           />
+          <select className="rounded-md border border-line bg-white px-3 py-2 text-sm" value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+            {["manual", "hourly", "daily", "weekly", "every 1h", "every 6h", "every 12h", "every 24h"].map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
           <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("watch")} type="button">
-            Watch add
+            Add watched folder
           </button>
           <button className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("import")} type="button">
             Import once
+          </button>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2 text-sm">
+          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => run("watch")} type="button">
+            Add watched file
+          </button>
+          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, false)} type="button">
+            Scan now
+          </button>
+          <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, true)} type="button">
+            Scan all
           </button>
         </div>
         <p className="mt-3 text-sm text-muted">{data.ingestion.safety_note}</p>
@@ -102,7 +133,9 @@ export function SourcesPage({
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Path</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Last processed</th>
+                <th className="px-4 py-3 font-medium">Frequency</th>
+                <th className="px-4 py-3 font-medium">Last scan</th>
+                <th className="px-4 py-3 font-medium">Next scan</th>
                 <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
@@ -133,14 +166,25 @@ export function SourcesPage({
                     <div className="mt-1 text-xs text-muted">
                       supported={source.supported_file_count} processed={source.processed_count} skipped={source.skipped_count} failed={source.failed_count}
                     </div>
+                    <div className="mt-1 text-xs text-muted">
+                      New since last scan={source.diff_counts.added ?? 0} Changed since last scan={source.diff_counts.changed ?? 0} Deleted since last scan={source.diff_counts.deleted ?? 0}
+                    </div>
                     {Object.keys(source.skipped_reason_summary).length ? (
                       <div className="mt-1 text-xs text-muted">
                         Skipped reasons: {Object.entries(source.skipped_reason_summary).map(([reason, count]) => `${reason} ${count}`).join(", ")}
                       </div>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 text-muted">{source.last_processed_at ?? source.last_seen_at ?? "-"}</td>
+                  <td className="px-4 py-3 text-muted">
+                    <div>{source.frequency}</div>
+                    <div className="text-xs">{source.due_status === "Due" ? "Due" : source.due_status}</div>
+                  </td>
+                  <td className="px-4 py-3 text-muted">{source.last_scan_at ?? source.last_processed_at ?? source.last_seen_at ?? "-"}</td>
+                  <td className="px-4 py-3 text-muted">{source.next_scan_at ?? "-"}</td>
                   <td className="px-4 py-3">
+                    <button className="mb-2 block rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(source.id)} type="button">
+                      Scan now
+                    </button>
                     {source.can_delete ? (
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source.id)} type="button">
                         Delete watch

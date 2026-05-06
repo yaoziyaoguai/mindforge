@@ -13,15 +13,29 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 
 PathType = Literal["file", "folder"]
-WatchStatus = Literal["active", "missing", "error"]
+WatchStatus = Literal["active", "missing", "error", "paused"]
 
 REGISTRY_SCHEMA_VERSION = 1
 DEFAULT_INBOX_ID = "default-inbox"
+DEFAULT_FREQUENCY = "manual"
+
+
+@dataclass(frozen=True)
+class WatchFileSnapshot:
+    relative_path: str
+    path: Path
+    content_hash: str
+    size: int
+    mtime: float
+    last_seen_at: str
+    last_processed_at: str | None = None
+    status: str = "seen"
+    skipped_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,6 +51,18 @@ class WatchedSource:
     strategy_id: str | None = None
     status: WatchStatus = "active"
     error: str | None = None
+    recursive: bool = False
+    frequency: str = DEFAULT_FREQUENCY
+    last_scan_at: str | None = None
+    next_scan_at: str | None = None
+    baseline: dict[str, WatchFileSnapshot] = None  # type: ignore[assignment]
+    diff_counts: dict[str, int] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.baseline is None:
+            object.__setattr__(self, "baseline", {})
+        if self.diff_counts is None:
+            object.__setattr__(self, "diff_counts", {})
 
 
 @dataclass(frozen=True)
@@ -99,6 +125,7 @@ def default_inbox_watch(vault_root: Path) -> WatchedSource:
         is_default=True,
         added_at="system",
         status=status,
+        recursive=True,
     )
 
 
@@ -118,22 +145,29 @@ def add_watch_source(
     source_path: Path,
     *,
     strategy_id: str | None = None,
+    frequency: str = DEFAULT_FREQUENCY,
+    recursive: bool | None = None,
 ) -> AddWatchResult:
     canonical = source_path.expanduser().resolve()
+    normalized_frequency = normalize_frequency(frequency)
     registry = WatchRegistry.load(registry_path)
     for source in registry.sources:
         if source.path == canonical:
             return AddWatchResult(source=source, added=False, message="already registered")
+    path_type = _path_type(canonical)
     watched = WatchedSource(
         id=_watch_id(canonical),
         path=canonical,
-        path_type=_path_type(canonical),
+        path_type=path_type,
         is_default=False,
         added_at=_now(),
         last_seen_at=_now() if canonical.exists() else None,
         fingerprint=_fingerprint(canonical),
         strategy_id=strategy_id,
         status="active" if canonical.exists() else "missing",
+        recursive=path_type == "folder" if recursive is None else bool(recursive),
+        frequency=normalized_frequency,
+        next_scan_at=next_scan_after(_now(), normalized_frequency),
     )
     WatchRegistry(sources=(*registry.sources, watched)).save(registry_path)
     return AddWatchResult(source=watched, added=True, message="registered")
@@ -149,6 +183,11 @@ def update_watch_source(
     fingerprint: str | None = None,
     status: WatchStatus | None = None,
     error: str | None = None,
+    frequency: str | None = None,
+    last_scan_at: str | None = None,
+    next_scan_at: str | None = None,
+    baseline: dict[str, WatchFileSnapshot] | None = None,
+    diff_counts: dict[str, int] | None = None,
 ) -> WatchedSource | None:
     registry = WatchRegistry.load(registry_path)
     updated: list[WatchedSource] = []
@@ -171,6 +210,12 @@ def update_watch_source(
             strategy_id=source.strategy_id,
             status=status if status is not None else source.status,
             error=error,
+            recursive=source.recursive,
+            frequency=normalize_frequency(frequency) if frequency is not None else source.frequency,
+            last_scan_at=last_scan_at if last_scan_at is not None else source.last_scan_at,
+            next_scan_at=next_scan_at if next_scan_at is not None else source.next_scan_at,
+            baseline=baseline if baseline is not None else source.baseline,
+            diff_counts=diff_counts if diff_counts is not None else source.diff_counts,
         )
         updated.append(found)
     if found is not None:
@@ -199,6 +244,76 @@ def delete_watch_source(vault_root: Path, registry_path: Path, ref: str) -> Dele
     return DeleteWatchResult(deleted=True, message="deleted", source=deleted)
 
 
+def set_watch_status(vault_root: Path, registry_path: Path, ref: str, status: WatchStatus) -> WatchedSource | None:
+    source = find_watch_source(vault_root, registry_path, ref)
+    if source is None or source.is_default:
+        return None
+    return update_watch_source(vault_root, registry_path, source.id, status=status, error=None)
+
+
+def find_watch_source(vault_root: Path, registry_path: Path, ref: str) -> WatchedSource | None:
+    canonical = _try_resolve(ref)
+    for source in list_watch_sources(vault_root, registry_path):
+        if source.id == ref or str(source.path) == ref or (canonical is not None and source.path == canonical):
+            return source
+    return None
+
+
+def normalize_frequency(value: str | None) -> str:
+    text = (value or DEFAULT_FREQUENCY).strip().lower()
+    aliases = {"1h": "every 1h", "6h": "every 6h", "12h": "every 12h", "24h": "every 24h"}
+    text = aliases.get(text, text)
+    if text in {"manual", "hourly", "daily", "weekly", "every 1h", "every 6h", "every 12h", "every 24h"}:
+        return text
+    raise ValueError(f"Unsupported watch frequency: {value}")
+
+
+def is_due(source: WatchedSource, *, now: datetime | None = None) -> bool:
+    if source.is_default or source.status == "paused":
+        return False
+    if source.frequency == "manual":
+        return False
+    if source.next_scan_at:
+        try:
+            due_at = datetime.fromisoformat(source.next_scan_at)
+        except ValueError:
+            return True
+        return due_at <= (now or datetime.now(timezone.utc))
+    if source.last_scan_at:
+        try:
+            last = datetime.fromisoformat(source.last_scan_at)
+        except ValueError:
+            return True
+        return last + frequency_delta(source.frequency) <= (now or datetime.now(timezone.utc))
+    return True
+
+
+def next_scan_after(value: str | None, frequency: str) -> str | None:
+    normalized = normalize_frequency(frequency)
+    if normalized == "manual":
+        return None
+    try:
+        base = datetime.fromisoformat(value or _now())
+    except ValueError:
+        base = datetime.now(timezone.utc)
+    return (base + frequency_delta(normalized)).isoformat(timespec="seconds")
+
+
+def frequency_delta(frequency: str) -> timedelta:
+    normalized = normalize_frequency(frequency)
+    if normalized in {"hourly", "every 1h"}:
+        return timedelta(hours=1)
+    if normalized == "every 6h":
+        return timedelta(hours=6)
+    if normalized == "every 12h":
+        return timedelta(hours=12)
+    if normalized in {"daily", "every 24h"}:
+        return timedelta(days=1)
+    if normalized == "weekly":
+        return timedelta(days=7)
+    return timedelta(0)
+
+
 def _source_to_dict(source: WatchedSource) -> dict[str, Any]:
     return {
         "id": source.id,
@@ -212,6 +327,12 @@ def _source_to_dict(source: WatchedSource) -> dict[str, Any]:
         "strategy_id": source.strategy_id,
         "status": source.status,
         "error": source.error,
+        "recursive": source.recursive,
+        "frequency": source.frequency,
+        "last_scan_at": source.last_scan_at,
+        "next_scan_at": source.next_scan_at,
+        "baseline": {key: _snapshot_to_dict(item) for key, item in source.baseline.items()},
+        "diff_counts": dict(source.diff_counts),
     }
 
 
@@ -228,6 +349,48 @@ def _source_from_dict(data: dict[str, Any]) -> WatchedSource:
         strategy_id=data.get("strategy_id"),
         status=data.get("status", "active"),
         error=data.get("error"),
+        recursive=bool(data.get("recursive", data.get("path_type") == "folder")),
+        frequency=normalize_frequency(str(data.get("frequency") or DEFAULT_FREQUENCY)),
+        last_scan_at=data.get("last_scan_at"),
+        next_scan_at=data.get("next_scan_at"),
+        baseline={
+            str(key): _snapshot_from_dict(value)
+            for key, value in (data.get("baseline") or {}).items()
+            if isinstance(value, dict)
+        },
+        diff_counts={
+            str(key): int(value)
+            for key, value in (data.get("diff_counts") or {}).items()
+            if isinstance(value, int)
+        },
+    )
+
+
+def _snapshot_to_dict(item: WatchFileSnapshot) -> dict[str, Any]:
+    return {
+        "relative_path": item.relative_path,
+        "path": str(item.path),
+        "content_hash": item.content_hash,
+        "size": item.size,
+        "mtime": item.mtime,
+        "last_seen_at": item.last_seen_at,
+        "last_processed_at": item.last_processed_at,
+        "status": item.status,
+        "skipped_reason": item.skipped_reason,
+    }
+
+
+def _snapshot_from_dict(data: dict[str, Any]) -> WatchFileSnapshot:
+    return WatchFileSnapshot(
+        relative_path=str(data.get("relative_path") or ""),
+        path=Path(str(data.get("path") or "")).expanduser().resolve(),
+        content_hash=str(data.get("content_hash") or ""),
+        size=int(data.get("size") or 0),
+        mtime=float(data.get("mtime") or 0),
+        last_seen_at=str(data.get("last_seen_at") or ""),
+        last_processed_at=data.get("last_processed_at"),
+        status=str(data.get("status") or "seen"),
+        skipped_reason=data.get("skipped_reason"),
     )
 
 

@@ -230,8 +230,17 @@ class WebFacade:
     def watch_sources(self) -> WatchSourcesResponse:
         return self.source_service.watch_sources()
 
-    def watch_add(self, path: Path) -> IngestionActionResponse:
-        return self.source_service.watch_add(path)
+    def watch_add(
+        self,
+        path: Path,
+        *,
+        frequency: str | None = None,
+        recursive: bool | None = None,
+    ) -> IngestionActionResponse:
+        return self.source_service.watch_add(path, frequency=frequency, recursive=recursive)
+
+    def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
+        return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)

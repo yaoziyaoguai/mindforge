@@ -114,6 +114,23 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "0 configured" not in combined
 
 
+def test_setup_sources_section_decenters_cubox_config_fields() -> None:
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "Sources & watched folders" in setup
+    assert "Add local files or folders you want MindForge to monitor" in setup
+    assert "Current watched sources count" in setup
+    assert "Default inbox path" in setup
+    assert "Manage sources" in setup
+    assert "Cubox JSON export path" not in setup
+    assert "Cubox import path" not in setup
+    assert "Cubox export folder" in setup
+    assert "MindForge does not read Cubox app internals" in setup
+    assert "MindForge does not call Cubox cloud APIs in this mode" in setup
+    assert "Cubox is optional" in setup
+    assert "Approval is always explicit" in setup
+
+
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     sources = _read("pages/SourcesPage.tsx")
     source_list = _read("components/SourceList.tsx")
@@ -126,6 +143,16 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Has generated knowledge" in combined
     assert "Adapter ready" in combined
     assert "Recursive: yes" in combined
+    assert "Frequency" in sources
+    assert "Last scan" in sources
+    assert "Next scan" in sources
+    assert "Due" in sources
+    assert "Changed since last scan" in sources
+    assert "Deleted since last scan" in sources
+    assert "New since last scan" in sources
+    assert "Scan now" in sources
+    assert "Add watched file" in sources
+    assert "Add watched folder" in sources
     assert "Skipped reasons" in combined
     assert "supported=" in combined
     assert "failed=" in combined

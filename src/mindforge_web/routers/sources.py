@@ -36,7 +36,20 @@ def watch_add(
     payload: IngestionRequest,
     facade: WebFacade = Depends(get_facade),
 ) -> IngestionActionResponse:
-    return facade.watch_add(Path(payload.path))
+    return facade.watch_add(
+        Path(payload.path),
+        frequency=payload.frequency,
+        recursive=payload.recursive,
+    )
+
+
+@router.post("/watch/scan", response_model=IngestionActionResponse)
+def watch_scan(
+    ref: str | None = None,
+    all_sources: bool = False,
+    facade: WebFacade = Depends(get_facade),
+) -> IngestionActionResponse:
+    return facade.watch_scan(ref=ref, all_sources=all_sources)
 
 
 @router.delete("/watch/{ref:path}", response_model=IngestionActionResponse)

@@ -15,8 +15,8 @@ export function getWatchedSources() {
   return apiGet<WatchSourcesResponse>("/api/sources/watch");
 }
 
-export function addWatchedSource(path: string) {
-  return apiPost<IngestionActionResponse>("/api/sources/watch", { path });
+export function addWatchedSource(path: string, frequency = "manual", recursive = true) {
+  return apiPost<IngestionActionResponse>("/api/sources/watch", { path, frequency, recursive });
 }
 
 export function deleteWatchedSource(ref: string) {
@@ -25,6 +25,14 @@ export function deleteWatchedSource(ref: string) {
 
 export function importSource(path: string) {
   return apiPost<IngestionActionResponse>("/api/sources/import", { path });
+}
+
+export function scanWatchedSources(ref?: string, allSources = false) {
+  const params = new URLSearchParams();
+  if (ref) params.set("ref", ref);
+  if (allSources) params.set("all_sources", "true");
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiPost<IngestionActionResponse>(`/api/sources/watch/scan${suffix}`, {});
 }
 
 export function importLocalUnavailable() {

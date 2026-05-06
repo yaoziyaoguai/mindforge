@@ -261,6 +261,23 @@ def test_web_workflow_library_and_source_visibility_return_card_content_not_sour
     assert card.exists()
 
 
+def test_sources_api_exposes_frequency_due_and_baseline_counts(tmp_path: Path, monkeypatch) -> None:
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "watched.md"
+    source.write_text("# Watched\n\nbody\n", encoding="utf-8")
+
+    added = client.post("/api/sources/watch", json={"path": str(source), "frequency": "daily"})
+    sources = client.get("/api/sources").json()
+
+    assert added.status_code == 200
+    watched = [item for item in sources["watched_sources"] if item["path"] == str(source.resolve())][0]
+    assert watched["frequency"] == "daily"
+    assert watched["last_scan_at"]
+    assert watched["next_scan_at"]
+    assert watched["due_status"] in {"Due", "Not due", "Manual"}
+    assert "added" in watched["diff_counts"]
+
+
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:
     client, _cards = _client(tmp_path, monkeypatch)
 

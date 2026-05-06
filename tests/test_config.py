@@ -40,12 +40,14 @@ def test_real_mindforge_yaml_loads() -> None:
     assert "cubox_markdown" in cfg.sources.enabled
     assert "plain_markdown" in cfg.sources.enabled
     active = {e.source_type for e in cfg.sources.active_entries()}
-    # v0.2.4 起 webclip_markdown / chat_export 默认启用（真实 adapter 已落地）
+    # v0.2.4 起 webclip_markdown / chat_export 默认启用；本 milestone 增加
+    # common_document 作为通用本地文档入口，不把 Cubox 当核心配置项。
     assert active == {
         "cubox_markdown",
         "plain_markdown",
         "webclip_markdown",
         "chat_export",
+        "common_document",
     }
     # llm
     # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；缺 key 时

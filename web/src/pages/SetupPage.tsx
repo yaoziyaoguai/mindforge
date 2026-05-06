@@ -8,8 +8,6 @@ type SetupForm = {
   vault_root: string;
   create_vault: boolean;
   active_provider: string;
-  cubox_export_path: string;
-  cubox_import_path: string;
   providers: Record<string, {
     default_base_url: string;
     default_model: string;
@@ -204,16 +202,38 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-ink">Cubox JSON export path</span>
-              <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.cubox_export_path} onChange={(event) => setForm({ ...form, cubox_export_path: event.target.value })} />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-ink">Cubox import path</span>
-              <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.cubox_import_path} onChange={(event) => setForm({ ...form, cubox_import_path: event.target.value })} />
-            </label>
-          </div>
+          <section className="rounded-md border border-line p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-ink">Sources & watched folders</h2>
+                <p className="mt-1 max-w-2xl text-sm text-muted">
+                  Add local files or folders you want MindForge to monitor. New or changed supported files create draft knowledge cards. Approval is always explicit.
+                </p>
+              </div>
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={() => { window.location.hash = "#/sources"; }} type="button">
+                Manage sources
+              </button>
+            </div>
+            <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+              <div>
+                <dt className="font-medium text-ink">Current watched sources count</dt>
+                <dd className="text-muted">{editable.watch_summary.value}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-ink">Default inbox path</dt>
+                <dd className="break-all text-muted">{editable.vault.root}/00-Inbox</dd>
+              </div>
+            </dl>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {sourceHelpCards.map((card) => (
+                <article key={card.title} className="rounded-md border border-line p-3 text-sm">
+                  <h3 className="font-medium text-ink">{card.title}</h3>
+                  <p className="mt-1 text-muted">{card.description}</p>
+                  {card.notes ? <p className="mt-2 text-xs text-muted">{card.notes}</p> : null}
+                </article>
+              ))}
+            </div>
+          </section>
 
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
@@ -242,8 +262,6 @@ function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
     vault_root: editable.vault.root,
     create_vault: false,
     active_provider: editable.llm.active_provider,
-    cubox_export_path: editable.cubox.export_path ?? "",
-    cubox_import_path: editable.cubox.import_path ?? "",
     providers: Object.fromEntries(
       Object.entries(editable.llm.providers).map(([name, provider]) => [
         name,
@@ -265,7 +283,25 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
     create_vault: form.create_vault,
     active_provider: form.active_provider,
     providers: form.providers,
-    cubox_export_path: form.cubox_export_path || null,
-    cubox_import_path: form.cubox_import_path || null,
   };
 }
+
+const sourceHelpCards = [
+  {
+    title: "Cubox export folder",
+    description: "Export articles or annotations from Cubox as Markdown, HTML, TXT, PDF, or JSON into a local folder, then add that folder as a watched source.",
+    notes: "MindForge does not read Cubox app internals. MindForge does not call Cubox cloud APIs in this mode. Cubox is optional. Approval is always explicit.",
+  },
+  {
+    title: "Obsidian inbox",
+    description: "Point a watched folder at an inbox where you collect local Markdown notes.",
+  },
+  {
+    title: "Downloads folder",
+    description: "Watch a local export/download directory and review supported files as drafts.",
+  },
+  {
+    title: "Manual notes folder",
+    description: "Keep handwritten notes in a local folder and let MindForge detect new or changed files.",
+  },
+];

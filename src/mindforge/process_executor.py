@@ -30,6 +30,7 @@ from .writer import CardWriter
 @dataclass(frozen=True)
 class ApprovedSourceMatch:
     card_path: str
+    source_content_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,26 +38,45 @@ class ApprovedSourceIndex:
     source_ids: dict[str, ApprovedSourceMatch]
     source_paths: dict[str, ApprovedSourceMatch]
 
-    def contains(self, *, source_id: str, source_path: str, vault_root: Path) -> bool:
+    def contains(
+        self,
+        *,
+        source_id: str,
+        source_path: str,
+        vault_root: Path,
+        content_hash: str | None = None,
+    ) -> bool:
         return self.match(
             source_id=source_id,
             source_path=source_path,
             vault_root=vault_root,
+            content_hash=content_hash,
         ) is not None
 
-    def match(self, *, source_id: str, source_path: str, vault_root: Path) -> ApprovedSourceMatch | None:
+    def match(
+        self,
+        *,
+        source_id: str,
+        source_path: str,
+        vault_root: Path,
+        content_hash: str | None = None,
+    ) -> ApprovedSourceMatch | None:
         """按具体 source identity 命中 human_approved 来源。
 
         中文学习型说明：approval boundary 是“某个 source document 对应的
         draft 被人批准”，不是“整个目录已批准”。因此索引只看 card frontmatter
-        记录的 source_id / source_path，不用 parent folder 或 content hash 推断。
+        记录的 source_id / source_path。内容变化时 content_hash 会变，新版本
+        必须允许重新生成 ai_draft；所以如果调用方提供 content_hash，只有同一
+        hash 的已批准卡片才算 already_approved。
         """
 
         if source_id in self.source_ids:
-            return self.source_ids[source_id]
+            match = self.source_ids[source_id]
+            if _hash_matches(match, content_hash):
+                return match
         for key in source_path_keys(source_path, vault_root=vault_root):
             match = self.source_paths.get(key)
-            if match is not None:
+            if match is not None and _hash_matches(match, content_hash):
                 return match
         return None
 
@@ -156,7 +176,10 @@ def build_approved_source_index(cfg: MindForgeConfig) -> ApprovedSourceIndex:
     for card in card_scan.cards:
         if card.status != "human_approved":
             continue
-        match = ApprovedSourceMatch(card_path=card.rel_path)
+        match = ApprovedSourceMatch(
+            card_path=card.rel_path,
+            source_content_hash=card.source_content_hash,
+        )
         if card.source_id:
             source_ids[card.source_id] = match
         if card.source_path:
@@ -166,6 +189,12 @@ def build_approved_source_index(cfg: MindForgeConfig) -> ApprovedSourceIndex:
         source_ids=source_ids,
         source_paths=source_paths,
     )
+
+
+def _hash_matches(match: ApprovedSourceMatch, content_hash: str | None) -> bool:
+    if content_hash is None:
+        return True
+    return bool(match.source_content_hash and match.source_content_hash == content_hash)
 
 
 def upsert_processing_item(result, cp: Checkpoint) -> tuple[object, ItemState]:

@@ -217,8 +217,33 @@ def _skip_file_reason(
         return "temp_file"
     if policy.max_file_size_bytes is not None and path.stat().st_size > policy.max_file_size_bytes:
         return "too_large"
+    parser_reason = _parser_skip_reason(path, adapters, entries)
+    if parser_reason is not None:
+        return parser_reason
     if not _has_matching_adapter(path, adapters, entries):
         return "unsupported_extension"
+    return None
+
+
+def _parser_skip_reason(path: Path, adapters: dict[str, SourceAdapter], entries) -> str | None:
+    """询问 parser registry 是否有更精确的 skip reason。
+
+    中文学习型说明：missing optional dependency 属于 parser 层知识，不应硬编码
+    在 folder scanner。scanner 只消费 adapter 暴露的窄接口，并继续输出统一
+    skipped reason。
+    """
+
+    path_str = str(path)
+    for entry in entries:
+        adapter = adapters[entry.source_type]
+        reason_fn = getattr(adapter, "skip_reason", None)
+        if not callable(reason_fn):
+            continue
+        if not path.match(entry.file_glob) and not adapter.can_handle(path_str):
+            continue
+        reason = reason_fn(path_str)
+        if reason:
+            return str(reason)
     return None
 
 

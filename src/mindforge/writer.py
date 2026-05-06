@@ -107,11 +107,29 @@ class CardWriter:
             if existing == rendered:
                 # 完全一样：当作幂等成功
                 return WriteResult(path=out_path, conflict=False)
-            out_path = out_path.with_suffix(".conflict.md")
+            out_path = _next_conflict_path(out_path)
             conflict = True
 
         out_path.write_text(rendered, encoding="utf-8")
         return WriteResult(path=out_path, conflict=conflict)
+
+
+def _next_conflict_path(path: Path) -> Path:
+    """为同一 source 的多次内容变化保留每个 draft 版本。
+
+    中文学习型说明：watch 是 additive by default。源文件变更可以生成新
+    ai_draft，但不能覆盖旧 draft 或已批准知识；删除/归并知识必须人工完成。
+    """
+
+    candidate = path.with_suffix(".conflict.md")
+    if not candidate.exists():
+        return candidate
+    index = 2
+    while True:
+        candidate = path.with_name(f"{path.stem}.conflict-{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+        index += 1
 
 
 __all__ = ["CardWriter", "WriteResult"]

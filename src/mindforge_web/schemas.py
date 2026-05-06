@@ -237,6 +237,10 @@ class WatchedSourceResponse(BaseModel):
     added_at: str
     last_seen_at: str | None = None
     last_processed_at: str | None = None
+    last_scan_at: str | None = None
+    next_scan_at: str | None = None
+    frequency: str = "manual"
+    due_status: Literal["Due", "Not due", "Manual"] = "Manual"
     fingerprint: str | None = None
     can_delete: bool
     error: str | None = None
@@ -246,6 +250,7 @@ class WatchedSourceResponse(BaseModel):
     skipped_count: int = 0
     failed_count: int = 0
     skipped_reason_summary: dict[str, int] = Field(default_factory=dict)
+    diff_counts: dict[str, int] = Field(default_factory=dict)
     generated_knowledge_status: str = "No generated knowledge"
     generated_card_count: int = 0
     generated_card_paths: list[str] = Field(default_factory=list)
@@ -261,6 +266,8 @@ class WatchSourcesResponse(BaseModel):
 
 class IngestionRequest(BaseModel):
     path: str
+    frequency: str | None = None
+    recursive: bool | None = None
 
 
 class IngestionActionResponse(BaseModel):

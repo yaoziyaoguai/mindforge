@@ -12,10 +12,15 @@ from pathlib import Path
 
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
-from mindforge.ingestion_service import import_sources, watch_add_source, watch_sources_for_display
+from mindforge.ingestion_service import (
+    import_sources,
+    watch_add_source,
+    watch_scan_sources,
+    watch_sources_for_display,
+)
 from mindforge.scanner import Scanner
 from mindforge.source_discovery import discover_source_results, enumerate_supported_source_files
-from mindforge.watch_registry import delete_watch_source, registry_path_for_vault
+from mindforge.watch_registry import delete_watch_source, is_due, registry_path_for_vault
 
 from mindforge_web.schemas import (
     IngestionActionResponse,
@@ -105,8 +110,19 @@ class WebSourceService:
             ],
         )
 
-    def watch_add(self, path: Path) -> IngestionActionResponse:
-        summary = watch_add_source(self.cfg, path)
+    def watch_add(
+        self,
+        path: Path,
+        *,
+        frequency: str | None = None,
+        recursive: bool | None = None,
+    ) -> IngestionActionResponse:
+        summary = watch_add_source(
+            self.cfg,
+            path,
+            frequency=frequency or "manual",
+            recursive=recursive,
+        )
         registry_result = summary.registry_result
         assert registry_result is not None
         return IngestionActionResponse(
@@ -122,6 +138,23 @@ class WebSourceService:
             added_to_registry=registry_result.added,
             registry_path=str(summary.registry_path) if summary.registry_path else None,
             watch_id=registry_result.source.id,
+            next_actions=_ingestion_next_actions(),
+        )
+
+    def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
+        summary = watch_scan_sources(self.cfg, ref=ref, all_sources=all_sources)
+        return IngestionActionResponse(
+            ok=True,
+            mode="watch_scan",
+            target=ref or ("all watched sources" if all_sources else "due watched sources"),
+            counts={
+                **summary.counts,
+                "scanned": summary.scanned,
+                "not_due": summary.not_due,
+                "missing": summary.missing,
+            },
+            message="watch scan completed; source deletion never deletes approved knowledge",
+            added_to_registry=False,
             next_actions=_ingestion_next_actions(),
         )
 
@@ -273,6 +306,10 @@ class WebSourceService:
             added_at=source.added_at,
             last_seen_at=source.last_seen_at,
             last_processed_at=source.last_processed_at,
+            last_scan_at=source.last_scan_at,
+            next_scan_at=source.next_scan_at,
+            frequency=source.frequency,
+            due_status=_due_status(source),
             fingerprint=source.fingerprint,
             can_delete=not source.is_default,
             error=source.error,
@@ -282,6 +319,7 @@ class WebSourceService:
             skipped_count=sum(skipped_summary.values()),
             failed_count=failed_count,
             skipped_reason_summary=skipped_summary,
+            diff_counts=dict(source.diff_counts),
             generated_knowledge_status=generated_status,
             generated_card_count=len(card_paths),
             generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
@@ -390,6 +428,12 @@ def _watch_status_label(
     if supported_count:
         return "Watching"
     return "No generated knowledge"
+
+
+def _due_status(source) -> str:
+    if source.frequency == "manual":
+        return "Manual"
+    return "Due" if is_due(source) else "Not due"
 
 
 def _ingestion_next_actions() -> list[NextAction]:

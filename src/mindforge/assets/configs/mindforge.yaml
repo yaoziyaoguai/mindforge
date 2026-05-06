@@ -44,6 +44,7 @@ sources:
     - plain_markdown
     - webclip_markdown
     - chat_export
+    - common_document
 
   registry:
     cubox_markdown:
@@ -87,6 +88,12 @@ sources:
       inbox_subdir: "Docs"
       file_glob: "*.docx"
       enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[docx]'`` 后再开启
+
+    common_document:
+      adapter: CommonDocumentAdapter
+      inbox_subdir: "Documents"
+      file_glob: "*"
+      enabled: true                  # 通用本地文档：md/txt/html/json/csv/tsv/xml/url/webloc；不会联网 fetch
 
 # -----------------------------------------------------------------------------
 # 状态与日志

@@ -32,7 +32,7 @@ from .process_service import (
     resolve_process_runtime,
 )
 from .run_logger import RunLogger
-from .source_discovery import discover_source_results
+from .source_discovery import SourceScanPolicy, discover_source_results, enumerate_supported_source_files
 from .source_mux import SourceMux
 from .sources.base import SourceDocument
 from .strategy_selection import (
@@ -44,7 +44,13 @@ from .strategy_selection import (
 from .strategies import NotYetImplementedStrategyError, UnknownStrategyError
 from .watch_registry import (
     AddWatchResult,
+    WatchedSource,
+    WatchFileSnapshot,
     add_watch_source,
+    find_watch_source,
+    is_due,
+    list_watch_sources,
+    next_scan_after,
     registry_path_for_vault,
     update_watch_source,
 )
@@ -60,6 +66,17 @@ class IngestionSummary:
     registry_result: AddWatchResult | None = None
     registry_path: Path | None = None
     strategy: StrategySelection | None = None
+    diff_counts: dict[str, int] | None = None
+
+
+@dataclass(frozen=True)
+class WatchScanSummary:
+    scanned: int
+    not_due: int
+    missing: int
+    counts: dict[str, int]
+    diff_counts: dict[str, int]
+    source_ids: tuple[str, ...]
 
 
 def import_sources(
@@ -94,6 +111,8 @@ def watch_add_source(
     target: Path,
     *,
     strategy: StrategySelection | None = None,
+    frequency: str = "manual",
+    recursive: bool | None = None,
 ) -> IngestionSummary:
     """注册 watched source，并立即处理当前内容。
 
@@ -110,14 +129,23 @@ def watch_add_source(
         registry_path,
         target,
         strategy_id=selected_strategy.strategy_id,
+        frequency=frequency,
+        recursive=recursive,
     )
     effective_strategy = resolve_strategy_selection(
         cfg,
         watched_strategy=registry_result.source.strategy_id,
     )
+    baseline, diff_counts = _build_source_baseline(cfg, registry_result.source)
+    changed_targets = _changed_targets_from_baseline(baseline, diff_counts)
+    ingest_target = (
+        registry_result.source.path
+        if registry_result.source.path_type == "file" or not changed_targets
+        else changed_targets
+    )
     summary = _ingest_targets_summary(
         cfg,
-        registry_result.source.path,
+        ingest_target,
         command="watch_add",
         bypass_triage_gate=False,
         strategy=effective_strategy,
@@ -132,6 +160,10 @@ def watch_add_source(
         registry_result.source.id,
         last_seen_at=_now(),
         last_processed_at=_now() if processed or skipped else None,
+        last_scan_at=_now(),
+        next_scan_at=next_scan_after(_now(), registry_result.source.frequency),
+        baseline=baseline,
+        diff_counts=diff_counts,
         status="error" if failed else ("active" if registry_result.source.path.exists() else "missing"),
         error=None if not failed else "one or more sources failed",
     )
@@ -144,6 +176,124 @@ def watch_add_source(
         registry_result=registry_result,
         registry_path=registry_path,
         strategy=effective_strategy,
+        diff_counts=diff_counts,
+    )
+
+
+def watch_scan_sources(
+    cfg: MindForgeConfig,
+    *,
+    ref: str | None = None,
+    all_sources: bool = False,
+    strategy: StrategySelection | None = None,
+) -> WatchScanSummary:
+    """扫描已保存 watched sources，并按 baseline diff 决定是否进入 ingestion。
+
+    中文学习型说明：schedule/baseline 只决定“哪个顶层 source due、哪些文件新增
+    或变化”。它不生成卡片、不删除知识；真正生成 ai_draft 仍委托现有
+    ingestion pipeline。Source deletion never deletes approved knowledge.
+    Knowledge reduction is always manual. Watch is additive by default.
+    """
+
+    registry_path = registry_path_for_vault(cfg.vault.root)
+    if ref:
+        source = find_watch_source(cfg.vault.root, registry_path, ref)
+        candidates = [source] if source is not None and not source.is_default else []
+    else:
+        candidates = [
+            source
+            for source in list_watch_sources(cfg.vault.root, registry_path)
+            if not source.is_default
+        ]
+    totals = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
+    diff_totals = {"added": 0, "changed": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    scanned = 0
+    not_due = 0
+    missing = 0
+    scanned_ids: list[str] = []
+
+    for source in candidates:
+        if source is None:
+            continue
+        if source.status == "paused":
+            not_due += 1
+            continue
+        if not ref and not all_sources and not is_due(source):
+            not_due += 1
+            continue
+        scanned += 1
+        scanned_ids.append(source.id)
+        if not source.path.exists():
+            missing += 1
+            deleted_baseline = {
+                key: WatchFileSnapshot(
+                    relative_path=item.relative_path,
+                    path=item.path,
+                    content_hash=item.content_hash,
+                    size=item.size,
+                    mtime=item.mtime,
+                    last_seen_at=item.last_seen_at,
+                    last_processed_at=item.last_processed_at,
+                    status="deleted",
+                    skipped_reason=item.skipped_reason,
+                )
+                for key, item in source.baseline.items()
+            }
+            source_diff = {
+                "added": 0,
+                "changed": 0,
+                "unchanged": 0,
+                "deleted": len(source.baseline),
+                "skipped": 0,
+            }
+            _merge_counts(diff_totals, source_diff)
+            update_watch_source(
+                cfg.vault.root,
+                registry_path,
+                source.id,
+                last_scan_at=_now(),
+                next_scan_at=next_scan_after(_now(), source.frequency),
+                status="missing",
+                error="source path missing",
+                baseline=deleted_baseline,
+                diff_counts=source_diff,
+            )
+            continue
+
+        baseline, source_diff = _build_source_baseline(cfg, source)
+        _merge_counts(diff_totals, source_diff)
+        changed_targets = _changed_targets_from_baseline(baseline, source_diff)
+        if changed_targets:
+            effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
+            summary = _ingest_targets_summary(
+                cfg,
+                changed_targets[0] if len(changed_targets) == 1 else changed_targets,
+                command="watch_scan",
+                bypass_triage_gate=False,
+                strategy=effective_strategy,
+            )
+            _merge_counts(totals, summary.counts)
+        update_watch_source(
+            cfg.vault.root,
+            registry_path,
+            source.id,
+            last_seen_at=_now(),
+            last_processed_at=_now() if changed_targets else source.last_processed_at,
+            last_scan_at=_now(),
+            next_scan_at=next_scan_after(_now(), source.frequency),
+            status="active",
+            error=None,
+            baseline=baseline,
+            diff_counts=source_diff,
+        )
+
+    return WatchScanSummary(
+        scanned=scanned,
+        not_due=not_due,
+        missing=missing,
+        counts=totals,
+        diff_counts=diff_totals,
+        source_ids=tuple(scanned_ids),
     )
 
 
@@ -165,13 +315,14 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
 
 def _ingest_targets_summary(
     cfg: MindForgeConfig,
-    target: Path,
+    target: Path | list[Path],
     *,
     command: str,
     bypass_triage_gate: bool,
     strategy: StrategySelection,
 ) -> IngestionSummary:
-    if not target.exists():
+    target_exists = all(path.exists() for path in target) if isinstance(target, list) else target.exists()
+    if not target_exists:
         raise RuntimeError(f"File not found: {target}")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     mux = SourceMux()
@@ -266,6 +417,7 @@ def _ingest_targets_summary(
                 source_id=doc.source_id,
                 source_path=doc.source_path,
                 vault_root=cfg.vault.root,
+                content_hash=doc.content_hash,
             )
             if approved_match is not None:
                 _emit_skip(
@@ -347,6 +499,137 @@ def _ingest_targets_summary(
         skipped=tuple(skipped_details),
         strategy=strategy,
     )
+
+
+def _build_source_baseline(
+    cfg: MindForgeConfig,
+    source: WatchedSource,
+) -> tuple[dict[str, WatchFileSnapshot], dict[str, int]]:
+    previous = source.baseline
+    current: dict[str, WatchFileSnapshot] = {}
+    now = _now()
+    scan = enumerate_supported_source_files(
+        cfg,
+        source.path,
+        SourceScanPolicy(recursive=source.recursive or source.path_type == "folder"),
+    )
+    parsed_by_path = {result.path.resolve(): result for result in discover_source_results(cfg, source.path)}
+    for candidate in scan.candidates:
+        resolved = candidate.path.resolve()
+        result = parsed_by_path.get(resolved)
+        stat = resolved.stat()
+        rel = _relative_to_source(source, resolved)
+        if result is None or not result.ok or result.document is None:
+            current[rel] = WatchFileSnapshot(
+                relative_path=rel,
+                path=resolved,
+                content_hash="",
+                size=stat.st_size,
+                mtime=stat.st_mtime,
+                last_seen_at=now,
+                status="skipped",
+                skipped_reason="parse_failed",
+            )
+            continue
+        previous_item = previous.get(rel)
+        current[rel] = WatchFileSnapshot(
+            relative_path=rel,
+            path=resolved,
+            content_hash=result.document.content_hash,
+            size=stat.st_size,
+            mtime=stat.st_mtime,
+            last_seen_at=now,
+            last_processed_at=previous_item.last_processed_at if previous_item else None,
+            status="seen",
+        )
+    for skipped in scan.skipped:
+        if not skipped.path.is_file():
+            continue
+        resolved = skipped.path.resolve()
+        rel = _relative_to_source(source, resolved)
+        stat = resolved.stat()
+        current[rel] = WatchFileSnapshot(
+            relative_path=rel,
+            path=resolved,
+            content_hash="",
+            size=stat.st_size,
+            mtime=stat.st_mtime,
+            last_seen_at=now,
+            status="skipped",
+            skipped_reason=skipped.reason,
+        )
+
+    counts = {"added": 0, "changed": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    for rel, item in list(current.items()):
+        if item.status == "skipped":
+            counts["skipped"] += 1
+            continue
+        previous_item = previous.get(rel)
+        if previous_item is None or previous_item.status == "deleted":
+            counts["added"] += 1
+            current[rel] = _with_status(item, "added")
+        elif previous_item.content_hash != item.content_hash:
+            counts["changed"] += 1
+            current[rel] = _with_status(item, "changed")
+        else:
+            counts["unchanged"] += 1
+            current[rel] = _with_status(item, "unchanged")
+    for rel, item in previous.items():
+        if rel not in current:
+            counts["deleted"] += 1
+            current[rel] = WatchFileSnapshot(
+                relative_path=item.relative_path,
+                path=item.path,
+                content_hash=item.content_hash,
+                size=item.size,
+                mtime=item.mtime,
+                last_seen_at=item.last_seen_at,
+                last_processed_at=item.last_processed_at,
+                status="deleted",
+                skipped_reason=item.skipped_reason,
+            )
+    return current, counts
+
+
+def _changed_targets_from_baseline(
+    baseline: dict[str, WatchFileSnapshot],
+    diff_counts: dict[str, int],
+) -> list[Path]:
+    if not diff_counts.get("added") and not diff_counts.get("changed"):
+        return []
+    return [
+        item.path
+        for item in baseline.values()
+        if item.status in {"added", "changed"} and item.path.exists()
+    ]
+
+
+def _relative_to_source(source: WatchedSource, path: Path) -> str:
+    if source.path_type == "file":
+        return path.name
+    try:
+        return path.resolve().relative_to(source.path.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _with_status(item: WatchFileSnapshot, status: str) -> WatchFileSnapshot:
+    return WatchFileSnapshot(
+        relative_path=item.relative_path,
+        path=item.path,
+        content_hash=item.content_hash,
+        size=item.size,
+        mtime=item.mtime,
+        last_seen_at=item.last_seen_at,
+        last_processed_at=item.last_processed_at,
+        status=status,
+        skipped_reason=item.skipped_reason,
+    )
+
+
+def _merge_counts(target: dict[str, int], source: dict[str, int]) -> None:
+    for key, value in source.items():
+        target[key] = target.get(key, 0) + int(value)
 
 
 @dataclass(frozen=True)
@@ -450,7 +733,9 @@ def _now() -> str:
 
 __all__ = [
     "IngestionSummary",
+    "WatchScanSummary",
     "import_sources",
+    "watch_scan_sources",
     "watch_add_source",
     "watch_sources_for_display",
 ]

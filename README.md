@@ -79,9 +79,30 @@ short ref 和 source 摘要；`mindforge approve 1 --confirm` 是显式人工动
 对应 provider 的 API key，真实 provider 会友好失败；MindForge 不会偷偷
 fallback 到 fake。
 
-`watch add` 的第一版不是后台监听：它会注册这个文件或文件夹，并立即处理当前
-内容生成 `ai_draft`。未来的 polling / filesystem hook 会接在 watched source
-registry 后面，本阶段没有 daemon、没有 `watch run/start/stop`。
+`watch add` 会注册一个顶层 watched source（本地文件或本地文件夹），并立即
+处理当前内容生成 `ai_draft`。文件夹默认递归发现 supported files；子文件继承
+顶层文件夹的 scan frequency，不会被注册成独立 watched source。
+
+```bash
+mindforge watch add /path/to/folder --recursive --every daily
+mindforge watch add /path/to/file.md --every manual
+mindforge watch scan
+mindforge watch scan --all
+mindforge watch scan <id-or-path>
+```
+
+第一阶段支持 `manual`、`hourly`、`daily`、`weekly`、`every 1h/6h/12h/24h`。
+本阶段没有长期后台 daemon；未来 polling / filesystem hook 也应复用同一份
+watched source registry、frequency 和 baseline snapshot。
+
+每次 scan 会和上一次 baseline 做 diff：新增或 content hash 变化的文件会重新
+进入 intake pipeline 并生成新的 `ai_draft`；未变化文件跳过；删除或 missing
+的 source 只在 diagnostics/baseline 中标记。核心原则：
+
+- Source changes can create new drafts.
+- Source deletion never deletes approved knowledge.
+- Knowledge reduction is always manual.
+- Watch is additive by default.
 
 如果你只是一次性导入一个文件或文件夹，不想持续关注它，用：
 
@@ -89,7 +110,9 @@ registry 后面，本阶段没有 daemon、没有 `watch run/start/stop`。
 mindforge import /path/to/file-or-folder
 ```
 
-`import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。
+`import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。导入目录
+时使用和 watched folder 相同的 recursive scan policy，并跳过 MindForge 生成
+知识输出、runtime/cache/logs、hidden/temp/unsupported 等文件。
 MindForge 会先做 triage 来过滤低价值输入；如果被 skipped，输出会包含
 `value_score`、threshold、`should_process` 和下一步提示。这不是 approve
 边界，只是避免制造低质量草稿。你确认要强制生成草稿时可以用：
@@ -174,7 +197,8 @@ differ, CLI output shows `project root`, `config path`, `active vault`, and
 - `00-Inbox/Cubox`: Cubox 导出内容；Cubox 只是数据源。
 - `00-Inbox/WebClips`: 网页剪藏。
 - `00-Inbox/ChatExports`: 聊天记录导出。
-- `00-Inbox/PDFs` / `00-Inbox/Docs`: 高级或后续入口。
+- `00-Inbox/Documents`: 通用本地文档（Markdown/TXT/HTML/JSON/CSV/TSV/XML/URL metadata）。
+- `00-Inbox/PDFs` / `00-Inbox/Docs`: 可选依赖入口；缺依赖时会明确提示，不假装成功。
 - `30-Projects`: 项目上下文，第一天不用管。
 - `80-Reviews`: 复习，第一天不用管。
 - `90-System`: 系统辅助，第一天不用管。
@@ -348,7 +372,10 @@ the human decision gate.
 | `mindforge status` | 查看整体状态 |
 | `mindforge doctor` | 检查配置和安全状态 |
 | `mindforge watch list` | 查看 default `00-Inbox` 和用户添加的 watched sources |
-| `mindforge watch add <file-or-folder>` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
+| `mindforge watch add <file-or-folder> --every daily` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
+| `mindforge watch scan [<id-or-path>]` | 扫描 due source 或指定 source，按 baseline 只处理新增/变化文件 |
+| `mindforge watch scan --all` | 扫描全部 watched sources |
+| `mindforge watch pause/resume <id-or-path>` | 暂停或恢复保存的 watched source |
 | `mindforge watch delete <file-or-folder-or-id>` | 只删除 watched source registry 记录，不删除 source 或 cards |
 | `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources；默认尊重 triage |
 | `mindforge import <file-or-folder> --force` | Advanced：覆盖 triage 低分拦截生成 `ai_draft`，不绕过重复/approved 边界 |

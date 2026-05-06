@@ -15,6 +15,7 @@ from typing import Type
 from ..config import SourcesConfig
 from .base import SourceAdapter
 from .chat_export import ChatExportAdapter
+from .common_document import CommonDocumentAdapter
 from .cubox_api import CuboxApiAdapter
 from .cubox_markdown import CuboxMarkdownAdapter
 from .docx import DocxAdapter
@@ -33,6 +34,7 @@ _BUILTIN_ADAPTERS: dict[str, Type[SourceAdapter]] = {
     "DocxAdapter": DocxAdapter,
     "ChatExportAdapter": ChatExportAdapter,
     "ObsidianVaultSourceAdapter": ObsidianVaultSourceAdapter,
+    "CommonDocumentAdapter": CommonDocumentAdapter,
 }
 
 

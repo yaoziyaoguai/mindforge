@@ -204,6 +204,10 @@ export interface WatchedSourceResponse {
   added_at: string;
   last_seen_at?: string | null;
   last_processed_at?: string | null;
+  last_scan_at?: string | null;
+  next_scan_at?: string | null;
+  frequency: string;
+  due_status: "Due" | "Not due" | "Manual";
   fingerprint?: string | null;
   can_delete: boolean;
   error?: string | null;
@@ -213,6 +217,7 @@ export interface WatchedSourceResponse {
   skipped_count: number;
   failed_count: number;
   skipped_reason_summary: Record<string, number>;
+  diff_counts: Record<string, number>;
   generated_knowledge_status: string;
   generated_card_count: number;
   generated_card_paths: string[];
