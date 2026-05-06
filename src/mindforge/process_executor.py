@@ -23,14 +23,37 @@ from .writer import CardWriter
 
 
 @dataclass(frozen=True)
+class ApprovedSourceMatch:
+    card_path: str
+
+
+@dataclass(frozen=True)
 class ApprovedSourceIndex:
-    source_ids: frozenset[str]
-    source_paths: frozenset[str]
+    source_ids: dict[str, ApprovedSourceMatch]
+    source_paths: dict[str, ApprovedSourceMatch]
 
     def contains(self, *, source_id: str, source_path: str, vault_root: Path) -> bool:
+        return self.match(
+            source_id=source_id,
+            source_path=source_path,
+            vault_root=vault_root,
+        ) is not None
+
+    def match(self, *, source_id: str, source_path: str, vault_root: Path) -> ApprovedSourceMatch | None:
+        """按具体 source identity 命中 human_approved 来源。
+
+        中文学习型说明：approval boundary 是“某个 source document 对应的
+        draft 被人批准”，不是“整个目录已批准”。因此索引只看 card frontmatter
+        记录的 source_id / source_path，不用 parent folder 或 content hash 推断。
+        """
+
         if source_id in self.source_ids:
-            return True
-        return bool(source_path_keys(source_path, vault_root=vault_root).intersection(self.source_paths))
+            return self.source_ids[source_id]
+        for key in source_path_keys(source_path, vault_root=vault_root):
+            match = self.source_paths.get(key)
+            if match is not None:
+                return match
+        return None
 
 
 @dataclass(frozen=True)
@@ -110,18 +133,20 @@ def source_path_keys(source_path: str, *, vault_root: Path) -> set[str]:
 
 def build_approved_source_index(cfg: MindForgeConfig) -> ApprovedSourceIndex:
     card_scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    source_ids: set[str] = set()
-    source_paths: set[str] = set()
+    source_ids: dict[str, ApprovedSourceMatch] = {}
+    source_paths: dict[str, ApprovedSourceMatch] = {}
     for card in card_scan.cards:
         if card.status != "human_approved":
             continue
+        match = ApprovedSourceMatch(card_path=card.rel_path)
         if card.source_id:
-            source_ids.add(card.source_id)
+            source_ids[card.source_id] = match
         if card.source_path:
-            source_paths.update(source_path_keys(card.source_path, vault_root=cfg.vault.root))
+            for key in source_path_keys(card.source_path, vault_root=cfg.vault.root):
+                source_paths[key] = match
     return ApprovedSourceIndex(
-        source_ids=frozenset(source_ids),
-        source_paths=frozenset(source_paths),
+        source_ids=source_ids,
+        source_paths=source_paths,
     )
 
 
@@ -316,6 +341,7 @@ def finalize_process_run(*, cp: Checkpoint, cfg: MindForgeConfig, logger, counts
 
 __all__ = [
     "ApprovedSourceIndex",
+    "ApprovedSourceMatch",
     "ProcessRuntimeParts",
     "build_approved_source_index",
     "build_pipeline",

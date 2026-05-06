@@ -120,8 +120,18 @@ def _write_project_config(project_root: Path, *, active_provider: str = "fake") 
                         "openai_compatible": {
                             "type": "openai_compatible",
                             "api_key_env": "MINDFORGE_OPENAI_API_KEY",
+                            "base_url_env": "MINDFORGE_OPENAI_BASE_URL",
+                            "model_env": "MINDFORGE_OPENAI_MODEL",
                             "default_base_url": "https://example.invalid/v1",
                             "default_model": "gpt-4o-mini",
+                        },
+                        "anthropic": {
+                            "type": "anthropic",
+                            "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                            "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
+                            "model_env": "MINDFORGE_ANTHROPIC_MODEL",
+                            "default_base_url": "https://api.anthropic.com",
+                            "default_model": "claude-3-5-haiku-latest",
                         },
                     },
                 },
@@ -197,8 +207,13 @@ def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
         ["watch", "add", str(source), "--profile", "openai_compatible", "--config", str(cfg)],
     )
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "selected provider: openai_compatible" in result.output
+    assert "provider type: openai_compatible" in result.output
+    assert "selection source: legacy --profile" in result.output
+    assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
     assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
@@ -220,8 +235,13 @@ def test_watch_add_anthropic_missing_key_fails_without_fake_fallback(
         ["watch", "add", str(source), "--profile", "anthropic", "--config", str(cfg)],
     )
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "selected provider: anthropic" in result.output
+    assert "provider type: anthropic" in result.output
+    assert "selection source: legacy --profile" in result.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
     assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
@@ -237,8 +257,12 @@ def test_watch_add_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypa
 
     result = runner.invoke(app, ["watch", "add", str(source), "--config", str(cfg)])
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "selected provider: openai_compatible" in result.output
+    assert "selection source: llm.active" in result.output
+    assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert _card_paths(vault) == []
 
 
@@ -314,6 +338,207 @@ def test_import_file_and_folder_do_not_register_watch(tmp_path: Path, monkeypatc
     assert "imported" in imported_folder.output
     assert len(_card_paths(vault)) == 2
     assert not (vault / ".mindforge" / "watched_sources.json").exists()
+
+
+def test_fresh_new_file_import_with_fake_is_processed_and_pending(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """fresh source identity 必须精确到具体文档，不能在 provider 前被误跳过。"""
+
+    project = tmp_path / "project"
+    _cfg, vault = _write_project_config(project)
+    source = vault / "00-Inbox" / "ManualNotes" / "fresh-new.md"
+    source.write_text("# Fresh New\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    imported = runner.invoke(app, ["import", "vault/00-Inbox/ManualNotes/fresh-new.md", "--provider", "fake"])
+    pending = runner.invoke(app, ["approve", "list"])
+
+    assert imported.exit_code == 0, imported.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in imported.output
+    assert pending.exit_code == 0, pending.output
+    assert "[1]" in pending.output
+    assert "Fresh New" in pending.output or "fresh-new" in pending.output
+
+
+def test_import_uses_active_fake_without_provider_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "project"
+    _cfg, vault = _write_project_config(project, active_provider="fake")
+    source = vault / "00-Inbox" / "ManualNotes" / "active-fake.md"
+    source.write_text("# Active Fake\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    result = runner.invoke(app, ["import", "vault/00-Inbox/ManualNotes/active-fake.md"])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+
+
+def test_active_anthropic_missing_key_fails_not_skips(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """真实 provider 缺 key 是 failed，不是 already_processed/approved skipped。"""
+
+    project = tmp_path / "project"
+    _cfg, vault = _write_project_config(project, active_provider="anthropic")
+    source = vault / "00-Inbox" / "ManualNotes" / "active-anthropic.md"
+    source.write_text("# Active Anthropic\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+
+    result = runner.invoke(app, ["import", "vault/00-Inbox/ManualNotes/active-anthropic.md"])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
+    assert "selected provider: anthropic" in result.output
+    assert "provider type: anthropic" in result.output
+    assert "selection source: llm.active" in result.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "fake/demo remains available with --provider fake" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_two_different_new_files_with_same_content_are_both_processed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """content 相同但路径不同的文件是两个 source document，不能互相 dedupe。"""
+
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    first = vault / "00-Inbox" / "ManualNotes" / "same-a.md"
+    second = vault / "00-Inbox" / "ManualNotes" / "same-b.md"
+    body = "# Same Content\n\nidentical body\n"
+    first.write_text(body, encoding="utf-8")
+    second.write_text(body, encoding="utf-8")
+
+    imported_first = runner.invoke(app, ["import", str(first), "--provider", "fake", "--config", str(cfg)])
+    imported_second = runner.invoke(app, ["import", str(second), "--provider", "fake", "--config", str(cfg)])
+
+    assert imported_first.exit_code == 0, imported_first.output
+    assert imported_second.exit_code == 0, imported_second.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in imported_first.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in imported_second.output
+    assert len(_card_paths(vault)) == 2
+
+
+def test_folder_import_keeps_same_content_different_files_in_same_batch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """同批次 dedupe 也必须以 source path 为边界。
+
+    中文学习型说明：SourceDocument 的正文 hash 可以相同，但 watch/import
+    面向的是用户文件。两个不同文件即使内容相同，也应各自生成待审核 draft，
+    不能因为 content_hash 相同就在 SourceMux 层被丢弃。
+    """
+
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    folder = vault / "00-Inbox" / "ManualNotes" / "same-folder"
+    folder.mkdir()
+    body = "# Same Batch\n\nidentical body\n"
+    (folder / "same-1.md").write_text(body, encoding="utf-8")
+    (folder / "same-2.md").write_text(body, encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(folder), "--provider", "fake", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=2 skipped=0 failed=0 seen=2" in result.output
+    assert len(_card_paths(vault)) == 2
+
+
+def test_repeated_import_reports_precise_already_processed_skip(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "repeat.md"
+    source.write_text("# Repeat\n\nbody\n", encoding="utf-8")
+
+    first = runner.invoke(app, ["import", str(source), "--provider", "fake", "--config", str(cfg)])
+    second = runner.invoke(app, ["import", str(source), "--provider", "fake", "--config", str(cfg)])
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in first.output
+    assert "processed=0 skipped=1 failed=0 seen=1" in second.output
+    assert "Skipped documents:" in second.output
+    assert "reason: already_processed" in second.output
+    assert f"source path: {source.resolve()}" in second.output
+    assert "normalized path:" in second.output
+    assert "source id:" in second.output
+    assert "matched state key:" in second.output
+
+
+def test_same_file_different_path_forms_share_precise_source_identity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """同一文件的不同路径表达应归一到同一个 source identity。
+
+    中文学习型说明：用户可以从 project root、vault root 或任意位置传绝对路径。
+    这些表达最终都必须落到同一 normalized source path；重复导入可以跳过，
+    但跳过原因要指向同一个具体文档，而不是目录或 content_hash。
+    """
+
+    project = tmp_path / "project"
+    _cfg, vault = _write_project_config(project)
+    note = vault / "00-Inbox" / "ManualNotes" / "identity.md"
+    note.write_text("# Identity\n\nbody\n", encoding="utf-8")
+
+    monkeypatch.chdir(project)
+    first = runner.invoke(
+        app,
+        ["import", "vault/00-Inbox/ManualNotes/identity.md", "--provider", "fake"],
+    )
+    monkeypatch.chdir(vault)
+    second = runner.invoke(
+        app,
+        ["import", "00-Inbox/ManualNotes/identity.md", "--provider", "fake"],
+    )
+    third = runner.invoke(app, ["import", str(note.resolve()), "--provider", "fake"])
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert third.exit_code == 0, third.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in first.output
+    assert "processed=0 skipped=1 failed=0 seen=1" in second.output
+    assert "processed=0 skipped=1 failed=0 seen=1" in third.output
+    assert f"normalized path: {note.resolve()}" in second.output
+    assert f"normalized path: {note.resolve()}" in third.output
+    assert "reason: already_processed" in second.output
+    assert "reason: already_processed" in third.output
+    assert len(_card_paths(vault)) == 1
+
+
+def test_approved_source_a_does_not_skip_different_source_b(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    first = vault / "00-Inbox" / "ManualNotes" / "approved-a.md"
+    second = vault / "00-Inbox" / "ManualNotes" / "new-b.md"
+    first.write_text("# Approved A\n\nbody A\n", encoding="utf-8")
+    second.write_text("# New B\n\nbody B\n", encoding="utf-8")
+
+    imported_first = runner.invoke(app, ["import", str(first), "--provider", "fake", "--config", str(cfg)])
+    card = _card_paths(vault)[0]
+    approved = approve_explicit_card(load_mindforge_config(cfg), card)
+    imported_second = runner.invoke(app, ["import", str(second), "--provider", "fake", "--config", str(cfg)])
+
+    assert imported_first.exit_code == 0, imported_first.output
+    assert approved.error is None
+    assert imported_second.exit_code == 0, imported_second.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in imported_second.output
 
 
 def test_import_missing_file_fails_and_does_not_poison_future_processing(
@@ -462,8 +687,12 @@ def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
         ["import", str(source), "--profile", "openai_compatible", "--config", str(cfg)],
     )
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "selected provider: openai_compatible" in result.output
+    assert "provider type: openai_compatible" in result.output
+    assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
     assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
@@ -485,8 +714,12 @@ def test_import_anthropic_missing_key_fails_without_fake_fallback(
         ["import", str(source), "--profile", "anthropic", "--config", str(cfg)],
     )
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "selected provider: anthropic" in result.output
+    assert "provider type: anthropic" in result.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
     assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
@@ -502,7 +735,57 @@ def test_import_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypatch
 
     result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
 
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
+    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "selected provider: anthropic" in result.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_import_invalid_active_provider_fails_with_available_providers(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "project"
+    cfg, vault = _write_project_config(project, active_provider="fake")
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw["llm"]["active"] = "missing_provider"
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    source = vault / "00-Inbox" / "ManualNotes" / "invalid-active.md"
+    source.write_text("# Invalid Active\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(project)
+
+    result = runner.invoke(app, ["import", "vault/00-Inbox/ManualNotes/invalid-active.md"])
+
     assert result.exit_code == 2, result.output
+    assert "llm.active='missing_provider'" in result.output
+    assert "openai_compatible" in result.output
+    assert "anthropic" in result.output
+    assert "fake" in result.output
+
+
+def test_process_missing_real_provider_key_reports_selected_provider(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """process 的 provider 失败也必须透明，但不能读取或打印 secret。"""
+
+    cfg, vault = _write_config(tmp_path, active_provider="anthropic")
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.process_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = vault / "00-Inbox" / "ManualNotes" / "process-real.md"
+    source.write_text("# Process Real\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["process", "--config", str(cfg), "--limit", "1"])
+
+    assert result.exit_code == 2, result.output
+    assert "Provider failure" in result.output
+    assert "selected provider: anthropic" in result.output
+    assert "provider type: anthropic" in result.output
+    assert "selection source: llm.active" in result.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert _card_paths(vault) == []
 
@@ -529,7 +812,8 @@ def test_import_provider_override_wins_over_legacy_profile(tmp_path: Path, monke
         ],
     )
 
-    assert result.exit_code == 2, result.output
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert _card_paths(vault) == []
 

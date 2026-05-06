@@ -186,8 +186,18 @@ def apply_provider_selection(
     """
 
     selected = provider or legacy_profile
+    source = "--provider" if provider else ("legacy --profile" if legacy_profile else "llm.active")
     if not selected:
-        return cfg
+        return replace(
+            cfg,
+            raw={
+                **cfg.raw,
+                "_mindforge_provider_selection": {
+                    "selected": cfg.llm.active_profile,
+                    "source": source,
+                },
+            },
+        )
     if selected not in cfg.llm.profiles:
         option = "--provider" if provider else "--profile"
         noun = "llm.providers" if provider else "llm.profiles"
@@ -203,7 +213,17 @@ def apply_provider_selection(
             markup=False,
         )
     new_llm = replace(cfg.llm, active_profile=selected)
-    return replace(cfg, llm=new_llm)
+    return replace(
+        cfg,
+        llm=new_llm,
+        raw={
+            **cfg.raw,
+            "_mindforge_provider_selection": {
+                "selected": selected,
+                "source": source,
+            },
+        },
+    )
 
 
 _COMMANDS_WITH_LOCAL_VAULT_OPTION = {"init", "obsidian", "setup"}

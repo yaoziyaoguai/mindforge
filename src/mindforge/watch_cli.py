@@ -18,8 +18,9 @@ from .cli_runtime import (
     resolve_source_path_for_cli,
 )
 from .env_loader import load_dotenv_silently
-from .process_service import FAKE_PROFILE
+from .ingestion_diagnostics import print_ingestion_diagnostics
 from .ingestion_service import watch_add_source, watch_sources_for_display
+from .process_service import FAKE_PROFILE
 from .watch_registry import delete_watch_source, registry_path_for_vault
 
 watch_app = typer.Typer(
@@ -66,6 +67,7 @@ def watch_add(
         target=summary.target,
         counts=summary.counts,
     )
+    print_ingestion_diagnostics(console, summary)
     console.print(f"watch id: {registry_result.source.id}", markup=False)
     console.print(f"registry: {summary.registry_path}", markup=False, soft_wrap=True)
 
@@ -122,8 +124,6 @@ def _print_summary(*, title: str, target: Path, counts: dict[str, int]) -> None:
         ),
         markup=False,
     )
-    if counts.get("skipped", 0):
-        console.print("skipped reasons may include already_processed or already_approved.", markup=False)
     console.print("Next: mindforge approve list", markup=False)
     console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
 

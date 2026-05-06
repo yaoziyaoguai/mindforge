@@ -14,6 +14,7 @@ from .cli_runtime import (
     resolve_source_path_for_cli,
 )
 from .env_loader import load_dotenv_silently
+from .ingestion_diagnostics import print_ingestion_diagnostics
 from .ingestion_service import import_sources
 from .process_service import FAKE_PROFILE
 
@@ -58,11 +59,9 @@ def import_cmd(
         ),
         markup=False,
     )
-    if summary.counts.get("skipped", 0):
-        console.print("skipped reasons may include already_processed or already_approved.", markup=False)
+    print_ingestion_diagnostics(console, summary)
     console.print("Registry: not added to watched sources.", markup=False)
     console.print("Next: mindforge approve list", markup=False)
     console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
-
 
 __all__ = ["import_cmd"]

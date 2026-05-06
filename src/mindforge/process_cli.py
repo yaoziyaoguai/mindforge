@@ -18,6 +18,8 @@ from .cli_runtime import (
     render_active_vault_resolution_notice,
 )
 from .env_loader import load_dotenv_silently
+from .ingestion_diagnostics import print_provider_failure, provider_failure_detail
+from .llm.base import ProviderError
 from .process_executor import (
     ProcessRuntimeParts,
     build_approved_source_index,
@@ -110,6 +112,12 @@ def _build_process_runtime_parts(*, cfg, runtime, strategy: str) -> ProcessRunti
             f"[red]✗ 未知 strategy: {strategy!r}；可选：{available_strategies()}；"
             "运行 `mindforge strategies list` 查看所有策略。[/red]"
         )
+        raise typer.Exit(code=2) from None
+    except ProviderError as exc:
+        # 中文学习型说明：process 是 advanced/troubleshooting，但 provider
+        # 选择语义仍与 watch/import 一致。这里仅展示 selected provider 的
+        # 诊断，不 fallback fake，也不打印 env value / prompt / source 正文。
+        print_provider_failure(console, provider_failure_detail(cfg, str(exc)))
         raise typer.Exit(code=2) from None
 
 
