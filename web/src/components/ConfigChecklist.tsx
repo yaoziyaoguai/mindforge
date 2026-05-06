@@ -42,7 +42,7 @@ export function ConfigChecklist({ items, keys }: { items: StatusItem[]; keys: En
 }
 
 function explainItem(item: StatusItem): string {
-  if (item.key === "provider") return "Provider status only reports readiness and key presence. API key values stay hidden and cannot be edited in Web.";
+  if (item.key === "provider") return "Model provider readiness is shown without exposing API key values. Keys are present, missing, or hidden.";
   if (item.key === "env") return ".env is represented as present/missing key names only; secret values are never returned to the browser.";
   if (item.key === "vault") return "Vault writes require explicit local actions such as saving a card body or approving a draft.";
   if (item.key === "config") return "MindForge loaded this config file for local use. Web does not edit provider secrets.";

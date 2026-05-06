@@ -5,9 +5,9 @@ const items = [
   { href: "/", label: "Home", icon: Home },
   { href: "/setup", label: "Setup", icon: Settings },
   { href: "/sources", label: "Sources", icon: Inbox },
-  { href: "/drafts", label: "Drafts", icon: CheckSquare },
-  { href: "/library", label: "Library", icon: Library },
-  { href: "/recall", label: "Recall", icon: Search },
+  { href: "/drafts", label: "Review", icon: CheckSquare },
+  { href: "/library", label: "Knowledge Library", icon: Library },
+  { href: "/recall", label: "Search", icon: Search },
 ];
 
 export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {

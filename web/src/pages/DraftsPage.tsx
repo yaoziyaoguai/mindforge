@@ -34,8 +34,8 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Drafts / Review</h1>
-        <p className="mt-1 text-sm text-muted">Approve requires source review and second confirmation.</p>
+        <h1 className="text-2xl font-semibold text-ink">Review</h1>
+        <p className="mt-1 text-sm text-muted">Review AI-generated draft knowledge before approving it.</p>
       </header>
       <div className="grid gap-5 lg:grid-cols-[320px_1fr_280px]">
         <DraftList drafts={data.drafts} selected={selected} onSelect={setSelected} />

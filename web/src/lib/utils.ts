@@ -15,3 +15,14 @@ export function truncateMiddle(value: string, max = 72): string {
   const tail = Math.floor((max - 3) / 2);
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
+
+export function friendlyStatus(status?: string | null): string {
+  if (status === "ai_draft") return "Needs review";
+  if (status === "human_approved") return "Approved";
+  if (status === "processed") return "Processed";
+  if (status === "skipped") return "Skipped";
+  if (status === "failed") return "Failed";
+  if (status === "pending") return "Pending";
+  if (status === "imported") return "Imported";
+  return status || "-";
+}

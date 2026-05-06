@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Edit3, Save, X } from "lucide-react";
+import { Edit3, Save, X } from "lucide-react";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
-import { truncateMiddle } from "../lib/utils";
+import { friendlyStatus, truncateMiddle } from "../lib/utils";
 
 type Detail = DraftDetailResponse | LibraryCardDetailResponse;
 
@@ -45,15 +45,17 @@ export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
     }
   }
 
+  // 中文学习型说明：主阅读区只展示知识和用户动作；技术标识与生成记录
+  // 保留在 Technical details，避免把本地知识工作台变成调试面板。
   return (
     <article className="rounded-md border border-line bg-panel">
       <header className="border-b border-line p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm text-muted">{card.rel_path}</div>
-            <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "Untitled card"}</h2>
+            <div className="text-sm text-muted">{mode === "draft" ? "Draft knowledge card" : "Knowledge card"}</div>
+            <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "Untitled knowledge card"}</h2>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-              <span className={card.status === "human_approved" ? "text-safe" : "text-warn"}>{card.status}</span>
+              <span className={card.status === "human_approved" ? "text-safe" : "text-warn"}>{friendlyStatus(card.status)}</span>
               {card.track ? <span>track:{card.track}</span> : null}
               {card.strategy_label ? <span>{card.strategy_label}</span> : null}
               {sourceLabel(card) ? <span>source:{sourceLabel(card)}</span> : null}
@@ -69,14 +71,14 @@ export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
         </div>
         {mode === "draft" ? (
           <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-warn">
-            This is an AI draft. It requires explicit approval before becoming human_approved knowledge.
+            Approve only after reviewing or editing this draft. Approved knowledge appears in the Knowledge Library.
           </p>
         ) : null}
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
       </header>
 
       <section className="p-5">
-        <h3 className="text-lg font-semibold text-ink">Knowledge Card Content</h3>
+        <h3 className="text-lg font-semibold text-ink">Knowledge content</h3>
         {editing ? (
           <div className="mt-4 space-y-3">
             <textarea
@@ -100,23 +102,30 @@ export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
         )}
       </section>
 
-      <details className="border-t border-line p-5">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">Provenance / Debug</summary>
+      <section className="border-t border-line p-5">
+        <h3 className="text-sm font-semibold text-ink">Source & history</h3>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <Meta label="Extraction Strategy" value={card.strategy_label ?? card.strategy_id} />
-          <Meta label="strategy_id" value={card.strategy_id} />
-          <Meta label="canonical strategy" value={card.strategy_canonical_id} />
-          <Meta label="strategy_version" value={card.strategy_version} />
-          <Meta label="schema_version" value={card.schema_version} />
-          <Meta label="source_id" value={card.source_id} />
-          <Meta label="source_title" value={card.source_title} />
-          <Meta label="source_path" value={card.source_path} />
-          <Meta label="source_content_hash" value={card.source_content_hash} />
-          <Meta label="source_archive_path" value={card.source_archive_path} />
-          <Meta label="profile/provider" value={card.profile ?? card.provider} />
-          <Meta label="run_id" value={card.run_id} />
-          <Meta label="prompt_versions" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
-          <Meta label="stage_models" value={JSON.stringify(card.stage_models ?? {})} />
+          <Meta label="Source" value={card.source_title ?? card.source_path} />
+          <Meta label="Source path" value={card.source_path} />
+          <Meta label="Archived source path" value={card.source_archive_path} />
+          <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
+        </dl>
+      </section>
+
+      <details className="border-t border-line p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">Technical details</summary>
+        <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+          <Meta label="Status id" value={card.status} />
+          <Meta label="Strategy id" value={card.strategy_id} />
+          <Meta label="Canonical strategy" value={card.strategy_canonical_id} />
+          <Meta label="Strategy version" value={card.strategy_version} />
+          <Meta label="Schema version" value={card.schema_version} />
+          <Meta label="Source id" value={card.source_id} />
+          <Meta label="Source content hash" value={card.source_content_hash} />
+          <Meta label="Model run" value={card.profile ?? card.provider} />
+          <Meta label="Run id" value={card.run_id} />
+          <Meta label="Prompt versions" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
+          <Meta label="Stage models" value={JSON.stringify(card.stage_models ?? {})} />
         </dl>
       </details>
     </article>

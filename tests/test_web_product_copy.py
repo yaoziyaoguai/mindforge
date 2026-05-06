@@ -1,0 +1,81 @@
+"""Web product copy contract for the local knowledge workspace.
+
+中文学习型说明：这组测试不验证业务逻辑，只约束用户主视图的命名层级。
+source_id / run_id / stage_models 这些工程字段仍可存在于 API 类型和 Technical
+details 中，但不应成为导航、主标题、主列表和审批文案的核心语言。
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WEB_SRC = ROOT / "web" / "src"
+
+
+def _read(rel: str) -> str:
+    return (WEB_SRC / rel).read_text(encoding="utf-8")
+
+
+def test_web_navigation_uses_knowledge_workspace_language() -> None:
+    sidebar = _read("components/Sidebar.tsx")
+
+    assert 'label: "Review"' in sidebar
+    assert 'label: "Knowledge Library"' in sidebar
+    assert 'label: "Search"' in sidebar
+    assert 'label: "Drafts"' not in sidebar
+    assert 'label: "Recall"' not in sidebar
+
+
+def test_main_pages_use_friendly_status_and_action_copy() -> None:
+    home = _read("pages/HomePage.tsx")
+    drafts = _read("pages/DraftsPage.tsx")
+    library = _read("pages/LibraryPage.tsx")
+    search = _read("pages/RecallPage.tsx")
+    approval = _read("components/ApprovalPanel.tsx")
+
+    combined = "\n".join([home, drafts, library, search, approval])
+    assert "Review drafts" in combined
+    assert "Needs review" in combined
+    assert "Approved knowledge" in combined
+    assert "Search approved knowledge" in combined
+    assert "Approve knowledge" in combined
+
+    for forbidden in (
+        "ai_draft waiting",
+        "human_approved available",
+        "Approve promotes this draft from ai_draft to human_approved",
+        "Recall / Knowledge",
+        "Local lexical recall over human_approved cards",
+        "Total cards",
+        "AI drafts",
+    ):
+        assert forbidden not in combined
+
+
+def test_card_detail_separates_content_source_history_and_technical_details() -> None:
+    workspace = _read("components/CardWorkspace.tsx")
+
+    assert "Knowledge content" in workspace
+    assert "Source & history" in workspace
+    assert "Technical details" in workspace
+    assert "Provenance / Debug" not in workspace
+
+    # 工程字段只能作为 Technical details 内容出现，不作为 header 中的主状态文案。
+    header_block = workspace.split("<details", 1)[0]
+    for forbidden in ("source_id", "run_id", "stage_models", "source_content_hash"):
+        assert forbidden not in header_block
+
+
+def test_setup_copy_uses_model_and_secret_safe_language() -> None:
+    setup = _read("pages/SetupPage.tsx")
+    checklist = _read("components/ConfigChecklist.tsx")
+    safety = _read("components/SafetyBar.tsx")
+    combined = "\n".join([setup, checklist, safety])
+
+    assert "Model provider" in combined
+    assert "API key" in combined
+    assert "present/missing" in combined
+    assert "Provider status only reports" not in combined
+    assert "Provider:" not in combined

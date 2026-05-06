@@ -26,7 +26,7 @@ export function SourceList({ sources, onOpenCards }: { sources: SourceStatus[]; 
               <td className={source.exists ? "px-4 py-3 text-safe" : "px-4 py-3 text-warn"}>
                 {source.exists ? "ready" : "missing folder"}
                 <button className="mt-2 block text-xs text-primary" onClick={onOpenCards} type="button">
-                  Open generated cards
+                  Open generated knowledge
                 </button>
               </td>
             </tr>

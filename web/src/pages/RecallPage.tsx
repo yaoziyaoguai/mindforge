@@ -22,8 +22,8 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Recall / Knowledge</h1>
-        <p className="mt-1 text-sm text-muted">Local lexical recall over human_approved cards. No RAG or embeddings.</p>
+        <h1 className="text-2xl font-semibold text-ink">Search Knowledge</h1>
+        <p className="mt-1 text-sm text-muted">Search approved knowledge cards.</p>
       </header>
       <form className="flex gap-2" onSubmit={submit}>
         <input
@@ -37,7 +37,7 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
         </button>
       </form>
       {error ? <ErrorState message={error} /> : null}
-      {!data ? <EmptyState title="Start with a keyword" action={{ label: "Search", description: "输入关键词后查询本地 approved cards。" }} /> : null}
+      {!data ? <EmptyState title="Start with a keyword" action={{ label: "Search approved knowledge", description: "输入关键词后查询已确认知识。" }} /> : null}
       {data?.empty_state && data.hits.length === 0 ? <EmptyState title="No recall hits" action={data.empty_state} /> : null}
       {data?.hits.length ? (
         <div className="space-y-3">

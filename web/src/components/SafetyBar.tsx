@@ -16,14 +16,14 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
         </span>
         <span className="text-muted">Vault: {truncateMiddle(safety.vault_path, 58)}</span>
         <span className={safety.provider_state === "env_only" ? "text-safe" : "text-warn"}>
-          Provider: {safety.provider_state}
+          Model setup: {safety.provider_state === "env_only" ? "ready" : "check"}
         </span>
         <span className="text-muted">.env: {safety.env_status}</span>
         <span className="inline-flex items-center gap-1 text-warn">
           <Lock className="h-4 w-4" aria-hidden="true" />
           {safety.write_mode === "explicit_approval_required" ? "Explicit approval required" : "Read-only"}
         </span>
-        <span className="text-muted">Drafts: {safety.pending_drafts_count}</span>
+        <span className="text-muted">Needs review: {safety.pending_drafts_count}</span>
         {hasWarning ? (
           <span className="inline-flex items-center gap-1 text-warn">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />

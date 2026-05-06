@@ -4,6 +4,7 @@ import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/typ
 import { CardWorkspace } from "../components/CardWorkspace";
 import { ErrorState } from "../components/ErrorState";
 import { StatusCard } from "../components/StatusCard";
+import { friendlyStatus } from "../lib/utils";
 
 export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
   const initialRef = new URLSearchParams(window.location.search).get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
@@ -28,13 +29,13 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-ink">Knowledge Library</h1>
-        <p className="mt-1 text-sm text-muted">Readable and editable human_approved knowledge cards.</p>
+        <p className="mt-1 text-sm text-muted">Approved knowledge cards available for reading, editing, and search.</p>
       </header>
       <div className="grid gap-4 md:grid-cols-4">
-        <StatusCard label="Total cards" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={data.stats.cards_dir} />
-        <StatusCard label="AI drafts" value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail="Not formal knowledge" />
-        <StatusCard label="Approved" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="Available to recall" />
-        <StatusCard label="Index" value={data.stats.index_exists ? "present" : "missing"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
+        <StatusCard label="Approved knowledge" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="Ready to read, edit, and search." />
+        <StatusCard label="Needs review" value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail="Draft knowledge waiting for approval." />
+        <StatusCard label="Search index" value={data.stats.index_exists ? "Ready" : "Needs rebuild"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
+        <StatusCard label="Knowledge notes" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail="Local Knowledge Library items." />
       </div>
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="space-y-2">
@@ -49,7 +50,7 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-medium text-ink">{card.title ?? card.rel_path}</h3>
-                  <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{card.status}</span>
+                  <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{friendlyStatus(card.status)}</span>
                 </div>
                 <p className="mt-1 text-sm text-muted">{card.source_title ?? card.source_path ?? "No source title"}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">

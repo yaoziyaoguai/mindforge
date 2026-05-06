@@ -1,4 +1,5 @@
 import type { DraftSummary } from "../api/types";
+import { friendlyStatus } from "../lib/utils";
 
 export function DraftList({
   drafts,
@@ -24,11 +25,11 @@ export function DraftList({
           >
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-medium text-ink">{draft.title ?? draft.rel_path}</h3>
-              <span className="text-xs text-warn">{draft.status}</span>
+              <span className="text-xs text-warn">{friendlyStatus(draft.status)}</span>
             </div>
             <p className="mt-1 text-sm text-muted">{draft.source_title ?? draft.source_type ?? "No source title"}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
-              {draft.strategy_label ? <span>strategy:{draft.strategy_label}</span> : null}
+              {draft.strategy_label ? <span>{draft.strategy_label}</span> : null}
               {draft.strategy_note ? <span>{draft.strategy_note}</span> : null}
               {draft.source_title || draft.source_path ? <span>source:{draft.source_title ?? draft.source_path}</span> : null}
               {draft.track ? <span>track:{draft.track}</span> : null}

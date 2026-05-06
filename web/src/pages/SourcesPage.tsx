@@ -41,8 +41,8 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Ingestion</h1>
-        <p className="mt-1 text-sm text-muted">Watch sources for ongoing intake, or import a file/folder once.</p>
+        <h1 className="text-2xl font-semibold text-ink">Sources</h1>
+        <p className="mt-1 text-sm text-muted">Add original material and review the knowledge generated from it.</p>
       </header>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
@@ -99,7 +99,7 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-sm text-muted">Watch delete only removes the registry record. It does not delete source files or cards.</p>
+        <p className="mt-3 text-sm text-muted">Removing a watched source only stops future intake. It does not delete original files or knowledge cards.</p>
       </section>
       <SourceList sources={data.sources} onOpenCards={() => onNavigate("/library")} />
       <section className="grid gap-4 md:grid-cols-2">

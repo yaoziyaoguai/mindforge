@@ -13,7 +13,7 @@ async function assertVisible(text) {
 await page.goto(baseURL, { waitUntil: "networkidle" });
 await assertVisible("Local only");
 await assertVisible("Home");
-await assertVisible("Provider");
+await assertVisible("Review drafts");
 
 await page.getByRole("button", { name: "Setup", exact: true }).click();
 await assertVisible("Configuration checklist");
@@ -21,8 +21,8 @@ await assertVisible("Configuration checklist");
 await page.getByRole("button", { name: "Sources", exact: true }).click();
 await assertVisible("Sources");
 
-await page.getByRole("button", { name: "Drafts", exact: true }).click();
-await assertVisible("Drafts");
+await page.getByRole("button", { name: "Review", exact: true }).click();
+await assertVisible("Review AI-generated draft knowledge");
 const empty = page.getByText("No drafts waiting for review", { exact: false });
 const approveButton = page.getByRole("button", { name: "Approve...", exact: true });
 if (await empty.count()) {
@@ -33,8 +33,8 @@ if (await empty.count()) {
   await assertVisible("Second confirmation required");
 }
 
-await page.getByRole("button", { name: "Recall", exact: true }).click();
-await assertVisible("Recall / Knowledge");
+await page.getByRole("button", { name: "Search", exact: true }).click();
+await assertVisible("Search Knowledge");
 
 const rawTraceback = await page.getByText("Traceback (most recent call last)", { exact: false }).count();
 if (rawTraceback > 0) {

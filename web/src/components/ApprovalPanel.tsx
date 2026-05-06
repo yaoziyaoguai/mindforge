@@ -42,9 +42,9 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
 
   return (
     <aside className="rounded-md border border-line bg-panel p-5">
-      <h2 className="text-lg font-semibold text-ink">Approval</h2>
+      <h2 className="text-lg font-semibold text-ink">Approve knowledge</h2>
       <p className="mt-2 text-sm text-muted">
-        Approve promotes this draft from ai_draft to human_approved. It enters local recall and project context.
+        Approve only after reviewing or editing this draft. Approved knowledge appears in the Knowledge Library and search.
       </p>
       <label className="mt-4 flex items-start gap-2 text-sm text-ink">
         <input checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} type="checkbox" />
@@ -61,14 +61,14 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
         </button>
       ) : (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-danger">Second confirmation required. This writes human_approved.</p>
+          <p className="text-sm text-danger">Second confirmation required. This marks the knowledge as approved.</p>
           <button
             className="mt-3 w-full rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white"
             disabled={busy}
             onClick={approve}
             type="button"
           >
-            Confirm approve
+            Approve knowledge
           </button>
           <button
             className="mt-2 w-full rounded-md border border-line bg-panel px-4 py-2 text-sm"
