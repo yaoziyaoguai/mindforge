@@ -251,6 +251,21 @@ class LibraryCardDetailResponse(BaseModel):
     body: str | None = None
 
 
+class CardBodyUpdateRequest(BaseModel):
+    body: str
+
+
+class CardBodyUpdateResponse(BaseModel):
+    ok: bool
+    status: str
+    message: str
+    card_path: str
+    rel_path: str | None = None
+    index_updated: bool = False
+    index_path: str | None = None
+    index_error: str | None = None
+
+
 class WorkflowSummaryResponse(BaseModel):
     vault_root: str
     cards_dir: str
@@ -283,8 +298,11 @@ class DraftSummary(BaseModel):
     source_id: str | None = None
     source_title: str | None
     source_path: str | None = None
+    source_archive_path: str | None = None
     source_content_hash: str | None = None
     value_score: int | None
+    profile: str | None = None
+    provider: str | None = None
     strategy_id: str | None = None
     strategy_label: str | None = None
     strategy_note: str | None = None
@@ -339,6 +357,8 @@ class ApprovalResponse(BaseModel):
 class RecallHit(BaseModel):
     score: float
     title: str | None
+    card_ref: str | None = None
+    detail_href: str | None = None
     rel_path: str
     status: str
     track: str | None

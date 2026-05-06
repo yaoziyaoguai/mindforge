@@ -141,6 +141,68 @@ This is safe draft body.
     return card
 
 
+def _write_approved(cards: Path) -> Path:
+    card = cards / "approved.md"
+    card.write_text(
+        """---
+id: approved-1
+title: Approved Card
+status: human_approved
+track: product
+projects:
+  - local-console
+tags:
+  - library
+source_type: manual_note
+source_id: src_approved_1
+adapter_name: PlainMarkdownAdapter
+source_path: 00-Inbox/_processed/ManualNotes/source-note.md
+source_content_hash: sha256:approvedhash
+source_archive_path: 90-Archive/Processed/source-note.md
+source_missing: false
+source_title: Approved source
+value_score: 7
+strategy_id: knowledge_card
+strategy_version: 0.10.0
+schema_version: "1"
+prompt_versions:
+  triage: v1
+  distill: v1
+profile: real-profile
+stage_models:
+  distill: { alias: real_alias, provider: openai_compatible, model: gpt-test }
+run_id: run-approved
+---
+
+## Source Excerpt
+
+SOURCE_EXCERPT_VISIBLE_BUT_NOT_RAW_FILE
+
+## AI Summary
+
+Approved summary alpha workspace.
+
+## AI Inference
+
+Approved inference beta.
+
+## Review Questions
+
+- What should be reviewed?
+
+## Action Items
+
+- Maintain the card.
+
+## Human Note
+
+HUMAN_NOTE_MUST_NOT_BE_RECALLABLE
+""",
+        encoding="utf-8",
+    )
+    return card
+
+
 def _client(tmp_path: Path, monkeypatch) -> tuple[TestClient, Path]:
     cfg_path, _vault, cards = _write_config(tmp_path)
     (tmp_path / ".env").write_text(
@@ -152,7 +214,7 @@ def _client(tmp_path: Path, monkeypatch) -> tuple[TestClient, Path]:
     return TestClient(app), cards
 
 
-def test_web_workflow_library_and_source_visibility_are_metadata_only(
+def test_web_workflow_library_and_source_visibility_return_card_content_not_source_raw(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -193,7 +255,7 @@ def test_web_workflow_library_and_source_visibility_are_metadata_only(
     assert detail["card"]["strategy_version"] == "0.10.0"
     assert detail["card"]["schema_version"] == "1"
     assert detail["card"]["fake_provider_note"]
-    assert "body" not in detail
+    assert "safe draft body" in detail["body"].lower()
     assert "SOURCE_BODY_MUST_NOT_LEAK" not in combined
     assert "PROCESSED_BODY_MUST_NOT_LEAK" not in combined
     assert card.exists()
@@ -248,6 +310,85 @@ def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, mon
     approved_fm = yaml.safe_load(card.read_text(encoding="utf-8").split("---", 2)[1])
     assert approved_fm["strategy_id"] == "five_stage"
     assert approved_fm["prompt_versions"]["distill"] == "v1"
+
+
+def test_web_workspace_can_save_draft_without_approving_or_losing_provenance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web 编辑的是 Knowledge Card 正文，不是 source，也不能绕过显式 approve。
+
+    大模型和 source 都不参与这个测试；它只验证 Web API 是否复用卡片持久化边界：
+    保存 draft 只替换 body，frontmatter 的 status/provenance 必须原样保留。
+    """
+
+    client, cards = _client(tmp_path, monkeypatch)
+    card = _write_draft(cards)
+    source = tmp_path / "dogfood-vault" / "00-Inbox" / "ManualNotes" / "source-note.md"
+    source.write_text("SOURCE_BODY_MUST_NOT_LEAK_AFTER_SAVE", encoding="utf-8")
+
+    saved = client.patch(
+        "/api/drafts/draft-1",
+        json={"body": "## AI Summary\n\nEdited draft workspace summary.\n"},
+    ).json()
+    detail = client.get("/api/drafts/draft-1").json()
+    combined = f"{saved} {detail}"
+    fm = yaml.safe_load(card.read_text(encoding="utf-8").split("---", 2)[1])
+
+    assert saved["ok"] is True
+    assert saved["status"] == "ai_draft"
+    assert saved["index_updated"] is False
+    assert "Edited draft workspace summary" in detail["body"]
+    assert "status: ai_draft" in card.read_text(encoding="utf-8")
+    assert fm["strategy_id"] == "five_stage"
+    assert fm["source_content_hash"] == "sha256:provenancehash"
+    assert fm["prompt_versions"]["triage"] == "v1"
+    assert "SOURCE_BODY_MUST_NOT_LEAK_AFTER_SAVE" not in combined
+
+
+def test_web_workspace_can_read_and_save_approved_card_and_refresh_recall(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Library 是正式知识工作台：approved card 可阅读、可编辑，保存后刷新 BM25。
+
+    中文学习型说明：这里 intentionally 用 approved card body 中的 AI Summary 命中
+    recall，证明 Web save 后调用的是本地 lexical index rebuild，而不是只改文件。
+    """
+
+    client, cards = _client(tmp_path, monkeypatch)
+    card = _write_approved(cards)
+    source = tmp_path / "dogfood-vault" / "00-Inbox" / "_processed" / "ManualNotes" / "source-note.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("APPROVED_SOURCE_RAW_MUST_NOT_LEAK", encoding="utf-8")
+
+    detail = client.get("/api/library/card", params={"ref": "approved-1"}).json()
+    assert "Approved summary alpha workspace" in detail["body"]
+    assert detail["card"]["strategy_label"] == "Knowledge Card Strategy"
+
+    saved = client.patch(
+        "/api/library/card",
+        params={"ref": "approved-1"},
+        json={"body": "## AI Summary\n\nEdited approved gamma workspace.\n"},
+    ).json()
+    after = client.get("/api/library/card", params={"ref": "approved-1"}).json()
+    recall = client.get("/api/recall", params={"q": "gamma workspace"}).json()
+    combined = f"{detail} {saved} {after} {recall}"
+    fm = yaml.safe_load(card.read_text(encoding="utf-8").split("---", 2)[1])
+
+    assert saved["ok"] is True
+    assert saved["status"] == "human_approved"
+    assert saved["index_updated"] is True
+    assert Path(saved["index_path"]).exists()
+    assert "Edited approved gamma workspace" in after["body"]
+    assert "status: human_approved" in card.read_text(encoding="utf-8")
+    assert fm["source_archive_path"] == "90-Archive/Processed/source-note.md"
+    assert fm["run_id"] == "run-approved"
+    assert recall["hits"][0]["rel_path"].endswith("approved.md")
+    assert recall["hits"][0]["card_ref"] == "approved-1"
+    assert recall["hits"][0]["detail_href"].startswith("/library?")
+    assert "APPROVED_SOURCE_RAW_MUST_NOT_LEAK" not in combined
+    assert "HUMAN_NOTE_MUST_NOT_BE_RECALLABLE" not in recall["hits"][0]["why_this_matched"]
 
 
 def test_web_reject_and_imports_are_honest_unavailable(tmp_path: Path, monkeypatch) -> None:

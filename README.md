@@ -497,11 +497,13 @@ SourceAdapter
 - 当前不做 RAG / embedding / semantic merge。
 - 当前不做 Obsidian plugin。
 - 当前不自动整理真实 vault。
-- Web first slice 是 localhost-only Local Console，默认绑定 `127.0.0.1`。
-  当前 Web 增量提供 workflow / sources / drafts / library / recall 可见性：
-  展示 source bucket、ai_draft、human_approved library、card provenance 和
-  index guidance。Web 复用后端 service，不读取 source 正文，不显示 `.env`
-  secret，也不重写 CLI 业务规则。
+- Web 是 localhost-only Knowledge Workspace，默认绑定 `127.0.0.1`。
+  Home / Setup / Sources / Drafts / Library / Recall 形成闭环：Drafts 可阅读
+  和编辑 AI 草稿后再显式 approve；Library 可阅读和编辑 `human_approved`
+  卡片，保存后刷新本地 BM25 recall index。Provenance/debug 信息保留在
+  detail 折叠区，主列表优先展示知识正文和来源摘要。Web 复用后端 service，
+  不读取 source 正文，不显示或编辑 `.env` secret，不做 provider/prompt/
+  strategy editor，也不重写 CLI 业务规则。
 
 ## Strategy Discovery
 
@@ -610,7 +612,7 @@ bodies or routers.
 
 Done:
 
-- Web first slice.
+- Web first slice, now evolved into Web Knowledge Workspace.
 - Real Data CLI Usability.
 - Documentation cleanup.
 - Product visibility and workflow support: CLI library inventory, processed

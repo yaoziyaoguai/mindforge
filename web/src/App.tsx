@@ -65,10 +65,10 @@ export default function App() {
 
   let content = error ? <ErrorState message={error} /> : null;
   if (!content && path.startsWith("/setup") && data.config) content = <SetupPage data={data.config} />;
-  if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} />;
+  if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} />;
   if (!content && path.startsWith("/drafts") && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} />;
-  if (!content && path.startsWith("/recall")) content = <RecallPage />;
+  if (!content && path.startsWith("/recall")) content = <RecallPage onNavigate={navigate} />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) content = <div className="text-sm text-muted">Loading...</div>;
 

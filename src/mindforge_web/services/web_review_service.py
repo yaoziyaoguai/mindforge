@@ -16,6 +16,7 @@ from mindforge.approval_service import (
     list_approval_candidates,
     preview_approval_card,
 )
+from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.cards import CardSummary, read_card_body
 from mindforge.config import MindForgeConfig
 from mindforge.lexical_index import rebuild_index_for_config
@@ -23,6 +24,7 @@ from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
     ApprovalResponse,
+    CardBodyUpdateResponse,
     DraftDetailResponse,
     DraftSummary,
     NextAction,
@@ -118,6 +120,31 @@ class WebReviewService:
             index_error=index_error,
         )
 
+    def update_draft_body(self, rel_or_id: str, body: str) -> CardBodyUpdateResponse | None:
+        card = self._find_draft(rel_or_id)
+        if card is None:
+            return None
+        try:
+            result = update_card_body(self.cfg, card.path, body, expected_status="ai_draft")
+        except CardWorkspaceError as exc:
+            return CardBodyUpdateResponse(
+                ok=False,
+                status="error",
+                message=str(exc),
+                card_path=str(card.path),
+                rel_path=card.rel_path,
+            )
+        return CardBodyUpdateResponse(
+            ok=True,
+            status=result.status,
+            message="Draft body saved; status remains ai_draft.",
+            card_path=str(result.card_path),
+            rel_path=card.rel_path,
+            index_updated=result.index_updated,
+            index_path=str(result.index_path) if result.index_path else None,
+            index_error=result.index_error,
+        )
+
     def reject_unavailable(self) -> UnavailableResponse:
         return UnavailableResponse(
             reason=(
@@ -166,8 +193,11 @@ class WebReviewService:
             source_id=card.source_id,
             source_title=card.source_title,
             source_path=card.source_path,
+            source_archive_path=card.source_archive_path,
             source_content_hash=card.source_content_hash,
             value_score=card.value_score,
+            profile=card.profile,
+            provider=card.provider,
             strategy_id=card.strategy_id,
             strategy_label=strategy.label,
             strategy_note=strategy.note,

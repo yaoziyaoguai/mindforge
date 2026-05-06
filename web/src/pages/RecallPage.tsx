@@ -4,7 +4,7 @@ import type { RecallResponse } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 
-export function RecallPage() {
+export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void }) {
   const [query, setQuery] = useState("");
   const [data, setData] = useState<RecallResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +48,13 @@ export function RecallPage() {
                 <span className="text-sm text-muted">{hit.score.toFixed(2)}</span>
               </div>
               <p className="mt-2 text-sm text-muted">{hit.why_this_matched}</p>
+              <button
+                className="mt-3 rounded-md border border-line px-3 py-1.5 text-sm font-medium text-primary"
+                onClick={() => onNavigate(hit.detail_href ?? `/library?card=${encodeURIComponent(hit.card_ref ?? hit.rel_path)}`)}
+                type="button"
+              >
+                Open Knowledge Card
+              </button>
             </article>
           ))}
         </div>

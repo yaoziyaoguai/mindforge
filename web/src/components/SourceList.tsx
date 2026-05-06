@@ -1,6 +1,6 @@
 import type { SourceStatus } from "../api/types";
 
-export function SourceList({ sources }: { sources: SourceStatus[] }) {
+export function SourceList({ sources, onOpenCards }: { sources: SourceStatus[]; onOpenCards?: () => void }) {
   return (
     <div className="overflow-hidden rounded-md border border-line bg-panel">
       <table className="w-full text-left text-sm">
@@ -25,6 +25,9 @@ export function SourceList({ sources }: { sources: SourceStatus[] }) {
               <td className="px-4 py-3">{source.processed_count}</td>
               <td className={source.exists ? "px-4 py-3 text-safe" : "px-4 py-3 text-warn"}>
                 {source.exists ? "ready" : "missing folder"}
+                <button className="mt-2 block text-xs text-primary" onClick={onOpenCards} type="button">
+                  Open generated cards
+                </button>
               </td>
             </tr>
           ))}

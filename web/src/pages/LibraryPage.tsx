@@ -1,12 +1,34 @@
-import type { LibraryCardsResponse } from "../api/types";
+import { useEffect, useState } from "react";
+import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
+import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
+import { CardWorkspace } from "../components/CardWorkspace";
+import { ErrorState } from "../components/ErrorState";
 import { StatusCard } from "../components/StatusCard";
 
 export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
+  const initialRef = new URLSearchParams(window.location.search).get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
+  const [selected, setSelected] = useState<string | undefined>(initialRef ?? undefined);
+  const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selected) return;
+    setError(null);
+    getLibraryCardDetail(selected)
+      .then(setDetail)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Card failed to load"));
+  }, [selected]);
+
+  async function refreshSelected() {
+    if (!selected) return;
+    setDetail(await getLibraryCardDetail(selected));
+  }
+
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-ink">Knowledge Library</h1>
-        <p className="mt-1 text-sm text-muted">Metadata-only card inventory with source provenance.</p>
+        <p className="mt-1 text-sm text-muted">Readable and editable human_approved knowledge cards.</p>
       </header>
       <div className="grid gap-4 md:grid-cols-4">
         <StatusCard label="Total cards" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={data.stats.cards_dir} />
@@ -14,46 +36,42 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
         <StatusCard label="Approved" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="Available to recall" />
         <StatusCard label="Index" value={data.stats.index_exists ? "present" : "missing"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
       </div>
-      <div className="overflow-hidden rounded-md border border-line bg-panel">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-stone-100 text-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Card</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Source</th>
-              <th className="px-4 py-3 font-medium">Provider</th>
-              <th className="px-4 py-3 font-medium">Path</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {data.cards.map((card) => (
-              <tr key={card.rel_path}>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-ink">{card.title ?? "Untitled"}</div>
-                  <div className="text-xs text-muted">{card.track ?? "unrouted"}</div>
-                  <div className="text-xs text-muted">strategy:{card.strategy_label ?? card.strategy_id ?? "-"}</div>
-                  {card.strategy_note ? <div className="text-xs text-muted">{card.strategy_note}</div> : null}
-                </td>
-                <td className="px-4 py-3">
-                  <div>{card.status}</div>
-                  <div className="text-xs text-muted">{card.status_explanation}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div>{card.source_type ?? "-"}</div>
-                  <div className="text-xs text-muted">id:{card.source_id ?? "-"}</div>
-                  <div className="text-xs text-muted">hash:{card.source_content_hash ?? "-"}</div>
-                  <div className="text-xs text-muted">{card.source_missing ? "source missing" : (card.source_archive_path ?? card.source_path ?? "-")}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div>{card.profile ?? card.provider ?? "-"}</div>
-                  <div className="text-xs text-muted">run:{card.run_id ?? "-"}</div>
-                  {card.fake_provider_note ? <div className="text-xs text-muted">{card.fake_provider_note}</div> : null}
-                </td>
-                <td className="px-4 py-3 text-muted">{card.rel_path}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
+        <div className="space-y-2">
+          {data.cards.map((card) => {
+            const ref = card.id ?? card.rel_path;
+            return (
+              <button
+                className={`w-full rounded-md border p-4 text-left transition ${selected === ref ? "border-primary bg-blue-50" : "border-line bg-panel hover:border-primary"}`}
+                key={card.rel_path}
+                onClick={() => setSelected(ref)}
+                type="button"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-medium text-ink">{card.title ?? card.rel_path}</h3>
+                  <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{card.status}</span>
+                </div>
+                <p className="mt-1 text-sm text-muted">{card.source_title ?? card.source_path ?? "No source title"}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
+                  {card.track ? <span>track:{card.track}</span> : null}
+                  {card.strategy_label ? <span>{card.strategy_label}</span> : null}
+                  {card.updated_at ? <span>updated:{card.updated_at.slice(0, 10)}</span> : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div>
+          {error ? <ErrorState message={error} /> : null}
+          {!error && detail ? (
+            <CardWorkspace
+              detail={detail}
+              mode="library"
+              onSave={(body) => saveLibraryCardBody(selected ?? detail.card.id ?? detail.card.rel_path, body)}
+              onSaved={refreshSelected}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

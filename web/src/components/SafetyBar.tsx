@@ -15,7 +15,7 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
           {safety.local_only ? "Local only" : "Host warning"}
         </span>
         <span className="text-muted">Vault: {truncateMiddle(safety.vault_path, 58)}</span>
-        <span className={safety.provider_state === "fake_default" ? "text-safe" : "text-warn"}>
+        <span className={safety.provider_state === "env_only" ? "text-safe" : "text-warn"}>
           Provider: {safety.provider_state}
         </span>
         <span className="text-muted">.env: {safety.env_status}</span>

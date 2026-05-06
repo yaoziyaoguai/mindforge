@@ -215,6 +215,22 @@ export interface LibraryCardsResponse {
   cards: LibraryCardResponse[];
 }
 
+export interface LibraryCardDetailResponse {
+  card: LibraryCardResponse;
+  body?: string | null;
+}
+
+export interface CardBodyUpdateResponse {
+  ok: boolean;
+  status: string;
+  message: string;
+  card_path: string;
+  rel_path?: string | null;
+  index_updated: boolean;
+  index_path?: string | null;
+  index_error?: string | null;
+}
+
 export interface WorkflowSummaryResponse {
   vault_root: string;
   cards_dir: string;
@@ -241,8 +257,11 @@ export interface DraftSummary {
   source_id?: string | null;
   source_title?: string | null;
   source_path?: string | null;
+  source_archive_path?: string | null;
   source_content_hash?: string | null;
   value_score?: number | null;
+  profile?: string | null;
+  provider?: string | null;
   strategy_id?: string | null;
   strategy_label?: string | null;
   strategy_note?: string | null;
@@ -295,6 +314,8 @@ export interface RecallResponse {
   hits: Array<{
     score: number;
     title?: string | null;
+    card_ref?: string | null;
+    detail_href?: string | null;
     rel_path: string;
     status: string;
     track?: string | null;

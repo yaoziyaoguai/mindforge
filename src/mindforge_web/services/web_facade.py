@@ -12,6 +12,7 @@ from pathlib import Path
 
 from mindforge.app_context import build_app_context
 from mindforge.cards import iter_cards
+from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.checkpoint import Checkpoint, CheckpointError
 from mindforge.lexical_index import default_index_path
 from mindforge.library_service import (
@@ -27,6 +28,7 @@ from mindforge_web.schemas import (
     ConfigStatusResponse,
     DraftDetailResponse,
     DraftsResponse,
+    CardBodyUpdateResponse,
     HealthResponse,
     HomeStatusResponse,
     IngestionActionResponse,
@@ -237,6 +239,36 @@ class WebFacade:
             return None
         return _library_detail_response(detail)
 
+    def update_library_card_body(self, ref: str, body: str) -> CardBodyUpdateResponse | None:
+        detail = show_library_card(self.cfg, ref, show_content=False)
+        if isinstance(detail, LibraryLookupError):
+            return None
+        card = detail.card.summary
+        try:
+            result = update_card_body(self.cfg, card.path, body, expected_status=card.status)
+        except CardWorkspaceError as exc:
+            return CardBodyUpdateResponse(
+                ok=False,
+                status="error",
+                message=str(exc),
+                card_path=str(card.path),
+                rel_path=card.rel_path,
+            )
+        return CardBodyUpdateResponse(
+            ok=True,
+            status=result.status,
+            message=(
+                "Approved card saved and recall index refreshed."
+                if result.index_updated
+                else "Card body saved."
+            ),
+            card_path=str(result.card_path),
+            rel_path=card.rel_path,
+            index_updated=result.index_updated,
+            index_path=str(result.index_path) if result.index_path else None,
+            index_error=result.index_error,
+        )
+
     def drafts(self) -> DraftsResponse:
         drafts, errors = self.review_service.list_drafts()
         empty = None
@@ -250,6 +282,9 @@ class WebFacade:
 
     def draft_detail(self, draft_id: str) -> DraftDetailResponse | None:
         return self.review_service.draft_detail(draft_id)
+
+    def update_draft_body(self, draft_id: str, body: str) -> CardBodyUpdateResponse | None:
+        return self.review_service.update_draft_body(draft_id, body)
 
     def recall(self, query: str) -> RecallResponse:
         index = self.recall_status()
@@ -298,6 +333,8 @@ class WebFacade:
                 RecallHit(
                     score=hit.score,
                     title=hit.title,
+                    card_ref=hit.id or Path(hit.rel_path).name,
+                    detail_href=f"/library?card={hit.id or hit.rel_path}",
                     rel_path=hit.rel_path,
                     status=hit.status,
                     track=hit.track,

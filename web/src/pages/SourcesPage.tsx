@@ -4,7 +4,7 @@ import { SourceList } from "../components/SourceList";
 import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
 
-export function SourcesPage({ data }: { data: SourcesResponse }) {
+export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNavigate: (href: string) => void }) {
   const [path, setPath] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,7 +101,7 @@ export function SourcesPage({ data }: { data: SourcesResponse }) {
         </div>
         <p className="mt-3 text-sm text-muted">Watch delete only removes the registry record. It does not delete source files or cards.</p>
       </section>
-      <SourceList sources={data.sources} />
+      <SourceList sources={data.sources} onOpenCards={() => onNavigate("/library")} />
       <section className="grid gap-4 md:grid-cols-2">
         {data.available_imports.map((item) => (
           <StatusCard key={item.key} label={item.label} value={item.value} status={item.status} detail={item.detail} nextAction={item.next_action} />
@@ -110,7 +110,7 @@ export function SourcesPage({ data }: { data: SourcesResponse }) {
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <h2 className="text-lg font-semibold text-ink">Advanced / Troubleshooting</h2>
         <p className="mt-2 text-sm text-muted">{data.ingestion.advanced_note}</p>
-        <code className="mt-3 block text-xs text-ink">mindforge scan && mindforge process --profile fake --limit 1</code>
+        <code className="mt-3 block text-xs text-ink">mindforge import /path/to/source</code>
       </section>
     </div>
   );

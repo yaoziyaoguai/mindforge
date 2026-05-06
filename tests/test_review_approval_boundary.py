@@ -328,6 +328,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # library_service.py 是只读 inventory 查询面，只统计和展示
             # human_approved / ai_draft 状态，不产生审批副作用。
             "library_service.py",
+            # card_workspace_service.py 是 Web/Service 共享的卡片正文编辑边界。
+            # 它只在保存已 approved 卡片后保留 human_approved 状态并刷新 recall
+            # index，不把 ai_draft 晋升为 human_approved；晋升仍只能走
+            # approval_service/approver 的显式 approve 路径。
+            "card_workspace_service.py",
         # real-data CLI status presenter 只读展示 approved 计数；不写状态、
         # 不调用 approval_service，也不产生 human_approved。
         "local_status.py",

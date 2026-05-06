@@ -39,7 +39,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1", "http://localhost"],
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
     app.include_router(health.router)

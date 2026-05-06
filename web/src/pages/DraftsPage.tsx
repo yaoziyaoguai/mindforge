@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { getDraftDetail } from "../api/drafts";
+import { getDraftDetail, saveDraftBody } from "../api/drafts";
 import type { DraftDetailResponse, DraftsResponse } from "../api/types";
 import { ApprovalPanel } from "../components/ApprovalPanel";
+import { CardWorkspace } from "../components/CardWorkspace";
 import { DraftList } from "../components/DraftList";
-import { DraftViewer } from "../components/DraftViewer";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 
@@ -20,6 +20,13 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Draft failed to load"));
   }, [selected]);
 
+  async function refreshSelected() {
+    if (!selected) return;
+    const next = await getDraftDetail(selected);
+    setDetail(next);
+    onRefresh();
+  }
+
   if (data.drafts.length === 0) {
     return <EmptyState title="No drafts waiting for review" action={data.empty_state} />;
   }
@@ -30,9 +37,18 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
         <h1 className="text-2xl font-semibold text-ink">Drafts / Review</h1>
         <p className="mt-1 text-sm text-muted">Approve requires source review and second confirmation.</p>
       </header>
-      <div className="grid gap-5 lg:grid-cols-[340px_1fr_280px]">
+      <div className="grid gap-5 lg:grid-cols-[320px_1fr_280px]">
         <DraftList drafts={data.drafts} selected={selected} onSelect={setSelected} />
-        <div>{error ? <ErrorState message={error} /> : detail ? <DraftViewer detail={detail} /> : null}</div>
+        <div>
+          {error ? <ErrorState message={error} /> : detail ? (
+            <CardWorkspace
+              detail={detail}
+              mode="draft"
+              onSave={(body) => saveDraftBody(selected ?? detail.draft.id ?? detail.draft.rel_path, body)}
+              onSaved={refreshSelected}
+            />
+          ) : null}
+        </div>
         {detail ? <ApprovalPanel detail={detail} onApproved={onRefresh} /> : null}
       </div>
     </div>
