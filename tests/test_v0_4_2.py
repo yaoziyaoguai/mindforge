@@ -679,7 +679,7 @@ def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
     assert show.exit_code == 0, show.output
     assert "MindForge config show" in show.output
     assert "vault.root" in show.output
-    assert "active_profile: fake" in show.output
+    assert "active_provider: fake" in show.output
     assert "calls_real_llm" in show.output
     assert "False" in show.output
 
@@ -718,7 +718,8 @@ def test_config_init_defaults_real_dogfood_and_refuses_overwrite(tmp_path: Path)
     written = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
     assert written.exit_code == 0, written.output
     text = cfg.read_text(encoding="utf-8")
-    assert "active_profile: openai_compatible" in text
+    assert "active: openai_compatible" in text
+    assert "active_profile:" not in text
     assert "Do not put secrets in YAML" in text
     assert str(vault.resolve()) in text
 

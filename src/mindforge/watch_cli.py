@@ -11,9 +11,9 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import (
+    apply_provider_selection,
     console,
     load_cfg,
-    override_active_profile,
     render_active_vault_resolution_notice,
 )
 from .env_loader import load_dotenv_silently
@@ -35,13 +35,18 @@ def watch_add(
         None,
         "--profile",
         "-p",
-        help="临时覆盖 llm.active_profile；不修改 YAML。",
+        help="Legacy alias for --provider；临时覆盖 provider，不修改 YAML。",
+    ),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        help="高级临时覆盖 llm.active 指向的 provider（不修改 YAML）。",
     ),
 ) -> None:
     """注册 watched source，并立即生成 ai_draft 候选。"""
 
     cfg = load_cfg(config, read_env=False)
-    cfg = override_active_profile(cfg, profile)
+    cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
     render_active_vault_resolution_notice(cfg)
     if cfg.llm.active_profile != FAKE_PROFILE:
         # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。

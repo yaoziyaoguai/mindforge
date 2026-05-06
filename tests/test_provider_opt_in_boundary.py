@@ -41,7 +41,7 @@ from mindforge.llm.fake import FakeProvider
 _REPO = Path(__file__).resolve().parent.parent
 _SRC = _REPO / "src" / "mindforge"
 _LLM_DIR = _SRC / "llm"
-_DEFAULT_YAML = _REPO / "src" / "mindforge" / "assets" / "configs" / "mindforge.yaml"
+_DEFAULT_YAML = _REPO / "src" / "mindforge" / "assets" / "configs" / "mindforge.user.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -53,25 +53,24 @@ def test_default_bundled_config_active_profile_is_real_dogfood() -> None:
     text = _DEFAULT_YAML.read_text(encoding="utf-8")
     # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；fake 保留为
     # offline demo / CI / deterministic tests，但不再作为普通用户主路径。
-    assert "active_profile: openai_compatible" in text
-    # 逐行扫一遍，确保没有别的 active_profile 行潜藏
+    assert "active: openai_compatible" in text
+    # 逐行扫一遍，确保用户模板没有 legacy active_profile 行潜藏
     for line in text.splitlines():
         s = line.strip()
-        if s.startswith("active_profile:"):
-            assert s == "active_profile: openai_compatible", (
-                f"默认 bundled 配置必须 active_profile=openai_compatible，发现：{s!r}"
-            )
+        assert not s.startswith("active_profile:"), (
+            f"新用户模板必须使用 llm.active，不应出现 legacy active_profile：{s!r}"
+        )
 
 
-def test_packaged_default_config_active_profile_is_real_dogfood() -> None:
+def test_packaged_user_config_active_provider_is_real_dogfood() -> None:
     """与上一条测试不同：本条断言**安装态**下 ``importlib.resources`` 暴露
-    的 packaged 配置同样默认走 fake，避免发布时 yaml 漂移。"""
+    的 packaged 用户配置同样默认走真实 provider，避免发布时 yaml 漂移。"""
     from mindforge.assets_runtime import asset_root
 
-    bundled = asset_root().joinpath("configs", "mindforge.yaml").read_text(
+    bundled = asset_root().joinpath("configs", "mindforge.user.yaml").read_text(
         encoding="utf-8"
     )
-    assert "active_profile: openai_compatible" in bundled
+    assert "active: openai_compatible" in bundled
 
 
 # ---------------------------------------------------------------------------

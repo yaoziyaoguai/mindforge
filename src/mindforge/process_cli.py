@@ -12,9 +12,9 @@ import typer
 
 from . import process_presenter as _pp
 from .cli_runtime import (
+    apply_provider_selection,
     console,
     load_cfg,
-    override_active_profile,
     render_active_vault_resolution_notice,
 )
 from .env_loader import load_dotenv_silently
@@ -202,7 +202,12 @@ def process(
         None,
         "--profile",
         "-p",
-        help="临时覆盖 llm.active_profile（仅本次进程，不改 yaml）",
+        help="Legacy alias for --provider；临时覆盖 provider（仅本次进程，不改 yaml）",
+    ),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        help="高级临时覆盖 llm.active 指向的 provider（仅本次进程，不改 yaml）",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -241,7 +246,7 @@ def process(
     必须人工修改 frontmatter 才晋升 ``human_approved``。
     """
     cfg = load_cfg(config, read_env=False)
-    cfg = override_active_profile(cfg, profile)
+    cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
     render_active_vault_resolution_notice(cfg)
 
     runtime = _resolve_runtime_or_exit(

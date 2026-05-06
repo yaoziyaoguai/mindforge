@@ -205,8 +205,10 @@ def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
     assert res.exit_code == 0, res.output
     text = (tmp_path / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
     assert "# MindForge user config." in text
-    assert "active_profile: openai_compatible" in text
-    assert "active_profile: openai_compatible" in text
+    assert "active: openai_compatible" in text
+    assert "active_profile:" not in text
+    assert "providers:" in text
+    assert "profiles:" not in text
     assert "anthropic:" in text
     assert "MINDFORGE_OPENAI_API_KEY" in text
     assert "MINDFORGE_OPENAI_MODEL" in text

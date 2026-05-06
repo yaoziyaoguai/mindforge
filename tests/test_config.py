@@ -105,17 +105,21 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     ]
     assert set(parsed) == {"version", "vault", "llm", "telemetry"}
     assert parsed["vault"]["root"] == str(vault)
-    assert parsed["llm"]["active_profile"] == "openai_compatible"
-    assert {"openai_compatible", "anthropic", "fake"} <= set(parsed["llm"]["profiles"])
-    assert parsed["llm"]["profiles"]["openai_compatible"]["api_key_env"] == "MINDFORGE_OPENAI_API_KEY"
-    assert parsed["llm"]["profiles"]["openai_compatible"]["base_url_env"] == "MINDFORGE_OPENAI_BASE_URL"
-    assert parsed["llm"]["profiles"]["openai_compatible"]["model_env"] == "MINDFORGE_OPENAI_MODEL"
-    assert parsed["llm"]["profiles"]["openai_compatible"]["default_model"] == "gpt-4o-mini"
-    assert parsed["llm"]["profiles"]["anthropic"]["api_key_env"] == "MINDFORGE_ANTHROPIC_API_KEY"
-    assert parsed["llm"]["profiles"]["anthropic"]["base_url_env"] == "MINDFORGE_ANTHROPIC_BASE_URL"
-    assert parsed["llm"]["profiles"]["anthropic"]["model_env"] == "MINDFORGE_ANTHROPIC_MODEL"
-    assert parsed["llm"]["profiles"]["anthropic"]["default_model"] == "claude-3-5-haiku-latest"
-    assert parsed["llm"]["profiles"]["fake"]["purpose"] == "offline_demo_ci_deterministic_tests"
+    assert parsed["llm"]["active"] == "openai_compatible"
+    assert "active_profile" not in parsed["llm"]
+    assert "profiles" not in parsed["llm"]
+    assert {"openai_compatible", "anthropic", "fake"} <= set(parsed["llm"]["providers"])
+    assert parsed["llm"]["providers"]["openai_compatible"]["type"] == "openai_compatible"
+    assert parsed["llm"]["providers"]["openai_compatible"]["api_key_env"] == "MINDFORGE_OPENAI_API_KEY"
+    assert parsed["llm"]["providers"]["openai_compatible"]["base_url_env"] == "MINDFORGE_OPENAI_BASE_URL"
+    assert parsed["llm"]["providers"]["openai_compatible"]["model_env"] == "MINDFORGE_OPENAI_MODEL"
+    assert parsed["llm"]["providers"]["openai_compatible"]["default_model"] == "gpt-4o-mini"
+    assert parsed["llm"]["providers"]["anthropic"]["type"] == "anthropic"
+    assert parsed["llm"]["providers"]["anthropic"]["api_key_env"] == "MINDFORGE_ANTHROPIC_API_KEY"
+    assert parsed["llm"]["providers"]["anthropic"]["base_url_env"] == "MINDFORGE_ANTHROPIC_BASE_URL"
+    assert parsed["llm"]["providers"]["anthropic"]["model_env"] == "MINDFORGE_ANTHROPIC_MODEL"
+    assert parsed["llm"]["providers"]["anthropic"]["default_model"] == "claude-3-5-haiku-latest"
+    assert parsed["llm"]["providers"]["fake"]["purpose"] == "offline_demo_ci_deterministic_tests"
     assert parsed["telemetry"]["local_only"] is True
 
     forbidden = (
@@ -180,10 +184,10 @@ version: 0.1
 vault:
   root: "{vault}"
 llm:
-  active_profile: fake
-  profiles:
+  active: fake
+  providers:
     fake:
-      provider: fake
+      type: fake
       purpose: offline_demo_ci_deterministic_tests
 telemetry:
   enabled: true
@@ -201,6 +205,64 @@ telemetry:
     assert cfg.prompts.for_stage("distill") == "v1"
     assert cfg.search.bm25.enabled is True
     assert cfg.llm.active_profile == "fake"
+
+
+def test_new_active_wins_over_legacy_active_profile(tmp_path: Path) -> None:
+    """同时存在新旧字段时，产品语义以 ``llm.active`` 为准。"""
+
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "/tmp/provider-selection"
+llm:
+  active: fake
+  active_profile: anthropic
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+    anthropic:
+      type: anthropic
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      default_base_url: "https://api.anthropic.com"
+      default_model: "claude-3-5-haiku-latest"
+  profiles:
+    anthropic:
+      provider: anthropic
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      default_model: "claude-3-5-haiku-latest"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_mindforge_config(cfg_path)
+
+    assert cfg.llm.active_profile == "fake"
+
+
+def test_llm_active_unknown_provider_fails_fast(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "/tmp/provider-selection"
+llm:
+  active: missing_provider
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="missing_provider"):
+        load_mindforge_config(cfg_path)
 
 
 def test_real_learning_tracks_yaml_loads() -> None:

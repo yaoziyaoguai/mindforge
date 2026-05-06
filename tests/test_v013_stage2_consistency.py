@@ -39,25 +39,26 @@ def clean_env(monkeypatch):
     return monkeypatch
 
 
-def test_bundled_config_active_profile_is_real_dogfood():
-    """package asset 默认 profile 必须是 openai_compatible。
+def test_bundled_config_active_provider_is_real_dogfood():
+    """package user config 默认 provider 必须是 openai_compatible。
 
     fake provider 仍保留给 CI/offline demo/deterministic tests；新用户主配置
     则面向真实 dogfood，缺 key 时由命令友好失败并保持不自动 approve。
     """
-    text = Path("src/mindforge/assets/configs/mindforge.yaml").read_text(encoding="utf-8")
+    text = Path("src/mindforge/assets/configs/mindforge.user.yaml").read_text(encoding="utf-8")
     found = False
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        if stripped.startswith("active_profile:"):
+        if stripped.startswith("active:"):
             value = stripped.split(":", 1)[1].strip().strip("'\"")
             assert value == "openai_compatible", (
-                f"default active_profile must be 'openai_compatible'; got {value!r}"
+                f"default active provider must be 'openai_compatible'; got {value!r}"
             )
             found = True
-    assert found, "active_profile key not found in configs/mindforge.yaml"
+        assert not stripped.startswith("active_profile:")
+    assert found, "active key not found in configs/mindforge.user.yaml"
 
 
 def test_provider_readiness_json_schema(clean_env):

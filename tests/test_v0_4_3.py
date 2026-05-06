@@ -35,7 +35,8 @@ def test_init_interactive_creates_vault_and_rewrites_choices(tmp_path: Path) -> 
     assert cfg["vault"]["root"] == str(target.resolve())
     assert cfg["telemetry"]["enabled"] is True
     assert cfg["telemetry"]["local_only"] is True
-    assert cfg["llm"]["active_profile"] == "fake"
+    assert cfg["llm"]["active"] == "fake"
+    assert "active_profile" not in cfg["llm"]
 
 
 def test_init_interactive_rejects_existing_non_vault_dir(tmp_path: Path) -> None:

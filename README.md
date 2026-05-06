@@ -3,7 +3,8 @@
 MindForge is a local-first personal AI learning memory tool.
 
 MindForge 帮你把本地资料整理成可以 review、recall、项目化使用的知识卡片。
-真实 dogfood 主路径使用 OpenAI-compatible provider，但安全边界不变：
+真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的 `llm.active`
+选择默认 provider，但安全边界不变：
 AI 只能生成 `ai_draft`；只有你显式确认后，卡片才会变成
 `human_approved`。API key 只放在 shell env 或本地 `.env`，不要写进 YAML。
 
@@ -34,8 +35,10 @@ cat > /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes/first-note.md <<'EO
 EOF
 ```
 
-选择一个 real provider：`openai_compatible` 或 `anthropic`。可以用 shell
-export，也可以放在当前项目或 vault 上级目录的本地 `.env`；不要写进 YAML。
+在 `configs/mindforge.yaml` 里选择默认 real provider：
+`llm.active: openai_compatible` 或 `llm.active: anthropic`。可以用 shell
+export，也可以放在当前项目或 vault 上级目录的本地 `.env`；不要写 API key
+进 YAML。
 OpenAI-compatible 需要：
 
 - `MINDFORGE_OPENAI_API_KEY`
@@ -50,7 +53,7 @@ Anthropic-compatible / Claude 需要：
 
 ```bash
 export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
-mindforge llm ping --profile <profile>
+mindforge llm ping
 ```
 
 跑通最小流程：
@@ -58,7 +61,7 @@ mindforge llm ping --profile <profile>
 ```bash
 cd /Users/jinkun.wang/MindForgeVault
 mindforge watch list
-mindforge watch add 00-Inbox/ManualNotes/first-note.md --profile <profile>
+mindforge watch add 00-Inbox/ManualNotes/first-note.md
 mindforge approve list
 mindforge approve
 mindforge approve 1 --confirm
@@ -80,7 +83,7 @@ registry 后面，本阶段没有 daemon、没有 `watch run/start/stop`。
 如果你只是一次性导入一个文件或文件夹，不想持续关注它，用：
 
 ```bash
-mindforge import /path/to/file-or-folder --profile <profile>
+mindforge import /path/to/file-or-folder
 ```
 
 `import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。
@@ -160,9 +163,9 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 这是普通用户最重要的基础配置文件。第一天只需要关心：
 
 - `vault.root`: MindForgeVault 在哪里。
-- `llm.active_profile`: 真实 dogfood 主路径可以选 `openai_compatible` 或
+- `llm.active`: 真实 dogfood 主路径可以选 `openai_compatible` 或
   `anthropic`。
-- `llm.profiles.openai_compatible` / `llm.profiles.anthropic`: 只声明 env
+- `llm.providers.openai_compatible` / `llm.providers.anthropic`: 只声明 env
   变量名映射和非 secret 默认值；真实 key/base_url/model 放 shell env 或 `.env`。
 - `telemetry.local_only`: 只写本地，不上传。
 
@@ -181,34 +184,37 @@ version: 0.1
 vault:
   root: /Users/jinkun.wang/MindForgeVault
 llm:
-  active_profile: openai_compatible
-  profiles:
+  active: openai_compatible
+  providers:
     openai_compatible:
-      provider: openai_compatible
+      type: openai_compatible
       api_key_env: MINDFORGE_OPENAI_API_KEY
       base_url_env: MINDFORGE_OPENAI_BASE_URL
       model_env: MINDFORGE_OPENAI_MODEL
       default_base_url: https://api.openai.com/v1
       default_model: gpt-4o-mini
     anthropic:
-      provider: anthropic
+      type: anthropic
       api_key_env: MINDFORGE_ANTHROPIC_API_KEY
       base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
       model_env: MINDFORGE_ANTHROPIC_MODEL
       default_base_url: https://api.anthropic.com
       default_model: claude-3-5-haiku-latest
     fake:
-      provider: fake
+      type: fake
       purpose: offline_demo_ci_deterministic_tests
 telemetry:
   enabled: true
   local_only: true
 ```
 
-第一天只需要确认 `vault.root`、`llm.active_profile` 和对应 provider 的 env
+第一天只需要确认 `vault.root`、`llm.active` 和对应 provider 的 env
 是否正确。`learning_tracks.yaml` 使用 package
 内置默认值，不再由 init 默认生成。`llm.example.yaml` 不再是新用户项目里的
 第二个配置入口；主配置入口就是 `configs/mindforge.yaml`。
+
+Legacy configs with `llm.active_profile` / `llm.profiles` still load, but new
+configs should use `llm.active` / `llm.providers`.
 
 ### `.env.example`
 
@@ -254,13 +260,14 @@ tests。这个历史安全姿态也叫 `fake-default`，现在仅用于离线/de
 
 ```bash
 mindforge demo
-mindforge process --profile fake --limit 1
-mindforge watch add /path/to/note.md --profile fake
-mindforge import /path/to/note.md --profile fake
+mindforge process --provider fake --limit 1
+mindforge watch add /path/to/note.md --provider fake
+mindforge import /path/to/note.md --provider fake
 ```
 
 fake 不是普通用户真实 dogfood 主路径。真实路径缺 key 时会报错，不会 fallback
-到 fake。需要离线验证时请显式使用 `--profile fake`。
+到 fake。需要离线验证时请显式使用 `--provider fake`。`--profile` 仍作为
+legacy alias 保留，但不再是主路径文案。
 
 ## Safety Model
 
@@ -389,21 +396,21 @@ to roll back. Do not run broad destructive cleanup commands against a real vault
 ### Real Provider Opt-In
 
 Real Provider Setup: 真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的
-`llm.active_profile: openai_compatible` 或 `llm.active_profile: anthropic`。
+`llm.active: openai_compatible` 或 `llm.active: anthropic`。
 只把 API key / base_url / model 放进 shell env 或本地 `.env`：
 
 ```bash
 export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
 export MINDFORGE_OPENAI_MODEL="gpt-4o-mini"
-mindforge llm ping --profile <profile>
-mindforge watch add /path/to/non-sensitive-note.md --profile <profile>
+mindforge llm ping
+mindforge watch add /path/to/non-sensitive-note.md
 ```
 
 `llm ping` 只检查 key 是否存在，不发 HTTP。`watch add` / `import` 会生成
 `ai_draft`，不会自动 approve。缺 key 时命令会提示：
 `real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY` 或
 `real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY`，并说明可以用
-`--profile fake` 跑离线 demo/testing。
+`--provider fake` 跑离线 demo/testing。
 
 底层 synthetic provider smoke 仍需要显式 `--allow-real`；普通 Quick Start
 不需要它。它只用于已经理解 billing/privacy 风险后的诊断，不替代

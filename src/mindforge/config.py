@@ -365,17 +365,38 @@ def _deep_merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) ->
 
 
 def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
-    """把用户层简化 provider profile 映射成 internal stage/model 结构。
+    """把用户层 provider 选择映射成 internal stage/model 结构。
 
-    用户模板里的 ``llm.profiles.openai_compatible`` 只声明 provider 和 env var
-    名；完整 pipeline 仍需要五个 stage 的 alias 映射与 ``llm.models``。本函数
-    在配置层完成翻译，保持 watch/import/process 的业务管线不感知 provider
-    配置 UX 的简化。
+    新用户 YAML 使用 ``llm.active`` + ``llm.providers``；旧配置仍可能使用
+    ``active_profile`` + ``profiles``。完整 pipeline 仍需要五个 stage 的 alias
+    映射与 ``llm.models``。本函数在配置层完成兼容翻译，保持
+    watch/import/process 的业务管线不感知 provider selection UX 的变化。
     """
 
     llm = raw.get("llm")
     if not isinstance(llm, dict):
         return raw
+    providers = llm.get("providers")
+    if isinstance(providers, dict):
+        active = llm.get("active")
+        if not isinstance(active, str) or not active.strip():
+            raise ConfigError("llm.active 必须指定 llm.providers 下的 provider key")
+        if active not in providers:
+            raise ConfigError(
+                f"llm.active={active!r} 不在 llm.providers 中；已知：{sorted(providers)}"
+            )
+        llm["active_profile"] = active
+        profiles_from_providers = {
+            str(name): _legacy_profile_from_provider(str(name), value)
+            for name, value in providers.items()
+            if isinstance(value, dict)
+        }
+        legacy_profiles = llm.get("profiles")
+        if isinstance(legacy_profiles, dict):
+            for name, value in legacy_profiles.items():
+                profiles_from_providers.setdefault(str(name), value)
+        llm["profiles"] = profiles_from_providers
+
     profiles = llm.get("profiles")
     if not isinstance(profiles, dict):
         return raw
@@ -422,6 +443,24 @@ def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     return raw
 
 
+def _legacy_profile_from_provider(name: str, provider: dict[str, Any]) -> dict[str, Any]:
+    """把新 ``llm.providers`` 项转换成 legacy profile 形状。
+
+    这是配置兼容层，不是业务 provider 路由。生成的 stage 映射会继续交给
+    ``_expand_real_provider_profile`` / fake 展开逻辑处理。
+    """
+
+    provider_type = str(provider.get("type") or name)
+    legacy: dict[str, Any] = dict(provider)
+    legacy.pop("type", None)
+    legacy["provider"] = provider_type
+    if "default_base_url" in legacy:
+        legacy["base_url"] = legacy.pop("default_base_url")
+    if "default_model" in legacy:
+        legacy["model"] = legacy.pop("default_model")
+    return legacy
+
+
 def _expand_real_provider_profile(
     profiles: dict[str, Any],
     models: dict[str, Any],
@@ -441,8 +480,8 @@ def _expand_real_provider_profile(
     if profile.get("provider") != provider_name:
         return
 
-    default_base_url = str(profile.get("default_base_url") or fallback_base_url)
-    default_model = str(profile.get("default_model") or fallback_model)
+    default_base_url = str(profile.get("default_base_url") or profile.get("base_url") or fallback_base_url)
+    default_model = str(profile.get("default_model") or profile.get("model") or fallback_model)
     models[alias] = {
         "provider": provider_name,
         "type": provider_type,

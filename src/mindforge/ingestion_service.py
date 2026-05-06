@@ -51,19 +51,19 @@ REAL_PROVIDER_KEY_ERRORS = {
     "MINDFORGE_OPENAI_API_KEY": (
         "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY. "
         "Set it via shell export or local .env. Do not put secrets in YAML. "
-        "fake/demo remains available with --profile fake."
+        "fake/demo remains available with --provider fake."
     ),
     "MINDFORGE_ANTHROPIC_API_KEY": (
         "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY. "
         "Set it via shell export or local .env. Do not put secrets in YAML. "
-        "fake/demo remains available with --profile fake."
+        "fake/demo remains available with --provider fake."
     ),
 }
 
 REAL_PROVIDER_KEY_ERROR = (
     "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY. "
     "Set it via shell export or local .env. Do not put secrets in YAML. "
-    "fake/demo remains available with --profile fake."
+    "fake/demo remains available with --provider fake."
 )
 
 

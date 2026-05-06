@@ -59,7 +59,7 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
             raise typer.Exit(code=2) from e
         console.print(f"[red]✗ 配置错误：{e}[/red]")
         console.print(
-            "[dim]提示：请检查 vault.root、sources.enabled、llm.active_profile "
+            "[dim]提示：请检查 vault.root、sources.enabled、llm.active "
             "三个字段是否合法。[/dim]"
         )
         raise typer.Exit(code=2) from e
@@ -108,6 +108,40 @@ def override_active_profile(
         )
         raise typer.Exit(code=2)
     new_llm = replace(cfg.llm, active_profile=profile)
+    return replace(cfg, llm=new_llm)
+
+
+def apply_provider_selection(
+    cfg: MindForgeConfig,
+    *,
+    provider: str | None,
+    legacy_profile: str | None,
+) -> MindForgeConfig:
+    """应用本次命令的 provider 选择，保持 CLI adapter 边界集中。
+
+    中文学习型说明：产品主路径是 ``llm.active``；``--provider`` 只是临时覆盖；
+    ``--profile`` 继续作为 legacy alias。这里统一把三者收敛到现有
+    ``LLMConfig.active_profile``，避免 watch/import/process 各自复制选择逻辑。
+    """
+
+    selected = provider or legacy_profile
+    if not selected:
+        return cfg
+    if selected not in cfg.llm.profiles:
+        option = "--provider" if provider else "--profile"
+        noun = "llm.providers" if provider else "llm.profiles"
+        console.print(
+            f"[red]{option} {selected!r} 不在 {noun} 中；"
+            f"已知：{sorted(cfg.llm.profiles)}[/red]"
+        )
+        raise typer.Exit(code=2)
+    if provider and legacy_profile and provider != legacy_profile:
+        console.print(
+            f"[yellow]provider selection: using --provider {provider!r}; "
+            f"legacy --profile {legacy_profile!r} ignored.[/yellow]",
+            markup=False,
+        )
+    new_llm = replace(cfg.llm, active_profile=selected)
     return replace(cfg, llm=new_llm)
 
 

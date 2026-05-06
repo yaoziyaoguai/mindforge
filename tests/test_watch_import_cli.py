@@ -21,7 +21,7 @@ from mindforge.watch_registry import WatchRegistry
 runner = CliRunner()
 
 
-def _write_config(tmp_path: Path, *, active_profile: str = "fake") -> tuple[Path, Path]:
+def _write_config(tmp_path: Path, *, active_provider: str = "fake") -> tuple[Path, Path]:
     vault = tmp_path / "vault"
     (vault / "00-Inbox" / "ManualNotes").mkdir(parents=True)
     cfg = tmp_path / "mindforge.yaml"
@@ -55,58 +55,25 @@ def _write_config(tmp_path: Path, *, active_profile: str = "fake") -> tuple[Path
                 },
                 "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
                 "llm": {
-                    "active_profile": active_profile,
-                    "profiles": {
+                    "active": active_provider,
+                    "providers": {
                         "fake": {
-                            "triage": "fake_alias",
-                            "distill": "fake_alias",
-                            "link_suggestion": "fake_alias",
-                            "review_questions": "fake_alias",
-                            "action_extraction": "fake_alias",
+                            "type": "fake",
+                            "purpose": "offline_demo_ci_deterministic_tests",
                         },
                         "openai_compatible": {
-                            "triage": "openai_alias",
-                            "distill": "openai_alias",
-                            "link_suggestion": "openai_alias",
-                            "review_questions": "openai_alias",
-                            "action_extraction": "openai_alias",
+                            "type": "openai_compatible",
+                            "api_key_env": "MINDFORGE_OPENAI_API_KEY",
+                            "default_base_url": "https://example.invalid/v1",
+                            "default_model": "gpt-4o-mini",
                         },
                         "anthropic": {
-                            "triage": "anthropic_alias",
-                            "distill": "anthropic_alias",
-                            "link_suggestion": "anthropic_alias",
-                            "review_questions": "anthropic_alias",
-                            "action_extraction": "anthropic_alias",
-                        },
-                    },
-                    "models": {
-                        "fake_alias": {
-                            "provider": "fake",
-                            "type": "fake",
-                            "base_url": "fake://",
-                            "model": "fake",
-                            "timeout_seconds": 5,
-                            "max_retries": 0,
-                        },
-                        "openai_alias": {
-                            "provider": "openai_compatible",
-                            "type": "openai_compatible",
-                            "base_url": "https://example.invalid/v1",
-                            "api_key_env": "MINDFORGE_OPENAI_API_KEY",
-                            "model": "gpt-4o-mini",
-                            "timeout_seconds": 5,
-                            "max_retries": 0,
-                        },
-                        "anthropic_alias": {
-                            "provider": "anthropic",
-                            "type": "anthropic_compatible",
-                            "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
-                            "base_url": "https://api.anthropic.com",
+                            "type": "anthropic",
                             "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                            "base_url_env": "MINDFORGE_ANTHROPIC_BASE_URL",
                             "model_env": "MINDFORGE_ANTHROPIC_MODEL",
-                            "model": "claude-3-5-haiku-latest",
-                            "timeout_seconds": 5,
-                            "max_retries": 0,
+                            "default_base_url": "https://api.anthropic.com",
+                            "default_model": "claude-3-5-haiku-latest",
                         },
                     },
                 },
@@ -192,7 +159,7 @@ def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
     assert result.exit_code == 2, result.output
     assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
-    assert "fake/demo remains available with --profile fake" in result.output
+    assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
 
 
@@ -215,8 +182,55 @@ def test_watch_add_anthropic_missing_key_fails_without_fake_fallback(
     assert result.exit_code == 2, result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
-    assert "fake/demo remains available with --profile fake" in result.output
+    assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
+
+
+def test_watch_add_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypatch) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="openai_compatible")
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.watch_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "active-openai.md"
+    source.write_text("# Active OpenAI\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["watch", "add", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 2, result.output
+    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_watch_add_provider_override_wins_over_active(tmp_path: Path, monkeypatch) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="anthropic")
+    monkeypatch.chdir(vault)
+    source = tmp_path / "override-fake.md"
+    source.write_text("# Override Fake\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["watch", "add", str(source), "--provider", "fake", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1" in result.output
+    assert len(_card_paths(vault)) == 1
+
+
+def test_watch_add_unknown_provider_override_is_friendly(tmp_path: Path, monkeypatch) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    source = tmp_path / "unknown-provider.md"
+    source.write_text("# Unknown Provider\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["watch", "add", str(source), "--provider", "ghost", "--config", str(cfg)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "--provider 'ghost'" in result.output
+    assert "llm.providers" in result.output
 
 
 def test_watch_add_folder_and_delete_preserves_source_and_cards(tmp_path: Path, monkeypatch) -> None:
@@ -280,7 +294,7 @@ def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
     assert result.exit_code == 2, result.output
     assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "fake/demo remains available with --profile fake" in result.output
+    assert "fake/demo remains available with --provider fake" in result.output
     assert _card_paths(vault) == []
 
 
@@ -303,7 +317,49 @@ def test_import_anthropic_missing_key_fails_without_fake_fallback(
     assert result.exit_code == 2, result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "fake/demo remains available with --profile fake" in result.output
+    assert "fake/demo remains available with --provider fake" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_import_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypatch) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="anthropic")
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "active-anthropic-import.md"
+    source.write_text("# Active Anthropic Import\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 2, result.output
+    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_import_provider_override_wins_over_legacy_profile(tmp_path: Path, monkeypatch) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = tmp_path / "provider-wins.md"
+    source.write_text("# Provider Wins\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "import",
+            str(source),
+            "--provider",
+            "anthropic",
+            "--profile",
+            "fake",
+            "--config",
+            str(cfg),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert _card_paths(vault) == []
 
 

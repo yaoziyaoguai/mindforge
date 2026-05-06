@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 from rich.table import Table
 
-from .cli_runtime import console, load_cfg, override_active_profile
+from .cli_runtime import apply_provider_selection, console, load_cfg
 
 llm_app = typer.Typer(add_completion=False, help="LLM provider 工具子命令（不触发业务 pipeline）")
 
@@ -30,7 +30,12 @@ def llm_ping(
         None,
         "--profile",
         "-p",
-        help="临时覆盖 active_profile",
+        help="Legacy alias for --provider；临时覆盖 provider。",
+    ),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        help="高级临时覆盖 llm.active 指向的 provider。",
     ),
 ) -> None:
     """校验当前 active_profile 涉及的所有模型 env 是否齐全。
@@ -41,7 +46,7 @@ def llm_ping(
     """
     import os
     cfg = load_cfg(config)
-    cfg = override_active_profile(cfg, profile)
+    cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
 
     profile_map = cfg.llm.profiles[cfg.llm.active_profile]
     aliases_used = sorted(set(profile_map.values()))
