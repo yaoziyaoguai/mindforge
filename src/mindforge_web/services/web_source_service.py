@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
 from mindforge.ingestion_service import import_sources, watch_add_source, watch_sources_for_display
 from mindforge.scanner import Scanner
@@ -33,6 +34,7 @@ class WebSourceService:
     def list_sources(self) -> list[SourceStatus]:
         results: list[SourceStatus] = []
         scan_errors = self._scan_error_counts()
+        generated_cards = self._generated_cards_by_source_subdir()
         for entry in self.cfg.sources.active_entries():
             path = self.cfg.vault.inbox_path / entry.inbox_subdir
             files = self._safe_files(path, entry.file_glob) if path.exists() else []
@@ -40,6 +42,7 @@ class WebSourceService:
             processed_files = (
                 self._safe_files(processed_dir, entry.file_glob) if processed_dir.exists() else []
             )
+            card_paths = generated_cards.get(entry.inbox_subdir, [])
             results.append(
                 SourceStatus(
                     source_type=entry.source_type,
@@ -54,6 +57,17 @@ class WebSourceService:
                     processed_count=len(processed_files),
                     pending_files=[_rel_to_vault(self.cfg, file) for file in files],
                     processed_files=[_rel_to_vault(self.cfg, file) for file in processed_files],
+                    display_status=_display_status(
+                        exists=path.exists(),
+                        pending_count=len(files),
+                        processed_count=len(processed_files),
+                        error_count=scan_errors.get(entry.source_type, 0),
+                    ),
+                    generated_knowledge_status=(
+                        "Has generated knowledge" if card_paths else "No generated knowledge"
+                    ),
+                    generated_card_count=len(card_paths),
+                    generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
                     next_action=None
                     if path.exists()
                     else NextAction(
@@ -197,6 +211,23 @@ class WebSourceService:
             ),
         ]
 
+    def _generated_cards_by_source_subdir(self) -> dict[str, list[Path]]:
+        by_subdir: dict[str, list[Path]] = {}
+        cards = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        for card in cards.cards:
+            if not card.source_path:
+                continue
+            source_path = card.source_path.replace("\\", "/")
+            for entry in self.cfg.sources.active_entries():
+                markers = (
+                    f"{self.cfg.vault.inbox_root}/{entry.inbox_subdir}/",
+                    f"{self.cfg.vault.inbox_root}/_processed/{entry.inbox_subdir}/",
+                )
+                if any(marker in source_path for marker in markers):
+                    by_subdir.setdefault(entry.inbox_subdir, []).append(card.path)
+                    break
+        return by_subdir
+
     def _scan_error_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
         scanner = Scanner(self.cfg)
@@ -215,6 +246,24 @@ def _rel_to_vault(cfg: MindForgeConfig, path: Path) -> str:
         return path.resolve().relative_to(cfg.vault.root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _display_status(
+    *,
+    exists: bool,
+    pending_count: int,
+    processed_count: int,
+    error_count: int,
+) -> str:
+    if error_count:
+        return "Failed"
+    if not exists:
+        return "Missing folder"
+    if processed_count:
+        return "Processed"
+    if pending_count:
+        return "Pending"
+    return "Imported"
 
 
 def _watch_response(source) -> WatchedSourceResponse:

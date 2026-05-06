@@ -10,18 +10,24 @@ async function assertVisible(text) {
   await locator.waitFor({ timeout: 5000 });
 }
 
+async function assertHeading(text) {
+  await page.getByRole("heading", { name: text, exact: true }).waitFor({ timeout: 5000 });
+}
+
 await page.goto(baseURL, { waitUntil: "networkidle" });
 await assertVisible("Local only");
 await assertVisible("Home");
 await assertVisible("Review drafts");
 
 await page.getByRole("button", { name: "Setup", exact: true }).click();
+await assertHeading("Setup");
 await assertVisible("Configuration checklist");
 
 await page.getByRole("button", { name: "Sources", exact: true }).click();
-await assertVisible("Sources");
+await assertHeading("Sources");
 
 await page.getByRole("button", { name: "Review", exact: true }).click();
+await assertHeading("Review");
 await assertVisible("Review AI-generated draft knowledge");
 const empty = page.getByText("No drafts waiting for review", { exact: false });
 const approveButton = page.getByRole("button", { name: "Approve...", exact: true });

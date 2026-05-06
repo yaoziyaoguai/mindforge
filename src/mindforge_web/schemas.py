@@ -118,6 +118,79 @@ class ConfigStatusResponse(BaseModel):
     next_actions: list[NextAction]
 
 
+class EditableVaultConfig(BaseModel):
+    root: str
+    exists: bool
+    inbox_exists: bool
+    cards_exists: bool
+    projects_exists: bool
+
+
+class EditableProviderConfig(BaseModel):
+    name: str
+    type: str
+    default_base_url: str | None = None
+    default_model: str | None = None
+    api_key_env: str | None = None
+    api_key_status: Literal["present", "missing", "hidden"]
+    base_url_env: str | None = None
+    base_url_env_present: bool = False
+    model_env: str | None = None
+    model_env_present: bool = False
+
+
+class EditableLLMConfig(BaseModel):
+    active_provider: str
+    available_providers: list[str]
+    providers: dict[str, EditableProviderConfig]
+    readiness: ProviderStatus
+
+
+class EditableCuboxConfig(BaseModel):
+    export_path: str | None = None
+    import_path: str | None = None
+    token_status: Literal["present", "missing", "hidden"]
+
+
+class SetupEditableConfigResponse(BaseModel):
+    config_path: str
+    normalized_on_save: bool
+    vault: EditableVaultConfig
+    llm: EditableLLMConfig
+    cubox: EditableCuboxConfig
+    watch_summary: StatusItem
+
+
+class SetupProviderPatch(BaseModel):
+    default_base_url: str | None = None
+    default_model: str | None = None
+    api_key_env: str | None = None
+    base_url_env: str | None = None
+    model_env: str | None = None
+
+
+class SetupConfigPatch(BaseModel):
+    vault_root: str | None = None
+    create_vault: bool = False
+    active_provider: str | None = None
+    providers: dict[str, SetupProviderPatch] = Field(default_factory=dict)
+    cubox_export_path: str | None = None
+    cubox_import_path: str | None = None
+
+
+class SetupValidationResponse(BaseModel):
+    ok: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SetupConfigUpdateResponse(BaseModel):
+    ok: bool
+    message: str
+    status: ConfigStatusResponse
+    editable: SetupEditableConfigResponse
+
+
 class HealthResponse(BaseModel):
     ok: bool
     app: str = "MindForge Local Console"
@@ -137,6 +210,10 @@ class SourceStatus(BaseModel):
     processed_count: int = 0
     pending_files: list[str] = Field(default_factory=list)
     processed_files: list[str] = Field(default_factory=list)
+    display_status: str
+    generated_knowledge_status: str
+    generated_card_count: int = 0
+    generated_card_paths: list[str] = Field(default_factory=list)
     next_action: NextAction | None = None
 
 
@@ -283,6 +360,19 @@ class UnavailableResponse(BaseModel):
     available: bool = False
     reason: str
     next_action: NextAction
+
+
+class PathActionRequest(BaseModel):
+    path: str
+
+
+class PathActionResponse(BaseModel):
+    ok: bool
+    action: Literal["copy", "reveal"]
+    path: str
+    path_type: Literal["file", "folder"]
+    message: str
+    command: list[str] = Field(default_factory=list)
 
 
 class DraftSummary(BaseModel):

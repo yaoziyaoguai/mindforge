@@ -276,6 +276,105 @@ def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monk
     assert config["provider"]["active_profile"] == "fake"
 
 
+def test_setup_editor_saves_allowed_non_secret_fields_and_refreshes_status(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["custom_unrelated"] = {"keep": "unchanged"}
+    raw["llm"]["profiles"]["real"] = {
+        "triage": "real_alias",
+        "distill": "real_alias",
+        "link_suggestion": "real_alias",
+        "review_questions": "real_alias",
+        "action_extraction": "real_alias",
+    }
+    raw["llm"]["models"]["real_alias"] = {
+        "provider": "openai_compatible",
+        "type": "openai_compatible",
+        "base_url": "https://old.example.invalid/v1",
+        "model": "old-model",
+        "timeout_seconds": 30,
+        "max_retries": 1,
+        "api_key_env": "MINDFORGE_REAL_SECRET",
+        "base_url_env": "MINDFORGE_OLD_BASE_URL",
+        "model_env": "MINDFORGE_OLD_MODEL",
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    (tmp_path / ".env").write_text("MINDFORGE_REAL_SECRET=never-return-this\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+
+    assert editable["vault"]["root"].endswith("dogfood-vault")
+    assert editable["llm"]["active_provider"] == "fake"
+    assert editable["llm"]["providers"]["real"]["api_key_status"] == "present"
+    assert "never-return-this" not in f"{editable}"
+
+    new_vault = tmp_path / "new-vault"
+    saved = client.patch(
+        "/api/config/editable",
+        json={
+            "vault_root": str(new_vault),
+            "create_vault": True,
+            "active_provider": "real",
+            "providers": {
+                "real": {
+                    "default_base_url": "https://new.example.invalid/v1",
+                    "default_model": "new-model",
+                    "api_key_env": "MINDFORGE_REAL_SECRET_RENAMED",
+                    "base_url_env": "MINDFORGE_NEW_BASE_URL",
+                    "model_env": "MINDFORGE_NEW_MODEL",
+                }
+            },
+        },
+    ).json()
+    after_raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    combined = f"{saved} {cfg_path.read_text(encoding='utf-8')} {capsys.readouterr()}"
+
+    assert saved["ok"] is True
+    assert saved["status"]["vault"]["path"] == str(new_vault.resolve())
+    assert saved["status"]["provider"]["active_profile"] == "real"
+    assert (new_vault / "00-Inbox").is_dir()
+    assert after_raw["custom_unrelated"] == {"keep": "unchanged"}
+    assert after_raw["triage"]["default_track"] == "unrouted"
+    assert after_raw["llm"]["active_profile"] == "real"
+    assert after_raw["llm"]["models"]["real_alias"]["model"] == "new-model"
+    assert after_raw["llm"]["models"]["real_alias"]["base_url"] == "https://new.example.invalid/v1"
+    assert after_raw["llm"]["models"]["real_alias"]["api_key_env"] == "MINDFORGE_REAL_SECRET_RENAMED"
+    assert "never-return-this" not in combined
+
+
+def test_setup_editor_validates_paths_and_never_writes_api_key_values(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text("MINDFORGE_FAKE_SECRET=hidden-secret\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    invalid = client.post("/api/config/validate", json={"vault_root": "/"}).json()
+    refused = client.patch(
+        "/api/config/editable",
+        json={
+            "vault_root": str(tmp_path / "missing-vault"),
+            "create_vault": False,
+            "providers": {"fake": {"api_key_value": "must-not-be-written"}},
+        },
+    )
+
+    config_text = cfg_path.read_text(encoding="utf-8")
+    assert invalid["ok"] is False
+    assert any("dangerous" in error.lower() for error in invalid["errors"])
+    assert refused.status_code == 400
+    assert "hidden-secret" not in refused.text
+    assert "must-not-be-written" not in config_text
+
+
 def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, monkeypatch) -> None:
     client, cards = _client(tmp_path, monkeypatch)
     card = _write_draft(cards)
@@ -468,3 +567,86 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert "human_approved 必须显式确认" in combined
     assert after["ingestion"]["primary_entry"] == "watch/import"
     assert "advanced" in after["ingestion"]["advanced_note"].lower()
+
+
+def test_sources_path_actions_are_allowlisted_and_do_not_read_file_content(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, _cards = _client(tmp_path, monkeypatch)
+    source_file = tmp_path / "dogfood-vault" / "00-Inbox" / "ManualNotes" / "source-note.md"
+    source_file.write_text("SOURCE_CONTENT_MUST_NOT_BE_READ", encoding="utf-8")
+    outside = tmp_path.parent / f"outside-{tmp_path.name}.md"
+    outside.write_text("OUTSIDE_CONTENT_MUST_NOT_BE_READ", encoding="utf-8")
+
+    calls: list[tuple[list[str], dict]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append((list(args), kwargs))
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    monkeypatch.setattr("mindforge_web.services.web_path_action_service.sys.platform", "darwin")
+    monkeypatch.setattr("mindforge_web.services.web_path_action_service.subprocess.run", fake_run)
+
+    copied = client.post("/api/sources/path-actions/copy", json={"path": str(source_file)}).json()
+    opened_file = client.post(
+        "/api/sources/path-actions/reveal",
+        json={"path": str(source_file)},
+    ).json()
+    opened_dir = client.post(
+        "/api/sources/path-actions/reveal",
+        json={"path": str(source_file.parent)},
+    ).json()
+    missing = client.post(
+        "/api/sources/path-actions/reveal",
+        json={"path": str(source_file.parent / "missing.md")},
+    )
+    rejected = client.post("/api/sources/path-actions/reveal", json={"path": str(outside)})
+    combined = f"{copied} {opened_file} {opened_dir} {missing.text} {rejected.text}"
+
+    assert copied["ok"] is True
+    assert copied["path"] == str(source_file.resolve())
+    assert opened_file["ok"] is True
+    assert opened_dir["ok"] is True
+    assert calls[0][0] == ["open", "-R", str(source_file.resolve())]
+    assert calls[0][1].get("shell") is False
+    assert calls[1][0] == ["open", str(source_file.parent.resolve())]
+    assert calls[1][1].get("shell") is False
+    assert missing.status_code == 404
+    assert rejected.status_code == 403
+    assert "SOURCE_CONTENT_MUST_NOT_BE_READ" not in combined
+    assert "OUTSIDE_CONTENT_MUST_NOT_BE_READ" not in combined
+
+
+def test_sources_status_names_processed_and_generated_knowledge_without_ready_or_approved(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, cards = _client(tmp_path, monkeypatch)
+    processed = (
+        tmp_path
+        / "dogfood-vault"
+        / "00-Inbox"
+        / "_processed"
+        / "ManualNotes"
+        / "source-note.md"
+    )
+    processed.parent.mkdir(parents=True)
+    processed.write_text("PROCESSED_SOURCE_BODY_MUST_NOT_LEAK", encoding="utf-8")
+    _write_draft(cards)
+
+    response = client.get("/api/sources").json()
+    source = response["sources"][0]
+    combined = f"{response}"
+
+    assert source["display_status"] == "Processed"
+    assert source["generated_knowledge_status"] == "Has generated knowledge"
+    assert source["generated_card_count"] == 1
+    assert source["generated_card_paths"][0].endswith("draft.md")
+    assert "ready" not in combined
+    assert "Approved" not in combined
+    assert "PROCESSED_SOURCE_BODY_MUST_NOT_LEAK" not in combined

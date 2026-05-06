@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPost } from "./client";
 import type {
   IngestionActionResponse,
+  PathActionResponse,
   SourcesResponse,
   UnavailableResponse,
   WatchSourcesResponse,
@@ -28,4 +29,12 @@ export function importSource(path: string) {
 
 export function importLocalUnavailable() {
   return apiPost<UnavailableResponse>("/api/sources/import-local");
+}
+
+export function copySourcePath(path: string) {
+  return apiPost<PathActionResponse>("/api/sources/path-actions/copy", { path });
+}
+
+export function revealSourcePath(path: string) {
+  return apiPost<PathActionResponse>("/api/sources/path-actions/reveal", { path });
 }

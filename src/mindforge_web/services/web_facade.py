@@ -41,6 +41,11 @@ from mindforge_web.schemas import (
     RecallResponse,
     RecallStatus,
     SafetySummary,
+    SetupConfigPatch,
+    SetupConfigUpdateResponse,
+    SetupEditableConfigResponse,
+    SetupValidationResponse,
+    PathActionResponse,
     SourcesResponse,
     StatusItem,
     VaultStatus,
@@ -48,7 +53,8 @@ from mindforge_web.schemas import (
     WorkspaceStatus,
     WorkflowSummaryResponse,
 )
-from mindforge_web.services.web_config_service import WebConfigService
+from mindforge_web.services.web_config_service import ConfigUpdateError, WebConfigService
+from mindforge_web.services.web_path_action_service import WebPathActionService
 from mindforge_web.services.web_review_service import WebReviewService
 from mindforge_web.services.web_source_service import WebSourceService
 
@@ -63,12 +69,21 @@ class WebFacade:
         vault_override: Path | None = None,
         host: str = "127.0.0.1",
     ) -> None:
-        self.context = build_app_context(config_path, vault_override=vault_override)
-        self.cfg = self.context.config
-        self.config_path = config_path
+        self.requested_config_path = config_path
+        self.vault_override = vault_override
         self.host = host
-        self.config_service = WebConfigService(self.cfg)
+        self._load_context()
+
+    def _load_context(self) -> None:
+        self.context = build_app_context(
+            self.requested_config_path,
+            vault_override=self.vault_override,
+        )
+        self.cfg = self.context.config
+        self.config_path = self.context.paths.config_path
+        self.config_service = WebConfigService(self.cfg, config_path=self.config_path)
         self.source_service = WebSourceService(self.cfg)
+        self.path_action_service = WebPathActionService(self.cfg, config_path=self.config_path)
         self.review_service = WebReviewService(self.cfg)
 
     def health(self) -> HealthResponse:
@@ -147,6 +162,25 @@ class WebFacade:
             next_actions=self._next_actions(vault, safety, self.recall_status()),
         )
 
+    def setup_editable_config(self) -> SetupEditableConfigResponse:
+        return self.config_service.editable_config()
+
+    def validate_setup_config_patch(self, patch: SetupConfigPatch) -> SetupValidationResponse:
+        return self.config_service.validate_patch(patch)
+
+    def update_setup_config_patch(self, patch: SetupConfigPatch) -> SetupConfigUpdateResponse:
+        try:
+            self.config_service.update_patch(patch)
+        except ConfigUpdateError:
+            raise
+        self._load_context()
+        return SetupConfigUpdateResponse(
+            ok=True,
+            message="Setup saved",
+            status=self.config_status(),
+            editable=self.setup_editable_config(),
+        )
+
     def workspace_status(self) -> WorkspaceStatus:
         state_exists = self.cfg.state.state_path.exists()
         item_count = 0
@@ -201,6 +235,12 @@ class WebFacade:
 
     def import_source(self, path: Path) -> IngestionActionResponse:
         return self.source_service.import_source(path)
+
+    def copy_path(self, path: Path) -> PathActionResponse:
+        return self.path_action_service.copy_path(path)
+
+    def reveal_path(self, path: Path) -> PathActionResponse:
+        return self.path_action_service.reveal_path(path)
 
     def workflow_summary(self) -> WorkflowSummaryResponse:
         inventory = build_library_inventory(self.cfg, limit=500)

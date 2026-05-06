@@ -1,5 +1,5 @@
 import type { SourcesResponse } from "../api/types";
-import { addWatchedSource, deleteWatchedSource, importSource } from "../api/sources";
+import { addWatchedSource, copySourcePath, deleteWatchedSource, importSource, revealSourcePath } from "../api/sources";
 import { SourceList } from "../components/SourceList";
 import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
@@ -35,6 +35,27 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
       setResult(error instanceof Error ? error.message : "Request failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function copyPath(targetPath: string) {
+    setResult(null);
+    try {
+      const response = await copySourcePath(targetPath);
+      await navigator.clipboard?.writeText(response.path);
+      setResult("Copied");
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : "Copy path failed");
+    }
+  }
+
+  async function revealPath(targetPath: string) {
+    setResult(null);
+    try {
+      const response = await revealSourcePath(targetPath);
+      setResult(response.ok ? "Opened" : response.message);
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : "Reveal in Finder failed");
     }
   }
 
@@ -82,8 +103,18 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
                     <div className="font-medium text-ink">{source.id}</div>
                     <div className="text-xs text-muted">{source.path_type} · {source.kind}</div>
                   </td>
-                  <td className="px-4 py-3 text-muted">{source.path}</td>
-                  <td className="px-4 py-3">{source.status}</td>
+                  <td className="max-w-[320px] px-4 py-3 text-muted">
+                    <div className="truncate">{source.path}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
+                        Copy path
+                      </button>
+                      <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => revealPath(source.path)} type="button">
+                        Reveal in Finder
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">{source.status === "active" ? "Watching" : source.status}</td>
                   <td className="px-4 py-3 text-muted">{source.last_processed_at ?? "-"}</td>
                   <td className="px-4 py-3">
                     {source.can_delete ? (
@@ -101,7 +132,7 @@ export function SourcesPage({ data, onNavigate }: { data: SourcesResponse; onNav
         </div>
         <p className="mt-3 text-sm text-muted">Removing a watched source only stops future intake. It does not delete original files or knowledge cards.</p>
       </section>
-      <SourceList sources={data.sources} onOpenCards={() => onNavigate("/library")} />
+      <SourceList sources={data.sources} onCopyPath={copyPath} onRevealPath={revealPath} onOpenCards={() => onNavigate("/library")} />
       <section className="grid gap-4 md:grid-cols-2">
         {data.available_imports.map((item) => (
           <StatusCard key={item.key} label={item.label} value={item.value} status={item.status} detail={item.detail} nextAction={item.next_action} />

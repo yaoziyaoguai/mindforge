@@ -79,3 +79,33 @@ def test_setup_copy_uses_model_and_secret_safe_language() -> None:
     assert "present/missing" in combined
     assert "Provider status only reports" not in combined
     assert "Provider:" not in combined
+
+
+def test_setup_page_exposes_safe_editor_controls() -> None:
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "Save setup" in setup
+    assert "Validate" in setup
+    assert "Revert" in setup
+    assert "Unsaved changes" in setup
+    assert "Vault path" in setup
+    assert "Active provider" in setup
+    assert "API key" in setup
+    assert "type=\"password\"" not in setup
+    assert "api_key_value" not in setup
+
+
+def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
+    sources = _read("pages/SourcesPage.tsx")
+    source_list = _read("components/SourceList.tsx")
+    combined = "\n".join([sources, source_list])
+
+    assert "Copy path" in combined
+    assert "Reveal in Finder" in combined
+    assert "Copied" in combined
+    assert "Processed" in combined
+    assert "Has generated knowledge" in combined
+    assert "Adapter ready" in combined
+    assert "Open generated knowledge" in combined
+    assert "\"ready\"" not in source_list
+    assert "Approved" not in source_list

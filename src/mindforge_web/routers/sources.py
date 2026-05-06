@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from mindforge_web.deps import get_facade
 from mindforge_web.schemas import (
     IngestionActionResponse,
     IngestionRequest,
     NextAction,
+    PathActionRequest,
+    PathActionResponse,
     SourcesResponse,
     UnavailableResponse,
     WatchSourcesResponse,
 )
+from mindforge_web.services.web_path_action_service import PathActionError
 from mindforge_web.services.web_facade import WebFacade
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -47,6 +50,28 @@ def import_source(
     facade: WebFacade = Depends(get_facade),
 ) -> IngestionActionResponse:
     return facade.import_source(Path(payload.path))
+
+
+@router.post("/path-actions/copy", response_model=PathActionResponse)
+def copy_path(
+    payload: PathActionRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> PathActionResponse:
+    try:
+        return facade.copy_path(Path(payload.path))
+    except PathActionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"message": exc.message}) from exc
+
+
+@router.post("/path-actions/reveal", response_model=PathActionResponse)
+def reveal_path(
+    payload: PathActionRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> PathActionResponse:
+    try:
+        return facade.reveal_path(Path(payload.path))
+    except PathActionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"message": exc.message}) from exc
 
 
 @router.post("/import-local", response_model=UnavailableResponse)

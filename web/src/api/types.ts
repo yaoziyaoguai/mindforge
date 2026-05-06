@@ -99,6 +99,71 @@ export interface ConfigStatusResponse {
   next_actions: NextAction[];
 }
 
+export interface EditableProviderConfig {
+  name: string;
+  type: string;
+  default_base_url?: string | null;
+  default_model?: string | null;
+  api_key_env?: string | null;
+  api_key_status: "present" | "missing" | "hidden";
+  base_url_env?: string | null;
+  base_url_env_present: boolean;
+  model_env?: string | null;
+  model_env_present: boolean;
+}
+
+export interface SetupEditableConfigResponse {
+  config_path: string;
+  normalized_on_save: boolean;
+  vault: {
+    root: string;
+    exists: boolean;
+    inbox_exists: boolean;
+    cards_exists: boolean;
+    projects_exists: boolean;
+  };
+  llm: {
+    active_provider: string;
+    available_providers: string[];
+    providers: Record<string, EditableProviderConfig>;
+    readiness: ProviderStatus;
+  };
+  cubox: {
+    export_path?: string | null;
+    import_path?: string | null;
+    token_status: "present" | "missing" | "hidden";
+  };
+  watch_summary: StatusItem;
+}
+
+export interface SetupConfigPatch {
+  vault_root?: string | null;
+  create_vault?: boolean;
+  active_provider?: string | null;
+  providers?: Record<string, {
+    default_base_url?: string | null;
+    default_model?: string | null;
+    api_key_env?: string | null;
+    base_url_env?: string | null;
+    model_env?: string | null;
+  }>;
+  cubox_export_path?: string | null;
+  cubox_import_path?: string | null;
+}
+
+export interface SetupValidationResponse {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface SetupConfigUpdateResponse {
+  ok: boolean;
+  message: string;
+  status: ConfigStatusResponse;
+  editable: SetupEditableConfigResponse;
+}
+
 export interface SourceStatus {
   source_type: string;
   adapter: string;
@@ -112,6 +177,10 @@ export interface SourceStatus {
   processed_count: number;
   pending_files: string[];
   processed_files: string[];
+  display_status: string;
+  generated_knowledge_status: string;
+  generated_card_count: number;
+  generated_card_paths: string[];
   next_action?: NextAction | null;
 }
 
@@ -307,6 +376,15 @@ export interface UnavailableResponse {
   available: false;
   reason: string;
   next_action: NextAction;
+}
+
+export interface PathActionResponse {
+  ok: boolean;
+  action: "copy" | "reveal";
+  path: string;
+  path_type: "file" | "folder";
+  message: string;
+  command: string[];
 }
 
 export interface RecallResponse {
