@@ -20,7 +20,7 @@ def test_privacy_contract_exists():
 @pytest.mark.parametrize(
     "token",
     [
-        "fake-default",
+        "fixtures for CI",
         "real-opt-in",
         "human_approved",
         "active_profile",

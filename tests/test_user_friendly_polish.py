@@ -125,11 +125,12 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
     assert "mindforge process --profile fake" not in quickstart_block
 
 
-def test_readme_marks_fake_and_scan_process_as_non_primary_paths() -> None:
+def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
-    assert "Offline demo / CI / Testing" in text
-    assert "mindforge process --provider fake" in text
-    assert "--profile" in text and "legacy alias" in text
+    collapsed = " ".join(text.split())
+    assert "Developer Testing" in text
+    assert "fake the LLM response, not the extraction strategy" in text
+    assert "not product providers or recommended extraction strategies" in collapsed
     assert "Advanced / Troubleshooting" in text
     assert "scan/process" in text
 

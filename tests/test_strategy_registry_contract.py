@@ -259,9 +259,9 @@ def test_pipeline_does_not_hardcode_five_stage_strategy_id_literal() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_strategies_list_command_exists_and_lists_known_names() -> None:
+def test_cli_strategies_list_command_exists_and_lists_public_strategy() -> None:
     """``mindforge strategies list`` 必须存在，并在不调用任何 LLM / .env /
-    Cubox 的前提下打印所有内建策略的 ``strategy_id``。
+    Cubox 的前提下打印用户可见 strategy 的 ``strategy_id``。
 
     Red 期望：当前 CLI 没有 ``strategies`` 子命令组。
     """
@@ -273,9 +273,14 @@ def test_cli_strategies_list_command_exists_and_lists_known_names() -> None:
     assert result.exit_code == 0, (
         f"`mindforge strategies list` 不存在或失败：\n{result.output}"
     )
+    assert "knowledge_card" in result.output
+    assert "default_knowledge_card" not in result.output
+
+    internal = runner.invoke(app, ["strategies", "list", "--include-internal"])
+    assert internal.exit_code == 0, internal.output
     for name in available_strategies():
-        assert name in result.output, (
-            f"输出缺少 strategy_id={name!r}；output=\n{result.output}"
+        assert name in internal.output, (
+            f"--include-internal 输出缺少 strategy_id={name!r}；output=\n{internal.output}"
         )
 
 

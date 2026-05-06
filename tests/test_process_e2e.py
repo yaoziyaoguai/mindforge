@@ -133,7 +133,7 @@ def test_process_writes_card_state_and_run_log(tmp_path: Path) -> None:
     assert "source_id:" in card_text
     assert "source_type: plain_markdown" in card_text
     assert "adapter_name: PlainMarkdownAdapter" in card_text
-    assert "strategy_id: \"five_stage\"" in card_text
+    assert "strategy_id: \"knowledge_card\"" in card_text
     assert "source_content_hash:" in card_text
     assert "prompt_versions:" in card_text
     assert "prompt_version:" in card_text
@@ -354,7 +354,7 @@ def _assert_ai_draft_card_contract(vault: Path) -> None:
     ):
         assert required in fm, f"frontmatter 缺关键字段 {required!r}"
     assert fm["status"] == "ai_draft"
-    assert fm["strategy_id"] == "five_stage"
+    assert fm["strategy_id"] == "knowledge_card"
     assert fm["strategy_version"]
     assert str(fm["schema_version"]) == "1"
     assert fm["source_type"] == "plain_markdown"

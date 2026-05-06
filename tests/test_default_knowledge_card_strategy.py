@@ -124,9 +124,9 @@ def test_factory_exists() -> None:
 def test_registry_lists_default_knowledge_card() -> None:
     """``registry.available_strategies()`` 必须包含新策略名。
 
-    Slice 2 在 ``registry.py`` 注册新名后此条转绿。注意：
-    ``DEFAULT_STRATEGY_NAME`` 必须**仍**是 ``"five_stage"``，新策略
-    只是**额外**注册。
+    Slice 2 在 ``registry.py`` 注册新名后此条转绿。当前产品语义下，
+    ``DEFAULT_STRATEGY_NAME`` 必须是 production ``"knowledge_card"``；
+    ``default_knowledge_card`` 仅作为 internal deterministic baseline 保留。
     """
     from mindforge.strategies.registry import (
         DEFAULT_STRATEGY_NAME,
@@ -134,7 +134,7 @@ def test_registry_lists_default_knowledge_card() -> None:
     )
 
     assert "default_knowledge_card" in available_strategies()
-    assert DEFAULT_STRATEGY_NAME == "five_stage"
+    assert DEFAULT_STRATEGY_NAME == "knowledge_card"
 
 
 # ---------------------------------------------------------------------------

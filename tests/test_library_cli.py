@@ -181,7 +181,7 @@ def test_library_list_and_show_default_are_metadata_only(tmp_path: Path) -> None
 
     assert shown.exit_code == 0, shown.output
     assert "ai_draft：AI 草稿，不是正式知识" in shown.output
-    assert "fake provider" in shown.output
+    assert "offline LLM test double" in shown.output
     assert "CARD_BODY_SENTINEL" not in shown.output
 
     assert shown_content.exit_code == 0, shown_content.output

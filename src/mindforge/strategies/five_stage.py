@@ -22,11 +22,11 @@ from .base import KnowledgeStrategy, StrategyContext
 
 STRATEGY_ID = "five_stage"
 STRATEGY_VERSION = "0.10.0"
-STRATEGY_DISPLAY_NAME = "Five-Stage Pipeline"
+STRATEGY_DISPLAY_NAME = "Knowledge Card Strategy (legacy alias)"
 STRATEGY_DESCRIPTION = (
-    "默认 LLM 驱动策略：triage → distill → link_suggestion → review_questions"
-    " → action_extraction 五段链路，输出 17 字段 Knowledge Card；"
-    "通过 fake provider 默认离线可跑，真实 LLM 仅在显式 opt-in 时启用。"
+    "legacy alias for knowledge_card. 内部仍是 triage → distill → "
+    "link_suggestion → review_questions → action_extraction 五段 pipeline；"
+    "新配置与新卡片应使用 canonical id: knowledge_card。"
 )
 # v0.11 Slice 2：UX 元数据。provider_mode=real_opt_in 表示该策略可调真实
 # LLM，但默认走 fake provider；safety_policy 锁定 ai_draft，不会自动 approve；
@@ -38,6 +38,12 @@ STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@1"
 # 永远是 implemented；本常量用于 CLI strategies list 的 status 标签，
 # 与 Slice 3 Red 不变量"已跑通策略不可降级 preview/planned"对齐。
 STRATEGY_STATUS = "implemented"
+STRATEGY_ROLE = "legacy_alias"
+STRATEGY_PRODUCTION_READY = True
+STRATEGY_USER_RECOMMENDED = False
+STRATEGY_CANONICAL_ID = "knowledge_card"
+STRATEGY_LEGACY_ALIASES: tuple[str, ...] = ()
+STRATEGY_WARNING = "legacy alias; use knowledge_card / Knowledge Card Strategy."
 
 
 def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
@@ -74,10 +80,16 @@ __all__ = [
     "STRATEGY_DESCRIPTION",
     "STRATEGY_DISPLAY_NAME",
     "STRATEGY_ID",
+    "STRATEGY_CANONICAL_ID",
+    "STRATEGY_LEGACY_ALIASES",
     "STRATEGY_OUTPUT_SCHEMA_ID",
+    "STRATEGY_PRODUCTION_READY",
     "STRATEGY_PROVIDER_MODE",
+    "STRATEGY_ROLE",
     "STRATEGY_SAFETY_POLICY",
     "STRATEGY_STATUS",
+    "STRATEGY_USER_RECOMMENDED",
     "STRATEGY_VERSION",
+    "STRATEGY_WARNING",
     "build_five_stage_strategy",
 ]

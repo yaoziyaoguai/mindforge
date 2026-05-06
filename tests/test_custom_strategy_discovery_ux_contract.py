@@ -100,23 +100,25 @@ def test_cli_strategies_list_accepts_custom_path_option(
     assert result.exit_code == 0, result.output
 
 
-def test_cli_strategies_list_default_unchanged() -> None:
-    """不带 ``--custom-path`` 时 ``mindforge strategies list`` 必须仍展示
-    4 个内建策略 —— Slice 3 不能回退默认 UX。
-    """
+def test_cli_strategies_list_default_hides_internal_builtins() -> None:
+    """默认 ``strategies list`` 是产品视图，只展示 production strategy。"""
 
     runner = CliRunner()
     result = runner.invoke(app, ["strategies", "list"])
     assert result.exit_code == 0, result.output
+    assert "knowledge_card" in result.output
     for name in (
         "default_knowledge_card",
         "five_stage",
         "concept_extraction",
         "action_item",
     ):
-        assert name in result.output, (
-            f"默认 list 输出缺 built-in {name!r}: {result.output!r}"
-        )
+        assert name not in result.output
+
+    internal = runner.invoke(app, ["strategies", "list", "--include-internal"])
+    assert internal.exit_code == 0, internal.output
+    for name in ("default_knowledge_card", "five_stage", "concept_extraction", "action_item"):
+        assert name in internal.output
 
 
 def test_cli_strategies_list_with_custom_path_includes_custom(

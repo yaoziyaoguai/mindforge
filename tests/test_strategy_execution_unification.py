@@ -1,12 +1,12 @@
-"""Strategy execution unification regression tests.
+"""Strategy execution unification / product-path alignment regression tests.
 
 中文学习型说明：本文件覆盖本轮 milestone 的运行时语义，而不是只测
 ``strategies list/show`` 的只读 seam。核心边界：
 
 - strategy selection 与 provider selection 正交；
 - active strategy / ``--strategy`` 必须进入 import/process/watch 主路径；
-- 非 five_stage strategy 通过 normalized card envelope 统一落盘；
-- planned/custom strategy 不能半通执行或静默 fallback。
+- 生产路径默认是 Knowledge Card Strategy（canonical id: knowledge_card）；
+- deterministic baseline 是内部测试夹具，不能作为 active production strategy。
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cards import read_card_frontmatter
 from mindforge.cli import app
 from mindforge.config import load_mindforge_config
 from mindforge.watch_registry import WatchRegistry
@@ -97,10 +96,15 @@ def _write_note(vault: Path, name: str = "note.md") -> Path:
     note = vault / "00-Inbox" / "ManualNotes" / name
     note.write_text(
         "# Strategy Runtime Note\n\n"
-        "This note captures a reusable operating lesson about separating provider "
-        "selection from extraction strategy selection. The same source document "
-        "should produce an ai_draft through deterministic strategies without "
-        "constructing a real LLM provider.\n",
+        "This document captures a reusable production lesson about separating "
+        "provider selection from extraction strategy selection while keeping the "
+        "same Knowledge Card Strategy runtime path in tests. The important "
+        "principle is that model responses can be stubbed, but the extraction "
+        "strategy should remain the production prompt pipeline so import, "
+        "process, watch, approval, and recall exercise the same architecture. "
+        "Teams should preserve source provenance, prompt versions, provider "
+        "metadata, and strategy identity so every ai_draft can be audited before "
+        "human approval.\n",
         encoding="utf-8",
     )
     return note
@@ -110,44 +114,50 @@ def _cards(vault: Path) -> list[Path]:
     return sorted((vault / "20-Knowledge-Cards").rglob("*.md"))
 
 
-def test_config_defaults_active_strategy_to_five_stage(tmp_path: Path) -> None:
+def test_config_defaults_active_strategy_to_knowledge_card(tmp_path: Path) -> None:
     cfg_path, _vault = _write_config(tmp_path)
 
     cfg = load_mindforge_config(cfg_path)
 
-    assert cfg.strategy.active == "five_stage"
+    assert cfg.strategy.active == "knowledge_card"
 
 
-def test_import_uses_config_active_strategy_default_knowledge_card(
+def test_legacy_five_stage_active_strategy_resolves_to_knowledge_card(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """active strategy 是运行时选择，不需要用户每次传 ``--strategy``。"""
+    """旧配置可继续写 five_stage，但运行身份必须规范化为 knowledge_card。"""
 
-    cfg_path, vault = _write_config(tmp_path, active_strategy="default_knowledge_card")
+    cfg_path, vault = _write_config(tmp_path, active_strategy="five_stage")
     note = _write_note(vault)
     monkeypatch.chdir(tmp_path)
 
-    result = runner.invoke(app, ["import", str(note), "--config", str(cfg_path)])
+    result = runner.invoke(app, ["import", str(note), "--config", str(cfg_path), "--force"])
 
     assert result.exit_code == 0, result.output
     assert "processed=1 skipped=0 failed=0 seen=1" in result.output
-    card = _cards(vault)[0]
-    fm = read_card_frontmatter(card)
+    from mindforge.cards import read_card_frontmatter
+
+    fm = read_card_frontmatter(_cards(vault)[0])
     assert fm["status"] == "ai_draft"
-    assert fm["strategy_id"] == "default_knowledge_card"
-    assert fm["prompt_versions"] == {}
-    assert fm["stage_models"] == {}
+    assert fm["strategy_id"] == "knowledge_card"
+    assert set(fm["prompt_versions"]) == {
+        "triage",
+        "distill",
+        "link_suggestion",
+        "review_questions",
+        "action_extraction",
+    }
     assert fm["source_content_hash"]
 
 
-def test_import_strategy_option_overrides_config_and_does_not_change_provider(
+def test_import_strategy_option_accepts_knowledge_card_alias_and_does_not_change_provider(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     """``--strategy`` 只改抽取策略；``--provider`` 仍只改 LLM/provider 选择。"""
 
-    cfg_path, vault = _write_config(tmp_path, active_strategy="five_stage")
+    cfg_path, vault = _write_config(tmp_path, active_strategy="knowledge_card")
     note = _write_note(vault)
     monkeypatch.chdir(tmp_path)
 
@@ -159,23 +169,30 @@ def test_import_strategy_option_overrides_config_and_does_not_change_provider(
             "--config",
             str(cfg_path),
             "--strategy",
-            "default_knowledge_card",
+            "five_stage",
             "--provider",
             "fake",
+            "--force",
         ],
     )
 
     assert result.exit_code == 0, result.output
+    from mindforge.cards import read_card_frontmatter
+
     fm = read_card_frontmatter(_cards(vault)[0])
-    assert fm["strategy_id"] == "default_knowledge_card"
+    assert fm["strategy_id"] == "knowledge_card"
     assert fm["profile"] == "fake"
 
 
-def test_deterministic_strategy_does_not_require_real_provider_env(
+def test_internal_strategy_does_not_hide_real_provider_missing_key(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """deterministic strategy 不构造真实 provider，缺 key 也不应挡住离线执行。"""
+    """不能靠 deterministic strategy 绕过 provider 缺 key 诊断。
+
+    中文学习型说明：测试应注入 LLM stub response，而不是把 internal baseline
+    配成 active strategy。这样 provider failure 不会被 fake strategy 吞掉。
+    """
 
     cfg_path, vault = _write_config(
         tmp_path,
@@ -189,18 +206,16 @@ def test_deterministic_strategy_does_not_require_real_provider_env(
 
     result = runner.invoke(app, ["import", str(note), "--config", str(cfg_path)])
 
-    assert result.exit_code == 0, result.output
-    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
-    fm = read_card_frontmatter(_cards(vault)[0])
-    assert fm["strategy_id"] == "default_knowledge_card"
-    assert fm["profile"] == "anthropic"
+    assert result.exit_code != 0
+    assert "internal/not production-ready" in result.output
+    assert _cards(vault) == []
 
 
-def test_process_uses_config_active_strategy_and_writes_non_five_stage_card(
+def test_process_uses_config_active_strategy_knowledge_card(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    cfg_path, vault = _write_config(tmp_path, active_strategy="default_knowledge_card")
+    cfg_path, vault = _write_config(tmp_path, active_strategy="knowledge_card")
     _write_note(vault)
     monkeypatch.chdir(tmp_path)
 
@@ -208,16 +223,17 @@ def test_process_uses_config_active_strategy_and_writes_non_five_stage_card(
 
     assert result.exit_code == 0, result.output
     assert "processed=1" in result.output
+    from mindforge.cards import read_card_frontmatter
+
     fm = read_card_frontmatter(_cards(vault)[0])
-    assert fm["strategy_id"] == "default_knowledge_card"
-    assert fm["prompt_versions"] == {}
+    assert fm["strategy_id"] == "knowledge_card"
 
 
-def test_process_strategy_option_renders_concept_extraction_card(
+def test_process_strategy_option_rejects_concept_extraction_internal_baseline(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """preview 但可执行的 built-in strategy 也必须走同一写卡边界。"""
+    """concept_extraction 是 internal preview baseline，不是产品主流程。"""
 
     cfg_path, vault = _write_config(tmp_path, active_strategy="five_stage")
     _write_note(vault)
@@ -228,19 +244,16 @@ def test_process_strategy_option_renders_concept_extraction_card(
         ["process", "--config", str(cfg_path), "--strategy", "concept_extraction"],
     )
 
-    assert result.exit_code == 0, result.output
-    fm = read_card_frontmatter(_cards(vault)[0])
-    assert fm["status"] == "ai_draft"
-    assert fm["strategy_id"] == "concept_extraction"
-    assert fm["prompt_versions"] == {}
-    assert fm["stage_models"] == {}
+    assert result.exit_code != 0
+    assert "internal/not production-ready" in result.output
+    assert _cards(vault) == []
 
 
 def test_invalid_and_planned_active_strategy_fail_without_fallback(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    for strategy_id in ("missing_strategy_xyz", "action_item"):
+    for strategy_id in ("missing_strategy_xyz", "action_item", "default_knowledge_card"):
         case_dir = tmp_path / strategy_id
         cfg_path, vault = _write_config(case_dir, active_strategy=strategy_id)
         note = _write_note(vault)
@@ -253,19 +266,21 @@ def test_invalid_and_planned_active_strategy_fail_without_fallback(
         assert _cards(vault) == []
 
 
-def test_watch_add_strategy_is_persisted_in_registry(tmp_path: Path, monkeypatch) -> None:
-    cfg_path, vault = _write_config(tmp_path, active_strategy="five_stage")
+def test_watch_add_strategy_persists_canonical_knowledge_card(tmp_path: Path, monkeypatch) -> None:
+    cfg_path, vault = _write_config(tmp_path, active_strategy="knowledge_card")
     note = tmp_path / "external.md"
     note.write_text("# External Strategy Watch\n\nReusable watch source lesson.\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     result = runner.invoke(
         app,
-        ["watch", "add", str(note), "--config", str(cfg_path), "--strategy", "default_knowledge_card"],
+        ["watch", "add", str(note), "--config", str(cfg_path), "--strategy", "five_stage"],
     )
 
     assert result.exit_code == 0, result.output
     registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
-    assert registry.sources[0].strategy_id == "default_knowledge_card"
+    assert registry.sources[0].strategy_id == "knowledge_card"
+    from mindforge.cards import read_card_frontmatter
+
     fm = read_card_frontmatter(_cards(vault)[0])
-    assert fm["strategy_id"] == "default_knowledge_card"
+    assert fm["strategy_id"] == "knowledge_card"

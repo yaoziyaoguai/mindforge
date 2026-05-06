@@ -84,6 +84,14 @@ STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 # 本策略已是生产路径默认 fake-first 的事实承担者，标记为 implemented，
 # 与 Slice 3 Red 不变量（"已跑通的两个策略不可被降级"）对齐。
 STRATEGY_STATUS = "implemented"
+STRATEGY_ROLE = "internal_baseline"
+STRATEGY_PRODUCTION_READY = False
+STRATEGY_USER_RECOMMENDED = False
+STRATEGY_CANONICAL_ID = STRATEGY_ID
+STRATEGY_LEGACY_ALIASES: tuple[str, ...] = ()
+STRATEGY_WARNING = (
+    "internal deterministic baseline; does not exercise the production prompt pipeline."
+)
 
 
 # ---------------------------------------------------------------------------

@@ -136,7 +136,7 @@ def test_five_stage_build_card_payload_emits_envelope() -> None:
 
 
 def test_five_stage_envelope_strategy_identity() -> None:
-    """envelope 必须标注 ``strategy_id == "five_stage"``。"""
+    """envelope 必须标注用户可见 canonical ``strategy_id == "knowledge_card"``。"""
     stages = _stage_outputs()
     payload = _build_card_payload(
         doc=_doc(),
@@ -147,7 +147,7 @@ def test_five_stage_envelope_strategy_identity() -> None:
         review_questions=stages["review_questions"],
         action_extraction=stages["action_extraction"],
     )
-    assert payload.get("strategy_id") == "five_stage"
+    assert payload.get("strategy_id") == "knowledge_card"
     sv = payload.get("strategy_version")
     assert isinstance(sv, str) and sv
 

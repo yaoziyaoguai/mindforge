@@ -51,6 +51,12 @@ STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 # v0.11 Slice 4：planned = 仅登记元数据，execute 路径会被 registry 在
 # build_strategy 入口拒绝；UX 上仍可被 list 出来让用户感知它存在。
 STRATEGY_STATUS = "planned"
+STRATEGY_ROLE = "planned"
+STRATEGY_PRODUCTION_READY = False
+STRATEGY_USER_RECOMMENDED = False
+STRATEGY_CANONICAL_ID = STRATEGY_ID
+STRATEGY_LEGACY_ALIASES: tuple[str, ...] = ()
+STRATEGY_WARNING = "planned metadata only; not executable."
 
 
 __all__ = [

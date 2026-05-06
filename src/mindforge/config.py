@@ -286,7 +286,7 @@ class StrategyConfig:
     strategy registry 在运行边界验证，避免 config.py 反向依赖 runtime。
     """
 
-    active: str = "five_stage"
+    active: str = "knowledge_card"
 
 
 @dataclass(frozen=True)
@@ -693,7 +693,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
 
 
 def _parse_strategy(raw: Any) -> StrategyConfig:
-    """解析 ``strategy.active``，缺失时稳定回退 five_stage。
+    """解析 ``strategy.active``，缺失时稳定回退 knowledge_card。
 
     中文学习型说明：这里不校验 strategy 是否存在/可执行。那属于 registry
     运行边界；如果在 config 层 import registry，会让纯配置 loader 意外承担
@@ -702,7 +702,7 @@ def _parse_strategy(raw: Any) -> StrategyConfig:
 
     if not isinstance(raw, dict):
         raise ConfigError(f"strategy 必须是 YAML 对象，得到 {type(raw).__name__}")
-    active = str(raw.get("active") or "five_stage").strip()
+    active = str(raw.get("active") or "knowledge_card").strip()
     if not active:
         raise ConfigError("strategy.active 不能为空")
     return StrategyConfig(active=active)

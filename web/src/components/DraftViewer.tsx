@@ -9,7 +9,11 @@ export function DraftViewer({ detail }: { detail: DraftDetailResponse }) {
         <h2 className="mt-1 text-2xl font-semibold text-ink">{detail.draft.title ?? "Untitled draft"}</h2>
         <div className="mt-4 grid gap-2 text-xs text-muted md:grid-cols-2">
           <div>status: {detail.draft.status}</div>
-          <div>strategy: {detail.draft.strategy_id ?? "-"}@{detail.draft.strategy_version ?? "-"}</div>
+          <div>
+            Extraction Strategy: {detail.draft.strategy_label ?? detail.draft.strategy_id ?? "-"}
+            {detail.draft.strategy_version ? `@${detail.draft.strategy_version}` : ""}
+          </div>
+          {detail.draft.strategy_note ? <div>{detail.draft.strategy_note}</div> : null}
           <div>source: {detail.draft.source_id ?? "-"}</div>
           <div>source hash: {detail.draft.source_content_hash ?? "-"}</div>
           <div>schema: {detail.draft.schema_version ?? "-"}</div>

@@ -1,6 +1,6 @@
 """CLI e2e tests for simple watch/import ingestion.
 
-这些测试用 fake provider 与临时 vault 验证用户级 ingestion 入口：
+这些测试用 offline LLM test double 与临时 vault 验证用户级 ingestion 入口：
 watch = 注册并立即处理，import = 一次性处理且不注册。两者都只能生成
 ai_draft，不能自动 approve。
 """
@@ -221,7 +221,7 @@ def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
     assert "selection source: legacy --profile" in result.output
     assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
-    assert "fake/demo remains available with --provider fake" in result.output
+    assert "MindForge will not fallback to any test provider" in result.output
     assert _card_paths(vault) == []
 
 
@@ -249,7 +249,7 @@ def test_watch_add_anthropic_missing_key_fails_without_fake_fallback(
     assert "selection source: legacy --profile" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Do not put secrets in YAML" in result.output
-    assert "fake/demo remains available with --provider fake" in result.output
+    assert "MindForge will not fallback to any test provider" in result.output
     assert _card_paths(vault) == []
 
 
@@ -522,7 +522,7 @@ def test_active_anthropic_missing_key_fails_not_skips(
     assert "provider type: anthropic" in result.output
     assert "selection source: llm.active" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
-    assert "fake/demo remains available with --provider fake" in result.output
+    assert "MindForge will not fallback to any test provider" in result.output
     assert _card_paths(vault) == []
 
 
@@ -816,7 +816,7 @@ def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
     assert "provider type: openai_compatible" in result.output
     assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "fake/demo remains available with --provider fake" in result.output
+    assert "MindForge will not fallback to any test provider" in result.output
     assert _card_paths(vault) == []
 
 
@@ -843,7 +843,7 @@ def test_import_anthropic_missing_key_fails_without_fake_fallback(
     assert "provider type: anthropic" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "fake/demo remains available with --provider fake" in result.output
+    assert "MindForge will not fallback to any test provider" in result.output
     assert _card_paths(vault) == []
 
 

@@ -31,7 +31,8 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
                 <td className="px-4 py-3">
                   <div className="font-medium text-ink">{card.title ?? "Untitled"}</div>
                   <div className="text-xs text-muted">{card.track ?? "unrouted"}</div>
-                  <div className="text-xs text-muted">strategy:{card.strategy_id ?? "-"}</div>
+                  <div className="text-xs text-muted">strategy:{card.strategy_label ?? card.strategy_id ?? "-"}</div>
+                  {card.strategy_note ? <div className="text-xs text-muted">{card.strategy_note}</div> : null}
                 </td>
                 <td className="px-4 py-3">
                   <div>{card.status}</div>

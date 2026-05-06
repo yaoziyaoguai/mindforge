@@ -181,6 +181,9 @@ export interface LibraryCardResponse {
   profile?: string | null;
   provider?: string | null;
   strategy_id?: string | null;
+  strategy_label?: string | null;
+  strategy_note?: string | null;
+  strategy_canonical_id?: string | null;
   strategy_version?: string | null;
   schema_version?: string | null;
   prompt_version?: string | null;
@@ -241,6 +244,9 @@ export interface DraftSummary {
   source_content_hash?: string | null;
   value_score?: number | null;
   strategy_id?: string | null;
+  strategy_label?: string | null;
+  strategy_note?: string | null;
+  strategy_canonical_id?: string | null;
   strategy_version?: string | null;
   schema_version?: string | null;
   prompt_version?: string | null;

@@ -21,6 +21,7 @@ from mindforge.library_service import (
     show_library_card,
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
+from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
     ConfigStatusResponse,
@@ -462,6 +463,7 @@ def _library_stats_response(stats) -> LibraryStatsResponse:
 
 def _library_card_response(card) -> LibraryCardResponse:
     summary = card.summary
+    strategy = strategy_display(summary.strategy_id)
     return LibraryCardResponse(
         id=summary.id,
         title=summary.title,
@@ -479,6 +481,9 @@ def _library_card_response(card) -> LibraryCardResponse:
         profile=summary.profile,
         provider=summary.provider,
         strategy_id=summary.strategy_id,
+        strategy_label=strategy.label,
+        strategy_note=strategy.note,
+        strategy_canonical_id=strategy.canonical_id,
         strategy_version=summary.strategy_version,
         schema_version=summary.schema_version,
         prompt_version=summary.prompt_version,

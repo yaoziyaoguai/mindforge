@@ -150,6 +150,12 @@ class StrategyDefinition:
             safety_policy=self.safety_policy,
             output_schema_id=self.output_schema_id,
             status=self.status,
+            role="external_declarative",
+            production_ready=False,
+            user_recommended=False,
+            canonical_id=self.strategy_id,
+            legacy_aliases=(),
+            warning="external declarative strategy is discovery-only and not executable.",
         )
 
 

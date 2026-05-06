@@ -181,7 +181,7 @@ def _provider_label(card: CardSummary) -> str:
 def _fake_note(card: CardSummary) -> str | None:
     label = f"{card.profile or ''} {card.provider or ''}".lower()
     if "fake" in label:
-        return "fake provider：用于安全跑通流程，不代表真实卡片质量。"
+        return "offline LLM test double；不代表真实 provider 或真实卡片质量。"
     return None
 
 

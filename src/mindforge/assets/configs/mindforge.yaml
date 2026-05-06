@@ -317,11 +317,12 @@ prompts:
 # 中文学习型说明：strategy.active 与 llm.active 是两条正交轴：
 # - strategy.active 选择“如何抽取知识、如何组织 card envelope”；
 # - llm.active 选择“如果该 strategy 需要模型，使用哪个 provider/model”。
-# 默认 five_stage 保持现有主链路；deterministic strategy 可通过
-# --strategy 临时覆盖或在项目配置里显式选择。
+# 默认 Knowledge Card Strategy 保持生产主链路；five_stage 仅作为 legacy
+# alias 兼容旧配置。deterministic baseline 属于内部测试夹具，不能作为
+# production active_strategy。
 # -----------------------------------------------------------------------------
 strategy:
-  active: "five_stage"
+  active: "knowledge_card"
 
 # -----------------------------------------------------------------------------
 # Logging

@@ -16,6 +16,7 @@ from .strategies import (
     NotYetImplementedStrategyError,
     UnknownStrategyError,
     available_strategies,
+    canonical_strategy_id,
     get_strategy_metadata,
 )
 from .strategies.registry import StrategyMetadata
@@ -26,6 +27,7 @@ class StrategySelection:
     strategy_id: str
     source: str
     metadata: StrategyMetadata
+    legacy_alias: str | None = None
 
 
 class StrategySelectionError(ValueError):
@@ -41,23 +43,25 @@ def resolve_strategy_selection(
     """按统一优先级解析 strategy 并验证可执行性。
 
     优先级：``--strategy`` > watched registry strategy > ``strategy.active`` >
-    built-in default ``five_stage``。
+    built-in default ``knowledge_card``。
 
-    planned/custom/declarative 策略即使能被 list/show 发现，也不能在这里半通
-    执行；错误必须显式返回给用户，不能 fallback 到 five_stage 掩盖问题。
+    中文学习型说明：测试可以注入 LLM stub response，但 active strategy 不能
+    注入 deterministic baseline。否则 CI 通过的不是生产 Knowledge Card
+    Strategy 路径，真实 dogfood 仍可能坏掉。
     """
 
     raw = explicit_strategy or watched_strategy or cfg.strategy.active or DEFAULT_STRATEGY_NAME
     selected = str(raw).strip()
     if not selected:
         selected = DEFAULT_STRATEGY_NAME
+    canonical = canonical_strategy_id(selected)
     source = (
         "--strategy"
         if explicit_strategy
         else ("watched source strategy" if watched_strategy else ("strategy.active" if cfg.strategy.active else "default"))
     )
     try:
-        metadata = get_strategy_metadata(selected)
+        metadata = get_strategy_metadata(canonical)
     except UnknownStrategyError as exc:
         raise StrategySelectionError(
             f"unknown strategy: {selected!r}; available: {available_strategies()}; "
@@ -66,14 +70,24 @@ def resolve_strategy_selection(
     if metadata.status == "planned":
         raise StrategySelectionError(
             f"strategy {selected!r} is planned and not executable; "
-            "choose an implemented/preview executable strategy such as "
-            "`five_stage` or `default_knowledge_card`."
+            "choose the production Knowledge Card Strategy (`knowledge_card`)."
+        )
+    if not metadata.production_ready:
+        raise StrategySelectionError(
+            f"strategy {selected!r} is internal/not production-ready and cannot be "
+            "used as active strategy. Tests should inject LLM stub responses into "
+            "`knowledge_card` instead of selecting deterministic baselines."
         )
     if metadata.status not in {"implemented", "preview"}:
         raise StrategySelectionError(
             f"strategy {selected!r} is {metadata.status!r} and cannot be executed safely."
         )
-    return StrategySelection(strategy_id=selected, source=source, metadata=metadata)
+    return StrategySelection(
+        strategy_id=metadata.canonical_id or canonical,
+        source=source,
+        metadata=metadata,
+        legacy_alias=selected if selected != (metadata.canonical_id or canonical) else None,
+    )
 
 
 def strategy_error_from_build_error(strategy_id: str, exc: Exception) -> StrategySelectionError:

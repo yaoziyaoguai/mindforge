@@ -258,7 +258,6 @@ def next_steps_hint() -> list[str]:
         "7) mindforge approve list  # 看看产出哪些 ai_draft",
         "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
         "9) mindforge recall --query <keyword>",
-        "10) Offline demo / CI / Testing: mindforge process --provider fake --limit 1",
-        "11) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
+        "10) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
         "11) mindforge doctor       # 任何时刻自检",
     ]

@@ -326,17 +326,16 @@ def _build_card_payload(
     one_line = (
         str(summary_bullets[0]) if summary_bullets else (distill.get("source_excerpt") or "")
     )
-    # 中文学习型注释：strategy_id / strategy_version 必须从 strategy 模块的
-    # 元数据常量读取，而不是在 pipeline 里硬编码字符串字面量 —— 否则
-    # envelope 的 "我是谁" 与 strategy 模块的 "我是谁" 会出现双源漂移，
-    # 给未来 v0.11/v0.12 多策略 / custom strategy 留下隐性 bug。
-    # 使用函数内 lazy import 是为了打破 strategies.five_stage → processors
-    # .pipeline 的循环 import。
-    from ..strategies import five_stage as _five_stage_meta
+    # 中文学习型注释：这里写入用户可见 canonical strategy id。五段 pipeline
+    # 仍是内部实现细节，但新卡 provenance 应回答“使用了 Knowledge Card
+    # Strategy”，而不是把 five_stage 这个历史实现名继续暴露成产品能力。
+    # 使用函数内 lazy import 是为了打破 strategies.knowledge_card →
+    # processors.pipeline 的循环 import。
+    from ..strategies import knowledge_card as _knowledge_card_meta
 
     return {
-        "strategy_id": _five_stage_meta.STRATEGY_ID,
-        "strategy_version": _five_stage_meta.STRATEGY_VERSION,
+        "strategy_id": _knowledge_card_meta.STRATEGY_ID,
+        "strategy_version": _knowledge_card_meta.STRATEGY_VERSION,
         "schema_version": "1",
         "status": "ai_draft",
         "source_evidence": {

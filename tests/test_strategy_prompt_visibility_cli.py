@@ -46,8 +46,13 @@ def test_strategies_show_displays_single_strategy_details_without_execution() ->
         assert "v1" in out
 
 
-def test_strategies_show_planned_strategy_is_visible_but_marked_not_executable() -> None:
+def test_strategies_show_planned_strategy_requires_internal_flag() -> None:
     result = runner.invoke(app, ["strategies", "show", "action_item"])
+
+    assert result.exit_code != 0
+    assert "--include-internal" in result.output
+
+    result = runner.invoke(app, ["strategies", "show", "action_item", "--include-internal"])
 
     assert result.exit_code == 0, result.output
     assert "action_item" in result.output
@@ -109,19 +114,24 @@ def test_prompt_cli_source_stays_read_only_and_provider_free() -> None:
         assert token not in src
 
 
-def test_strategies_list_still_covers_all_registered_strategies() -> None:
+def test_strategies_list_hides_internal_by_default_and_can_include_it() -> None:
     result = runner.invoke(app, ["strategies", "list"])
 
     assert result.exit_code == 0, result.output
+    assert "knowledge_card" in result.output
+    assert "default_knowledge_card" not in result.output
+
+    internal = runner.invoke(app, ["strategies", "list", "--include-internal"])
+    assert internal.exit_code == 0, internal.output
     for meta in list_strategies():
-        assert meta.strategy_id in result.output
+        assert meta.strategy_id in internal.output
 
 
 def test_readme_documents_card_provenance_and_prompt_visibility() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
 
     for token in (
-        "mindforge strategies show five_stage",
+        "mindforge strategies show knowledge_card",
         "mindforge prompts list",
         "mindforge prompts show triage@v1",
         "source content hash",

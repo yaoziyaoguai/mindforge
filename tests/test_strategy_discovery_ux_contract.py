@@ -178,7 +178,7 @@ def test_cli_strategies_list_output_includes_ux_fields() -> None:
     assert result.exit_code == 0, result.output
 
     out = result.output
-    metas = list_strategies()
+    metas = list_strategies(include_internal=False)
     for m in metas:
         assert m.strategy_id in out
         assert m.strategy_version in out
@@ -288,8 +288,8 @@ def test_cli_process_unknown_strategy_message_hints_strategies_list() -> None:
     "phrase",
     [
         "strategies list",
-        "default_knowledge_card",
-        "five_stage",
+        "knowledge_card",
+        "Developer Testing",
     ],
 )
 def test_readme_or_docs_mentions_strategy_discovery(phrase: str) -> None:

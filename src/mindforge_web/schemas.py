@@ -212,6 +212,9 @@ class LibraryCardResponse(BaseModel):
     profile: str | None
     provider: str | None
     strategy_id: str | None = None
+    strategy_label: str | None = None
+    strategy_note: str | None = None
+    strategy_canonical_id: str | None = None
     strategy_version: str | None = None
     schema_version: str | None = None
     prompt_version: str | None = None
@@ -283,6 +286,9 @@ class DraftSummary(BaseModel):
     source_content_hash: str | None = None
     value_score: int | None
     strategy_id: str | None = None
+    strategy_label: str | None = None
+    strategy_note: str | None = None
+    strategy_canonical_id: str | None = None
     strategy_version: str | None = None
     schema_version: str | None = None
     prompt_version: str | None = None

@@ -29,6 +29,14 @@ strategies_app = typer.Typer(
 
 @strategies_app.command("list")
 def strategies_list(
+    include_internal: bool = typer.Option(
+        False,
+        "--include-internal",
+        help=(
+            "显示 internal/debug/planned strategy metadata。默认隐藏测试替身，"
+            "避免把 deterministic baseline 包装成用户产品能力。"
+        ),
+    ),
     custom_path: Path | None = typer.Option(
         None,
         "--custom-path",
@@ -59,7 +67,7 @@ def strategies_list(
     出现在元数据列表里。
     """
 
-    for meta in list_strategies():
+    for meta in list_strategies(include_internal=include_internal):
         _print_strategy_meta(meta, kind="built-in")
 
     if custom_path is None:
@@ -98,6 +106,11 @@ def strategies_list(
 @strategies_app.command("show")
 def strategies_show(
     strategy_id: str = typer.Argument(..., help="要查看的 strategy id。"),
+    include_internal: bool = typer.Option(
+        False,
+        "--include-internal",
+        help="允许查看 internal/debug/planned strategy metadata。",
+    ),
 ) -> None:
     """展示单个 built-in strategy 的只读说明。
 
@@ -112,9 +125,30 @@ def strategies_show(
         console.print(f"[red]✗ {exc}[/red]")
         raise typer.Exit(code=2) from None
 
+    is_legacy = meta.canonical_id and strategy_id != meta.canonical_id
+    if meta.is_internal and not is_legacy and not include_internal:
+        console.print(
+            f"strategy {strategy_id!r} is internal/debug metadata; "
+            "rerun with --include-internal to inspect it. "
+            "Production users should use `knowledge_card`.",
+            markup=False,
+            soft_wrap=True,
+        )
+        raise typer.Exit(code=2)
+
     _print_strategy_meta(meta, kind="built-in")
+    if is_legacy:
+        console.print(
+            f"  legacy alias: {strategy_id} -> {meta.canonical_id}",
+            markup=False,
+        )
     if meta.strategy_id == DEFAULT_STRATEGY_NAME:
         console.print("  default: yes")
+    console.print(f"  role: {meta.role}", markup=False)
+    console.print(f"  production_ready: {'yes' if meta.production_ready else 'no'}")
+    console.print(f"  user_recommended: {'yes' if meta.user_recommended else 'no'}")
+    if meta.warning:
+        console.print(f"  warning: {meta.warning}", markup=False, soft_wrap=True)
     if meta.status == "planned":
         console.print("  executable: no (planned / not executable)")
     else:
@@ -143,11 +177,16 @@ def _print_strategy_meta(meta: StrategyMetadata, *, kind: str) -> None:
     )
     console.print(
         f"  status: {meta.status}  "
+        f"role: {meta.role}  "
+        f"production_ready: {'yes' if meta.production_ready else 'no'}  "
+        f"user_recommended: {'yes' if meta.user_recommended else 'no'}  "
         f"provider_mode: {meta.provider_mode}  "
         f"safety_policy: {meta.safety_policy}  "
         f"output_schema_id: {meta.output_schema_id}"
     )
     console.print(f"  {meta.description}")
+    if meta.warning:
+        console.print(f"  warning: {meta.warning}", markup=False, soft_wrap=True)
 
 
 def _default_prompt_versions() -> dict[str, str]:

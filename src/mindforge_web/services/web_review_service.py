@@ -19,6 +19,7 @@ from mindforge.approval_service import (
 from mindforge.cards import CardSummary, read_card_body
 from mindforge.config import MindForgeConfig
 from mindforge.lexical_index import rebuild_index_for_config
+from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
     ApprovalResponse,
@@ -151,6 +152,7 @@ class WebReviewService:
 
     @staticmethod
     def _summary(card: CardSummary) -> DraftSummary:
+        strategy = strategy_display(card.strategy_id)
         return DraftSummary(
             id=card.id,
             title=card.title,
@@ -167,6 +169,9 @@ class WebReviewService:
             source_content_hash=card.source_content_hash,
             value_score=card.value_score,
             strategy_id=card.strategy_id,
+            strategy_label=strategy.label,
+            strategy_note=strategy.note,
+            strategy_canonical_id=strategy.canonical_id,
             strategy_version=card.strategy_version,
             schema_version=card.schema_version,
             prompt_version=card.prompt_version,

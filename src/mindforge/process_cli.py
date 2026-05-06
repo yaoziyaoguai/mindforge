@@ -233,7 +233,7 @@ def process(
         "--strategy",
         help=(
             "临时覆盖 strategy.active。默认读取 configs/mindforge.yaml 的 "
-            "strategy.active；缺省为 five_stage。"
+            "strategy.active；缺省为 knowledge_card。"
         ),
     ),
 ) -> None:
@@ -260,8 +260,8 @@ def process(
     if runtime.provider.requires_real_env and selected_strategy.metadata.provider_mode != "deterministic":
         # 中文学习型注释：v0.5.1 把本地 smoke 路径收紧为“不读 .env”。
         # 只有用户显式切到真实 provider 时，才加载 .env 以解析 base_url /
-        # api_key 等环境变量；fake provider 必须保持完全离线、无 secret 依赖。
-        # v0.7.20：fake-safety 判断已下沉到 process_service.requires_real_env，
+        # api_key 等环境变量；测试替身 provider 必须保持完全离线、无 secret 依赖。
+        # v0.7.20：provider env 判断已下沉到 process_service.requires_real_env，
         # CLI 只负责实际 IO（load_dotenv），保持 service 无副作用。
         load_dotenv_silently(Path.cwd())
     if dry_run:

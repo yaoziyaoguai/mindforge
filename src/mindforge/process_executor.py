@@ -18,7 +18,12 @@ from .models import ItemState, StageRecord
 from .process_service import ProcessRuntime, summarize_outcome
 from .run_logger import EVENT_SOURCE_ERROR, EVENT_STATE_WRITTEN
 from .scanner import Scanner
-from .strategies import StrategyContext, build_strategy, get_strategy_metadata
+from .strategies import (
+    DEFAULT_STRATEGY_NAME,
+    StrategyContext,
+    build_strategy,
+    get_strategy_metadata,
+)
 from .writer import CardWriter
 
 
@@ -64,18 +69,25 @@ class ProcessRuntimeParts:
     pipeline: object
 
 
-def build_pipeline(*, cfg: MindForgeConfig, runtime: ProcessRuntime, strategy: str):
+def build_pipeline(
+    *,
+    cfg: MindForgeConfig,
+    runtime: ProcessRuntime,
+    strategy: str,
+    llm_client: object | None = None,
+):
     """构造 process pipeline；不依赖 Typer/Rich。
 
-    中文学习型说明：strategy selection 与 provider selection 正交。五段
-    ``five_stage`` 需要 LLM client；deterministic strategy 不需要 provider，
-    也不应因为 active provider 缺 key 而失败。这里按 strategy metadata 决定
-    是否构造 LLMClient，避免 provider 选择反向影响离线策略执行。
+    中文学习型说明：strategy selection 与 provider selection 正交。生产路径
+    只应通过 Knowledge Card Strategy 进入五段 prompt pipeline。测试要替身化
+    LLM response，而不是选择 deterministic strategy 来绕过生产 runtime path。
+    ``llm_client`` 是测试注入 seam：它替身化模型返回，不替换 strategy。
+    生产调用不传此参数，仍由 ProviderFactory/LLMClient 正常装配。
     """
 
-    client = None
+    client = llm_client
     metadata = get_strategy_metadata(strategy)
-    if metadata.provider_mode != "deterministic":
+    if client is None and metadata.provider_mode != "deterministic":
         from .llm import LLMClient, build_providers
 
         providers = build_providers(cfg.llm)
@@ -210,7 +222,7 @@ def processed_run_dict(*, cfg: MindForgeConfig, outcome, logger, now: datetime) 
     card_payload = outcome.card_payload or {}
     source_evidence = card_payload.get("source_evidence") or {}
     strategy_id = str(card_payload.get("strategy_id") or "")
-    prompt_versions = _prompt_versions_dict(cfg) if strategy_id == "five_stage" else {}
+    prompt_versions = _prompt_versions_dict(cfg) if strategy_id == DEFAULT_STRATEGY_NAME else {}
     return {
         "created_at": now.isoformat(timespec="seconds"),
         "prompts": {"distill_version": cfg.prompts.distill},
