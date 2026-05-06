@@ -35,6 +35,7 @@ class SkippedDocumentDetail:
     fingerprint_short: str
     reason: str
     matched_record: str | None = None
+    hint: str | None = None
 
 
 REAL_PROVIDER_KEY_ERRORS = {
@@ -92,6 +93,8 @@ def print_ingestion_diagnostics(console: Console, summary) -> None:
             console.print(f"  reason: {item.reason}", markup=False)
             if item.matched_record:
                 console.print(f"  matched state key: {item.matched_record}", markup=False, soft_wrap=True)
+            if item.hint:
+                console.print(f"  hint: {item.hint}", markup=False, soft_wrap=True)
 
 
 def print_provider_failure(console: Console, provider: ProviderFailureDetail) -> None:

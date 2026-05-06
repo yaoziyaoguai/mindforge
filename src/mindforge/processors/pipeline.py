@@ -62,12 +62,14 @@ class Pipeline:
         prompt_versions: Any,        # PromptVersions
         triage_threshold: int,
         learning_tracks_text: str,
+        bypass_triage_gate: bool = False,
     ) -> None:
         self.client = client
         self.logger = logger
         self.prompts_dir = prompts_dir
         self.prompt_versions = prompt_versions
         self.triage_threshold = triage_threshold
+        self.bypass_triage_gate = bypass_triage_gate
         self.learning_tracks_text = learning_tracks_text
 
     # --------------------------------------------------------------------- run
@@ -82,10 +84,14 @@ class Pipeline:
         track = str(triage.parsed.get("track") or "unrouted")
         value_score = int(triage.parsed.get("value_score") or 0)
         should_process = bool(triage.parsed.get("should_process"))
-        if not should_process or value_score < self.triage_threshold:
+        if (
+            not self.bypass_triage_gate
+            and (not should_process or value_score < self.triage_threshold)
+        ):
             outcome.status = "skipped"
             outcome.skip_reason = (
-                f"triage value_score={value_score} should_process={should_process}"
+                f"triage value_score={value_score} threshold={self.triage_threshold} "
+                f"should_process={should_process}"
             )
             return outcome
 

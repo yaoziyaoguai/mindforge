@@ -54,10 +54,20 @@ class IngestionSummary:
     registry_path: Path | None = None
 
 
-def import_sources(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
+def import_sources(
+    cfg: MindForgeConfig,
+    target: Path,
+    *,
+    bypass_triage_gate: bool = False,
+) -> IngestionSummary:
     """一次性导入当前内容，不写 watched source registry。"""
 
-    summary = _ingest_targets_summary(cfg, target, command="import")
+    summary = _ingest_targets_summary(
+        cfg,
+        target,
+        command="import",
+        bypass_triage_gate=bypass_triage_gate,
+    )
     return IngestionSummary(
         mode="import",
         target=target,
@@ -78,7 +88,12 @@ def watch_add_source(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
         raise RuntimeError(f"File not found: {target}")
     registry_path = registry_path_for_vault(cfg.vault.root)
     registry_result = add_watch_source(cfg.vault.root, registry_path, target)
-    summary = _ingest_targets_summary(cfg, registry_result.source.path, command="watch_add")
+    summary = _ingest_targets_summary(
+        cfg,
+        registry_result.source.path,
+        command="watch_add",
+        bypass_triage_gate=False,
+    )
     counts = summary.counts
     processed = counts.get("processed", 0)
     skipped = counts.get("skipped", 0)
@@ -111,10 +126,21 @@ def watch_sources_for_display(cfg: MindForgeConfig) -> tuple[object, ...]:
 
 
 def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict[str, int]:
-    return _ingest_targets_summary(cfg, target, command=command).counts
+    return _ingest_targets_summary(
+        cfg,
+        target,
+        command=command,
+        bypass_triage_gate=False,
+    ).counts
 
 
-def _ingest_targets_summary(cfg: MindForgeConfig, target: Path, *, command: str) -> IngestionSummary:
+def _ingest_targets_summary(
+    cfg: MindForgeConfig,
+    target: Path,
+    *,
+    command: str,
+    bypass_triage_gate: bool,
+) -> IngestionSummary:
     if not target.exists():
         raise RuntimeError(f"File not found: {target}")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
@@ -135,6 +161,7 @@ def _ingest_targets_summary(cfg: MindForgeConfig, target: Path, *, command: str)
             prompts_dir=None,
             tracks=None,
             template=None,
+            bypass_triage_gate=bypass_triage_gate,
         )
     )
     if isinstance(runtime, ProcessError):
@@ -308,6 +335,12 @@ def _skip_detail(
     reason: str,
     matched_record: str | None,
 ) -> SkippedDocumentDetail:
+    hint = None
+    if reason.startswith("triage "):
+        hint = (
+            f"use `mindforge import {doc.source_path} --force` to generate an "
+            "ai_draft anyway"
+        )
     return SkippedDocumentDetail(
         source_path=doc.source_path,
         normalized_path=_normalized_source_path(doc.source_path),
@@ -315,6 +348,7 @@ def _skip_detail(
         fingerprint_short=_short_hash(doc.content_hash),
         reason=reason,
         matched_record=matched_record,
+        hint=hint,
     )
 
 

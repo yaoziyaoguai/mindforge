@@ -69,6 +69,7 @@ class StrategyContext:
     prompts_dir: Any = None
     prompt_versions: Any = None
     triage_threshold: int = 0
+    bypass_triage_gate: bool = False
     learning_tracks_text: str = ""
     logger: "RunLogger | None" = None
 

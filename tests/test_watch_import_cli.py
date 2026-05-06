@@ -149,6 +149,12 @@ def _card_paths(vault: Path) -> list[Path]:
     return sorted((vault / "20-Knowledge-Cards").rglob("*.md"))
 
 
+def _set_triage_threshold(cfg: Path, threshold: int) -> None:
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw.setdefault("triage", {})["value_score_threshold"] = threshold
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
 def test_watch_list_shows_default_inbox(tmp_path: Path, monkeypatch) -> None:
     cfg, vault = _write_config(tmp_path)
     monkeypatch.chdir(vault)
@@ -376,6 +382,122 @@ def test_import_uses_active_fake_without_provider_override(
 
     assert result.exit_code == 0, result.output
     assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+
+
+def test_high_value_explicit_import_defaults_to_processed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "high-value.md"
+    source.write_text(
+        "# Agent Runtime Lessons\n\n"
+        "背景：我们在真实 ingestion pipeline 中发现 state checkpoint 会影响重复处理。\n\n"
+        "经验教训：source identity 必须包含 normalized source path，不能只依赖 content hash。\n\n"
+        "可复习 insight：自动化只能生成 ai_draft，human_approved 必须由用户显式 approve。\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+
+
+def test_low_value_explicit_import_defaults_to_triage_skip_with_hint(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """explicit import 默认尊重 triage，避免低价值资料污染知识库。
+
+    中文学习型说明：fake triage 固定给 value_score=7。这里把阈值提高到 10，
+    稳定复现低价值路径；CLI 必须告诉用户分数、阈值和 --force 覆盖方式，
+    而不是静默 skipped。
+    """
+
+    cfg, vault = _write_config(tmp_path)
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "explicit-low.md"
+    source.write_text("# Explicit Low\n\nsmall note\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(source), "--provider", "fake", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=0 skipped=1 failed=0 seen=1" in result.output
+    assert "reason: triage value_score=7 threshold=10 should_process=True" in result.output
+    assert "hint: use `mindforge import" in result.output
+    assert "--force" in result.output
+    assert _card_paths(vault) == []
+
+
+def test_low_value_explicit_import_force_overrides_triage_with_fake_provider(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "active-low.md"
+    source.write_text("# Active Low\n\nsmall note\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(source), "--force", "--config", str(cfg)])
+    pending = runner.invoke(app, ["approve", "list", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+    assert pending.exit_code == 0, pending.output
+    assert "[1]" in pending.output
+    assert "Active Low" in pending.output or "active-low" in pending.output
+
+
+def test_low_value_explicit_import_real_missing_key_fails_before_triage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """provider 配置错误优先报告，不能被 triage 或 force 吞掉。"""
+
+    cfg, vault = _write_config(tmp_path, active_provider="anthropic")
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
+    source = vault / "00-Inbox" / "ManualNotes" / "real-low.md"
+    source.write_text("# Real Low\n\nsmall note\n", encoding="utf-8")
+
+    default = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+    forced = runner.invoke(app, ["import", str(source), "--force", "--config", str(cfg)])
+
+    assert default.exit_code == 0, default.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in default.output
+    assert "selected provider: anthropic" in default.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in default.output
+    assert forced.exit_code == 0, forced.output
+    assert "processed=0 skipped=0 failed=1 seen=1" in forced.output
+    assert "selected provider: anthropic" in forced.output
+    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in forced.output
+    assert _card_paths(vault) == []
+
+
+def test_process_still_respects_low_value_triage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """自动 process 保留 triage 过滤，和 explicit import 语义分开。"""
+
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "auto-low.md"
+    source.write_text("# Auto Low\n\nsmall note\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["process", "--config", str(cfg), "--limit", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert "seen=1 processed=0 skipped=1 failed=0" in result.output
+    assert "triage value_score=7 threshold=10 should_process=True" in result.output
+    assert _card_paths(vault) == []
 
 
 def test_active_anthropic_missing_key_fails_not_skips(
@@ -816,6 +938,43 @@ def test_import_provider_override_wins_over_legacy_profile(tmp_path: Path, monke
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
     assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert _card_paths(vault) == []
+
+
+def test_force_does_not_bypass_already_processed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "force-duplicate.md"
+    source.write_text("# Force Duplicate\n\nsmall note\n", encoding="utf-8")
+
+    first = runner.invoke(app, ["import", str(source), "--force", "--config", str(cfg)])
+    second = runner.invoke(app, ["import", str(source), "--force", "--config", str(cfg)])
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in first.output
+    assert "processed=0 skipped=1 failed=0 seen=1" in second.output
+    assert "reason: already_processed" in second.output
+    assert len(_card_paths(vault)) == 1
+
+
+def test_no_triage_alias_overrides_triage_gate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    _set_triage_threshold(cfg, 10)
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "no-triage.md"
+    source.write_text("# No Triage\n\nsmall note\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(source), "--no-triage", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
 
 
 def test_watch_delete_default_and_approve_boundary(tmp_path: Path, monkeypatch) -> None:

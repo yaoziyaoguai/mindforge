@@ -33,6 +33,15 @@ def import_cmd(
         "--provider",
         help="高级临时覆盖 llm.active 指向的 provider（不修改 YAML）。",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "--no-triage",
+        help=(
+            "显式覆盖 triage 低分拦截并生成 ai_draft；"
+            "不会绕过 already_processed / already_approved。"
+        ),
+    ),
 ) -> None:
     """一次性处理当前内容，不加入 watched source registry。"""
 
@@ -44,7 +53,7 @@ def import_cmd(
         # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
         load_dotenv_silently(Path.cwd())
     try:
-        summary = import_sources(cfg, source_path)
+        summary = import_sources(cfg, source_path, bypass_triage_gate=force)
     except RuntimeError as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc

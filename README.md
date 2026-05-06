@@ -90,6 +90,17 @@ mindforge import /path/to/file-or-folder
 ```
 
 `import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。
+MindForge 会先做 triage 来过滤低价值输入；如果被 skipped，输出会包含
+`value_score`、threshold、`should_process` 和下一步提示。这不是 approve
+边界，只是避免制造低质量草稿。你确认要强制生成草稿时可以用：
+
+```bash
+mindforge import /path/to/file-or-folder --force
+```
+
+`--force`（同 `--no-triage`）只覆盖 triage 低分拦截，不会绕过
+`already_processed` / `already_approved` 去无限生成重复卡片。生成的
+`ai_draft` 仍必须显式 `approve` 才会进入 `human_approved`。
 
 `00-Inbox/` 是系统自带的 default watched source。它不是一个额外命令，也不
 需要删除；`mindforge watch list` 会展示它。
@@ -349,7 +360,8 @@ the human decision gate.
 | `mindforge watch list` | 查看 default `00-Inbox` 和用户添加的 watched sources |
 | `mindforge watch add <file-or-folder>` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
 | `mindforge watch delete <file-or-folder-or-id>` | 只删除 watched source registry 记录，不删除 source 或 cards |
-| `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources |
+| `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources；默认尊重 triage |
+| `mindforge import <file-or-folder> --force` | Advanced：覆盖 triage 低分拦截生成 `ai_draft`，不绕过重复/approved 边界 |
 | `mindforge approve list` | 查看待确认 `ai_draft`，带短编号 / short ref |
 | `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
 | `mindforge approve 1 --confirm` | 用短编号显式确认生成 `human_approved`，并默认刷新 recall index |

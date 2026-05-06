@@ -80,6 +80,7 @@ def build_pipeline(*, cfg: MindForgeConfig, runtime: ProcessRuntime, strategy: s
         prompts_dir=runtime.assets.prompts_dir,
         prompt_versions=cfg.prompts,
         triage_threshold=cfg.triage.value_score_threshold,
+        bypass_triage_gate=runtime.bypass_triage_gate,
         learning_tracks_text=runtime.assets.tracks_text,
         logger=None,
     )

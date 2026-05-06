@@ -64,6 +64,7 @@ def build_five_stage_strategy(ctx: StrategyContext) -> KnowledgeStrategy:
         prompts_dir=ctx.prompts_dir,
         prompt_versions=ctx.prompt_versions,
         triage_threshold=ctx.triage_threshold,
+        bypass_triage_gate=ctx.bypass_triage_gate,
         learning_tracks_text=ctx.learning_tracks_text,
     )
     return pipeline
