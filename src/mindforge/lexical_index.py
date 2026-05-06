@@ -31,7 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from .cards import CardSummary, extract_section, read_card_body
+from .cards import CardSummary, extract_section, iter_cards, read_card_body
+from .config import MindForgeConfig
 
 SCHEMA_VERSION = 1
 
@@ -721,6 +722,52 @@ class IndexStaleness:
     changed: tuple[str, ...]    # mtime 漂移
 
 
+@dataclass(frozen=True)
+class RebuildIndexResult:
+    """一次本地 BM25 index rebuild 的结构化结果。
+
+    中文学习型说明：approve 成功后默认刷新 recall index，但这不是新的知识
+    状态转换，也不接触 LLM / .env / source 原文。把 rebuild 封装成纯本地 helper，
+    可以避免 CLI 和 approve 分别复制索引构建流程。
+    """
+
+    path: Path
+    card_count: int
+    avgdl: float
+    config_hash: str
+    built_at: str
+    scan_error_count: int
+
+
+def rebuild_index_for_config(cfg: MindForgeConfig) -> RebuildIndexResult:
+    """基于当前 active vault 全量刷新本地 BM25 index；不联网、不调 LLM。"""
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    field_weights = resolve_field_weights(cfg.search.bm25.fields)
+    config_hash = compute_config_hash(
+        field_weights=field_weights,
+        k1=cfg.search.bm25.k1,
+        b=cfg.search.bm25.b,
+    )
+    index = build_index(
+        scan.cards,
+        field_weights=field_weights,
+        k1=cfg.search.bm25.k1,
+        b=cfg.search.bm25.b,
+        config_hash=config_hash,
+    )
+    path = default_index_path(cfg.state.workdir)
+    index.save(path)
+    return RebuildIndexResult(
+        path=path,
+        card_count=len(index.docs),
+        avgdl=index.avgdl,
+        config_hash=config_hash,
+        built_at=index.built_at,
+        scan_error_count=len(scan.errors),
+    )
+
+
 def diff_index(index: BM25Index | None, current_cards: Iterable[CardSummary]) -> IndexStaleness:
     """对比索引与当前 cards，给出 added / removed / changed 列表（仅前 20 项）。
 
@@ -778,7 +825,9 @@ __all__ = [
     "IndexFormatError",
     "IndexNotFoundError",
     "IndexStaleness",
+    "RebuildIndexResult",
     "build_index",
+    "rebuild_index_for_config",
     "search",
     "hybrid_search",
     "default_index_path",

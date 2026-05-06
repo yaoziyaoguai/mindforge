@@ -132,6 +132,88 @@ def test_approve_accepts_existing_cwd_relative_card_path(
     assert _read_fm(card)["status"] == "human_approved"
 
 
+def test_approve_list_shows_short_refs_and_numbered_tasks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve list 是待办列表：短编号是主路径，长 --card path 只留作详情。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(app, ["approve", "list", "--config", str(cfg_path)])
+
+    assert r.exit_code == 0, r.output
+    assert "[1]" in r.output
+    assert card.stem.removeprefix("20260505--") in r.output or card.stem in r.output
+    assert "mindforge approve 1 --confirm" in r.output
+    assert "full_path" in r.output
+
+
+def test_approve_without_args_shows_pending_review_without_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """无参数 approve 是 review 入口，不是错误，也不能偷偷批准。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, ["approve", "--config", str(cfg_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Approve Todo" in result.output
+    assert "mindforge approve 1 --confirm" in result.output
+    assert _read_fm(card)["status"] == "ai_draft"
+
+
+def test_approve_number_ref_promotes_and_rebuilds_recall_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用户可以用短编号批准；批准后默认刷新 BM25 index，recall 立即可用。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    approved = runner.invoke(app, ["approve", "1", "--config", str(cfg_path), "--confirm"])
+    listed = runner.invoke(app, ["approve", "list", "--config", str(cfg_path)])
+    recall = runner.invoke(app, ["recall", "--config", str(cfg_path), "--query", "agent"])
+
+    assert approved.exit_code == 0, approved.output
+    assert "recall index updated" in approved.output
+    assert _read_fm(card)["status"] == "human_approved"
+    assert listed.exit_code == 0, listed.output
+    assert "没有待 approve 的卡片" in listed.output
+    assert recall.exit_code == 0, recall.output
+    assert "agent" in recall.output.lower()
+
+
+def test_approve_ambiguous_ref_does_not_promote_any_card(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """模糊 ref 必须列候选并退出，避免把错误卡片写入长期记忆。"""
+
+    cfg_path, vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    cards_dir = vault / "20-Knowledge-Cards" / "agent-runtime"
+    one = cards_dir / "20260506--alpha-note.md"
+    two = cards_dir / "20260506--alpha-notebook.md"
+    for path, title in ((one, "Alpha Note"), (two, "Alpha Notebook")):
+        path.write_text(
+            "---\n"
+            f"id: {path.stem}\n"
+            f"title: {title}\n"
+            "status: ai_draft\n"
+            "track: agent-runtime\n"
+            "---\n\n"
+            "## AI Summary\nalpha body\n",
+            encoding="utf-8",
+        )
+
+    result = runner.invoke(app, ["approve", "alpha", "--config", str(cfg_path), "--confirm"])
+
+    assert result.exit_code == 2, result.output
+    assert "ambiguous" in result.output
+    assert "alpha-note" in result.output
+    assert "alpha-notebook" in result.output
+    assert _read_fm(one)["status"] == "ai_draft"
+    assert _read_fm(two)["status"] == "ai_draft"
+
+
 def test_approve_missing_card_error_explains_path_resolution(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

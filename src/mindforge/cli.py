@@ -172,7 +172,7 @@ app = typer.Typer(
         "  watch add <path>             — 注册 watched source，并立即生成 ai_draft\n"
         "  import <path>                — 一次性导入文件/文件夹，不加入 watch registry\n"
         "  scan / process / status      — advanced/troubleshooting 底层 pipeline 命令\n"
-        "  approve --card <path>        — 把 ai_draft 卡片晋升为 human_approved\n"
+        "  approve list / approve 1    — 查看并显式确认 ai_draft，晋升为 human_approved\n"
         "  recall / review due          — 检索与复习已审核卡片\n"
         "  project context <name> [...] — 拼装可粘贴给编程助手的项目上下文包\n"
         "  project update-evidence <n>  — 幂等写入 30-Projects/<n>.md 受控区块\n"

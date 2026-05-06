@@ -205,7 +205,7 @@ def next_steps_hint() -> list[str]:
         "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md   # 注册并立即生成 ai_draft",
         "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
         "7) mindforge approve list  # 看看产出哪些 ai_draft",
-        "8) mindforge approve --card 20-Knowledge-Cards/...md --confirm  # 显式人工 approve",
+        "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
         "9) mindforge review due / mindforge recall --query <keyword> / mindforge project context  # 日用",
         "10) mindforge scan / mindforge process --profile fake --limit 1  # advanced/troubleshooting",
         "11) mindforge doctor       # 任何时刻自检",

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import click
 import typer
+from typer.core import TyperGroup
 
 from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
 from .config import MindForgeConfig
@@ -21,7 +23,56 @@ from .run_logger import RunLogger
 # ---------------------------------------------------------------------------
 
 
+class ApproveGroup(TyperGroup):
+    """允许 ``mindforge approve <ref>`` 与子命令共存。
+
+    Typer group 默认会把第一个非 option token 当子命令；但 approve UX 需要
+    ``approve 1`` 这种短 ref。这里仅在未知子命令时把 token 解释为 pending
+    ref，不改变 list/show 等真实子命令的解析。
+    """
+
+    def get_command(
+        self,
+        ctx: click.Context,
+        cmd_name: str,
+    ) -> click.Command | None:
+        command = super().get_command(ctx, cmd_name)
+        if command is not None or cmd_name.startswith("-"):
+            return command
+        return click.Command(
+            name=cmd_name,
+            params=[
+                click.Option(
+                    ["--confirm"],
+                    is_flag=True,
+                    default=False,
+                    help="真正写入 human_approved 所需的显式确认。",
+                ),
+                click.Option(
+                    ["--no-index"],
+                    is_flag=True,
+                    default=False,
+                    help="approve 成功后不自动刷新 recall index（高级/排错用）。",
+                ),
+                click.Option(
+                    ["--config", "-c"],
+                    type=click.Path(path_type=Path),
+                    default=Path("configs/mindforge.yaml"),
+                    help="mindforge.yaml 路径",
+                ),
+            ],
+            callback=lambda confirm, no_index, config: _approve_ref_entry(
+                cmd_name,
+                config=config,
+                confirm=confirm,
+                no_index=no_index,
+            ),
+            help="Approve one pending card by short ref.",
+        )
+
+
 approve_app = typer.Typer(
+    cls=ApproveGroup,
     no_args_is_help=False,
     help=(
         "把 Knowledge Card 从 ai_draft 显式晋升为 human_approved。\n\n"
@@ -31,16 +82,19 @@ approve_app = typer.Typer(
         "  - 如果允许 LLM 自动 approve，AI 误差会被无限放大；MindForge 的"
         "差异化前提之一就是 source-grounded + human-approved。\n\n"
         "常用：\n"
-        "  approve --card <path> --confirm     — 单卡晋升（最安全主路径）\n"
+        "  approve list                        — 列出待确认 ai_draft（含短编号）\n"
+        "  approve 1 --confirm                 — 用短编号显式晋升，并刷新 recall index\n"
+        "  approve --card <path> --confirm     — 高级路径模式，继续兼容长 card path\n"
         "  approve --source-id <id> --confirm  — 基于 state.json 反查卡片再晋升\n"
-        "  approve list              — 列出可 approve 的 ai_draft 卡片（安全摘要）\n"
-        "  approve --all --dry-run   — 预览批量晋升（不写文件）\n"
+        "  approve --all --dry-run             — 预览批量晋升（不写文件）\n"
     ),
 )
 
 def _do_single_approve(
     card_path: Path,
     cfg: MindForgeConfig,
+    *,
+    update_index: bool = True,
 ) -> None:
     """单卡晋升执行体（callback / source-id 路径共用）。"""
     from .approval_service import approve_explicit_card
@@ -64,6 +118,15 @@ def _do_single_approve(
 
         assert result.effect is not None
         effect = result.effect
+        index_result = None
+        index_error = None
+        if update_index and effect.kind == "approved":
+            try:
+                from .lexical_index import rebuild_index_for_config
+
+                index_result = rebuild_index_for_config(cfg)
+            except Exception as exc:  # pragma: no cover - 异常路径由 CLI 输出兜底
+                index_error = f"{type(exc).__name__}: {exc}"
 
         completed_fields: dict[str, object] = {
             "card_path": str(effect.card_path),
@@ -76,9 +139,54 @@ def _do_single_approve(
             completed_fields["approved_at"] = effect.approved_at.isoformat()
         if effect.state_missing:
             completed_fields["state_missing"] = True
+        if index_error is not None:
+            completed_fields["index_error"] = index_error
         logger.emit("approval_completed", **completed_fields)
 
-    render_execution_success(console, result)
+    render_execution_success(
+        console,
+        result,
+        index_updated=index_result,
+        index_error=index_error,
+    )
+
+
+def _approve_ref_entry(
+    ref: str,
+    *,
+    config: Path,
+    confirm: bool,
+    no_index: bool,
+) -> None:
+    """``mindforge approve <ref>`` 的动态子命令入口。
+
+    Click/Typer group 默认把 ``<ref>`` 当子命令；这里在自定义 group 中把未知
+    子命令解释为 pending ref，但仍要求 ``--confirm`` 才会触发写入。
+    """
+    from .approval_refs import resolve_pending_approval_ref
+    from .approve_presenter import render_ref_lookup_error
+
+    cfg = load_cfg(config, read_env=False)
+    render_active_vault_resolution_notice(cfg)
+    lookup = resolve_pending_approval_ref(cfg, ref)
+    if lookup.error is not None:
+        render_ref_lookup_error(console, lookup)
+        raise typer.Exit(code=lookup.error.exit_code)
+    assert lookup.card_path is not None
+    if not confirm:
+        target = lookup.match
+        label = target.short_ref if target is not None else str(lookup.card_path)
+        console.print(
+            "[red]approve requires --confirm before writing human_approved.[/red]"
+        )
+        console.print(
+            f"Resolved target: {label} -> {lookup.card_path}\n"
+            "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
+            f"Safe preview: mindforge approve show --card {lookup.card_path} --config {config}",
+            markup=False,
+        )
+        raise typer.Exit(code=2)
+    _do_single_approve(lookup.card_path, cfg, update_index=not no_index)
 
 
 @approve_app.callback(invoke_without_command=True)
@@ -115,6 +223,11 @@ def approve(
         min=0,
         help="--all 时最多处理多少张（0=全部）",
     ),
+    no_index: bool = typer.Option(
+        False,
+        "--no-index",
+        help="approve 成功后不自动刷新 recall index（高级/排错用）。",
+    ),
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"),
         "--config",
@@ -141,7 +254,7 @@ def approve(
                 markup=False,
             )
             raise typer.Exit(code=2)
-        _do_single_approve(card, cfg)
+        _do_single_approve(card, cfg, update_index=not no_index)
         return
 
     # ── --source-id：state.json 反查 card_path ───────────────────
@@ -165,7 +278,7 @@ def approve(
                 markup=False,
             )
             raise typer.Exit(code=2)
-        _do_single_approve(lookup.card_path, cfg)
+        _do_single_approve(lookup.card_path, cfg, update_index=not no_index)
         return
 
     # ── --all 批量路径 ──────────────────────────────────────────
@@ -173,11 +286,15 @@ def approve(
         _do_bulk_approve(cfg, dry_run=dry_run, confirm=confirm, limit=limit)
         return
 
-    # 没给任何动作 → 友好提示
-    from .approve_presenter import render_routing_hint
+    # 没给任何动作 → 安全进入 pending review 入口；只展示，不写入。
+    from .approval_service import ApprovalListQuery, list_approval_candidates
+    from .approve_presenter import render_approval_list
 
-    render_routing_hint(console)
-    raise typer.Exit(code=2)
+    res = list_approval_candidates(
+        cfg,
+        ApprovalListQuery(statuses=("ai_draft",), limit=50),
+    )
+    render_approval_list(console, res, wanted_statuses={"ai_draft"})
 
 
 def _do_bulk_approve(

@@ -119,7 +119,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("mindforge approve list", "查看待人工批准的草稿"),
             ("mindforge approve show --card PATH", "预览单张草稿安全摘要"),
-            ("mindforge approve --card PATH", "把单张卡片晋升为 human_approved"),
+            ("mindforge approve 1 --confirm", "用短编号把单张卡片晋升为 human_approved"),
             ("mindforge approve --all --dry-run", "批量预览；不会自动 approve"),
         ],
     ),

@@ -48,16 +48,16 @@ cd /Users/jinkun.wang/MindForgeVault
 mindforge watch list
 mindforge watch add 00-Inbox/ManualNotes/first-note.md
 mindforge approve list
-mindforge approve show --card <path> --show-content
-mindforge approve --card <path> --confirm
-mindforge library stats
-mindforge library list
-mindforge index rebuild
+mindforge approve 1 --confirm
 mindforge recall --query "MindForge"
 ```
 
 第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
-为 `human_approved`。默认 `fake` provider 不调用真实 LLM。
+为 `human_approved`。`mindforge approve list` 会显示 `[1]` 这样的短编号、
+short ref 和 source 摘要；`mindforge approve 1 --confirm` 是显式人工动作，
+不是自动 approve。approve 成功后 MindForge 会默认刷新本地 recall index，
+所以通常不需要手动运行 `mindforge index rebuild`。默认 `fake` provider
+不调用真实 LLM。
 
 `watch add` 的第一版不是后台监听：它会注册这个文件或文件夹，并立即处理当前
 内容生成 `ai_draft`。未来的 polling / filesystem hook 会接在 watched source
@@ -251,14 +251,15 @@ the human decision gate.
 | `mindforge watch add <file-or-folder>` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
 | `mindforge watch delete <file-or-folder-or-id>` | 只删除 watched source registry 记录，不删除 source 或 cards |
 | `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources |
-| `mindforge approve list` | 查看 `ai_draft` |
+| `mindforge approve list` | 查看待确认 `ai_draft`，带短编号 / short ref |
 | `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
-| `mindforge approve --card <path> --confirm` | 显式确认生成 `human_approved` |
-| `mindforge library stats` | 查看知识库总览、状态计数、index 状态 |
-| `mindforge library list` | 列出卡片 metadata 和 source provenance |
-| `mindforge library show <card-id-or-path>` | 查看单张卡片 metadata；`--show-content` 才显示 card body |
-| `mindforge index rebuild` | 刷新本地 BM25 index |
+| `mindforge approve 1 --confirm` | 用短编号显式确认生成 `human_approved`，并默认刷新 recall index |
+| `mindforge approve --card <path> --confirm` | 高级路径模式；仍然兼容长 card path |
 | `mindforge recall --query "query"` | 本地词法召回，不是 RAG |
+| `mindforge library stats` | Inspect：查看知识库总览、状态计数、index 状态 |
+| `mindforge library list` | Inspect：列出卡片 metadata 和 source provenance |
+| `mindforge library show <card-id-or-path>` | Inspect：查看单张卡片 metadata；`--show-content` 才显示 card body |
+| `mindforge index rebuild` | Advanced：手动刷新本地 BM25 index |
 
 ### Advanced / Troubleshooting
 
@@ -332,8 +333,11 @@ Readiness checks show key presence only and do not call the provider.
 ### Approval
 
 Approval is the only supported `ai_draft -> human_approved` transition.
-`mindforge approve list` and `mindforge approve show --card <path>` are review
-steps. `mindforge approve --card <path> --confirm` is the write boundary.
+`mindforge approve list` is the main pending review queue. It shows short
+numbers and refs so the usual write action is `mindforge approve 1 --confirm`.
+`mindforge approve --card <path> --confirm` remains available as the advanced
+path mode. After a successful approve, MindForge refreshes the local recall
+index by default; use `--no-index` only for troubleshooting.
 
 ### Standard Quality Gate
 

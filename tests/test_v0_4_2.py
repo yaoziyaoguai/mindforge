@@ -393,7 +393,7 @@ def test_approve_list_outputs_todo_view_without_auto_approving(tmp_path: Path) -
     assert "Demo source" in res.output
     assert "2026-01-02T03:04" in res.output
     assert "不会自动 approve" in res.output
-    assert "mindforge approve --card" in res.output
+    assert "mindforge approve 1 --confirm" in res.output
     assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 

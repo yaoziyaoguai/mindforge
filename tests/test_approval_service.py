@@ -22,6 +22,7 @@ from mindforge.approval_service import (
     preview_approval_card,
     resolve_candidate_by_card_id,
 )
+from mindforge.approval_refs import resolve_pending_approval_ref
 from mindforge.config import MindForgeConfig, load_mindforge_config
 
 
@@ -237,6 +238,61 @@ def test_card_id_lookup_returns_structured_errors(tmp_path: Path) -> None:
     assert nonexistent.error is not None
     assert nonexistent.error.kind == "card_id_not_found"
     assert found.card_path == card.resolve()
+
+
+def test_pending_ref_lookup_accepts_number_short_ref_slug_and_card_id(tmp_path: Path) -> None:
+    """短 ref 只解析当前 pending ai_draft，简化 UX 但不替用户执行 approve。"""
+
+    cfg, cards, _note = _make_cfg(tmp_path)
+    first = _write_card(
+        cards,
+        "20260506--folder-note-1",
+        {"id": "card-folder-1", "title": "Folder Note 1", "status": "ai_draft"},
+    )
+    second = _write_card(
+        cards,
+        "20260506--watch-test-note",
+        {"id": "card-watch", "title": "Watch Test Note", "status": "ai_draft"},
+    )
+    _write_card(
+        cards,
+        "approved",
+        {"id": "approved", "title": "Approved Note", "status": "human_approved"},
+    )
+
+    by_number = resolve_pending_approval_ref(cfg, "1")
+    by_slug = resolve_pending_approval_ref(cfg, "watch-test-note")
+    by_card_id = resolve_pending_approval_ref(cfg, "card-folder-1")
+
+    assert by_number.card_path == first.resolve()
+    assert by_number.match is not None
+    assert by_number.match.number == 1
+    assert by_number.match.short_ref == "folder-note-1"
+    assert by_slug.card_path == second.resolve()
+    assert by_card_id.card_path == first.resolve()
+
+
+def test_pending_ref_lookup_rejects_ambiguous_prefix_without_approving(tmp_path: Path) -> None:
+    """模糊 ref 只能返回候选，不能猜一张卡片晋升。"""
+
+    cfg, cards, _note = _make_cfg(tmp_path)
+    _write_card(
+        cards,
+        "20260506--alpha-note",
+        {"id": "alpha-one", "title": "Alpha Note", "status": "ai_draft"},
+    )
+    _write_card(
+        cards,
+        "20260506--alpha-notebook",
+        {"id": "alpha-two", "title": "Alpha Notebook", "status": "ai_draft"},
+    )
+
+    lookup = resolve_pending_approval_ref(cfg, "alpha")
+
+    assert lookup.error is not None
+    assert lookup.error.kind == "ambiguous_ref"
+    assert lookup.card_path is None
+    assert [m.short_ref for m in lookup.matches] == ["alpha-note", "alpha-notebook"]
 
 
 def test_malformed_card_returns_structured_error(tmp_path: Path) -> None:

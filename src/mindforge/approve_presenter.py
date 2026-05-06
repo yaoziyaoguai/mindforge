@@ -63,6 +63,10 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from .approval_refs import (
+    ApprovalRefLookupResult,
+    build_pending_approval_refs_from_rows,
+)
 from .approval_service import (
     APPROVAL_PREVIEW_FIELDS,
     ApprovalCardLookupResult,
@@ -164,33 +168,38 @@ def render_approval_list(
             "MindForge 不会自动 approve。[/dim]"
         )
         return
+    refs = build_pending_approval_refs_from_rows(rows)
     table = Table(
         title=f"Approve Todo · {len(rows)} pending (status in {sorted(wanted_statuses)})"
     )
     for col in (
+        "ref",
         "title",
         "source",
         "created",
-        "track",
+        "short ref",
         "risk / safety",
         "next command",
     ):
         table.add_column(col, overflow="fold")
-    for c in rows:
+    for c, ref in zip(rows, refs, strict=False):
         table.add_row(
+            f"[{ref.number}]",
             c.title or "?",
             format_card_source_hint(c),
             format_card_created_at(c),
-            c.track or "-",
+            ref.short_ref,
             "ai_draft，需要人工确认；不会自动 approve",
-            approve_next_command(c),
+            f"mindforge approve {ref.number} --confirm",
         )
     console.print(table)
     console.print("[bold]Todo commands[/bold]")
-    for c in rows:
+    for c, ref in zip(rows, refs, strict=False):
         console.print(
-            f"- {c.title or '?'} · source={format_card_source_hint(c)} · "
-            f"created={format_card_created_at(c)} · next=`{approve_next_command(c)}`",
+            f"- [{ref.number}] {c.title or '?'} · short_ref={ref.short_ref} · "
+            f"source={format_card_source_hint(c)} · created={format_card_created_at(c)} · "
+            f"next=`mindforge approve {ref.number} --confirm` · "
+            f"full_path={c.rel_path}",
             markup=False,
         )
     console.print(
@@ -291,6 +300,9 @@ def render_execution_failure(
 def render_execution_success(
     console: Console,
     result: ApprovalExecutionResult,
+    *,
+    index_updated: object | None = None,
+    index_error: str | None = None,
 ) -> None:
     """渲染 ``approve_explicit_card`` 成功 / 幂等结果。
 
@@ -311,11 +323,23 @@ def render_execution_success(
         f"(prev={effect.prev_status} → {effect.new_status}, "
         f"method={effect.approval_method})"
     )
+    if index_updated is not None:
+        path = getattr(index_updated, "path", None)
+        count = getattr(index_updated, "card_count", None)
+        console.print(
+            f"approved and recall index updated (cards={count}, path={path})",
+            markup=False,
+        )
+    elif index_error is not None:
+        console.print(
+            "[yellow]approved, but recall index update failed.[/yellow] "
+            f"Run `mindforge index rebuild` manually. error={index_error}",
+            markup=False,
+        )
     console.print(
         "[dim]边界：这是一次显式人工 approve；MindForge 不会让 AI 自动写入 "
-        "human_approved。下一步先运行 `mindforge index rebuild`，再运行 "
-        "`mindforge recall --query \"...\"` 或 `mindforge review weekly` "
-        "使用这张卡片。[/dim]"
+        "human_approved。下一步可直接运行 `mindforge recall --query \"...\"` "
+        "或 `mindforge review weekly` 使用这张卡片。[/dim]"
     )
     if effect.state_missing:
         console.print(
@@ -364,8 +388,31 @@ def render_approval_show_error(
 def render_routing_hint(console: Console) -> None:
     """``approve`` 不带任何动作时的友好提示。"""
     console.print(
-        "[yellow]请提供动作：--card <path> / --source-id <id> / "
-        "--all --dry-run / approve list[/yellow]"
+        "[yellow]Pending review：先查看待确认卡片，再用短编号显式 approve。[/yellow]"
+    )
+    console.print(
+        "Next: mindforge approve list\n"
+        "Approve one: mindforge approve 1 --confirm\n"
+        "Advanced path mode: mindforge approve --card <path> --confirm",
+        markup=False,
+    )
+
+
+def render_ref_lookup_error(console: Console, lookup: ApprovalRefLookupResult) -> None:
+    """渲染短 ref 解析失败；模糊时列出候选，绝不默认选择。"""
+    assert lookup.error is not None
+    console.print(f"[red]✗ {lookup.error.message}[/red]")
+    if lookup.matches:
+        console.print("[bold]Candidates[/bold]")
+        for match in lookup.matches[:10]:
+            console.print(
+                f"- [{match.number}] {match.title or match.short_ref} · "
+                f"short_ref={match.short_ref} · path={match.rel_path}",
+                markup=False,
+            )
+    console.print(
+        "Next: mindforge approve list; then run `mindforge approve <ref> --confirm`",
+        markup=False,
     )
 
 
@@ -405,5 +452,6 @@ __all__ = [
     "render_execution_failure",
     "render_execution_success",
     "render_lookup_error",
+    "render_ref_lookup_error",
     "render_routing_hint",
 ]

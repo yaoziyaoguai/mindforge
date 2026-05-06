@@ -555,28 +555,16 @@ def index_rebuild(
     Knowledge Card 的安全字段；无网络、无 LLM。
     """
     from . import lexical_index as lx
-    from .cards import iter_cards
 
     cfg = load_cfg(config, read_env=False)
     render_active_vault_resolution_notice(cfg)
-    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    if scan.errors:
-        console.print(f"[yellow]跳过 {len(scan.errors)} 张损坏卡片[/yellow]")
-    fw = lx.resolve_field_weights(cfg.search.bm25.fields)
-    cur_hash = lx.compute_config_hash(field_weights=fw, k1=cfg.search.bm25.k1, b=cfg.search.bm25.b)
-    index = lx.build_index(
-        scan.cards,
-        field_weights=fw,
-        k1=cfg.search.bm25.k1,
-        b=cfg.search.bm25.b,
-        config_hash=cur_hash,
-    )
-    idx_path = lx.default_index_path(cfg.state.workdir)  # type: ignore[attr-defined]
-    index.save(idx_path)
+    result = lx.rebuild_index_for_config(cfg)
+    if result.scan_error_count:
+        console.print(f"[yellow]跳过 {result.scan_error_count} 张损坏卡片[/yellow]")
     console.print(
-        f"[green]✓ 索引已写入[/green] {idx_path} · "
-        f"卡片={len(index.docs)} · avgdl={index.avgdl:.1f} · "
-        f"config_hash={cur_hash} · 时间={index.built_at}"
+        f"[green]✓ 索引已写入[/green] {result.path} · "
+        f"卡片={result.card_count} · avgdl={result.avgdl:.1f} · "
+        f"config_hash={result.config_hash} · 时间={result.built_at}"
     )
 
 

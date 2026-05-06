@@ -387,8 +387,11 @@ def test_approve_source_id_resolves_card(tmp_path: Path) -> None:
 def test_approve_no_args_friendly_hint(tmp_path: Path) -> None:
     cfg_path = _make_min_cfg(tmp_path)
     res = runner.invoke(app, ["approve", "--config", str(cfg_path)])
-    assert res.exit_code == 2
-    assert "--card" in res.output
+    assert res.exit_code == 0
+    assert "Approve Todo" in res.output
+    assert "mindforge approve 1 --confirm" in res.output
+    card = tmp_path / "vault" / "20-Knowledge-Cards" / "c1.md"
+    assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

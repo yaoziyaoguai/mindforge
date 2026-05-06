@@ -265,7 +265,8 @@ def test_process_library_approve_index_recall_share_fresh_cwd_vault(
     index = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
     assert index.exit_code == 0, index.output
     assert f"using cwd vault; configured vault is {configured}" in index.output
-    assert "ExternalMindForgeVault/.mindforge/index" in index.output
+    assert "ExternalMindForgeVault/.mindforge" in index.output
+    assert "bm25.json" in index.output
     assert "bm25.json" in index.output
     assert (fresh / ".mindforge" / "index" / "bm25.json").exists()
     assert not (configured / ".mindforge" / "index" / "bm25.json").exists()
