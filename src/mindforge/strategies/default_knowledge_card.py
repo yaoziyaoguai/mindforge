@@ -72,8 +72,8 @@ STRATEGY_VERSION = "0.10.0"
 ENVELOPE_SCHEMA_VERSION = "1"
 STRATEGY_DISPLAY_NAME = "Default Knowledge Card"
 STRATEGY_DESCRIPTION = (
-    "离线确定性策略：从 source 文本派生 10 字段 structured_payload，"
-    "全程不依赖 LLM / .env / 网络；适合作为 fake-first 默认策略与回退路径。"
+    "内部确定性基线：仅用于 schema/card writer/debug 测试；"
+    "不执行生产 prompt pipeline，也不参与默认策略选择。"
 )
 # v0.11 Slice 2：UX 元数据。三项常量帮助 CLI strategies list 向用户解释
 # "我能在离线跑吗 / 我会自动 approve 吗 / 我吐什么 envelope"。
@@ -81,8 +81,8 @@ STRATEGY_PROVIDER_MODE = "deterministic"
 STRATEGY_SAFETY_POLICY = "ai_draft_only"
 STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 # v0.11 Slice 3：生命周期状态。受控集合 {implemented, preview, planned}。
-# 本策略已是生产路径默认 fake-first 的事实承担者，标记为 implemented，
-# 与 Slice 3 Red 不变量（"已跑通的两个策略不可被降级"）对齐。
+# 本策略作为内部确定性基线保留 implemented，供 schema/card writer/debug
+# 单测使用；它不是 production default，也不是 fallback。
 STRATEGY_STATUS = "implemented"
 STRATEGY_ROLE = "internal_baseline"
 STRATEGY_PRODUCTION_READY = False

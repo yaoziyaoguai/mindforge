@@ -155,9 +155,11 @@ def strategies_show(
         console.print("  executable: yes")
     console.print("  prompt_versions:")
     for stage, version in _default_prompt_versions().items():
-        # 当前只有 five_stage 消费五段 prompt；其它 deterministic / planned
-        # strategy 仍展示“not used”，避免用户误以为每个策略都会调这些 prompt。
-        suffix = "" if meta.strategy_id == DEFAULT_STRATEGY_NAME else " (not used by this strategy)"
+        # 中文学习型说明：five_stage 是 knowledge_card 的 legacy alias，本质仍
+        # 是同一条生产 prompt pipeline；只有 internal deterministic/planned
+        # strategy 才标注 not used，避免误导用户以为 legacy alias 不用 prompts。
+        uses_default_prompts = meta.canonical_id == DEFAULT_STRATEGY_NAME
+        suffix = "" if uses_default_prompts else " (not used by this strategy)"
         console.print(f"    {stage}: {version}{suffix}")
 
 

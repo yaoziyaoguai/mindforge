@@ -44,6 +44,7 @@ def test_strategies_show_displays_single_strategy_details_without_execution() ->
     ):
         assert stage in out
         assert "v1" in out
+    assert "(not used by this strategy)" not in out
 
 
 def test_strategies_show_planned_strategy_requires_internal_flag() -> None:

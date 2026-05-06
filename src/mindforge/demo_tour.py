@@ -13,7 +13,7 @@ vault 写入** 的方式, 把 SourceDocument → ai_draft → review packet →
 obsidian dry-run 这条主链路 **跑给用户看一眼**, 让他们知道:
 
 - MindForge 装好了;
-- fake provider 默认安全路径走得通;
+- 离线 LLM 测试替身路径走得通;
 - 真实数据接入的下一步是 ``dogfood quickstart``。
 
 这就是 ``demo_tour`` 的唯一职责: **纯编排** 已有命令的 service 层

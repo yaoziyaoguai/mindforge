@@ -62,6 +62,10 @@ def test_strategies_list_include_internal_shows_debug_fixtures() -> None:
     assert "concept_extraction" in out
     assert "action_item" in out
     assert "internal_baseline" in out
+    assert "fake-first" not in out
+    assert "回退路径" not in out
+    assert "默认离线可跑" not in out
+    assert "fake provider 默认" not in out
 
 
 def test_strategies_show_legacy_alias_explains_canonical_strategy() -> None:
@@ -71,6 +75,7 @@ def test_strategies_show_legacy_alias_explains_canonical_strategy() -> None:
     assert "legacy alias" in result.output.lower()
     assert "knowledge_card" in result.output
     assert "Knowledge Card Strategy" in result.output
+    assert "(not used by this strategy)" not in result.output
 
 
 def test_internal_strategy_show_requires_include_internal() -> None:

@@ -60,7 +60,7 @@ Service 边界（运行时禁止）
 8. 写正式 Obsidian notes；
 9. RAG / embedding；
 10. 改变 processor 主链路；
-11. 改变 fake provider 默认安全路径；
+11. 改变 provider/LLM 测试替身的离线边界；
 12. 承担 Markdown / JSON / Rich 输出。
 
 与 ``safety_policy.py`` 的关系
