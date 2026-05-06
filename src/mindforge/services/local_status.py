@@ -170,6 +170,7 @@ def _vault_status(cfg: MindForgeConfig) -> dict[str, Any]:
         },
         "is_real_environment": _is_real_environment(root),
         "resolution": {
+            "active_root": active_meta.get("root") if isinstance(active_meta, dict) else str(root),
             "reason": active_meta.get("reason") if isinstance(active_meta, dict) else None,
             "configured_root": (
                 active_meta.get("configured_root") if isinstance(active_meta, dict) else None

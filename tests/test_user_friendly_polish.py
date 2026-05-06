@@ -128,7 +128,8 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
 def test_readme_marks_fake_and_scan_process_as_non_primary_paths() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     assert "Offline demo / CI / Testing" in text
-    assert "mindforge process --profile fake" in text
+    assert "mindforge process --provider fake" in text
+    assert "--profile" in text and "legacy alias" in text
     assert "Advanced / Troubleshooting" in text
     assert "scan/process" in text
 
@@ -139,10 +140,14 @@ def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     quickstart = text.split("## Quick Start", 1)[1].split("\n## ", 1)[0]
 
-    assert "cd /Users/jinkun.wang/MindForgeVault" in quickstart
+    assert "cd /tmp/mindforge-first-run" in quickstart
+    assert "project root" in quickstart
+    assert "vault.root` 默认是相对 project root 的 `vault`" in quickstart
     assert "cwd-first / vault-first" in quickstart
     assert "explicit `--vault`" in quickstart
     assert "cwd/ancestor vault" in quickstart
-    assert "only needs `00-Inbox/`" in quickstart
+    assert "project-root-relative" in quickstart
+    assert "active-vault-relative" in quickstart
+    assert "only\nneeds `00-Inbox/`" in quickstart
     assert "configs/mindforge.yaml" in quickstart
     assert 'mindforge recall --query "MindForge"' in quickstart

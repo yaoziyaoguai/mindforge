@@ -227,7 +227,9 @@ def test_status_uses_fresh_cwd_vault_when_configured_vault_differs(
 
     assert result.exit_code == 0, result.output
     assert "ExternalMindForgeVault" in result.output
-    assert f"using cwd vault; configured vault is {configured}" in result.output
+    assert f"active vault          : {fresh}" in result.output
+    assert "vault source          : cwd vault" in result.output
+    assert f"fallback candidate only: {configured}" in result.output
 
 
 def test_process_library_approve_index_recall_share_fresh_cwd_vault(
@@ -242,7 +244,9 @@ def test_process_library_approve_index_recall_share_fresh_cwd_vault(
     process = runner.invoke(app, ["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"])
     assert process.exit_code == 0, process.output
     assert "external-smoke-note.md" in process.output
-    assert f"using cwd vault; configured vault is {configured}" in process.output
+    assert f"active vault: {fresh}" in process.output
+    assert "vault source: cwd vault" in process.output
+    assert f"configured vault is fallback candidate only: {configured}" in process.output
     assert "Next: mindforge approve list --vault" in process.output
     assert "ExternalMindForgeVault" in process.output
     assert not list(configured.joinpath("20-Knowledge-Cards").rglob("*.md"))
@@ -250,21 +254,21 @@ def test_process_library_approve_index_recall_share_fresh_cwd_vault(
     library_draft = runner.invoke(app, ["library", "list", "--config", str(cfg)])
     assert library_draft.exit_code == 0, library_draft.output
     assert "external-smoke-note" in library_draft.output
-    assert f"using cwd vault; configured vault is {configured}" in library_draft.output
+    assert f"configured vault is fallback candidate only: {configured}" in library_draft.output
 
     card = next(fresh.joinpath("20-Knowledge-Cards").rglob("*.md"))
     rel_card = card.relative_to(fresh).as_posix()
     show = runner.invoke(app, ["approve", "show", "--card", rel_card, "--config", str(cfg)])
     assert show.exit_code == 0, show.output
-    assert f"using cwd vault; configured vault is {configured}" in show.output
+    assert f"configured vault is fallback candidate only: {configured}" in show.output
     approve = runner.invoke(app, ["approve", "--card", rel_card, "--confirm", "--config", str(cfg)])
     assert approve.exit_code == 0, approve.output
-    assert f"using cwd vault; configured vault is {configured}" in approve.output
+    assert f"configured vault is fallback candidate only: {configured}" in approve.output
     assert read_card_frontmatter(card)["status"] == "human_approved"
 
     index = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
     assert index.exit_code == 0, index.output
-    assert f"using cwd vault; configured vault is {configured}" in index.output
+    assert f"configured vault is fallback candidate only: {configured}" in index.output
     assert "ExternalMindForgeVault/.mindforge" in index.output
     assert "bm25.json" in index.output
     assert "bm25.json" in index.output
@@ -275,5 +279,5 @@ def test_process_library_approve_index_recall_share_fresh_cwd_vault(
     assert recall.exit_code == 0, recall.output
     assert f"Vault: vault.root={fresh}" in recall.output
     assert "external-smoke-note" in recall.output
-    assert f"using cwd vault; configured vault is {configured}" in recall.output
+    assert f"configured vault is fallback candidate only: {configured}" in recall.output
     assert str(fresh / ".mindforge" / "index" / "bm25.json") in recall.output

@@ -15,6 +15,7 @@ from .cli_runtime import (
     console,
     load_cfg,
     render_active_vault_resolution_notice,
+    resolve_source_path_for_cli,
 )
 from .env_loader import load_dotenv_silently
 from .process_service import FAKE_PROFILE
@@ -48,11 +49,12 @@ def watch_add(
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
     render_active_vault_resolution_notice(cfg)
+    source_path = resolve_source_path_for_cli(cfg, target)
     if cfg.llm.active_profile != FAKE_PROFILE:
         # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
         load_dotenv_silently(Path.cwd())
     try:
-        summary = watch_add_source(cfg, target)
+        summary = watch_add_source(cfg, source_path)
     except RuntimeError as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc

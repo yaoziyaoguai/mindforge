@@ -241,7 +241,6 @@ def _print_rule_recall(
             sort=sort,
         )
     elif output_format == "markdown":
-        render_active_vault_resolution_notice(result.cfg)  # type: ignore[arg-type]
         _print_rule_recall_markdown(result.cards, sort=sort)
     elif output_format == "table":
         render_active_vault_resolution_notice(result.cfg)  # type: ignore[arg-type]
@@ -494,7 +493,7 @@ def _do_bm25_recall(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=2) from e
 
-    if output_format != "json":
+    if output_format not in {"json", "markdown"}:
         render_active_vault_resolution_notice(cfg)
         for warning in result.warnings:
             console.print(f"[yellow]{warning}[/yellow]")

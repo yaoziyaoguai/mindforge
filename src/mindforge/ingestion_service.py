@@ -81,6 +81,8 @@ def watch_add_source(cfg: MindForgeConfig, target: Path) -> IngestionSummary:
     未来 polling/hook 可以复用 registry 中的 fingerprint/last_seen 字段。
     """
 
+    if not target.exists():
+        raise RuntimeError(f"File not found: {target}")
     registry_path = registry_path_for_vault(cfg.vault.root)
     registry_result = add_watch_source(cfg.vault.root, registry_path, target)
     counts = _ingest_targets(cfg, registry_result.source.path, command="watch_add")
@@ -113,6 +115,8 @@ def watch_sources_for_display(cfg: MindForgeConfig) -> tuple[object, ...]:
 
 
 def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict[str, int]:
+    if not target.exists():
+        raise RuntimeError(f"File not found: {target}")
     runtime = resolve_process_runtime(
         ProcessRequest(
             cfg=cfg,
@@ -137,9 +141,15 @@ def _ingest_targets(cfg: MindForgeConfig, target: Path, *, command: str) -> dict
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
     mux = SourceMux()
+    results = list(mux.iter_deduped(discover_source_results(cfg, target)))
+    if not results:
+        # 中文学习型说明：seen=0 表示没有输入，不是一次成功处理。这里不创建
+        # RunLogger、不保存 checkpoint，避免 missing/empty import 把 processed
+        # registry、fingerprint 或 run state 污染到后续真实处理。
+        return counts
     with RunLogger(cfg.state.runs_path, command=command) as logger:
         parts.pipeline.logger = logger
-        for result in mux.iter_deduped(discover_source_results(cfg, target)):
+        for result in results:
             counts["seen"] += 1
             if not result.ok:
                 emit_source_error(result=result, logger=logger, counts=counts)

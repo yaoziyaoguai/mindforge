@@ -13,21 +13,25 @@ not embedding，也不是 Obsidian plugin。
 
 ## Quick Start: First 10 Minutes
 
-初始化你的本地工作区：
+初始化你的本地工作区。你在哪里运行 `mindforge init`，哪里就是 MindForge
+project root；默认会生成 `configs/mindforge.yaml`、`.env.example` 和
+`vault/`：
 
 ```bash
-mindforge init --interactive
+mkdir -p /tmp/mindforge-first-run
+cd /tmp/mindforge-first-run
+mindforge init
 ```
 
-MindForge 是 cwd-first / vault-first：程序安装目录只放程序，用户数据放在你
-选择的 vault 目录里。你可以选择默认路径，也可以在任意项目目录创建自己的
-local vault。
+MindForge 是 cwd-first / vault-first：程序安装目录只放程序，用户数据放在
+project root 下的 `vault/`，或你显式选择的 vault 目录里。新 init 的
+`vault.root` 默认是相对 project root 的 `vault`。
 
 创建第一条 Markdown：
 
 ```bash
-mkdir -p /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes
-cat > /Users/jinkun.wang/MindForgeVault/00-Inbox/ManualNotes/first-note.md <<'EOF'
+mkdir -p vault/00-Inbox/ManualNotes
+cat > vault/00-Inbox/ManualNotes/first-note.md <<'EOF'
 # 我的第一条 MindForge 笔记
 
 今天我开始测试 MindForge。
@@ -59,9 +63,8 @@ mindforge llm ping
 跑通最小流程：
 
 ```bash
-cd /Users/jinkun.wang/MindForgeVault
 mindforge watch list
-mindforge watch add 00-Inbox/ManualNotes/first-note.md
+mindforge watch add vault/00-Inbox/ManualNotes/first-note.md
 mindforge approve list
 mindforge approve
 mindforge approve 1 --confirm
@@ -91,9 +94,32 @@ mindforge import /path/to/file-or-folder
 `00-Inbox/` 是系统自带的 default watched source。它不是一个额外命令，也不
 需要删除；`mindforge watch list` 会展示它。
 
-Vault resolution rule: explicit `--vault` wins first, then MindForge detects a
-cwd/ancestor vault, then falls back to `configs/mindforge.yaml`. A fresh vault
-only needs `00-Inbox/` to be detected, so this works:
+Project root / vault path rules:
+
+- project root 是运行 `mindforge init` 的目录，包含 `configs/mindforge.yaml`、
+  `.env.example` / `.env` 和 `vault/`。
+- `vault.root: vault` 按 project root 解析，不按任意 shell cwd 解析。
+- `import` / `watch add` 支持 absolute path、cwd-relative、
+  project-root-relative 和 active-vault-relative。
+- 找不到路径时会明确报 `File not found`，并打印 cwd / project root /
+  active vault / tried candidates。
+
+例如这些都可以：
+
+```bash
+cd /tmp/mindforge-first-run
+mindforge import vault/00-Inbox/ManualNotes/first-note.md
+
+cd /tmp/mindforge-first-run/vault
+mindforge import 00-Inbox/ManualNotes/first-note.md
+
+mindforge import /tmp/mindforge-first-run/vault/00-Inbox/ManualNotes/first-note.md
+```
+
+Active vault resolution rule: explicit `--vault` wins first, then MindForge
+detects a cwd/ancestor vault, then uses project root `configs/mindforge.yaml`
+`vault.root`, then falls back to configured/bundled defaults. A fresh vault only
+needs `00-Inbox/` to be detected, so this works:
 
 ```bash
 mkdir -p /tmp/my-mindforge-vault/00-Inbox/ManualNotes
@@ -102,9 +128,9 @@ mindforge watch list
 ```
 
 If you run commands from the source repo or another non-vault directory, pass
-`--vault <path>` or run `mindforge init --interactive`. When cwd vault and
-configured vault differ, CLI output says `using cwd vault; configured vault is
-...`; Next commands print the active vault they are using.
+`--vault <path>` or run `mindforge init`. When cwd vault and configured vault
+differ, CLI output shows `project root`, `config path`, `active vault`, and
+`configured vault is fallback candidate only: ...`.
 
 ## Three Concepts You Need First
 
@@ -162,7 +188,7 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 
 这是普通用户最重要的基础配置文件。第一天只需要关心：
 
-- `vault.root`: MindForgeVault 在哪里。
+- `vault.root`: vault 在哪里；新 init 默认写 `vault`，按 project root 解析。
 - `llm.active`: 真实 dogfood 主路径可以选 `openai_compatible` 或
   `anthropic`。
 - `llm.providers.openai_compatible` / `llm.providers.anthropic`: 只声明 env
@@ -182,7 +208,7 @@ internal defaults + configs/mindforge.yaml override = effective config
 ```yaml
 version: 0.1
 vault:
-  root: /Users/jinkun.wang/MindForgeVault
+  root: vault
 llm:
   active: openai_compatible
   providers:
@@ -340,7 +366,7 @@ the human decision gate.
 
 ```bash
 mindforge scan
-mindforge process --profile fake --limit 1
+mindforge process --provider fake --limit 1
 ```
 
 普通 first-run 用户优先使用 `watch add` 或 `import`，不用先理解

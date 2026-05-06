@@ -14,7 +14,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from .app_context import AppContextError, load_app_config
+from .app_context import AppContextError, load_app_config, resolve_user_source_path
 from .config import MindForgeConfig
 from .env_loader import load_dotenv_silently
 
@@ -66,12 +66,12 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
 
 
 def active_vault_resolution_notice(cfg: MindForgeConfig) -> str | None:
-    """返回 cwd vault 覆盖 configured vault 时的用户可读说明。
+    """返回 active vault / project root / config path 的用户可读说明。
 
     中文学习型说明：active vault 决策是产品语义，不只是路径工具函数。
-    当用户站在一个 vault 里运行命令时，MindForge 应该使用 cwd/ancestor vault；
-    如果配置文件里还保留旧 vault，这里负责把"为什么没有用配置里的 vault"
-    讲清楚。JSON 命令不要调用本函数的渲染包装，避免污染机器可读输出。
+    这里只展示“本次正在用什么”，configured vault 只在确实不同且只是 fallback
+    candidate 时以说明文字出现，避免用户误以为命令写到了 configured vault。
+    JSON 命令不要调用本函数的渲染包装，避免污染机器可读输出。
     """
 
     active_meta = (
@@ -79,11 +79,25 @@ def active_vault_resolution_notice(cfg: MindForgeConfig) -> str | None:
         if isinstance(cfg.raw, dict)
         else {}
     )
-    if not isinstance(active_meta, dict) or not active_meta.get("configured_differs"):
+    project_meta = (
+        cfg.raw.get("_mindforge_project", {})
+        if isinstance(cfg.raw, dict)
+        else {}
+    )
+    if not isinstance(active_meta, dict):
         return None
-    reason = active_meta.get("reason") or "active vault"
-    configured_root = active_meta.get("configured_root") or "(unknown)"
-    return f"vault resolution: using {reason}; configured vault is {configured_root}"
+    lines = [
+        f"project root: {project_meta.get('root') or '(none detected)'}",
+        f"config path : {project_meta.get('config_path') or '(bundled/default)'}",
+        f"active vault: {active_meta.get('root') or cfg.vault.root}",
+        f"vault source: {active_meta.get('reason') or 'configured vault'}",
+    ]
+    if active_meta.get("configured_differs"):
+        lines.append(
+            "configured vault is fallback candidate only: "
+            f"{active_meta.get('configured_root') or '(unknown)'}"
+        )
+    return "\n".join(lines)
 
 
 def render_active_vault_resolution_notice(cfg: MindForgeConfig) -> None:
@@ -91,7 +105,54 @@ def render_active_vault_resolution_notice(cfg: MindForgeConfig) -> None:
 
     notice = active_vault_resolution_notice(cfg)
     if notice:
-        console.print(notice, markup=False, style="yellow", soft_wrap=True)
+        console.print(notice, markup=False, style="dim", soft_wrap=True)
+
+
+def render_source_path_not_found(resolution) -> None:
+    """展示用户 source path 解析失败；不读取文件内容、不碰 `.env`。"""
+
+    console.print(f"File not found: {resolution.original}", markup=False, style="red", soft_wrap=True)
+    console.print(f"cwd: {resolution.cwd}", markup=False, soft_wrap=True)
+    console.print(
+        f"project root: {resolution.project_root or '(none detected)'}",
+        markup=False,
+        soft_wrap=True,
+    )
+    console.print(f"active vault: {resolution.active_vault}", markup=False, soft_wrap=True)
+    console.print("tried candidates:", markup=False)
+    for candidate in resolution.tried:
+        console.print(f"  - {candidate}", markup=False, soft_wrap=True)
+    console.print(
+        "Hint: cd to the MindForge project root, pass an absolute path, or use --vault for the target vault.",
+        markup=False,
+        soft_wrap=True,
+    )
+
+
+def resolve_source_path_for_cli(cfg: MindForgeConfig, target: Path) -> Path:
+    """CLI 统一 source path 解析入口；失败时打印定位信息并以 code=2 退出。
+
+    中文学习型说明：import/watch 的业务 service 不应该理解用户 shell cwd、
+    project root 或 active vault。CLI adapter 在这里把用户输入收敛成绝对路径，
+    后续 pipeline 只处理明确存在的 source。
+    """
+
+    project_meta = cfg.raw.get("_mindforge_project", {}) if isinstance(cfg.raw, dict) else {}
+    project_root = (
+        Path(str(project_meta["root"]))
+        if isinstance(project_meta, dict) and project_meta.get("root")
+        else None
+    )
+    resolution = resolve_user_source_path(
+        target,
+        cwd=Path.cwd().resolve(),
+        project_root=project_root,
+        active_vault=cfg.vault.root,
+    )
+    if resolution.source == "not_found":
+        render_source_path_not_found(resolution)
+        raise typer.Exit(code=2)
+    return resolution.resolved
 
 
 def override_active_profile(

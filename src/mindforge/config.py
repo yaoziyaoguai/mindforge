@@ -498,8 +498,15 @@ def _expand_real_provider_profile(
 
 def _parse_vault(raw: dict[str, Any], *, ctx: str) -> VaultConfig:
     vault_raw = _require(raw, "vault", dict, ctx=ctx)
+    root = Path(_require(vault_raw, "root", str, ctx="vault")).expanduser()
+    config_meta = raw.get("_mindforge_config")
+    project_root = None
+    if isinstance(config_meta, dict) and config_meta.get("project_root"):
+        project_root = Path(str(config_meta["project_root"])).expanduser()
+    if not root.is_absolute() and project_root is not None:
+        root = project_root / root
     return VaultConfig(
-        root=Path(_require(vault_raw, "root", str, ctx="vault")).expanduser(),
+        root=root.resolve(),
         inbox_root=_require(vault_raw, "inbox_root", str, ctx="vault"),
         cards_dir=_require(vault_raw, "cards_dir", str, ctx="vault"),
         archive_dir=_require(vault_raw, "archive_dir", str, ctx="vault"),
@@ -631,6 +638,12 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
             f"{p}: 不是有效的 MindForge 配置；至少需要 version/vault/llm/telemetry 之一"
         )
     raw = _expand_user_profile_overrides(_deep_merge_defaults(_load_internal_defaults(), user_raw))
+    config_path = p.expanduser().resolve()
+    project_root = _project_root_for_config(config_path)
+    raw["_mindforge_config"] = {
+        "path": str(config_path),
+        "project_root": str(project_root),
+    }
     base_dir = Path.cwd()
     ctx = str(p)
 
@@ -764,6 +777,20 @@ def _parse_search(raw: Any) -> "SearchConfig":
         weights=weights_clean,
     )
     return SearchConfig(bm25=bm25_cfg, hybrid=hybrid_cfg)
+
+
+def _project_root_for_config(config_path: Path) -> Path:
+    """从 config path 推导 project root。
+
+    中文学习型说明：新用户配置是 project-local override，``vault.root: vault``
+    这类相对路径必须稳定地按 project root 解析。标准路径
+    ``<project>/configs/mindforge.yaml`` 的 project root 是 ``<project>``；
+    其它显式 config path 则退回到 config 文件所在目录，保持旧配置兼容。
+    """
+
+    if config_path.name == "mindforge.yaml" and config_path.parent.name == "configs":
+        return config_path.parent.parent
+    return config_path.parent
 
 
 def _parse_llm(raw: dict[str, Any]) -> LLMConfig:

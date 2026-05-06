@@ -124,8 +124,18 @@ def _render_vault(console: Console, vault: dict[str, Any]) -> None:
     resolution = vault.get("resolution") or {}
     if resolution.get("configured_differs"):
         console.print(
-            "  vault resolution      : "
-            f"using {resolution.get('reason')}; configured vault is {resolution.get('configured_root')}",
+            f"  active vault          : {resolution.get('active_root')}",
+            markup=False,
+            soft_wrap=True,
+        )
+        console.print(
+            f"  vault source          : {resolution.get('reason')}",
+            markup=False,
+            soft_wrap=True,
+        )
+        console.print(
+            "  configured vault      : "
+            f"fallback candidate only: {resolution.get('configured_root')}",
             markup=False,
             soft_wrap=True,
         )

@@ -57,6 +57,24 @@ class ActiveVaultDecision:
         return self.root != self.configured_root
 
 
+@dataclass(frozen=True)
+class UserSourcePathResolution:
+    """用户输入 source path 的解析结果。
+
+    中文学习型说明：路径解析属于 CLI adapter 边界。service/pipeline 只应该接收
+    已解析的绝对 source 路径，避免 import/watch/process 各自猜 cwd、project
+    root 或 active vault，从而出现同一路径在不同命令里含义不同。
+    """
+
+    original: Path
+    resolved: Path
+    source: str
+    cwd: Path
+    project_root: Path | None
+    active_vault: Path
+    tried: tuple[Path, ...]
+
+
 def load_app_config(
     config_path: Path,
     *,
@@ -68,7 +86,7 @@ def load_app_config(
     中文学习型说明：是否加载 `.env` 仍由 CLI 入口显式决定。这里保持纯
     config/path resolution，避免 service/context 层悄悄改变 provider 环境。
     """
-    config_path = resolve_config_path(config_path)
+    config_path = resolve_config_path(config_path, cwd=cwd)
     try:
         cfg = load_mindforge_config(config_path)
     except ConfigError as e:
@@ -77,19 +95,27 @@ def load_app_config(
     return apply_active_vault(cfg, decision)
 
 
-def resolve_config_path(config_path: Path) -> Path:
+def resolve_config_path(config_path: Path, *, cwd: Path | None = None) -> Path:
+    return _resolve_config_path(config_path, cwd=cwd)
+
+
+def _resolve_config_path(config_path: Path, *, cwd: Path | None) -> Path:
     """解析 CLI config path，默认配置缺失时回退到 package asset。
 
     中文学习型说明：安装态用户经常在任意目录运行 ``mindforge demo`` /
     ``dogfood readiness`` / ``doctor``，当前目录没有 ``configs/mindforge.yaml``
-    是正常状态。只有默认路径缺失时才使用包内配置；如果用户显式
-    传了其它 ``--config``，仍严格报错，避免把拼错的路径静默吞掉。
+    是正常状态。默认路径会先从 cwd 向上寻找 MindForge project root，再
+    回退到包内配置；如果用户显式传了其它 ``--config``，仍严格报错，避免把
+    拼错的路径静默吞掉。
     """
 
     if config_path.exists():
         return config_path
     default = Path("configs/mindforge.yaml")
     if config_path == default:
+        project_root = find_project_root(cwd)
+        if project_root is not None:
+            return project_root / "configs" / "mindforge.yaml"
         return bundled_asset_path_for_process("configs", "mindforge.yaml")
     raise AppContextError("missing_config", f"配置文件不存在：{config_path}")
 
@@ -101,11 +127,12 @@ def build_app_context(
     cwd: Path | None = None,
 ) -> AppContext:
     """构建 console-independent AppContext；不创建目录、不写文件。"""
-    cfg = load_app_config(config_path, vault_override=vault_override, cwd=cwd)
+    resolved_config = _resolve_config_path(config_path, cwd=cwd)
+    cfg = load_app_config(resolved_config, vault_override=vault_override, cwd=cwd)
     return AppContext(
         config=cfg,
         paths=AppPaths(
-            config_path=config_path,
+            config_path=resolved_config,
             vault_root=cfg.vault.root,
             inbox_path=cfg.vault.inbox_path,
             cards_path=cfg.vault.cards_path,
@@ -114,6 +141,21 @@ def build_app_context(
             runs_path=cfg.state.runs_path,
         ),
     )
+
+
+def find_project_root(start: Path | None = None) -> Path | None:
+    """从 start 向上寻找 MindForge project root。
+
+    规则很窄：包含 ``configs/mindforge.yaml`` 的目录就是 project root。
+    这对应产品语义：用户在哪里运行 ``mindforge init``，哪里就是项目根；
+    默认 ``vault.root``、本地 ``.env``、用户相对 source path 都围绕它解释。
+    """
+
+    current = (start or Path.cwd()).expanduser().resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / "configs" / "mindforge.yaml").is_file():
+            return candidate
+    return None
 
 
 def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
@@ -153,7 +195,8 @@ def resolve_active_vault(
     state/index、next command 全部指向同一个 vault。
     """
 
-    configured = cfg.vault.root.expanduser().resolve()
+    project_root = _project_root_from_raw(cfg)
+    configured = _resolve_configured_vault_root(cfg.vault.root, project_root)
     if vault_override is not None:
         return ActiveVaultDecision(
             root=vault_override.expanduser().resolve(),
@@ -197,6 +240,13 @@ def apply_active_vault(cfg: MindForgeConfig, decision: ActiveVaultDecision) -> M
             "configured_differs": decision.configured_differs,
         }
     }
+    project_root = _project_root_from_raw(cfg)
+    config_path = _config_path_from_raw(cfg)
+    if project_root is not None:
+        metadata["_mindforge_project"] = {
+            "root": str(project_root),
+            "config_path": str(config_path) if config_path is not None else "",
+        }
     return replace(cfg, vault=new_vault, state=new_state, raw={**cfg.raw, **metadata})
 
 
@@ -206,3 +256,88 @@ def apply_vault_override(cfg: MindForgeConfig, vault_override: Path | None) -> M
         return cfg
     decision = resolve_active_vault(cfg, vault_override=vault_override)
     return apply_active_vault(cfg, decision)
+
+
+def resolve_user_source_path(
+    input_path: Path,
+    *,
+    cwd: Path,
+    project_root: Path | None,
+    active_vault: Path,
+) -> UserSourcePathResolution:
+    """把用户输入 source path 解析为存在的绝对路径。
+
+    优先级：
+    1. absolute path 原样解析；
+    2. cwd-relative；
+    3. project-root-relative；
+    4. active-vault-relative。
+
+    中文学习型说明：不存在的单文件/文件夹是输入错误，必须在 CLI 边界失败。
+    这样 missing import 不会进入 discovery/process/checkpoint，也就不会写入
+    processed/fingerprint/run state。
+    """
+
+    original = input_path.expanduser()
+    tried: list[tuple[str, Path]] = []
+    if original.is_absolute():
+        tried.append(("absolute", original))
+    else:
+        tried.append(("cwd-relative", cwd / original))
+        if project_root is not None:
+            tried.append(("project-root-relative", project_root / original))
+        tried.append(("active-vault-relative", active_vault / original))
+
+    for source, candidate in tried:
+        resolved = candidate.expanduser().resolve()
+        if resolved.exists():
+            return UserSourcePathResolution(
+                original=input_path,
+                resolved=resolved,
+                source=source,
+                cwd=cwd,
+                project_root=project_root,
+                active_vault=active_vault,
+                tried=tuple(path.expanduser().resolve() for _kind, path in tried),
+            )
+
+    return UserSourcePathResolution(
+        original=input_path,
+        resolved=tried[0][1].expanduser().resolve(),
+        source="not_found",
+        cwd=cwd,
+        project_root=project_root,
+        active_vault=active_vault,
+        tried=tuple(path.expanduser().resolve() for _kind, path in tried),
+    )
+
+
+def _resolve_configured_vault_root(root: Path, project_root: Path | None) -> Path:
+    expanded = root.expanduser()
+    if expanded.is_absolute():
+        return expanded.resolve()
+    base = project_root or Path.cwd()
+    return (base / expanded).resolve()
+
+
+def _project_root_from_raw(cfg: MindForgeConfig) -> Path | None:
+    raw = cfg.raw if isinstance(cfg.raw, dict) else {}
+    meta = raw.get("_mindforge_config")
+    if isinstance(meta, dict) and meta.get("project_root"):
+        return Path(str(meta["project_root"])).expanduser().resolve()
+    meta = raw.get("_mindforge_project")
+    if isinstance(meta, dict) and meta.get("root"):
+        return Path(str(meta["root"])).expanduser().resolve()
+    return None
+
+
+def _config_path_from_raw(cfg: MindForgeConfig) -> Path | None:
+    raw = cfg.raw if isinstance(cfg.raw, dict) else {}
+    meta = raw.get("_mindforge_config")
+    if isinstance(meta, dict) and meta.get("path"):
+        return Path(str(meta["path"])).expanduser().resolve()
+    meta = raw.get("_mindforge_project")
+    if isinstance(meta, dict) and meta.get("config_path"):
+        text = str(meta["config_path"])
+        return Path(text).expanduser().resolve() if text else None
+    return None

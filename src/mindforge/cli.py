@@ -196,7 +196,8 @@ def _global_options(
         "--vault",
         help=(
             "临时覆盖 active vault（不修改 yaml）。优先级：explicit --vault > "
-            "cwd/ancestor vault > configured vault.root > fallback。"
+            "cwd/ancestor vault > project root configs/mindforge.yaml 的 vault.root > "
+            "configured/bundled fallback。"
         ),
     ),
     obsidian_vault: Path | None = typer.Option(

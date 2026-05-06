@@ -155,7 +155,11 @@ def execute_plan(plan: InitPlan) -> list[str]:
             if it.source is not None and it.source.exists():
                 if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
                     it.target.write_text(
-                        _render_user_config_template(it.source, vault_root=plan.vault_root),
+                        _render_user_config_template(
+                            it.source,
+                            vault_root=plan.vault_root,
+                            project_root=plan.project_root,
+                        ),
                         encoding="utf-8",
                     )
                 else:
@@ -169,7 +173,11 @@ def execute_plan(plan: InitPlan) -> list[str]:
             if it.source is not None and it.source.exists():
                 if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
                     it.target.write_text(
-                        _render_user_config_template(it.source, vault_root=plan.vault_root),
+                        _render_user_config_template(
+                            it.source,
+                            vault_root=plan.vault_root,
+                            project_root=plan.project_root,
+                        ),
                         encoding="utf-8",
                     )
                 else:
@@ -200,12 +208,14 @@ def _inline_default_for(target: Path) -> str:
     return ""
 
 
-def _render_user_config_template(source: Path, *, vault_root: Path) -> str:
+def _render_user_config_template(source: Path, *, vault_root: Path, project_root: Path) -> str:
     """渲染 init 用户 YAML，只替换 vault.root 并保留注释。
 
     这里不使用 ``yaml.safe_dump``：用户配置文件的注释就是第一天 setup UX 的一
     部分。这个 helper 刻意只认识模板里的一行 root，避免把它扩成通用 YAML
-    编辑器。
+    编辑器。默认 vault 在 project root 下时写成 ``vault``，由 config loader
+    按 project root 解析；这让配置可搬移，也避免用户误以为必须在固定 cwd
+    执行命令。
     """
 
     lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -217,9 +227,16 @@ def _render_user_config_template(source: Path, *, vault_root: Path) -> str:
             continue
         if in_vault and line.startswith("  ") and stripped.startswith("root:"):
             newline = "\n" if line.endswith("\n") else ""
-            lines[idx] = f'  root: "{vault_root}"{newline}'
+            rendered_root = _display_vault_root_for_template(vault_root, project_root)
+            lines[idx] = f'  root: "{rendered_root}"{newline}'
             break
     return "".join(lines)
+
+
+def _display_vault_root_for_template(vault_root: Path, project_root: Path) -> str:
+    if vault_root.resolve() == (project_root / "vault").resolve():
+        return "vault"
+    return str(vault_root)
 
 
 def is_initialized(vault_root: Path, project_root: Path) -> bool:
@@ -232,16 +249,16 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 选择 real provider：llm.active_profile=openai_compatible 或 anthropic",
+        "1) 选择 real provider：configs/mindforge.yaml 里设置 llm.active=openai_compatible 或 anthropic",
         "2) 设置对应 env：MINDFORGE_OPENAI_* 或 MINDFORGE_ANTHROPIC_*（不要写进 YAML）",
-        "3) mindforge llm ping --profile <profile>  # 只检查 env presence，不发 HTTP",
+        "3) mindforge llm ping  # 按 llm.active 检查 env presence，不发 HTTP",
         "4) mindforge watch list    # 查看 default 00-Inbox watched source",
-        "5) mindforge watch add 00-Inbox/ManualNotes/<note>.md --profile <profile>",
+        "5) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md",
         "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
         "7) mindforge approve list  # 看看产出哪些 ai_draft",
         "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
         "9) mindforge recall --query <keyword>",
-        "10) Offline demo / CI / Testing: mindforge process --profile fake --limit 1",
+        "10) Offline demo / CI / Testing: mindforge process --provider fake --limit 1",
         "11) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
         "11) mindforge doctor       # 任何时刻自检",
     ]

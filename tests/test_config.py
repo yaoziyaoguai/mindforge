@@ -105,6 +105,7 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     ]
     assert set(parsed) == {"version", "vault", "llm", "telemetry"}
     assert parsed["vault"]["root"] == str(vault)
+    assert load_mindforge_config(generated).vault.root == vault.resolve()
     assert parsed["llm"]["active"] == "openai_compatible"
     assert "active_profile" not in parsed["llm"]
     assert "profiles" not in parsed["llm"]
@@ -170,6 +171,25 @@ def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
         assert marker in text
     assert "sk-" not in text
     assert "MINDFORGE_LLM_API_KEY" not in text
+
+
+def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:
+    """默认 init 在 project root 下创建 ``vault/``，YAML 也写相对 ``vault``。"""
+
+    project_root = tmp_path / "project"
+    vault = project_root / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    generated = project_root / "configs" / "mindforge.yaml"
+    parsed = yaml.safe_load(generated.read_text(encoding="utf-8"))
+
+    assert parsed["vault"]["root"] == "vault"
+    assert load_mindforge_config(generated).vault.root == vault.resolve()
 
 
 def test_minimal_user_override_merges_with_internal_defaults(tmp_path: Path) -> None:
