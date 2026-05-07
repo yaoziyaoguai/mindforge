@@ -161,6 +161,8 @@ class EditableModelConfig(BaseModel):
     api_key_secret_present: bool = False
     api_key_masked_value: str | None = None
     api_key_status_label: str
+    api_key_source: Literal["local_secret", "env", "missing", "demo"] = "missing"
+    is_demo_model: bool = False
     base_url_env: str | None = None
     model_env: str | None = None
     effective_base_url: str | None = None
@@ -224,6 +226,10 @@ class SetupModelPatch(BaseModel):
     api_key_optional: bool | None = None
     base_url_env: str | None = None
     model_env: str | None = None
+    # API key 由用户在前端输入，后端写入 secret store；永远不出现在 response 中。
+    api_key: str | None = None
+    # "keep"（默认）— 保留已有 secret；"clear" — 显式删除；"update" — 用新值覆盖。
+    api_key_action: Literal["keep", "clear", "update"] | None = None
 
 
 class SetupConfigPatch(BaseModel):

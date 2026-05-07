@@ -1181,3 +1181,459 @@ def test_sources_status_names_processed_and_generated_knowledge_without_ready_or
     assert "ready" not in combined
     assert "Approved" not in combined
     assert "PROCESSED_SOURCE_BODY_MUST_NOT_LEAK" not in combined
+
+
+# ============================================================================
+# Model config + secret store 测试
+# ============================================================================
+
+
+def test_setup_add_model_writes_new_llm_models_entry(tmp_path: Path, monkeypatch) -> None:
+    """Add model 写入 llm.models，API key 进入 secret store。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-test-key-1234",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+    assert response.status_code == 200
+
+    # 验证 YAML config
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert raw["llm"]["default_model"] == "main"
+    assert "main" in raw["llm"]["models"]
+    assert raw["llm"]["models"]["main"]["type"] == "openai_compatible"
+    # YAML 里不应有 API key
+    assert "api_key" not in raw["llm"]["models"]["main"]
+    assert "sk-test" not in str(raw)
+
+    # 验证 secret store
+    secrets_path = tmp_path / ".mindforge" / "secrets.json"
+    import json
+    assert secrets_path.is_file()
+    secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
+    assert secrets["main"] == "sk-test-key-1234"
+
+
+def test_setup_edit_model_preserves_secret_when_empty_key(tmp_path: Path, monkeypatch) -> None:
+    """Edit model 时 api_key 为空 → 保留已有 secret。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 先创建带 key 的模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-original-key",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 编辑：只改 model name，api_key 为空，api_key_action 为 keep
+    client.patch(
+        "/api/config/editable",
+        json={
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "updated-model",
+                    "api_key": "",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+
+    import json
+    secrets_path = tmp_path / ".mindforge" / "secrets.json"
+    secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
+    assert secrets["main"] == "sk-original-key"
+
+
+def test_setup_edit_model_clears_secret_on_explicit_action(tmp_path: Path, monkeypatch) -> None:
+    """api_key_action=clear → 删除 secret store 中的 key。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 先创建带 key 的模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-original-key",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 清除 key
+    client.patch(
+        "/api/config/editable",
+        json={
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key_action": "clear",
+                },
+            },
+        },
+    )
+
+    import json
+    secrets_path = tmp_path / ".mindforge" / "secrets.json"
+    secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
+    assert "main" not in secrets
+
+
+def test_setup_delete_model_removes_config_and_secret(tmp_path: Path, monkeypatch) -> None:
+    """Delete model → 从 config 和 secret store 都删除。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 创建两个模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-main-key",
+                    "api_key_action": "update",
+                },
+                "secondary": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://a.example.com",
+                    "model": "secondary-model",
+                    "api_key": "sk-secondary-key",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 删除 secondary（从 models dict 中省略）
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                },
+            },
+        },
+    )
+    assert response.status_code == 200
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert "secondary" not in raw["llm"]["models"]
+
+    import json
+    secrets_path = tmp_path / ".mindforge" / "secrets.json"
+    secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
+    assert "secondary" not in secrets
+    assert secrets["main"] == "sk-main-key"
+
+
+def test_setup_cannot_delete_default_model(tmp_path: Path, monkeypatch) -> None:
+    """不允许删除 default_model 引用的模型。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                },
+            },
+        },
+    )
+
+    # 尝试删除 main 但保持 default_model=main
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {},
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_setup_cannot_leave_routing_to_deleted_model(tmp_path: Path, monkeypatch) -> None:
+    """不允许 routing 引用即将被删除的模型。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {"type": "openai_compatible", "base_url": "https://r.example.com/v1", "model": "main-model"},
+                "strong": {"type": "anthropic_compatible", "base_url": "https://a.example.com", "model": "strong-model"},
+            },
+            "routing": {"distill": "strong"},
+        },
+    )
+
+    # 尝试删 strong 但 routing 仍引用它
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {"type": "openai_compatible", "base_url": "https://r.example.com/v1", "model": "main-model"},
+            },
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_setup_api_key_never_returned_raw(tmp_path: Path, monkeypatch) -> None:
+    """API response 永远不返回 raw API key。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-very-secret-key-1234",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    editable = client.get("/api/config/editable").json()
+    model = editable["llm"]["configured_models"]["main"]
+    combined = f"{editable}"
+
+    # 确认 masked 值存在
+    assert model["api_key_masked_value"] == "sk-****1234"
+    assert model["api_key_source"] == "local_secret"
+    assert model["api_key_secret_present"] is True
+
+    # raw key 绝不出现在 response 中
+    assert "sk-very-secret-key-1234" not in combined
+    assert "very-secret" not in combined
+
+
+def test_setup_demo_model_labeled_correctly(tmp_path: Path, monkeypatch) -> None:
+    """type=fake 的模型标记为 is_demo_model，api_key_source=demo。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+
+    # 写入只有 fake 模型的 config
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "demo",
+        "models": {
+            "demo": {
+                "type": "fake",
+                "base_url": "fake://",
+                "model": "demo-model",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    model = editable["llm"]["configured_models"].get("demo")
+    assert model is not None, "demo model should appear when it is the only model"
+    assert model["is_demo_model"] is True
+    assert model["api_key_source"] == "demo"
+
+
+def test_setup_default_model_dropdown_only_configured_models(tmp_path: Path, monkeypatch) -> None:
+    """default_model 下拉只包含已配置的模型。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "a",
+            "models": {
+                "a": {"type": "openai_compatible", "base_url": "https://x.com/v1", "model": "a-model"},
+                "b": {"type": "openai_compatible", "base_url": "https://y.com/v1", "model": "b-model"},
+            },
+        },
+    )
+
+    editable = client.get("/api/config/editable").json()
+    ids = editable["llm"]["configured_model_ids"]
+    assert sorted(ids) == ["a", "b"]
+
+
+def test_setup_routing_dropdown_only_configured_models(tmp_path: Path, monkeypatch) -> None:
+    """routing dropdown 只包含 configured models。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {"type": "openai_compatible", "base_url": "https://x.com/v1", "model": "main-model"},
+            },
+            "routing": {"distill": "main"},
+        },
+    )
+
+    editable = client.get("/api/config/editable").json()
+    for model_id in editable["llm"]["routing"].values():
+        assert model_id in editable["llm"]["configured_model_ids"]
+
+
+def test_setup_routing_omitted_uses_default_model(tmp_path: Path, monkeypatch) -> None:
+    """routing 省略时所有 workflow step 使用 default_model。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {"type": "openai_compatible", "base_url": "https://x.com/v1", "model": "main-model"},
+            },
+        },
+    )
+
+    editable = client.get("/api/config/editable").json()
+    assert editable["llm"]["routing_is_explicit"] is False
+    for _stage, model_id in editable["llm"]["routing"].items():
+        assert model_id == "main"
+
+
+def test_setup_type_must_be_explicit_no_guessing(tmp_path: Path, monkeypatch) -> None:
+    """type 必须显式选择，不能从 URL 自动猜。该验证由 config 层保证。"""
+    from mindforge.config import ConfigError, load_mindforge_config
+
+    yaml_path = tmp_path / "test.yaml"
+    yaml_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {"root": str(tmp_path)},
+                "llm": {
+                    "default_model": "main",
+                    "models": {
+                        "main": {
+                            "model": "some-model",
+                            "base_url": "https://api.openai.com/v1",
+                            # 故意缺失 type
+                        },
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="type"):
+        load_mindforge_config(yaml_path)
+
+
+def test_setup_api_key_not_in_yaml_when_stored_in_secret_store(tmp_path: Path, monkeypatch) -> None:
+    """API key 存在 secret store 时，YAML config 不应包含 raw key。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-sensitive-key-9999",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    assert "sk-sensitive" not in yaml_text
+    assert "9999" not in yaml_text
+
+
+def test_setup_secret_store_under_mindforge_dir(tmp_path: Path, monkeypatch) -> None:
+    """Secret store 位于 .mindforge/secrets.json，已被 .gitignore 覆盖。"""
+    from mindforge_web.services.secret_store import SecretStore
+
+    store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+    store.set("test-model", "sk-test-value")
+    assert store.present("test-model") is True
+    assert store.get("test-model") == "sk-test-value"
+    assert store.masked("test-model") == "sk-****alue"
+    store.remove("test-model")
+    assert store.present("test-model") is False
+
+    # 验证 .mindforge/ 在 gitignore 中
+    gitignore = Path(__file__).parent.parent / ".gitignore"
+    assert gitignore.exists()
+    content = gitignore.read_text(encoding="utf-8")
+    assert ".mindforge/" in content

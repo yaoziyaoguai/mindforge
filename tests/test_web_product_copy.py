@@ -93,7 +93,8 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "Default model" in setup
     assert "Model routing" in setup
     assert "API key" in setup
-    assert "type=\"password\"" not in setup
+    # type=password 现在是安全的用户输入字段（永不预填），不是 secret 泄露路径
+    assert "autoComplete=\"off\"" in setup
     assert "api_key_value" not in setup
 
 
@@ -110,13 +111,14 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Effective model" not in setup
     assert "Copy base URL" not in setup
     assert "Copy model" not in setup
-    assert "Copy API key env name" in setup
+    assert "Copy API key env name" not in setup  # 主 UI 不再展示 env var name copy；移至 Advanced
     assert "Copy API key value" not in setup
-    assert "present (" in setup
-    assert "No model provider configured" in setup
-    assert "Configure a model to generate AI drafts." in setup
+    assert "present (" not in setup  # 不再在卡片中展示脱敏 key，改用 API key status tag
+    assert "No model configured" in setup
+    assert "Add a model to generate AI drafts." in setup
     assert "You can still add and monitor sources" in setup
     assert "fake-fast" not in setup
+    assert "Built-in demo" in setup
     assert "fake://" not in setup
     assert "fake_default" not in setup
     assert "Environment variable presence" in checklist
@@ -134,8 +136,8 @@ def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
     assert "Workflow step" in setup
     assert "All workflow steps use default model" in setup
     assert "Legacy LLM config detected" in setup
-    assert "model id" in setup
-    assert "API key status" in setup
+    assert "Model id" in setup
+    assert "API key:" in setup
     assert "stage_models" not in setup
     assert "Stage models" not in setup
     assert "active_profile" not in setup

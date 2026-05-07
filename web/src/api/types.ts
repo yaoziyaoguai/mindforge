@@ -134,6 +134,8 @@ export interface EditableModelConfig {
   api_key_secret_present: boolean;
   api_key_masked_value?: string | null;
   api_key_status_label: string;
+  api_key_source: "local_secret" | "env" | "missing" | "demo";
+  is_demo_model: boolean;
   base_url_env?: string | null;
   model_env?: string | null;
   effective_base_url?: string | null;
@@ -203,6 +205,8 @@ export interface SetupConfigPatch {
     api_key_optional?: boolean | null;
     base_url_env?: string | null;
     model_env?: string | null;
+    api_key?: string | null;
+    api_key_action?: "keep" | "clear" | "update" | null;
   }>;
   routing?: Record<string, string>;
   cubox_export_path?: string | null;

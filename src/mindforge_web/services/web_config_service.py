@@ -35,6 +35,7 @@ from mindforge_web.schemas import (
     SetupValidationResponse,
     StatusItem,
 )
+from mindforge_web.services.secret_store import SecretStore
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,11 @@ class WebConfigService:
         self.cfg = cfg
         self.config_path = config_path
         self.cwd = cwd or Path.cwd()
+        # .mindforge/ 目录在项目根（configs/ 的父目录的父目录，或 cwd）
+        project_root = config_path.resolve().parent.parent
+        if not (project_root / ".mindforge").exists():
+            project_root = self.cwd
+        self.secrets = SecretStore(project_root / ".mindforge" / "secrets.json")
 
     def env_key_statuses(self) -> list[EnvKeyStatus]:
         dotenv = self._read_dotenv_presence()
@@ -196,15 +202,34 @@ class WebConfigService:
                 f"Active provider {patch.active_provider!r} is not configured."
             )
 
-        model_names = set(self._configured_model_ids(raw)) | set(patch.models)
-        if patch.default_model is not None and patch.default_model not in model_names:
+        # 被删除的 model 不能仍被 default_model 或 routing 引用
+        deleted = self._deleted_model_ids(raw, patch)
+        after_models = self._model_ids_after_patch(raw, patch)
+        effective_default = patch.default_model or raw.get("llm", {}).get("default_model")
+        if deleted and effective_default in deleted:
             errors.append(
-                f"Default model {patch.default_model!r} is not configured."
+                f"Cannot delete model {effective_default!r}: it is the default_model. "
+                f"Change default_model before deleting."
             )
-        for stage, model_id in patch.routing.items():
-            if stage not in self.cfg.llm.profiles[self.cfg.llm.active_profile]:
-                errors.append(f"Workflow step {stage!r} is not supported.")
-            elif model_id not in model_names:
+
+        if patch.default_model is not None and patch.default_model not in after_models:
+            errors.append(
+                f"Default model {patch.default_model!r} is not in configured models: {sorted(after_models)}"
+            )
+        # routing 检查：patch 中的 routing 和 raw 中已有的 routing 都不能引用被删除的 model
+        effective_routing: dict[str, str] = {}
+        existing_routing = raw.get("llm", {}).get("routing")
+        if isinstance(existing_routing, dict):
+            effective_routing.update(existing_routing)
+        if patch.routing:
+            effective_routing.update(patch.routing)
+        for stage, model_id in effective_routing.items():
+            if model_id in deleted:
+                errors.append(
+                    f"Routing.{stage}={model_id!r} references a model that would be deleted."
+                    f" Update routing before deleting {model_id!r}."
+                )
+            elif model_id not in after_models:
                 errors.append(f"Routing model {model_id!r} for {stage} is not configured.")
 
         for provider, provider_patch in patch.providers.items():
@@ -221,6 +246,16 @@ class WebConfigService:
             )
 
         return SetupValidationResponse(ok=not errors, errors=errors, warnings=warnings)
+
+    def _model_ids_after_patch(
+        self,
+        raw: dict[str, Any],
+        patch: SetupConfigPatch,
+    ) -> set[str]:
+        """计算 patch 应用后的 model id 集合。"""
+        if patch.models is not None:
+            return set(patch.models.keys())
+        return self._all_model_ids(raw)
 
     def update_patch(self, patch: SetupConfigPatch) -> None:
         validation = self.validate_patch(patch)
@@ -319,18 +354,25 @@ class WebConfigService:
         return providers
 
     def _configured_model_ids(self, raw: dict[str, Any]) -> list[str]:
+        """返回 Setup UI 可展示的模型 id 列表。
+
+        如果有真实模型（非 fake/demo），只展示真实模型，不污染下拉选项。
+        如果只有 demo/fake 模型，也展示它们并标注 is_demo_model，让用户知道
+        当前用的是内置 demo，需要添加真实模型。
+        """
         llm = raw.get("llm")
         if not isinstance(llm, dict) or "default_model" not in llm:
             return []
         models = llm.get("models")
         if not isinstance(models, dict):
             return []
-        return sorted(
+        all_ids = sorted(
             str(model_id)
             for model_id, model_raw in models.items()
             if isinstance(model_raw, dict)
-            and _is_product_model_entry(str(model_id), model_raw.get("type"))
         )
+        product_ids = [mid for mid in all_ids if _is_product_model(models.get(mid))]
+        return sorted(product_ids) if product_ids else all_ids
 
     def _editable_models(self, raw: dict[str, Any]) -> dict[str, EditableModelConfig]:
         llm = raw.get("llm")
@@ -352,6 +394,7 @@ class WebConfigService:
         base_url_env = _str_or_none(model_raw.get("base_url_env"))
         model_value = _str_or_none(model_raw.get("model"))
         model_env = _str_or_none(model_raw.get("model_env"))
+        model_type = str(model_raw.get("type") or "")
         effective_base_url, base_url_source = self._effective_non_secret_value(
             env_name=base_url_env,
             default_value=base_url,
@@ -360,10 +403,13 @@ class WebConfigService:
             env_name=model_env,
             default_value=model_value,
         )
-        api_key_present = self._process_env_present(api_key_env)
+        # API key 来源优先级：local secret store > env var > missing/demo
+        api_key_source = self._api_key_source(model_id, model_type, api_key_env)
+        api_key_present = api_key_source in ("local_secret", "env")
+        masked_value = self._masked_api_key_value(model_id, api_key_env, api_key_source)
         return EditableModelConfig(
             model_id=model_id,
-            type=str(model_raw.get("type") or ""),
+            type=model_type,
             base_url=base_url,
             model=model_value,
             api_key_env=api_key_env,
@@ -371,10 +417,10 @@ class WebConfigService:
             api_key_status="present" if api_key_present else "missing",
             api_key_env_configured=bool(api_key_env),
             api_key_secret_present=api_key_present,
-            api_key_masked_value=_masked_secret(os.environ.get(api_key_env, ""))
-            if api_key_present and api_key_env
-            else None,
+            api_key_masked_value=masked_value,
             api_key_status_label=_api_key_status_label(api_key_env, api_key_present),
+            api_key_source=api_key_source,
+            is_demo_model=model_type == "fake",
             base_url_env=base_url_env,
             model_env=model_env,
             effective_base_url=effective_base_url,
@@ -597,7 +643,13 @@ class WebConfigService:
             _assign_if_present(model, "model_env", provider_patch.model_env)
 
     def _apply_llm_model_routing_patch(self, raw: dict[str, Any], patch: SetupConfigPatch) -> None:
-        """保存 Setup 新 LLM 语义，不把 legacy profile/provider 写回用户配置。"""
+        """保存 Setup 新 LLM 语义，不把 legacy profile/provider 写回用户配置。
+
+        Secret 处理：api_key_action 决定 secret store 行为——
+        - "update" + api_key → 写入 secret store
+        - "clear" → 删除 secret store 中的 key
+        - "keep" 或缺失 → 保留已有 secret（不读也不写）
+        """
 
         llm = raw.setdefault("llm", {})
         if not isinstance(llm, dict):
@@ -605,6 +657,11 @@ class WebConfigService:
         if patch.default_model is not None:
             llm["default_model"] = patch.default_model
         if patch.models:
+            # 检测被删除的 model_id，清理对应的 secret store 条目
+            existing_ids = set(self._all_model_ids(raw))
+            new_ids = set(patch.models.keys())
+            for deleted_id in existing_ids - new_ids:
+                self.secrets.remove(deleted_id)
             llm["models"] = {}
         models = llm.setdefault("models", {})
         if not isinstance(models, dict):
@@ -621,12 +678,77 @@ class WebConfigService:
             _assign_if_present(item, "model_env", model_patch.model_env)
             if model_patch.api_key_optional is not None:
                 item["api_key_optional"] = model_patch.api_key_optional
+            # 处理 API key：写入/清除/保留 secret store
+            self._apply_api_key_patch(model_id, model_patch)
         if patch.routing:
             llm["routing"] = dict(patch.routing)
         elif "routing" in llm:
             llm.pop("routing", None)
         for legacy_key in ("active", "active_profile", "providers", "profiles"):
             llm.pop(legacy_key, None)
+
+    @staticmethod
+    def _all_model_ids(raw: dict[str, Any]) -> set[str]:
+        llm = raw.get("llm")
+        if not isinstance(llm, dict):
+            return set()
+        models = llm.get("models")
+        if not isinstance(models, dict):
+            return set()
+        return {str(k) for k, v in models.items() if isinstance(v, dict)}
+
+    def _apply_api_key_patch(self, model_id: str, model_patch) -> None:
+        """根据 api_key_action 处理 secret store 写入。"""
+        action = model_patch.api_key_action or "keep"
+        if action == "clear":
+            self.secrets.remove(model_id)
+        elif action == "update" and model_patch.api_key:
+            self.secrets.set(model_id, model_patch.api_key)
+        # "keep" — 不触碰 secret store
+
+    def _api_key_source(
+        self,
+        model_id: str,
+        model_type: str,
+        api_key_env: str | None,
+    ) -> str:
+        """判断 API key 来源：local_secret > env > demo > missing。"""
+        # demo/fake 模型不需要真实 API key
+        if model_type == "fake":
+            return "demo"
+        # secret store 是最直接的用户输入
+        if self.secrets.present(model_id):
+            return "local_secret"
+        # env var 是部署模式
+        if api_key_env and api_key_env in os.environ and os.environ[api_key_env]:
+            return "env"
+        return "missing"
+
+    def _masked_api_key_value(
+        self,
+        model_id: str,
+        api_key_env: str | None,
+        api_key_source: str,
+    ) -> str | None:
+        """生成脱敏 key 供前端展示，不返回 raw value。"""
+        if api_key_source == "local_secret":
+            return self.secrets.masked(model_id)
+        if api_key_source == "env" and api_key_env:
+            raw = os.environ.get(api_key_env, "")
+            return _masked_secret(raw) if raw else None
+        return None
+
+    def _deleted_model_ids(
+        self,
+        raw: dict[str, Any],
+        patch: SetupConfigPatch,
+    ) -> set[str]:
+        """返回 patch 中省略的（被删除的）model_id。"""
+        existing = self._all_model_ids(raw)
+        if patch.models is None:
+            return set()
+        new = set(patch.models.keys())
+        return existing - new
 
     def _create_vault_dirs(self, root: Path) -> None:
         root.mkdir(parents=True, exist_ok=True)
@@ -708,9 +830,19 @@ def _is_product_provider(name: str, provider_type: Any) -> bool:
 
 
 def _is_product_model(model: Any) -> bool:
+    """模型是否应作为产品模型出现在主 UI（非 fake/test/demo/default 内部模型）。
+
+    当模型 type 为 "fake" 且 provider 包含 blocked token 时，视为内部替身，
+    不应污染 Setup 主 UI 的下拉选项。只有当没有真实模型时，才让 fake/demo 模型
+    出现在列表中（由 _configured_model_ids 控制）。
+    """
     if not isinstance(model, dict):
         return False
-    return _is_product_provider(str(model.get("provider") or ""), model.get("type"))
+    model_type = str(model.get("type") or "")
+    provider = str(model.get("provider") or "")
+    text = f"{provider} {model_type}".lower()
+    blocked = ("fake", "test", "default", "demo")
+    return not any(token in text for token in blocked)
 
 
 def _is_product_model_entry(model_id: str, model_type: Any) -> bool:
