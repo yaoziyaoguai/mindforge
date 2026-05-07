@@ -106,6 +106,7 @@ from .run_logger import (
 from .scanner import Scanner
 from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
+from .trash_cli import trash_app
 from .vault_cli import vault_app
 from .web_cli import web
 from .watch_cli import watch_app
@@ -542,6 +543,7 @@ app.add_typer(telemetry_app, name="telemetry")
 app.add_typer(vault_app, name="vault")
 app.add_typer(cubox_app, name="cubox")
 app.add_typer(workspace_app, name="workspace")
+app.add_typer(trash_app, name="trash")
 app.add_typer(watch_app, name="watch")
 
 

@@ -175,7 +175,7 @@ def test_move_to_trash_with_reason(tmp_path: Path) -> None:
     cards = cfg.vault.cards_path
 
     card = _write_draft(cards, "reason-card.md")
-    result = move_card_to_trash(cfg, card, reason="test cleanup")
+    move_card_to_trash(cfg, card, reason="test cleanup")
 
     trash_dir = cfg.vault.root / "90-Archive" / "Trash" / "Knowledge-Cards"
     trashed = list(trash_dir.rglob("*.md"))[0]

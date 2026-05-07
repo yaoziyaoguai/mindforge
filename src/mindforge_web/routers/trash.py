@@ -6,8 +6,6 @@ API 不返回 raw secret，不修改 config。
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from mindforge.trash_service import (
@@ -117,7 +115,7 @@ def trash_draft(
         return TrashActionResponse(
             ok=True,
             action="moved_to_trash",
-            message=f"Draft card moved to Trash. Source file is not deleted.",
+            message="Draft card moved to Trash. Source file is not deleted.",
             card_id=result.card_id,
             previous_status=result.previous_status,
         )
@@ -140,7 +138,7 @@ def trash_library_card(
         return TrashActionResponse(
             ok=True,
             action="moved_to_trash",
-            message=f"Approved card moved to Trash. Source file is not deleted. You can restore it from Trash.",
+            message="Approved card moved to Trash. Source file is not deleted. You can restore it from Trash.",
             card_id=result.card_id,
             previous_status=result.previous_status,
         )

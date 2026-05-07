@@ -16,7 +16,6 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .cards import CardSummary, iter_cards
 from .config import MindForgeConfig
 
 
@@ -225,11 +224,11 @@ def restore_trashed_card(
     original_path = cfg.vault.root / original_rel
 
     # 清理 trash metadata
-    fm_lines = [l for l in fm_text.split("\n")
-                if not l.startswith("trashed_at:")
-                and not l.startswith("original_path:")
-                and not l.startswith("previous_status:")
-                and not l.startswith("trash_reason:")]
+    fm_lines = [line for line in fm_text.split("\n")
+                if not line.startswith("trashed_at:")
+                and not line.startswith("original_path:")
+                and not line.startswith("previous_status:")
+                and not line.startswith("trash_reason:")]
     # 恢复 status 为 previous_status
     new_fm_lines: list[str] = []
     for line in fm_lines:
