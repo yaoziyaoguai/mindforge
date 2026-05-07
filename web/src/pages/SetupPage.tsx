@@ -468,28 +468,26 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
             <div className="mt-3 space-y-4">
-              <p className="text-xs text-muted">Env var mode is for advanced users and deployment scenarios. For most users, configure models with real values above.</p>
+              <p className="text-xs text-muted">Env var mode is read-only diagnostics for advanced users and deployment scenarios. Use the main UI above to configure models instead.</p>
 
               {modelIds.map((modelId) => {
-                const item = form.models[modelId];
                 const status = editable.llm.configured_models[modelId];
+                const hasEnv = status?.api_key_env || status?.base_url_env || status?.model_env;
                 return (
                   <div key={modelId} className="rounded-md border border-line p-3">
-                    <div className="mb-2 text-xs font-medium text-ink">Env var overrides: {modelId}</div>
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-ink">API key env name</span>
-                        <input className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm" value={item.api_key_env} onChange={(event) => updateModelField(modelId, "api_key_env", event.target.value)} placeholder="MINDFORGE_LLM_API_KEY" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-ink">Base URL env name</span>
-                        <input className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm" value={item.base_url_env} onChange={(event) => updateModelField(modelId, "base_url_env", event.target.value)} placeholder="MINDFORGE_LLM_BASE_URL" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-ink">Model env name</span>
-                        <input className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm" value={item.model_env} onChange={(event) => updateModelField(modelId, "model_env", event.target.value)} placeholder="MINDFORGE_LLM_MODEL" />
-                        <span className="text-xs text-muted">{sourceText(status?.model_source ?? "missing")}</span>
-                      </label>
+                    <div className="mb-2 text-xs font-medium text-ink">Environment variable overrides: {modelId}</div>
+                    {hasEnv ? (
+                      <dl className="grid gap-x-4 gap-y-1 text-sm md:grid-cols-3">
+                        <div><dt className="text-xs text-muted">API key env</dt><dd className="text-ink">{status?.api_key_env || "—"}</dd></div>
+                        <div><dt className="text-xs text-muted">Base URL env</dt><dd className="text-ink">{status?.base_url_env || "—"}</dd></div>
+                        <div><dt className="text-xs text-muted">Model env</dt><dd className="text-ink">{status?.model_env || "—"}</dd></div>
+                      </dl>
+                    ) : (
+                      <p className="text-xs text-muted">No env var overrides configured.</p>
+                    )}
+                    <div className="mt-2 text-xs text-muted">
+                      {status?.effective_base_url ? <span>Effective base URL: {status.effective_base_url} ({status.base_url_source})</span> : null}
+                      {status?.effective_model ? <span className="ml-4">Effective model: {status.effective_model} ({status.model_source})</span> : null}
                     </div>
                   </div>
                 );
@@ -557,10 +555,7 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
       type: m.type || undefined,
       base_url: m.base_url || undefined,
       model: m.model || undefined,
-      api_key_env: m.api_key_env || undefined,
       api_key_optional: m.api_key_optional || undefined,
-      base_url_env: m.base_url_env || undefined,
-      model_env: m.model_env || undefined,
       api_key: m.api_key || undefined,
       api_key_action: m.api_key_action || undefined,
     };

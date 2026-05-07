@@ -619,9 +619,9 @@ class WebConfigService:
                 raise ConfigUpdateError([f"llm.providers.{provider} must be a YAML object"])
             _assign_if_present(item, "default_base_url", provider_patch.default_base_url)
             _assign_if_present(item, "default_model", provider_patch.default_model)
-            _assign_if_present(item, "api_key_env", provider_patch.api_key_env)
-            _assign_if_present(item, "base_url_env", provider_patch.base_url_env)
-            _assign_if_present(item, "model_env", provider_patch.model_env)
+            # env var name 字段不写回 YAML（与 model 保存保持一致）
+            for env_key in ("api_key_env", "base_url_env", "model_env", "version_env"):
+                item.pop(env_key, None)
             return
 
         profiles = llm.get("profiles")
@@ -638,9 +638,8 @@ class WebConfigService:
                 continue
             _assign_if_present(model, "base_url", provider_patch.default_base_url)
             _assign_if_present(model, "model", provider_patch.default_model)
-            _assign_if_present(model, "api_key_env", provider_patch.api_key_env)
-            _assign_if_present(model, "base_url_env", provider_patch.base_url_env)
-            _assign_if_present(model, "model_env", provider_patch.model_env)
+            for env_key in ("api_key_env", "base_url_env", "model_env", "version_env"):
+                model.pop(env_key, None)
 
     def _apply_llm_model_routing_patch(self, raw: dict[str, Any], patch: SetupConfigPatch) -> None:
         """保存 Setup 新 LLM 语义，不把 legacy profile/provider 写回用户配置。
@@ -649,6 +648,9 @@ class WebConfigService:
         - "update" + api_key → 写入 secret store
         - "clear" → 删除 secret store 中的 key
         - "keep" 或缺失 → 保留已有 secret（不读也不写）
+
+        普通保存不写出 env var name 字段（api_key_env/base_url_env/model_env）。
+        这些字段仅用于 Advanced env mode（读兼容），不写回用户 YAML。
         """
 
         llm = raw.setdefault("llm", {})
@@ -670,14 +672,16 @@ class WebConfigService:
             item = models.setdefault(model_id, {})
             if not isinstance(item, dict):
                 raise ConfigUpdateError([f"llm.models.{model_id} must be a YAML object"])
+            # 产品字段：type, base_url, model —— 这些是普通用户配置的
             _assign_if_present(item, "type", model_patch.type)
             _assign_if_present(item, "base_url", model_patch.base_url)
             _assign_if_present(item, "model", model_patch.model)
-            _assign_if_present(item, "api_key_env", model_patch.api_key_env)
-            _assign_if_present(item, "base_url_env", model_patch.base_url_env)
-            _assign_if_present(item, "model_env", model_patch.model_env)
             if model_patch.api_key_optional is not None:
                 item["api_key_optional"] = model_patch.api_key_optional
+            # env var name 字段不写回 YAML；仅 Advanced env mode 显式开关时保留
+            # （本轮不做开关：只读兼容，不写回）
+            for env_key in ("api_key_env", "base_url_env", "model_env", "version_env"):
+                item.pop(env_key, None)
             # 处理 API key：写入/清除/保留 secret store
             self._apply_api_key_patch(model_id, model_patch)
         if patch.routing:

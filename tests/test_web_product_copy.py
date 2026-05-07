@@ -107,8 +107,7 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "source = env" in setup
     assert "source = missing" in setup
     assert "Default base URL" not in setup
-    assert "Effective base URL" not in setup
-    assert "Effective model" not in setup
+    # Effective base URL / model 仅在 Advanced section 展示，不在主 UI
     assert "Copy base URL" not in setup
     assert "Copy model" not in setup
     assert "Copy API key env name" not in setup  # 主 UI 不再展示 env var name copy；移至 Advanced
@@ -121,6 +120,7 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Built-in demo" in setup
     assert "fake://" not in setup
     assert "fake_default" not in setup
+    assert "Environment variable overrides" in setup  # Advanced section 只读诊断
     assert "Environment variable presence" in checklist
     assert "Process environment diagnostics" in checklist
     assert "Env keys" not in checklist

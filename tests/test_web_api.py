@@ -1637,3 +1637,318 @@ def test_setup_secret_store_under_mindforge_dir(tmp_path: Path, monkeypatch) -> 
     assert gitignore.exists()
     content = gitignore.read_text(encoding="utf-8")
     assert ".mindforge/" in content
+
+
+# ============================================================================
+# Env var field cleanup 测试 —— 普通保存不写回 env 字段
+# ============================================================================
+
+
+def test_setup_save_does_not_write_env_var_fields(tmp_path: Path, monkeypatch) -> None:
+    """Web 普通保存模型时不写出 api_key_env/base_url_env/model_env。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-test-key",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    model = raw["llm"]["models"]["main"]
+
+    # 产品字段存在
+    assert model["type"] == "openai_compatible"
+    assert model["base_url"] == "https://router.example.com/v1"
+    assert model["model"] == "main-model"
+
+    # env var name 字段不应出现
+    assert "api_key_env" not in model
+    assert "base_url_env" not in model
+    assert "model_env" not in model
+    assert "version_env" not in model
+
+    # API key raw value 不应在 YAML 中
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    assert "sk-test" not in yaml_text
+
+
+def test_setup_save_cleans_up_legacy_env_fields(tmp_path: Path, monkeypatch) -> None:
+    """已有 api_key_env/base_url_env 的旧配置，保存后应清理 env 字段。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+
+    # 写入含 env 字段的旧格式配置
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://old.example.com/v1",
+                "model": "old-model",
+                "api_key_env": "MINDFORGE_LLM_API_KEY",
+                "base_url_env": "MINDFORGE_LLM_BASE_URL",
+                "model_env": "MINDFORGE_LLM_MODEL",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 保存：只改 model name，不传 env 字段
+    client.patch(
+        "/api/config/editable",
+        json={
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://new.example.com/v1",
+                    "model": "new-model",
+                },
+            },
+        },
+    )
+
+    raw_after = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    model = raw_after["llm"]["models"]["main"]
+
+    assert model["base_url"] == "https://new.example.com/v1"
+    assert model["model"] == "new-model"
+    assert "api_key_env" not in model
+    assert "base_url_env" not in model
+    assert "model_env" not in model
+
+
+def test_setup_legacy_config_with_env_fields_still_loads(tmp_path: Path, monkeypatch) -> None:
+    """旧配置有 api_key_env/base_url_env/model_env 时仍可正确加载和展示。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "legacy",
+        "models": {
+            "legacy": {
+                "type": "anthropic_compatible",
+                "base_url": "https://legacy.example.com",
+                "model": "legacy-model",
+                "api_key_env": "MINDFORGE_LEGACY_KEY",
+                "base_url_env": "MINDFORGE_LEGACY_URL",
+                "model_env": "MINDFORGE_LEGACY_MODEL",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    # 模拟 env var 有值
+    monkeypatch.setenv("MINDFORGE_LEGACY_KEY", "sk-legacy-key-value")
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    model = editable["llm"]["configured_models"]["legacy"]
+
+    # 读兼容：env 字段仍在响应中（供 Advanced 展示）
+    assert model["api_key_env"] == "MINDFORGE_LEGACY_KEY"
+    assert model["base_url_env"] == "MINDFORGE_LEGACY_URL"
+    assert model["model_env"] == "MINDFORGE_LEGACY_MODEL"
+    # API key 来自 env
+    assert model["api_key_secret_present"] is True
+    assert model["api_key_source"] == "env"
+    # raw key 永不泄露
+    assert "sk-legacy-key-value" not in f"{editable}"
+
+
+def test_setup_api_key_env_presence_reads_from_config(tmp_path: Path, monkeypatch) -> None:
+    """旧配置的 api_key_env 在 Advanced section 可读，但 raw value 不泄露。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://r.example.com/v1",
+                "model": "main-model",
+                "api_key_env": "MINDFORGE_LLM_API_KEY",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "sk-secret-env-value")
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    model = editable["llm"]["configured_models"]["main"]
+    response_text = f"{editable}"
+
+    # env var name 在 Advanced 可读
+    assert model["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    # masked value 正确
+    assert model["api_key_masked_value"] == "sk-****alue"
+    # raw value 绝对不泄露
+    assert "sk-secret-env-value" not in response_text
+
+
+def test_setup_env_fields_not_in_main_ui_labels(tmp_path: Path, monkeypatch) -> None:
+    """验证 legacy env 字段不在主 UI 标签中出现。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://r.example.com/v1",
+                "model": "main-model",
+                "api_key_env": "MINDFORGE_LLM_API_KEY",
+                "base_url_env": "MINDFORGE_LLM_BASE_URL",
+                "model_env": "MINDFORGE_LLM_MODEL",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    model = editable["llm"]["configured_models"]["main"]
+
+    # EditableModelConfig 不暴露 env var name 作为主字段
+    # api_key_source 从 env 读取（而非 local_secret）
+    assert "api_key_source" in model
+    assert "is_demo_model" in model
+    # env var name 仍可通过 api_key_env 读取（Advanced）
+    assert model["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+
+
+def test_setup_secret_store_preserved_on_edit_no_env_fields(tmp_path: Path, monkeypatch) -> None:
+    """Edit model 时空 API key → 保留 secret store，不写 env 字段。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 先创建带 key 的模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-preserve-me",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 编辑：api_key 为空，api_key_action keep
+    client.patch(
+        "/api/config/editable",
+        json={
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "updated-model",
+                },
+            },
+        },
+    )
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    model = raw["llm"]["models"]["main"]
+    assert model["model"] == "updated-model"
+    assert "api_key_env" not in model
+    assert "base_url_env" not in model
+
+    import json
+    secrets = json.loads((tmp_path / ".mindforge" / "secrets.json").read_text(encoding="utf-8"))
+    assert secrets["main"] == "sk-preserve-me"
+
+
+def test_setup_clear_key_removes_secret_not_env_fields(tmp_path: Path, monkeypatch) -> None:
+    """Clear key → 删除 secret store，不写 env 字段。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key": "sk-will-be-cleared",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://r.example.com/v1",
+                    "model": "main-model",
+                    "api_key_action": "clear",
+                },
+            },
+        },
+    )
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    model = raw["llm"]["models"]["main"]
+    assert "api_key_env" not in model
+
+    import json
+    secrets = json.loads((tmp_path / ".mindforge" / "secrets.json").read_text(encoding="utf-8"))
+    assert "main" not in secrets
+
+
+def test_setup_default_model_and_routing_still_work_without_env_fields(tmp_path: Path, monkeypatch) -> None:
+    """default_model 和 routing 在不用 env 字段时仍正常工作。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "a",
+            "models": {
+                "a": {"type": "openai_compatible", "base_url": "https://a.com/v1", "model": "a-model"},
+                "b": {"type": "anthropic_compatible", "base_url": "https://b.com", "model": "b-model"},
+            },
+            "routing": {"distill": "b", "review_questions": "b"},
+        },
+    )
+
+    editable = client.get("/api/config/editable").json()
+    assert editable["llm"]["default_model"] == "a"
+    assert editable["llm"]["routing"]["distill"] == "b"
+    assert editable["llm"]["routing"]["triage"] == "a"  # fallback
+    assert editable["llm"]["routing_is_explicit"] is True
