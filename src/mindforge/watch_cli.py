@@ -48,7 +48,7 @@ def watch_add(
     provider: str | None = typer.Option(
         None,
         "--provider",
-        help="高级临时覆盖 llm.active 指向的 provider（不修改 YAML）。",
+        help="[Advanced/Legacy] 临时覆盖 provider/profile（不修改 YAML）。当前已使用 llm.models/routing 模型路由；此 flag 仅对 legacy profiles 生效。",
     ),
     strategy: str | None = typer.Option(
         None,
@@ -58,7 +58,8 @@ def watch_add(
     every: str = typer.Option(
         "manual",
         "--every",
-        help="scan frequency: manual/hourly/daily/weekly/every 1h/6h/12h/24h。",
+        "--frequency",
+        help="scan frequency（--every / --frequency 等效）: manual/hourly/daily/weekly/every 1h/6h/12h/24h。",
     ),
     recursive: bool = typer.Option(
         True,

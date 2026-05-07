@@ -295,7 +295,7 @@ def scan(
         help="是否把扫描结果写入 state.json（默认写入）",
     ),
 ) -> None:
-    """扫描 inbox 目录，把每个文件解析为 SourceDocument 并登记到 state.json。"""
+    """[Advanced] 扫描 inbox 目录并登记到 state.json。用户主路径请用 mindforge watch add 或 mindforge import。"""
     cfg = _load_cfg(config, read_env=False)
     console.print(f"active vault: {cfg.vault.root}", markup=False, soft_wrap=True)
     console.print(f"state path  : {cfg.state.state_path}", markup=False, soft_wrap=True)
@@ -529,7 +529,7 @@ app.add_typer(llm_app, name="llm")
 app.add_typer(library_app, name="library")
 app.add_typer(backup_app, name="backup")
 app.add_typer(config_app, name="config")
-app.add_typer(dogfood_app, name="dogfood")
+app.add_typer(dogfood_app, name="dogfood", hidden=True)
 app.add_typer(obsidian_app, name="obsidian")
 app.add_typer(provider_app, name="provider")
 app.add_typer(approve_app, name="approve")

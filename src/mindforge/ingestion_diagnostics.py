@@ -144,7 +144,13 @@ def friendly_missing_key_error(message: str) -> str | None:
 
 
 def looks_like_missing_key(message: str) -> bool:
-    return "未设置" in message or "requires" in message or "要求环境变量" in message
+    return (
+        "未设置" in message
+        or "requires" in message
+        or "要求环境变量" in message
+        or "没有可用的 API key" in message
+        or "API key" in message
+    )
 
 
 def _config_path(cfg: MindForgeConfig) -> str:

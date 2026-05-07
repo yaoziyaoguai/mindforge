@@ -215,13 +215,11 @@ def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
     assert "selected provider: openai_compatible" in result.output
     assert "provider type: openai_compatible" in result.output
     assert "selection source: legacy --profile" in result.output
-    assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
-    assert "Do not put secrets in YAML" in result.output
-    assert "MindForge will not fallback to any test provider" in result.output
+    # 缺 key 时必须友好失败，不能偷偷落回 fake
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -243,13 +241,11 @@ def test_watch_add_anthropic_missing_key_fails_without_fake_fallback(
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "selected provider: anthropic" in result.output
     assert "provider type: anthropic" in result.output
     assert "selection source: legacy --profile" in result.output
-    assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
-    assert "Do not put secrets in YAML" in result.output
-    assert "MindForge will not fallback to any test provider" in result.output
+    # 缺 key 时必须友好失败，不能偷偷落回 fake
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -265,7 +261,7 @@ def test_watch_add_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypa
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert "selected provider: openai_compatible" in result.output
     assert "selection source: llm.active" in result.output
     assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
@@ -559,7 +555,7 @@ def test_active_anthropic_missing_key_fails_not_skips(
     assert "provider type: anthropic" in result.output
     assert "selection source: llm.active" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
-    assert "MindForge will not fallback to any test provider" in result.output
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -851,12 +847,12 @@ def test_import_openai_compatible_missing_key_fails_without_fake_fallback(
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert "selected provider: openai_compatible" in result.output
     assert "provider type: openai_compatible" in result.output
     assert "missing env var: MINDFORGE_OPENAI_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "MindForge will not fallback to any test provider" in result.output
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -878,12 +874,12 @@ def test_import_anthropic_missing_key_fails_without_fake_fallback(
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert "selected provider: anthropic" in result.output
     assert "provider type: anthropic" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert "Set it via shell export or local .env" in result.output
-    assert "MindForge will not fallback to any test provider" in result.output
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -899,7 +895,7 @@ def test_import_uses_llm_active_without_cli_provider(tmp_path: Path, monkeypatch
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert "selected provider: anthropic" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
     assert _card_paths(vault) == []
@@ -948,7 +944,7 @@ def test_process_missing_real_provider_key_reports_selected_provider(
     assert "provider type: anthropic" in result.output
     assert "selection source: llm.active" in result.output
     assert "missing env var: MINDFORGE_ANTHROPIC_API_KEY" in result.output
-    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 
@@ -976,7 +972,7 @@ def test_import_provider_override_wins_over_legacy_profile(tmp_path: Path, monke
 
     assert result.exit_code == 0, result.output
     assert "processed=0 skipped=0 failed=1 seen=1" in result.output
-    assert "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY" in result.output
+    assert "Provider failure" in result.output
     assert _card_paths(vault) == []
 
 

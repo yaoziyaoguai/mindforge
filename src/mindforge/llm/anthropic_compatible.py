@@ -111,15 +111,14 @@ class AnthropicCompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key：必须来自 env（不允许写进 yaml）
-        if not mc.api_key_env:
-            raise ProviderError(
-                f"模型 {mc.alias} 必须声明 api_key_env；anthropic_compatible 不允许把 api_key 写进 yaml"
-            )
-        api_key = os.environ.get(mc.api_key_env, "") or ""
+        # api_key 解析优先级：env var > local secret store > missing
+        # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
+        # env var mode 是 legacy/advanced deployment mode，仍可读取。
+        api_key = _resolve_api_key(mc.alias, mc.api_key_env)
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
-                f"模型 {mc.alias} 要求环境变量 {mc.api_key_env} 提供 api_key，但未设置或为空。"
+                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
+                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
             )
 
         # anthropic-version：可选，默认 2023-06-01
@@ -208,4 +207,22 @@ def _extract_text_from_content_blocks(data: dict[str, Any]) -> str | None:
     return "".join(parts)
 
 
-__all__ = ["AnthropicCompatibleProvider"]
+def _resolve_api_key(alias: str, api_key_env: str | None) -> str | None:
+    """API key 解析：env var > local secret store > None。
+
+    Web 用户通过 Setup 输入的 key 存在 .mindforge/secrets.json；
+    env var mode 是 legacy/advanced deployment mode。
+    """
+    # 1) env var（legacy/advanced mode）
+    if api_key_env:
+        value = os.environ.get(api_key_env)
+        if value:
+            return value
+    # 2) local secret store
+    from pathlib import Path as _Path
+    from mindforge.secret_store import SecretStore
+    store = SecretStore(_Path(".mindforge/secrets.json"))
+    return store.get(alias)
+
+
+__all__ = ["AnthropicCompatibleProvider", "_resolve_api_key"]

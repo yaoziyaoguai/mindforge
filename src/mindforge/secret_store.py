@@ -1,7 +1,8 @@
 """本地 secret store —— 将 API key 安全存储在 gitignored JSON 文件中。
 
-中文学习型说明：SecretStore 是 API key 持久化的唯一入口。它只做文件读写和脱敏，
-不参与 config 解析、不传给前端 raw value。前端只能拿到 masked/status。
+中文学习型说明：SecretStore 是 API key 持久化的唯一入口，属于 core 层。
+Web 层用它的 get/set/remove/masked；LLM provider 层用它的 get 来取 raw key
+注入到 provider runtime。raw key 绝不出现在 API response、log、YAML、web dist。
 路径 ``.mindforge/secrets.json`` 已被 .gitignore 中 ``.mindforge/`` 规则覆盖。
 """
 
@@ -15,7 +16,7 @@ from typing import Any
 class SecretStore:
     """按 model_id 索引的本地 API key 存储。
 
-    调用方（WebConfigService）负责决定何时读/写/删除。
+    调用方（WebConfigService / LLM provider）负责决定何时读/写/删除。
     本类不关心 config 语义，只保证安全读写。
     """
 

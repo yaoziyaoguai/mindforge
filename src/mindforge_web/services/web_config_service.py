@@ -35,7 +35,7 @@ from mindforge_web.schemas import (
     SetupValidationResponse,
     StatusItem,
 )
-from mindforge_web.services.secret_store import SecretStore
+from mindforge.secret_store import SecretStore
 
 
 @dataclass(frozen=True)

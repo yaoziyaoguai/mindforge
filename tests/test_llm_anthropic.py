@@ -61,16 +61,16 @@ def test_missing_api_key_raises_safe_error(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(ProviderError) as exc:
         AnthropicCompatibleProvider.from_model_config(mc)
     msg = str(exc.value)
-    assert "api_key" in msg
+    assert "API key" in msg
     # 不应回显环境变量值（这里 base_url 不算 secret 但也不主动 echo）
     assert "MINDFORGE_LLM_API_KEY" in msg  # 提示用户应设置哪个 env，可以出现 env name
 
 
 def test_yaml_must_not_carry_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """anthropic_compatible 强制要求 api_key_env；yaml 不允许直接配 api_key。"""
+    """model 无 api_key_env 且 secret store 无 key 时，抛清晰错误而非崩溃。"""
     monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
     mc = _ModelStub(api_key_env=None)
-    with pytest.raises(ProviderError, match="api_key_env"):
+    with pytest.raises(ProviderError, match="API key"):
         AnthropicCompatibleProvider.from_model_config(mc)
 
 

@@ -474,8 +474,9 @@ def setup_cmd(
     dry_run: bool = typer.Option(True, "--dry-run/--write", help="默认 dry-run；--write 才落盘 config"),
     force: bool = typer.Option(False, "--force", help="搭配 --write 才允许覆盖 config"),
 ) -> None:
-    """第一天 setup plan：CLI-first、默认 dry-run、不调用 provider。"""
-    console.print("[bold]MindForge setup[/bold]")
+    """[DEPRECATED] 旧版 setup CLI 已废弃。请使用 mindforge web 打开 Setup UI，或 mindforge config 做本地诊断。"""
+    console.print("[bold yellow]mindforge setup 已废弃。[/bold yellow]")
+    console.print("推荐替代：[bold]mindforge web[/bold] 打开 Setup UI，或 [bold]mindforge config[/bold] 做本地配置诊断。")
     console.print("Mode: dry-run" if dry_run else "Mode: write config", markup=False)
     console.print(
         "Safety: writes config only; secrets stay in env/.env; no LLM call; no Obsidian formal-note writes.",

@@ -237,7 +237,7 @@ def process(
         ),
     ),
 ) -> None:
-    """对 inbox 中已 scan 的文件跑 5 stage pipeline，落地 Knowledge Card。
+    """[Advanced] 对 inbox 中已 scan 的文件跑 5 stage pipeline。用户主路径请用 mindforge watch add 或 mindforge import。
 
     硬约束：原始 source 文件不被改写；卡片默认 ``status: ai_draft``，
     必须人工修改 frontmatter 才晋升 ``human_approved``。

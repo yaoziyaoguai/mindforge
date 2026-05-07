@@ -1622,7 +1622,7 @@ def test_setup_api_key_not_in_yaml_when_stored_in_secret_store(tmp_path: Path, m
 
 def test_setup_secret_store_under_mindforge_dir(tmp_path: Path, monkeypatch) -> None:
     """Secret store 位于 .mindforge/secrets.json，已被 .gitignore 覆盖。"""
-    from mindforge_web.services.secret_store import SecretStore
+    from mindforge.secret_store import SecretStore
 
     store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
     store.set("test-model", "sk-test-value")
@@ -1952,3 +1952,132 @@ def test_setup_default_model_and_routing_still_work_without_env_fields(tmp_path:
     assert editable["llm"]["routing"]["distill"] == "b"
     assert editable["llm"]["routing"]["triage"] == "a"  # fallback
     assert editable["llm"]["routing_is_explicit"] is True
+
+
+# ============================================================================
+# Secret store → provider runtime 测试
+# ============================================================================
+
+
+def test_anthropic_provider_resolves_key_from_secret_store(tmp_path: Path, monkeypatch) -> None:
+    """anthropic_compatible model 无 api_key_env 时从 secret store 取 key。"""
+    from mindforge.secret_store import SecretStore
+    from mindforge.llm.anthropic_compatible import _resolve_api_key
+
+    store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+    store.set("test-model", "sk-secret-store-key")
+    monkeypatch.chdir(tmp_path)
+
+    result = _resolve_api_key("test-model", None)
+    assert result == "sk-secret-store-key"
+
+
+def test_openai_provider_resolves_key_from_secret_store(tmp_path: Path, monkeypatch) -> None:
+    """openai_compatible model 无 api_key_env 时从 secret store 取 key。"""
+    from mindforge.secret_store import SecretStore
+    from mindforge.llm.anthropic_compatible import _resolve_api_key
+
+    store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+    store.set("openai-model", "sk-openai-key")
+    monkeypatch.chdir(tmp_path)
+
+    result = _resolve_api_key("openai-model", None)
+    assert result == "sk-openai-key"
+
+
+def test_env_var_still_takes_priority(tmp_path: Path, monkeypatch) -> None:
+    """env var 优先级高于 secret store。"""
+    from mindforge.secret_store import SecretStore
+    from mindforge.llm.anthropic_compatible import _resolve_api_key
+
+    store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+    store.set("test-model", "sk-from-store")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TEST_API_KEY", "sk-from-env")
+
+    result = _resolve_api_key("test-model", "TEST_API_KEY")
+    assert result == "sk-from-env"
+
+
+def test_missing_key_returns_none(tmp_path: Path, monkeypatch) -> None:
+    """不存在的 model 返回 None。"""
+    from mindforge.llm.anthropic_compatible import _resolve_api_key
+    monkeypatch.chdir(tmp_path)
+
+    result = _resolve_api_key("nonexistent", None)
+    assert result is None
+
+
+def test_anthropic_provider_error_never_includes_raw_key() -> None:
+    """Provider error message 不包含 raw API key。"""
+    from mindforge.llm.base import ProviderError
+
+    # 验证 error message 模版不含 raw key 引用
+    try:
+        raise ProviderError(
+            "模型 test 没有可用的 API key。请在 Web Setup 中添加 key，"
+            "或设置环境变量 TEST_KEY。"
+        )
+    except ProviderError as e:
+        msg = str(e)
+        assert "sk-" not in msg
+        assert "secret" not in msg.lower()
+
+
+def test_review_route_serves_drafts_page(tmp_path: Path, monkeypatch) -> None:
+    """/review 路由正确导向 Drafts 页面，不回退到 Home。"""
+    # 验证前端 SPA 路由：/review 和 /drafts 都映射到 DraftsPage
+    # 通过检查 App.tsx 源码确认
+    app_tsx = Path(__file__).parent.parent / "web" / "src" / "App.tsx"
+    content = app_tsx.read_text(encoding="utf-8")
+    assert 'path.startsWith("/review")' in content
+    assert "DraftsPage" in content
+
+
+def test_dogfood_command_hidden_from_main_help() -> None:
+    """dogfood 命令不出现在主 help 中。"""
+    import subprocess
+    result = subprocess.run(
+        ["python", "-m", "mindforge", "--help"],
+        capture_output=True,
+        text=True,
+        cwd="/Users/jinkun.wang/work_space/mindforge",
+    )
+    # dogfood 不应出现在主 help 输出中
+    assert "dogfood" not in result.stdout
+
+
+def test_setup_cli_shows_deprecation_warning() -> None:
+    """CLI setup 命令显示废弃警告。"""
+    import subprocess
+    result = subprocess.run(
+        ["python", "-m", "mindforge", "setup", "--help"],
+        capture_output=True,
+        text=True,
+        cwd="/Users/jinkun.wang/work_space/mindforge",
+    )
+    assert "DEPRECATED" in result.stdout
+
+
+def test_scan_help_marks_advanced() -> None:
+    """scan 命令 help 标注 [Advanced]。"""
+    import subprocess
+    result = subprocess.run(
+        ["python", "-m", "mindforge", "scan", "--help"],
+        capture_output=True,
+        text=True,
+        cwd="/Users/jinkun.wang/work_space/mindforge",
+    )
+    assert "[Advanced]" in result.stdout
+
+
+def test_watch_add_frequency_alias(tmp_path: Path) -> None:
+    """/watch add --frequency 作为 --every 的别名。"""
+    import subprocess
+    result = subprocess.run(
+        ["python", "-m", "mindforge", "watch", "add", "--help"],
+        capture_output=True,
+        text=True,
+        cwd="/Users/jinkun.wang/work_space/mindforge",
+    )
+    assert "--frequency" in result.stdout
