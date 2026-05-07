@@ -1,4 +1,4 @@
-import { BookOpen, CheckSquare, Home, Inbox, Library, Search, Settings } from "lucide-react";
+import { BookOpen, CheckSquare, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
 import { cx } from "../lib/utils";
 
 const items = [
@@ -8,6 +8,7 @@ const items = [
   { href: "/drafts", label: "Review", icon: CheckSquare },
   { href: "/library", label: "Knowledge Library", icon: Library },
   { href: "/recall", label: "Search", icon: Search },
+  { href: "/trash", label: "Trash", icon: Trash2 },
 ];
 
 export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {

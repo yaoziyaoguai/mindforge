@@ -13,6 +13,7 @@ import { SourcesPage } from "./pages/SourcesPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { RecallPage } from "./pages/RecallPage";
 import { LibraryPage } from "./pages/LibraryPage";
+import { TrashPage } from "./pages/TrashPage";
 
 type PageData = {
   home?: HomeStatusResponse;
@@ -67,8 +68,9 @@ export default function App() {
   if (!content && path.startsWith("/setup") && data.config) content = <SetupPage data={data.config} onRefresh={load} />;
   if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} onRefresh={load} />;
   if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
-  if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} />;
+  if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
   if (!content && path.startsWith("/recall")) content = <RecallPage onNavigate={navigate} />;
+  if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) content = <div className="text-sm text-muted">Loading...</div>;
 

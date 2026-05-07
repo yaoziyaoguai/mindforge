@@ -489,6 +489,21 @@ class WebFacade:
             else None,
         )
 
+    def _resolve_draft_path(self, draft_id: str) -> Path:
+        """根据 draft_id 解析 ai_draft 卡片路径。"""
+        detail = self.review_service.draft_detail(draft_id)
+        if detail is None:
+            raise FileNotFoundError(f"draft {draft_id} not found")
+        return self.cfg.vault.cards_path / detail.draft.rel_path
+
+    def _resolve_library_card_path(self, card_ref: str) -> Path:
+        """根据 card_ref 解析 approved 卡片路径。"""
+        from mindforge.library_service import show_library_card, LibraryLookupError
+        detail = show_library_card(self.cfg, card_ref, show_content=False)
+        if isinstance(detail, LibraryLookupError):
+            raise FileNotFoundError(f"card {card_ref} not found")
+        return self.cfg.vault.cards_path / detail.card.summary.rel_path
+
     def _card_status_counts(self) -> dict[str, int]:
         scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
         counts: dict[str, int] = {}

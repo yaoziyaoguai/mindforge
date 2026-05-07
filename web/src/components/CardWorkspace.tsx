@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, Save, X } from "lucide-react";
+import { Edit3, Save, Trash2, X } from "lucide-react";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
 import { friendlyStatus, truncateMiddle } from "../lib/utils";
 
@@ -10,9 +10,10 @@ interface Props {
   mode: "draft" | "library";
   onSave: (body: string) => Promise<CardBodyUpdateResponse>;
   onSaved?: () => void;
+  onMoveToTrash?: () => void;
 }
 
-export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
+export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: Props) {
   const card = "draft" in detail ? detail.draft : detail.card;
   const body = detail.body ?? "";
   const sections = useMemo(() => parseSections(body), [body]);
@@ -61,13 +62,31 @@ export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
               {sourceLabel(card) ? <span>source:{sourceLabel(card)}</span> : null}
             </div>
           </div>
-          <button
-            className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink"
-            onClick={() => setEditing(true)}
-            type="button"
-          >
-            <Edit3 className="h-4 w-4" /> Edit
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink"
+              onClick={() => setEditing(true)}
+              type="button"
+            >
+              <Edit3 className="h-4 w-4" /> Edit
+            </button>
+            {onMoveToTrash ? (
+              <button
+                className="inline-flex items-center gap-2 rounded-md border border-danger px-3 py-2 text-sm font-medium text-danger hover:bg-red-50"
+                onClick={() => {
+                  if (window.confirm(mode === "draft"
+                    ? "Move this draft card to Trash? This only removes the draft card from Review. It does not delete the source file."
+                    : "Move this approved knowledge card to Trash? This does not delete the source file. You can restore it from Trash."
+                  )) {
+                    onMoveToTrash();
+                  }
+                }}
+                type="button"
+              >
+                <Trash2 className="h-4 w-4" /> Move to Trash
+              </button>
+            ) : null}
+          </div>
         </div>
         {mode === "draft" ? (
           <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-warn">

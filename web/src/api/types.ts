@@ -483,3 +483,35 @@ export interface RecallResponse {
   warnings: string[];
   empty_state?: NextAction | null;
 }
+
+export interface TrashCardResponse {
+  trash_rel_path: string;
+  title: string;
+  previous_status: string;
+  original_path: string;
+  trashed_at: string;
+  track?: string | null;
+  tags: string[];
+  source_title?: string | null;
+}
+
+export interface TrashListResponse {
+  trashed_cards: TrashCardResponse[];
+  trash_dir: string;
+}
+
+export interface TrashDetailResponse {
+  card: TrashCardResponse;
+  frontmatter: Record<string, unknown>;
+  body?: string | null;
+}
+
+export interface TrashActionResponse {
+  ok: boolean;
+  action: string;
+  message: string;
+  card_id?: string | null;
+  previous_status?: string | null;
+  restored_path?: string | null;
+  conflict_resolved: boolean;
+}

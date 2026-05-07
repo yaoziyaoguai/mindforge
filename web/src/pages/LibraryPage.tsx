@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
+import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
 import { CardWorkspace } from "../components/CardWorkspace";
 import { ErrorState } from "../components/ErrorState";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
 
-export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
+export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; onRefresh?: () => void }) {
   const initialRef = new URLSearchParams(window.location.search).get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
   const [selected, setSelected] = useState<string | undefined>(initialRef ?? undefined);
   const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,6 +25,19 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
   async function refreshSelected() {
     if (!selected) return;
     setDetail(await getLibraryCardDetail(selected));
+  }
+
+  async function handleMoveToTrash() {
+    if (!selected) return;
+    try {
+      const result = await moveLibraryCardToTrash(selected);
+      setMessage(result.message);
+      setDetail(null);
+      setSelected(undefined);
+      onRefresh?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Move to trash failed");
+    }
   }
 
   return (
@@ -70,6 +85,7 @@ export function LibraryPage({ data }: { data: LibraryCardsResponse }) {
               mode="library"
               onSave={(body) => saveLibraryCardBody(selected ?? detail.card.id ?? detail.card.rel_path, body)}
               onSaved={refreshSelected}
+              onMoveToTrash={handleMoveToTrash}
             />
           ) : null}
         </div>
