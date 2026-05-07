@@ -57,6 +57,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<EditingModel | null>(null);
+  const [promptPreview, setPromptPreview] = useState<{ stage: string; version: string; content: string } | null>(null);
 
   useEffect(() => {
     void loadEditable();
@@ -120,6 +121,17 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         api_key_action: "keep",
       },
     });
+  }
+
+  async function viewPrompt(stage: string, version: string) {
+    try {
+      const resp = await fetch(`/api/prompts/${stage}?version=${encodeURIComponent(version)}`);
+      if (!resp.ok) throw new Error("Prompt not found");
+      const data = await resp.json();
+      setPromptPreview({ stage: data.stage, version: data.version, content: data.content });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to load prompt");
+    }
   }
 
   function cancelEdit() {
@@ -458,7 +470,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                         <p className="mt-1 text-xs text-muted">{step.purpose}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-muted">prompt: {step.prompt_id} @ {step.prompt_version}</span>
+                        <button className="rounded-md border border-line bg-white px-2 py-0.5 text-xs text-primary hover:bg-stone-50" onClick={() => viewPrompt(step.id, step.prompt_version)} type="button">View prompt ({step.prompt_version})</button>
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
@@ -483,8 +495,22 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </button>
             ) : null}
 
-            <p className="text-xs text-muted">Custom prompts and custom strategies are coming later. For now, you can assign different models to each step and view the built-in prompts via CLI: mindforge prompts show &lt;step&gt;.</p>
+            <p className="text-xs text-muted">Workflow steps are fixed in this version. Model assignment is configurable. Click View prompt to see the prompt used by each step.</p>
           </section>
+
+          {/* Prompt preview modal */}
+          {promptPreview ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setPromptPreview(null)}>
+              <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-md border border-line bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-ink">Prompt: {promptPreview.stage} @ {promptPreview.version}</h3>
+                  <button className="text-sm text-muted hover:text-ink" onClick={() => setPromptPreview(null)} type="button">Close</button>
+                </div>
+                <p className="text-xs text-muted mb-3">Read-only — this is the prompt currently used by the workflow step.</p>
+                <pre className="whitespace-pre-wrap rounded-md border border-line bg-stone-50 p-4 text-sm text-ink max-h-[60vh] overflow-y-auto">{promptPreview.content}</pre>
+              </div>
+            </div>
+          ) : null}
 
           <SourceAddPanel onRefresh={onRefresh} />
 

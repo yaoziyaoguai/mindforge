@@ -470,20 +470,20 @@ class WebConfigService:
                 "description": s.description or "",
             })
 
-        # 3) 组装 workflow steps
+        # 3) 组装 workflow steps（固定 5-step，不可自定义 step 数量/顺序）
         step_purposes: dict[str, str] = {
-            "triage": "Evaluate source value and assign a learning track",
-            "distill": "Extract key knowledge into a structured card",
-            "link_suggestion": "Suggest related knowledge connections",
-            "review_questions": "Generate review questions for spaced repetition",
-            "action_extraction": "Extract actionable items from the card",
+            "triage": "初筛：评估 source 是否值得生成知识卡片，给出 track / value_score",
+            "distill": "提炼：从 source 提取核心知识内容，生成卡片草稿主体",
+            "link_suggestion": "关联建议：建议可能相关的主题、项目或已有知识链接",
+            "review_questions": "复习问题：生成用于后续回忆和自测的问题",
+            "action_extraction": "行动项提取：提取可跟进的行动项或待办",
         }
         step_labels: dict[str, str] = {
-            "triage": "Triage",
-            "distill": "Distill",
-            "link_suggestion": "Link Suggestion",
-            "review_questions": "Review Questions",
-            "action_extraction": "Action Extraction",
+            "triage": "Triage / 初筛",
+            "distill": "Distill / 提炼",
+            "link_suggestion": "Link Suggestion / 关联建议",
+            "review_questions": "Review Questions / 复习问题",
+            "action_extraction": "Action Extraction / 行动项提取",
         }
 
         default_model = self._editable_default_model(raw) or ""
@@ -515,7 +515,7 @@ class WebConfigService:
             active_strategy_id=active_id,
             active_strategy_label=sd.label if sd else meta.display_label if meta else active_id,
             active_strategy_description=getattr(meta, 'description', '') if meta else '',
-            active_strategy_status=getattr(meta, 'implementation_status', 'built-in') if meta else 'built-in',
+            active_strategy_status="default workflow",
             available_strategies=available,
             workflow_steps=steps,
         )

@@ -896,7 +896,7 @@ def test_web_workspace_can_read_and_save_approved_card_and_refresh_recall(
 
     detail = client.get("/api/library/card", params={"ref": "approved-1"}).json()
     assert "Approved summary alpha workspace" in detail["body"]
-    assert detail["card"]["strategy_label"] == "Knowledge Card Strategy"
+    assert detail["card"]["strategy_label"] == "Knowledge Card Workflow"
 
     saved = client.patch(
         "/api/library/card",

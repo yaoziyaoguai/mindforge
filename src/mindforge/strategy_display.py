@@ -24,7 +24,7 @@ def strategy_display(raw_strategy_id: str | None) -> StrategyDisplay:
     sid = (raw_strategy_id or "").strip() or None
     if sid in {None, "", "knowledge_card", "five_stage"}:
         return StrategyDisplay(
-            label="Knowledge Card Strategy",
+            label="Knowledge Card Workflow",
             raw_id=sid,
             canonical_id="knowledge_card",
             note="legacy id: five_stage" if sid == "five_stage" else None,

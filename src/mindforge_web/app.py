@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from mindforge_web.routers import approval, config, drafts, health, home, library, recall, sources, trash
+from mindforge_web.routers import approval, config, drafts, health, home, library, prompts, recall, sources, trash
 from mindforge_web.services.web_facade import WebFacade
 
 
@@ -49,6 +49,7 @@ def create_app(
     app.include_router(drafts.router)
     app.include_router(approval.router)
     app.include_router(library.router)
+    app.include_router(prompts.router)
     app.include_router(trash.router)
     app.include_router(recall.router)
     if static_dir and static_dir.exists():
