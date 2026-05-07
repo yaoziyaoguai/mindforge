@@ -1,6 +1,7 @@
 """可执行 onboarding smoke：demo vault 的主路径不能回归。
 
-只使用 examples/demo-vault 的虚构资料和 fake provider；运行时产物写入 tmp_path。
+只使用 examples/demo-vault 的虚构资料；process smoke 通过显式 ``--profile fake``
+在内存注入测试 provider，运行时产物写入 tmp_path。
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ def _copy_demo_vault(tmp_path: Path) -> tuple[Path, Path]:
     cfg["vault"]["root"] = str(vault)
     cfg["state"]["workdir"] = str(tmp_path / ".mindforge")
     cfg["logging"]["file"] = str(tmp_path / "mindforge.log")
-    cfg["llm"]["active_profile"] = "fake"
     cfg_path = tmp_path / "mindforge.yaml"
     cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return vault, cfg_path

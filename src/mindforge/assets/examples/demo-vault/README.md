@@ -2,7 +2,7 @@
 
 > 这是一份**完全虚构、无敏感数据**的示例 vault，用于：
 > 1. 文档/截图/演示；
-> 2. 跑 smoke（`mindforge scan` / `process --profile fake` / `recall` 等）；
+> 2. 跑本地 smoke（`mindforge scan` / `recall` 等）；
 > 3. 帮助新用户在 5 分钟内理解 MindForge 的产物形态。
 >
 > 任何文件**不得**包含：真实工作资料、个人隐私、API key、token、`.env`、
@@ -39,7 +39,9 @@ mindforge doctor --vault "$DEMO" --config configs/mindforge.yaml
 mindforge commands
 mindforge next --vault "$DEMO" --config configs/mindforge.yaml
 mindforge scan --vault "$DEMO" --config configs/mindforge.yaml
-mindforge process --profile fake --limit 1 --vault "$DEMO" --config configs/mindforge.yaml
+# process 需要你在 configs/mindforge.yaml 配好 llm.models/default_model；
+# 没有真实 API key 时可以跳过这一步，demo vault 仍可用于 scan/recall/review。
+# mindforge process --limit 1 --vault "$DEMO" --config configs/mindforge.yaml
 mindforge approve list --vault "$DEMO" --config configs/mindforge.yaml
 mindforge index rebuild --vault "$DEMO" --config configs/mindforge.yaml
 mindforge recall --query "checkpoint runtime" \
@@ -65,7 +67,8 @@ mindforge obsidian stage --vault "$DEMO" \
 
 - **不含 .env**：`mindforge[doctor|next]` 仅检查 `.env` 是否在 `.gitignore`，
   绝不读取 `.env` 内容；
-- **fake provider**：默认 `active_profile=fake`，`process` 不会真的调 LLM；
+- **LLM opt-in**：demo 不包含 `.env` 或 API key；`process` 只在你显式配置
+  `llm.models/default_model` 和对应 env 后运行；
 - **只读 inbox**：所有输入文件只读，pipeline 写产物到 `20-Knowledge-Cards/`；
 - **只读 Obsidian notes**：`obsidian scan/links/doctor` 不修改正式笔记；
 - **staging/review 隔离**：`obsidian stage` 默认 dry-run，写入需 `--write --confirm`；

@@ -49,32 +49,20 @@ def test_real_mindforge_yaml_loads() -> None:
         "chat_export",
         "common_document",
     }
-    # llm
-    # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；缺 key 时
-    # watch/import/process 会友好失败，不会 fallback 到 fake。
-    assert cfg.llm.active_profile == "openai_compatible"
-    assert "anthropic_coding_plan" in cfg.llm.profiles
-    assert "anthropic" in cfg.llm.profiles
-    assert "openai_compatible" in cfg.llm.profiles
+    # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
+    assert cfg.llm.active_profile == "__model_routing__"
+    assert cfg.llm.default_model == "main"
+    assert cfg.llm.routing == {stage: "main" for stage in REQUIRED_STAGES}
     for stage in REQUIRED_STAGES:
         m = cfg.llm.resolve_stage(stage)
         assert m.alias in cfg.llm.models
         assert m.type == "openai_compatible"
     # 真实路径模型一律不允许把 secret 写进 yaml
-    openai = cfg.llm.models["openai_strong"]
-    assert openai.type == "openai_compatible"
-    assert openai.base_url_env == "MINDFORGE_OPENAI_BASE_URL"
-    assert openai.api_key_env == "MINDFORGE_OPENAI_API_KEY"
-    assert openai.model_env == "MINDFORGE_OPENAI_MODEL"
-    assert openai.model == "gpt-4o-mini"
-    assert openai.base_url == "https://api.openai.com/v1"  # endpoint 不是 secret
-    anthropic = cfg.llm.models["anthropic_strong"]
-    assert anthropic.type == "anthropic_compatible"
-    assert anthropic.provider == "anthropic"
-    assert anthropic.base_url_env == "MINDFORGE_ANTHROPIC_BASE_URL"
-    assert anthropic.api_key_env == "MINDFORGE_ANTHROPIC_API_KEY"
-    assert anthropic.model_env == "MINDFORGE_ANTHROPIC_MODEL"
-    assert anthropic.model == "claude-3-5-haiku-latest"
+    main = cfg.llm.models["main"]
+    assert main.type == "openai_compatible"
+    assert main.api_key_env == "MINDFORGE_LLM_API_KEY"
+    assert main.model == "your-model-name"
+    assert main.base_url == "https://your-router.example.com/v1"  # endpoint 不是 secret
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"

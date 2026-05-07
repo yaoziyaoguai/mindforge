@@ -220,7 +220,7 @@ def test_no_automated_git_tag_or_release_in_source():
 # ---------- consolidated invariant ----------
 
 def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
-    """真实 dogfood 后 shipped asset 默认使用 openai_compatible，但不含 secret。"""
+    """shipped asset 默认使用新 LLM routing 格式，但不含 secret。"""
     cfg = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -229,8 +229,13 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
         / "configs"
         / "mindforge.yaml"
     ).read_text(encoding="utf-8")
-    assert "active_profile: openai_compatible" in cfg
-    assert "MINDFORGE_OPENAI_API_KEY" in cfg
+    assert "default_model: main" in cfg
+    assert "models:" in cfg
+    assert "routing:" in cfg
+    assert "MINDFORGE_LLM_API_KEY" in cfg
+    assert "active_profile:" not in cfg
+    assert "profiles:" not in cfg
+    assert "fake_fast" not in cfg
     assert "sk-" not in cfg
 
 

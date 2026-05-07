@@ -5,8 +5,8 @@ canonical docs 与代码契约不会在未来悄悄漂移:
 
 - completion ledger 必须列出所有关键状态桶;
 - usage/testing 必须引用 quality gates;
-- usage 必须同时记录 fake 和 real opt-in 路径;
-- 默认 active_profile 仍然是 fake;
+- usage 必须记录 real opt-in 与本地测试边界;
+- 默认 LLM 配置使用 models/default_model/routing;
 - 没有任何 v0.13 doc 引入了 git tag / release 字面量承诺;
 - preflight 输出 contract 在源码中保持 ``human_approved=False``;
 - 没有任何 production module (除已知白名单) 写 ``human_approved = True``。
@@ -15,8 +15,6 @@ canonical docs 与代码契约不会在未来悄悄漂移:
 from __future__ import annotations
 
 from pathlib import Path
-
-import pytest
 
 DOCS = Path(__file__).resolve().parents[1] / "docs"
 SRC = Path(__file__).resolve().parents[1] / "src" / "mindforge"
@@ -129,7 +127,7 @@ def test_roadmap_records_all_v013_stages():
 
 # ---------- repo-level invariants still hold ----------
 
-def test_bundled_active_profile_is_real_dogfood():
+def test_bundled_llm_config_uses_model_routing_not_profiles():
     yaml_text = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -138,15 +136,11 @@ def test_bundled_active_profile_is_real_dogfood():
         / "configs"
         / "mindforge.yaml"
     ).read_text(encoding="utf-8")
-    for line in yaml_text.splitlines():
-        s = line.strip()
-        if s.startswith("active_profile:"):
-            assert s == "active_profile: openai_compatible", (
-                f"default active_profile should be real dogfood: {s!r}"
-            )
-            break
-    else:
-        pytest.fail("active_profile not found in configs/mindforge.yaml")
+    assert "default_model: main" in yaml_text
+    assert "routing:" in yaml_text
+    assert "active_profile:" not in yaml_text
+    assert "profiles:" not in yaml_text
+    assert "fake_fast" not in yaml_text
 
 
 def test_dogfood_safety_output_contract_keeps_human_approved_false():

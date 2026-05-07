@@ -36,7 +36,7 @@ import typer
 from rich.console import Console
 
 from .assets_runtime import asset_root
-from .config import load_mindforge_config
+from .config import load_mindforge_config, with_fake_llm_profile
 from .cubox_dryrun_presenter import (
     DryRunSampleItem,
     DryRunSummary,
@@ -166,8 +166,8 @@ def _load_default_config_path() -> Path:
     """优先 cwd 的 ``configs/mindforge.yaml``；否则用 package 内置 asset。
 
     preview 命令的设计目标是 ``cd 任何目录 → 跑就能看 fake ai_draft``，
-    不需要项目用户先建配置文件。包内 ``configs/mindforge.yaml`` 已经把
-    ``active_profile`` 设为 ``fake``，与本命令的安全语义天然吻合。
+    不需要项目用户先建配置文件。fake profile 只在 preview 运行时内存注入，
+    不写入 package defaults，也不把 fake/test 语义暴露给用户主配置。
     """
     local = Path.cwd() / "configs" / "mindforge.yaml"
     if local.exists():
@@ -231,10 +231,7 @@ def _dedup_cubox_docs(
 def _fake_preview_strategy():
     """构造 fake-only KnowledgeStrategy，维持 no API key / no network 安全路径。"""
     cfg = load_mindforge_config(_load_default_config_path())
-    # LLMConfig 是 frozen dataclass：用 ``replace`` 而非赋值，强制 fake profile。
-    from dataclasses import replace as _replace
-
-    safe_llm = _replace(cfg.llm, active_profile="fake")
+    safe_llm = with_fake_llm_profile(cfg.llm)
     providers = build_providers(safe_llm)
     client = LLMClient(llm_config=safe_llm, providers=providers)
 

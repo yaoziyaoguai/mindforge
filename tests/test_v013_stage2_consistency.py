@@ -27,6 +27,7 @@ def clean_env(monkeypatch):
     """中和 .env 自动加载并清掉所有 alias 声明的 api_key/base_url env;
     保证 readiness/ping 测试不被开发者本地 shell 状态污染。"""
     monkeypatch.setattr("mindforge.cli.load_dotenv_silently", lambda *_a, **_k: None)
+    monkeypatch.setattr("mindforge.provider_cli.load_dotenv_silently", lambda *_a, **_k: None)
     from mindforge.assets_runtime import bundled_asset_path_for_process
     from mindforge.app_context import load_app_config
     cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))

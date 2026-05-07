@@ -120,7 +120,7 @@ mindforge import /path/to/file-or-folder --force
 
 新生成的 AI Card 会在 frontmatter 里保留生成证据链：source id/path/title/type、
 source content hash、strategy id/version/schema、stage prompt versions、
-provider profile、stage models 和 run id。approve 只把 `status` 改成
+workflow model routing 和 run id。approve 只把 `status` 改成
 `human_approved` 并回写 source archive path，不会丢掉这些 provenance。
 
 `00-Inbox/` 是系统自带的 default watched source。它不是一个额外命令，也不

@@ -152,16 +152,14 @@ def _build_fake_client() -> LLMClient:
     避免手搓 _MinimalModelConfig 漏掉 max_retries 等隐含字段；这与
     cubox_cli.preview-ai-draft 的构造路径一致。
     """
-    from dataclasses import replace as _replace
-
     from mindforge.assets_runtime import asset_root
-    from mindforge.config import load_mindforge_config
+    from mindforge.config import load_mindforge_config, with_fake_llm_profile
     from mindforge.llm import build_providers
 
     cfg = load_mindforge_config(
         asset_root().joinpath("configs", "mindforge.yaml")  # type: ignore[arg-type]
     )
-    safe_llm = _replace(cfg.llm, active_profile="fake")
+    safe_llm = with_fake_llm_profile(cfg.llm)
     providers = build_providers(safe_llm)
     return LLMClient(llm_config=safe_llm, providers=providers)
 

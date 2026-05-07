@@ -184,6 +184,53 @@ class LLMConfig:
         return self.models[alias]
 
 
+def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
+    """为 legacy/dev-only 离线路径临时注入 fake profile。
+
+    中文学习型说明：用户默认配置和 package defaults 不再暴露 fake/profile 语义；
+    但老的 smoke、preview 和 ``--profile fake`` 仍需要 deterministic 本地替身。
+    这里在内存中派生 fake profile，不写回 YAML，也不污染 Setup 主 UI。
+    """
+
+    fake_models = {
+        "fake_fast": ModelConfig(
+            alias="fake_fast",
+            provider="fake",
+            type="fake",
+            base_url="fake://",
+            model="fake-fast",
+            timeout_seconds=5,
+            max_retries=0,
+        ),
+        "fake_strong": ModelConfig(
+            alias="fake_strong",
+            provider="fake",
+            type="fake",
+            base_url="fake://",
+            model="fake-strong",
+            timeout_seconds=5,
+            max_retries=0,
+        ),
+    }
+    return LLMConfig(
+        active_profile="fake",
+        profiles={
+            **llm.profiles,
+            "fake": {
+                "triage": "fake_fast",
+                "distill": "fake_strong",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_strong",
+                "action_extraction": "fake_strong",
+            },
+        },
+        models={**llm.models, **fake_models},
+        default_model=llm.default_model,
+        routing=dict(llm.routing),
+        legacy_config_detected=llm.legacy_config_detected,
+    )
+
+
 @dataclass(frozen=True)
 class PromptVersions:
     triage: str
@@ -383,18 +430,18 @@ def _deep_merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) ->
 
 
 def _merge_user_config_with_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    """合并用户配置，同时保护新的 LLM 用户语义不被 legacy defaults 污染。
+    """合并用户配置，同时保护 LLM 用户语义不被另一种格式污染。
 
-    中文学习型说明：package defaults 仍含内部 fake/profile 兼容配置。用户写了
-    新格式 ``llm.default_model`` 时，表示他已经在使用 ``models/routing`` 语义；
-    此时不能把 defaults 里的 ``active_profile/profiles/fake_fast`` 深合并回来，
-    否则 Setup 和错误信息又会暴露旧世界。
+    中文学习型说明：package defaults 使用新的 ``models/default_model/routing``。
+    用户配置如果也是新格式，就不能深合并出其它 model id；用户配置如果是
+    legacy ``active_profile/profiles`` 或过渡期 ``active/providers``，也不能让
+    defaults 里的 ``default_model`` 抢先把它解析成新格式。
     """
 
     if not isinstance(overrides.get("llm"), dict):
         return _deep_merge_defaults(defaults, overrides)
     user_llm = overrides["llm"]
-    if "default_model" not in user_llm:
+    if "default_model" not in user_llm and not _is_legacy_llm_override(user_llm):
         return _deep_merge_defaults(defaults, overrides)
 
     overrides_without_llm = dict(overrides)
@@ -402,6 +449,10 @@ def _merge_user_config_with_defaults(defaults: dict[str, Any], overrides: dict[s
     merged = _deep_merge_defaults(defaults, overrides_without_llm)
     merged["llm"] = dict(user_llm)
     return merged
+
+
+def _is_legacy_llm_override(llm: dict[str, Any]) -> bool:
+    return any(key in llm for key in ("active", "active_profile", "providers", "profiles"))
 
 
 def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
@@ -481,6 +532,15 @@ def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
                 "review_questions": "fake_strong",
                 "action_extraction": "fake_strong",
             }
+        )
+    if isinstance(fake_profile, dict) and fake_profile.get("provider") == "fake":
+        models.setdefault(
+            "fake_fast",
+            {"provider": "fake", "type": "fake", "model": "fake-fast"},
+        )
+        models.setdefault(
+            "fake_strong",
+            {"provider": "fake", "type": "fake", "model": "fake-strong"},
         )
     return raw
 

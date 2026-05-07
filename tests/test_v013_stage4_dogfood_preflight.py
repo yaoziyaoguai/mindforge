@@ -20,7 +20,7 @@ import pytest
 from typer.testing import CliRunner
 
 from mindforge.cli import app
-from mindforge.config import LLMConfig
+from mindforge.config import LLMConfig, with_fake_llm_profile
 from mindforge.dogfood_safety import (
     CLASS_HOME_SCAN_FORBIDDEN,
     CLASS_NON_SENSITIVE_LOCAL,
@@ -37,11 +37,11 @@ from mindforge.dogfood_safety import (
 
 @pytest.fixture
 def fake_llm_config() -> LLMConfig:
-    """加载仓库默认 fake-only 配置 — 与项目默认对齐, 无 secret 依赖。"""
+    """测试专用 fake profile 只在内存注入，不要求用户默认配置暴露 fake。"""
     from mindforge.app_context import load_app_config
 
     repo_root = Path(__file__).resolve().parents[1]
-    return load_app_config(repo_root / "configs" / "mindforge.yaml").llm
+    return with_fake_llm_profile(load_app_config(repo_root / "configs" / "mindforge.yaml").llm)
 
 
 def test_synthetic_examples_path_classified_as_synthetic(tmp_path):

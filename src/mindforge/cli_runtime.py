@@ -15,7 +15,7 @@ import typer
 from rich.console import Console
 
 from .app_context import AppContextError, load_app_config, resolve_user_source_path
-from .config import MindForgeConfig
+from .config import MindForgeConfig, with_fake_llm_profile
 from .env_loader import load_dotenv_silently
 
 console = Console()
@@ -162,6 +162,10 @@ def override_active_profile(
 
     if not profile:
         return cfg
+    if profile == "fake" and profile not in cfg.llm.profiles:
+        # 中文学习型说明：fake 现在是 dev/offline 兼容能力，不再写在用户默认配置里。
+        # ``--profile fake`` 仍可显式触发，但只在内存中注入，避免污染 YAML / Setup。
+        return replace(cfg, llm=with_fake_llm_profile(cfg.llm))
     if profile not in cfg.llm.profiles:
         console.print(
             f"[red]--profile {profile!r} 不在 llm.profiles 中；"
@@ -194,6 +198,20 @@ def apply_provider_selection(
                 **cfg.raw,
                 "_mindforge_provider_selection": {
                     "selected": cfg.llm.active_profile,
+                    "source": source,
+                },
+            },
+        )
+    if selected == "fake" and selected not in cfg.llm.profiles:
+        # fake provider 只服务显式 dev/offline 命令；不作为 configured model 暴露。
+        safe_llm = with_fake_llm_profile(cfg.llm)
+        return replace(
+            cfg,
+            llm=safe_llm,
+            raw={
+                **cfg.raw,
+                "_mindforge_provider_selection": {
+                    "selected": selected,
                     "source": source,
                 },
             },
