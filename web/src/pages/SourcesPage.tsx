@@ -135,6 +135,7 @@ export function SourcesPage({
                       className="mt-2 w-full max-w-[220px] rounded-md border border-line bg-white px-2 py-1 text-xs disabled:bg-stone-100"
                       disabled={busy || !source.can_delete}
                       onChange={(event) => setRowFrequencies({ ...rowFrequencies, [source.id]: event.target.value })}
+                      title={source.can_delete ? "Edit frequency" : "Built-in inbox frequency is fixed."}
                       value={rowFrequencies[source.id] ?? source.frequency}
                     >
                       {frequencyOptions.map((item) => (
@@ -154,16 +155,13 @@ export function SourcesPage({
                   <div>
                     <div className="text-xs font-medium uppercase text-muted">Last run summary</div>
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <SummaryItem label="New" value={source.diff_counts.added ?? 0} />
-                      <SummaryItem label="Changed" value={source.diff_counts.changed ?? 0} />
-                      <SummaryItem label="Missing" value={source.diff_counts.deleted ?? 0} />
-                      <SummaryItem label="Skipped" value={source.skipped_count} />
-                      <SummaryItem label="Drafts created" value={source.generated_card_count} />
-                      <SummaryItem label="Errors" value={source.failed_count} />
+                      <SummaryMetric label="New" value={source.diff_counts.added ?? 0} />
+                      <SummaryMetric label="Changed" value={source.diff_counts.changed ?? 0} />
+                      <SummaryMetric label="Missing" value={source.diff_counts.deleted ?? 0} />
+                      <SummaryMetric label="Skipped" value={source.skipped_count} />
+                      <SummaryMetric label="Drafts created" value={source.generated_card_count} />
+                      <SummaryMetric label="Errors" value={source.failed_count} />
                     </div>
-                    <p className="mt-2 text-xs text-muted">
-                      New since last scan={source.diff_counts.added ?? 0} Changed since last scan={source.diff_counts.changed ?? 0} Deleted since last scan={source.diff_counts.deleted ?? 0}
-                    </p>
                   </div>
                   <div>
                     <div className="text-xs font-medium uppercase text-muted">Actions</div>
@@ -174,7 +172,7 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-primary" onClick={() => onNavigate("/library")} type="button">
                         Open related knowledge
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => editFrequency(source.id, source.frequency)} type="button">
+                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => editFrequency(source.id, source.frequency)} title={source.can_delete ? "Edit frequency" : "Built-in inbox frequency is fixed."} type="button">
                         Edit frequency
                       </button>
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
@@ -183,7 +181,7 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => revealPath(source.path)} type="button">
                         Reveal in Finder
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => removeWatch(source.id)} type="button">
+                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => removeWatch(source.id)} title={source.can_delete ? "Remove" : "Built-in inbox cannot be removed."} type="button">
                         Remove
                       </button>
                     </div>
@@ -214,6 +212,15 @@ function SummaryItem({ label, value }: { label: string; value: string | number }
   );
 }
 
+function SummaryMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-line bg-stone-50 px-3 py-2">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="mt-1 text-lg font-semibold leading-none text-ink">{value}</div>
+    </div>
+  );
+}
+
 function formatRunSummary(message: string, counts: Record<string, number>) {
   const filesScanned = counts.scanned ?? counts.seen ?? counts.processed ?? 0;
   const skipped = counts.skipped ?? 0;
@@ -223,7 +230,7 @@ function formatRunSummary(message: string, counts: Record<string, number>) {
 }
 
 function sourceLabel(source: SourcesResponse["watched_sources"][number]) {
-  if (source.is_default) return "System inbox";
+  if (source.is_default) return "Built-in inbox";
   const cleanPath = source.path.replace(/\/$/, "");
   return cleanPath.split("/").pop() || source.path;
 }

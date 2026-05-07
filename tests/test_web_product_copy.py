@@ -169,9 +169,13 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Last scan" in sources
     assert "Next scan" in sources
     assert "Due" in sources
-    assert "Changed since last scan" in sources
-    assert "Deleted since last scan" in sources
-    assert "New since last scan" in sources
+    assert "Changed since last scan" not in sources
+    assert "Deleted since last scan" not in sources
+    assert "New since last scan" not in sources
+    assert "New=" not in sources
+    assert "Changed=" not in sources
+    assert "Skipped=" not in sources
+    assert "Drafts created=" not in sources
     assert "Add source in Setup" in sources
     assert "Add a file or folder" not in sources
     assert "Path input" not in sources
@@ -180,6 +184,7 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Edit frequency" in sources
     assert "Processing..." in sources
     assert "Last run summary" in sources
+    assert "SummaryMetric" in sources
     assert "Diagnostics" in sources
     assert "Source details" in sources
     assert "Built-in inbox cannot be removed." in sources

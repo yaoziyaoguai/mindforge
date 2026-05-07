@@ -10,8 +10,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+import pytest
 from fastapi.testclient import TestClient
 
+from mindforge.app_context import AppContextError
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
 
@@ -328,8 +330,8 @@ def test_setup_editor_saves_allowed_non_secret_fields_and_refreshes_status(
 
     assert editable["vault"]["root"].endswith("dogfood-vault")
     assert editable["llm"]["active_provider"] == "fake"
-    assert editable["llm"]["providers"]["real"]["api_key_env_configured"] is True
-    assert editable["llm"]["providers"]["real"]["api_key_secret_present"] is False
+    assert editable["llm"]["available_providers"] == []
+    assert editable["llm"]["providers"] == {}
     assert "never-return-this" not in f"{editable}"
 
     new_vault = tmp_path / "new-vault"
@@ -338,16 +340,6 @@ def test_setup_editor_saves_allowed_non_secret_fields_and_refreshes_status(
         json={
             "vault_root": str(new_vault),
             "create_vault": True,
-            "active_provider": "real",
-            "providers": {
-                "real": {
-                    "default_base_url": "https://new.example.invalid/v1",
-                    "default_model": "new-model",
-                    "api_key_env": "MINDFORGE_REAL_SECRET_RENAMED",
-                    "base_url_env": "MINDFORGE_NEW_BASE_URL",
-                    "model_env": "MINDFORGE_NEW_MODEL",
-                }
-            },
         },
     ).json()
     after_raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
@@ -355,14 +347,10 @@ def test_setup_editor_saves_allowed_non_secret_fields_and_refreshes_status(
 
     assert saved["ok"] is True
     assert saved["status"]["vault"]["path"] == str(new_vault.resolve())
-    assert saved["status"]["provider"]["active_profile"] == "real"
+    assert saved["status"]["provider"]["active_profile"] == "fake"
     assert (new_vault / "00-Inbox").is_dir()
     assert after_raw["custom_unrelated"] == {"keep": "unchanged"}
     assert after_raw["triage"]["default_track"] == "unrouted"
-    assert after_raw["llm"]["active_profile"] == "real"
-    assert after_raw["llm"]["models"]["real_alias"]["model"] == "new-model"
-    assert after_raw["llm"]["models"]["real_alias"]["base_url"] == "https://new.example.invalid/v1"
-    assert after_raw["llm"]["models"]["real_alias"]["api_key_env"] == "MINDFORGE_REAL_SECRET_RENAMED"
     assert "never-return-this" not in combined
 
 
@@ -542,6 +530,99 @@ def test_setup_provider_dropdown_uses_only_configured_real_providers(
     assert provider["model_source"] == "config_default"
     assert provider["effective_base_url"] is None
     assert provider["base_url_source"] == "missing"
+
+
+def test_setup_provider_dropdown_ignores_legacy_profile_defaults_in_main_ui(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "active_profile": "anthropic_coding_plan",
+        "profiles": {
+            "all_local": {
+                "triage": "local_alias",
+                "distill": "local_alias",
+                "link_suggestion": "local_alias",
+                "review_questions": "local_alias",
+                "action_extraction": "local_alias",
+            },
+            "anthropic_coding_plan": {
+                "triage": "anthropic_alias",
+                "distill": "anthropic_alias",
+                "link_suggestion": "anthropic_alias",
+                "review_questions": "anthropic_alias",
+                "action_extraction": "anthropic_alias",
+            },
+            "openai_compatible": {
+                "triage": "openai_alias",
+                "distill": "openai_alias",
+                "link_suggestion": "openai_alias",
+                "review_questions": "openai_alias",
+                "action_extraction": "openai_alias",
+            },
+        },
+        "models": {
+            "local_alias": {
+                "provider": "local",
+                "type": "local",
+                "base_url": "http://127.0.0.1:11434",
+                "model": "local-model",
+            },
+            "anthropic_alias": {
+                "provider": "anthropic",
+                "type": "anthropic_compatible",
+                "base_url": "https://api.anthropic.com",
+                "model": "claude-test",
+            },
+            "openai_alias": {
+                "provider": "openai_compatible",
+                "type": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-test",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+
+    assert editable["llm"]["active_provider"] == "anthropic_coding_plan"
+    assert editable["llm"]["available_providers"] == []
+    assert editable["llm"]["providers"] == {}
+    assert "all_local" not in f"{editable['llm']['available_providers']}"
+    assert "anthropic_coding_plan" not in f"{editable['llm']['available_providers']}"
+    assert "openai_compatible" not in f"{editable['llm']['available_providers']}"
+
+
+def test_setup_active_provider_missing_reports_config_error_without_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "active": "missing_provider",
+        "providers": {
+            "anthropic": {
+                "type": "anthropic",
+                "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                "default_model": "claude-test",
+            }
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(AppContextError) as exc_info:
+        create_app(config_path=cfg_path, host="127.0.0.1")
+
+    error_text = str(exc_info.value)
+    assert "missing_provider" in error_text
+    assert "fake" not in error_text.lower()
 
 
 def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, monkeypatch) -> None:

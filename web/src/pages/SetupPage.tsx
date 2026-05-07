@@ -204,6 +204,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           ) : null}
 
+          <SourceAddPanel onRefresh={onRefresh} />
+
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
             <dl className="mt-3 space-y-2 text-sm text-muted">
@@ -215,7 +217,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
             </dl>
           </details>
-          <SourceAddPanel onRefresh={onRefresh} />
           {message ? <p className="text-sm text-primary">{message}</p> : null}
         </section>
       ) : null}

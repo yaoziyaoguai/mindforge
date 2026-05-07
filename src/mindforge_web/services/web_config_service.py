@@ -271,7 +271,8 @@ class WebConfigService:
 
         中文学习型说明：配置加载层会把 legacy profiles、fallback 和测试替身展开
         成可执行的内部结构；Setup 不能把这些内部路由当作用户可选 provider。
-        因此这里优先使用用户 YAML 的 ``llm.providers``，并过滤 fake/local/test/default。
+        因此这里仅使用用户 YAML 的 ``llm.providers``。legacy ``profiles``
+        是运行时兼容结构，可能来自 registry/default 展开，不能进入主 UI 下拉。
         """
 
         llm = raw.get("llm")
@@ -284,20 +285,7 @@ class WebConfigService:
                 for name, provider in providers.items()
                 if isinstance(provider, dict) and _is_product_provider(str(name), provider.get("type"))
             )
-        profiles = llm.get("profiles")
-        if not isinstance(profiles, dict):
-            return []
-        models = llm.get("models")
-        if not isinstance(models, dict):
-            return []
-        names: list[str] = []
-        for name, profile in profiles.items():
-            if not isinstance(profile, dict):
-                continue
-            aliases = {str(value) for value in profile.values()}
-            if any(_is_product_model(models.get(alias)) for alias in aliases):
-                names.append(str(name))
-        return sorted(names)
+        return []
 
     def _editable_providers(self, raw: dict[str, Any]) -> dict[str, EditableProviderConfig]:
         providers: dict[str, EditableProviderConfig] = {}
