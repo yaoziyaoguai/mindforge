@@ -152,6 +152,26 @@ export interface ResolvedWorkflowModelConfig {
   model?: string | null;
 }
 
+export interface ProcessingWorkflowStep {
+  id: string;
+  label: string;
+  purpose: string;
+  model_id: string;
+  prompt_id: string;
+  prompt_version: string;
+  prompt_description: string;
+  can_view_prompt: boolean;
+}
+
+export interface ProcessingWorkflowConfig {
+  active_strategy_id: string;
+  active_strategy_label: string;
+  active_strategy_description: string;
+  active_strategy_status: string;
+  available_strategies: { id: string; label: string; version: string; status: string; description: string }[];
+  workflow_steps: ProcessingWorkflowStep[];
+}
+
 export interface SetupEditableConfigResponse {
   config_path: string;
   normalized_on_save: boolean;
@@ -173,6 +193,7 @@ export interface SetupEditableConfigResponse {
     routing: Record<string, string>;
     routing_is_explicit: boolean;
     resolved_per_step_models: Record<string, ResolvedWorkflowModelConfig>;
+    processing_workflow?: ProcessingWorkflowConfig | null;
     legacy_config_detected: boolean;
     validation_errors: string[];
     warnings: string[];

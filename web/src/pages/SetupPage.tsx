@@ -5,8 +5,6 @@ import { ConfigChecklist } from "../components/ConfigChecklist";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 
-const workflowSteps = ["triage", "distill", "link_suggestion", "review_questions", "action_extraction"];
-
 const supportedTypes = ["openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
 /** 前端模型表单 —— api_key 仅用于用户输入，永不从后端回填 raw value。 */
@@ -59,7 +57,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<EditingModel | null>(null);
-  const [expandedRouting, setExpandedRouting] = useState(false);
 
   useEffect(() => {
     void loadEditable();
@@ -422,42 +419,71 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </section>
 
           {/* ================================================================ */}
-          {/* Model routing */}
+          {/* Processing workflow */}
           {/* ================================================================ */}
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Model routing</h2>
-              <p className="mt-1 text-sm text-muted">Map each workflow step to a configured model, or leave unset to use the default model.</p>
+              <h2 className="text-lg font-semibold text-ink">Processing workflow</h2>
+              <p className="mt-1 text-sm text-muted">MindForge turns sources into draft knowledge cards through a workflow. Each step has a purpose, a prompt, and a model assignment.</p>
             </div>
-            {!expandedRouting && !editable.llm.routing_is_explicit ? (
-              <div className="flex items-center justify-between rounded-md border border-line p-3">
-                <p className="text-sm text-muted">All workflow steps use default model: <span className="font-medium text-ink">{form.default_model || "missing"}</span></p>
-                <button className="text-xs text-primary" onClick={() => setExpandedRouting(true)} type="button">Customize per step</button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  {workflowSteps.map((step) => {
-                    const current = form.routing[step] ?? form.default_model;
-                    return (
-                      <label key={step} className="space-y-1 text-sm">
-                        <span className="font-medium text-ink">Workflow step: {step}</span>
-                        <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step, event.target.value)}>
-                          {modelIds.map((modelId) => {
-                            const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
-                            return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
-                          })}
-                        </select>
-                        {current === form.default_model ? <span className="text-xs text-muted">uses default model</span> : null}
-                      </label>
-                    );
-                  })}
+
+            {/* Active strategy */}
+            {editable.llm.processing_workflow ? (
+              <div className="rounded-md border border-line bg-stone-50 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-muted">Active strategy</div>
+                    <div className="font-semibold text-ink">{editable.llm.processing_workflow.active_strategy_label}</div>
+                    <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
+                  </div>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{editable.llm.processing_workflow.active_strategy_status}</span>
                 </div>
-                <button className="text-xs text-muted hover:text-ink" onClick={() => { setForm({ ...form, routing_is_explicit: false, routing: {} }); setExpandedRouting(false); }} type="button">
-                  Reset to use default model for all steps
-                </button>
               </div>
-            )}
+            ) : null}
+
+            {/* Workflow steps */}
+            <div className="space-y-3">
+              {(editable.llm.processing_workflow?.workflow_steps ?? []).map((step) => {
+                const current = form.routing[step.id] ?? form.default_model;
+                const isCustomModel = form.routing_is_explicit && form.routing[step.id] && form.routing[step.id] !== form.default_model;
+
+                return (
+                  <article key={step.id} className="rounded-md border border-line p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-ink">{step.label}</span>
+                          <span className="text-xs text-muted">{step.id}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">{step.purpose}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-muted">prompt: {step.prompt_id} @ {step.prompt_version}</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-xs text-muted">Model</label>
+                      <select className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
+                        {modelIds.map((modelId) => {
+                          const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
+                          return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
+                        })}
+                      </select>
+                      {!isCustomModel ? <span className="text-xs text-muted">(uses default)</span> : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Reset routing */}
+            {form.routing_is_explicit ? (
+              <button className="text-xs text-muted hover:text-ink" onClick={() => { setForm({ ...form, routing_is_explicit: false, routing: {} }); }} type="button">
+                Reset all steps to use default model
+              </button>
+            ) : null}
+
+            <p className="text-xs text-muted">Custom prompts and custom strategies are coming later. For now, you can assign different models to each step and view the built-in prompts via CLI: mindforge prompts show &lt;step&gt;.</p>
           </section>
 
           <SourceAddPanel onRefresh={onRefresh} />

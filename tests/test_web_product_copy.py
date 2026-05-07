@@ -91,7 +91,7 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "Vault path" in setup
     assert "Configured models" in setup
     assert "Default model" in setup
-    assert "Model routing" in setup
+    assert "Processing workflow" in setup
     assert "API key" in setup
     # type=password 现在是安全的用户输入字段（永不预填），不是 secret 泄露路径
     assert "autoComplete=\"off\"" in setup
@@ -132,12 +132,13 @@ def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
 
     assert "Configured models" in setup
     assert "Default model" in setup
-    assert "Model routing" in setup
+    assert "Processing workflow" in setup
     assert "Workflow step" in setup
-    assert "All workflow steps use default model" in setup
+    assert "uses default" in setup  # 新版 UI 不再折叠，直接展示所有 steps
     assert "Legacy LLM config detected" in setup
     assert "Model id" in setup
     assert "API key:" in setup
+    assert "Active strategy" in setup or "active_strategy" in setup.lower()
     assert "stage_models" not in setup
     assert "Stage models" not in setup
     assert "active_profile" not in setup

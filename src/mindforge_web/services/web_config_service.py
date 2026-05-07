@@ -27,6 +27,8 @@ from mindforge_web.schemas import (
     EditableVaultConfig,
     EnvKeyStatus,
     NextAction,
+    ProcessingWorkflowConfig,
+    ProcessingWorkflowStep,
     ProviderAliasStatus,
     ProviderStatus,
     ResolvedWorkflowModelConfig,
@@ -151,6 +153,7 @@ class WebConfigService:
                 routing=self._editable_routing(raw),
                 routing_is_explicit=self._routing_is_explicit(raw),
                 resolved_per_step_models=self._resolved_per_step_models(raw),
+                processing_workflow=self._workflow_config(raw),
                 legacy_config_detected=self._legacy_config_detected(raw),
                 validation_errors=self._llm_validation_errors(raw),
                 warnings=self._llm_warnings(raw),
@@ -434,6 +437,88 @@ class WebConfigService:
         if not isinstance(llm, dict):
             return None
         return _str_or_none(llm.get("default_model"))
+
+    def _workflow_config(self, raw: dict[str, Any]) -> ProcessingWorkflowConfig | None:
+        """组装 processing workflow 视图 —— 组合 strategy + prompt + model routing。
+
+        中文学习型说明：这个 view 不引入新 config，只把已有 strategy registry、
+        prompt versions config、llm.routing/default_model 拼成一份前端可读的
+        workflow 描述。React 不自己拼策略逻辑，只消费这个 view。
+        """
+        from mindforge.strategies.registry import get_strategy_metadata, list_strategies
+        from mindforge.strategy_display import strategy_display
+        from mindforge.strategy_selection import resolve_strategy_selection
+
+        # 1) 解析 active strategy
+        try:
+            selection = resolve_strategy_selection(self.cfg)
+            active_id = selection.strategy_id
+        except Exception:
+            active_id = self.cfg.strategy.active if hasattr(self.cfg, 'strategy') else "knowledge_card"
+
+        meta = get_strategy_metadata(active_id)
+        sd = strategy_display(active_id)
+
+        # 2) 列出 available strategies（仅 product/implemented）
+        available: list[dict] = []
+        for s in list_strategies():
+            available.append({
+                "id": s.strategy_id,
+                "label": s.display_name,
+                "version": s.strategy_version,
+                "status": s.status,
+                "description": s.description or "",
+            })
+
+        # 3) 组装 workflow steps
+        step_purposes: dict[str, str] = {
+            "triage": "Evaluate source value and assign a learning track",
+            "distill": "Extract key knowledge into a structured card",
+            "link_suggestion": "Suggest related knowledge connections",
+            "review_questions": "Generate review questions for spaced repetition",
+            "action_extraction": "Extract actionable items from the card",
+        }
+        step_labels: dict[str, str] = {
+            "triage": "Triage",
+            "distill": "Distill",
+            "link_suggestion": "Link Suggestion",
+            "review_questions": "Review Questions",
+            "action_extraction": "Action Extraction",
+        }
+
+        default_model = self._editable_default_model(raw) or ""
+        routing = self._editable_routing(raw)
+        prompt_versions = self.cfg.prompts if hasattr(self.cfg, 'prompts') else {}
+
+        steps: list[ProcessingWorkflowStep] = []
+        from mindforge.config import REQUIRED_STAGES
+        for stage in REQUIRED_STAGES:
+            model_id = routing.get(stage, default_model)
+            prompt_ver = getattr(prompt_versions, stage, "v1") if hasattr(prompt_versions, stage) else "v1"
+            try:
+                pv = prompt_versions.for_stage(stage)
+            except Exception:
+                pv = "v1"
+
+            steps.append(ProcessingWorkflowStep(
+                id=stage,
+                label=step_labels.get(stage, stage),
+                purpose=step_purposes.get(stage, ""),
+                model_id=model_id,
+                prompt_id=stage,
+                prompt_version=pv,
+                prompt_description=f"{stage} prompt — {step_purposes.get(stage, '')}",
+                can_view_prompt=True,
+            ))
+
+        return ProcessingWorkflowConfig(
+            active_strategy_id=active_id,
+            active_strategy_label=sd.label if sd else meta.display_label if meta else active_id,
+            active_strategy_description=getattr(meta, 'description', '') if meta else '',
+            active_strategy_status=getattr(meta, 'implementation_status', 'built-in') if meta else 'built-in',
+            available_strategies=available,
+            workflow_steps=steps,
+        )
 
     def _routing_is_explicit(self, raw: dict[str, Any]) -> bool:
         llm = raw.get("llm")

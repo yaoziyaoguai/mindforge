@@ -179,6 +179,28 @@ class ResolvedWorkflowModelConfig(BaseModel):
     model: str | None = None
 
 
+class ProcessingWorkflowStep(BaseModel):
+    """单个 workflow step 的只读展示视图 —— 组合 strategy + prompt + model routing。"""
+    id: str
+    label: str
+    purpose: str
+    model_id: str
+    prompt_id: str
+    prompt_version: str
+    prompt_description: str = ""
+    can_view_prompt: bool = True
+
+
+class ProcessingWorkflowConfig(BaseModel):
+    """Processing workflow 的完整配置视图。"""
+    active_strategy_id: str
+    active_strategy_label: str
+    active_strategy_description: str
+    active_strategy_status: str = "built-in"
+    available_strategies: list[dict] = Field(default_factory=list)
+    workflow_steps: list[ProcessingWorkflowStep] = Field(default_factory=list)
+
+
 class EditableLLMConfig(BaseModel):
     active_provider: str
     available_providers: list[str]
@@ -190,6 +212,7 @@ class EditableLLMConfig(BaseModel):
     routing: dict[str, str] = Field(default_factory=dict)
     routing_is_explicit: bool = False
     resolved_per_step_models: dict[str, ResolvedWorkflowModelConfig] = Field(default_factory=dict)
+    processing_workflow: ProcessingWorkflowConfig | None = None
     legacy_config_detected: bool = False
     validation_errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
