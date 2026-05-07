@@ -724,7 +724,7 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
     assert watched["skipped_reason_summary"]["unsupported_extension"] == 1
     assert watched["skipped_reason_summary"]["temp_file"] == 1
     assert watched["skipped_reason_summary"]["hidden_file"] == 1
-    assert watched["status_label"] in {"Watching", "Processed", "Has generated knowledge"}
+    assert watched["status_label"] in {"Watching", "Processed"}
     assert len(list(cards.rglob("*.md"))) == 1
     assert watched["status_label"] != "ready"
     assert watched["status"] != "ready"

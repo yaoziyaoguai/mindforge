@@ -43,6 +43,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     : [];
   const hasConfiguredProvider = Boolean(activeProvider && activeProvider.type !== "fake");
   const selectedProviderName = hasConfiguredProvider ? form?.active_provider ?? "" : "";
+  const selectedProviderForm = selectedProviderName ? form?.providers[selectedProviderName] : null;
 
   function updateProviderField(field: keyof SetupForm["providers"][string], value: string) {
     if (!form || !selectedProviderName) return;
@@ -169,83 +170,48 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           </div>
 
-          {activeProvider ? (
-            <div className="grid gap-4 md:grid-cols-2">
+          {hasConfiguredProvider && activeProvider ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <ProviderValue label="Model" value={activeProvider.effective_model} source={activeProvider.model_source} />
+                <ProviderValue label="Base URL" value={activeProvider.effective_base_url} source={activeProvider.base_url_source} />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Model</span>
-                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? form.providers[selectedProviderName]?.default_model ?? "" : ""} onChange={(event) => updateProviderField("default_model", event.target.value)} />
+                <span className="font-medium text-ink">Model config value</span>
+                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? selectedProviderForm?.default_model ?? "" : ""} onChange={(event) => updateProviderField("default_model", event.target.value)} />
+                <span className="text-xs text-muted">{sourceText(activeProvider.model_source)}</span>
               </label>
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Base URL</span>
-                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? form.providers[selectedProviderName]?.default_base_url ?? "" : ""} onChange={(event) => updateProviderField("default_base_url", event.target.value)} />
+                <span className="font-medium text-ink">Base URL config value</span>
+                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? selectedProviderForm?.default_base_url ?? "" : ""} onChange={(event) => updateProviderField("default_base_url", event.target.value)} />
+                <span className="text-xs text-muted">{sourceText(activeProvider.base_url_source)}</span>
               </label>
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-ink">API key env name</span>
-                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? form.providers[selectedProviderName]?.api_key_env ?? "" : ""} onChange={(event) => updateProviderField("api_key_env", event.target.value)} />
+                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? selectedProviderForm?.api_key_env ?? "" : ""} onChange={(event) => updateProviderField("api_key_env", event.target.value)} />
                 {hasConfiguredProvider ? (
                   <span className="text-xs text-muted">
                     API key value: {activeProvider.api_key_secret_present && activeProvider.api_key_masked_value ? `present (${activeProvider.api_key_masked_value})` : activeProvider.api_key_status_label}
                   </span>
                 ) : null}
-                <button className="block text-xs text-primary disabled:text-muted" disabled={!hasConfiguredProvider} onClick={() => copyText(form.providers[selectedProviderName]?.api_key_env, "API key env name")} type="button">
+                <button className="block text-xs text-primary disabled:text-muted" disabled={!hasConfiguredProvider} onClick={() => copyText(selectedProviderForm?.api_key_env, "API key env name")} type="button">
                   Copy API key env name
                 </button>
               </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Base URL / model env names</span>
-                <input className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? form.providers[selectedProviderName]?.base_url_env ?? "" : ""} onChange={(event) => updateProviderField("base_url_env", event.target.value)} />
-                <input className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredProvider} value={hasConfiguredProvider ? form.providers[selectedProviderName]?.model_env ?? "" : ""} onChange={(event) => updateProviderField("model_env", event.target.value)} />
-              </label>
-              {hasConfiguredProvider ? (
-                <>
-                  <div className="rounded-md border border-line p-3 text-sm">
-                    <div className="font-medium text-ink">Effective base URL</div>
-                    <div className="mt-1 break-all text-muted">{activeProvider.effective_base_url ?? "missing"}</div>
-                    <div className="mt-1 text-xs text-muted">env: {activeProvider.base_url_env_status} · {sourceLabel(activeProvider.base_url_source)}</div>
-                    {activeProvider.effective_base_url ? (
-                      <button className="mt-2 text-xs text-primary" onClick={() => copyText(activeProvider.effective_base_url, "Base URL")} type="button">
-                        Copy base URL
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="rounded-md border border-line p-3 text-sm">
-                    <div className="font-medium text-ink">Effective model</div>
-                    <div className="mt-1 break-all text-muted">{activeProvider.effective_model ?? "missing"}</div>
-                    <div className="mt-1 text-xs text-muted">env: {activeProvider.model_env_status} · {sourceLabel(activeProvider.model_source)}</div>
-                    {activeProvider.effective_model ? (
-                      <button className="mt-2 text-xs text-primary" onClick={() => copyText(activeProvider.effective_model, "Model")} type="button">
-                        Copy model
-                      </button>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
+              </div>
             </div>
           ) : null}
-
-          <section className="rounded-md border border-line p-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-ink">Default watched inbox</h2>
-                <p className="mt-1 break-all text-sm font-medium text-ink">{editable.vault.root}/00-Inbox</p>
-                <p className="mt-1 max-w-2xl text-sm text-muted">
-                  MindForge can process files placed in this inbox. Add more files or folders from Sources.
-                </p>
-              </div>
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={() => { window.location.hash = "#/sources"; }} type="button">
-                Manage sources
-              </button>
-            </div>
-          </section>
 
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
             <dl className="mt-3 space-y-2 text-sm text-muted">
               <div><dt className="font-medium text-ink">Provider readiness</dt><dd>{editable.llm.readiness.opt_in_state}</dd></div>
               <div><dt className="font-medium text-ink">Technical active provider</dt><dd>{editable.llm.active_provider}</dd></div>
+              <div><dt className="font-medium text-ink">Base URL env name</dt><dd>{selectedProviderForm?.base_url_env || "missing"}</dd></div>
+              <div><dt className="font-medium text-ink">Model env name</dt><dd>{selectedProviderForm?.model_env || "missing"}</dd></div>
               <div><dt className="font-medium text-ink">Raw config path</dt><dd>{editable.config_path}</dd></div>
               <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
-              <div><dt className="font-medium text-ink">Sources & imports</dt><dd>{editable.watch_summary.detail}</dd></div>
             </dl>
           </details>
           {message ? <p className="text-sm text-primary">{message}</p> : null}
@@ -256,10 +222,28 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   );
 }
 
-function sourceLabel(source: "env" | "config_default" | "missing") {
-  if (source === "env") return "source: env";
-  if (source === "config_default") return "source: config default";
-  return "source: missing";
+function ProviderValue({
+  label,
+  value,
+  source,
+}: {
+  label: string;
+  value?: string | null;
+  source: "env" | "config_default" | "missing";
+}) {
+  return (
+    <div className="rounded-md border border-line p-3 text-sm">
+      <div className="font-medium text-ink">{label}</div>
+      <div className="mt-1 break-all text-muted">{value || "missing"}</div>
+      <div className="mt-1 text-xs text-muted">{sourceText(source)}</div>
+    </div>
+  );
+}
+
+function sourceText(source: "env" | "config_default" | "missing") {
+  if (source === "env") return "source = env";
+  if (source === "config_default") return "source = config";
+  return "source = missing";
 }
 
 function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {

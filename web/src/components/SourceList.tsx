@@ -50,14 +50,14 @@ export function SourceList({
                     Reveal in Finder
                   </button>
                   <button className="rounded-md border border-line px-2 py-1 text-xs text-primary" onClick={onOpenCards} type="button">
-                    Open generated knowledge
+                    Open related knowledge
                   </button>
                 </div>
                 {source.generated_card_paths.length ? (
                   <div className="mt-2 space-y-1">
                     {source.generated_card_paths.slice(0, 3).map((path) => (
                       <button key={path} className="block max-w-[220px] truncate text-xs text-primary" onClick={() => onCopyPath?.(path)} type="button">
-                        Copy generated knowledge path
+                        Copy related knowledge path
                       </button>
                     ))}
                   </div>

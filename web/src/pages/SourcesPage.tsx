@@ -1,7 +1,5 @@
 import type { SourcesResponse } from "../api/types";
 import { addWatchedSource, copySourcePath, deleteWatchedSource, revealSourcePath, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
-import { SourceList } from "../components/SourceList";
-import { StatusCard } from "../components/StatusCard";
 import { useState } from "react";
 
 export function SourcesPage({
@@ -110,7 +108,7 @@ export function SourcesPage({
             MindForge automatically detects whether the path is a file or folder. Folders are scanned recursively. Frequency applies only to the top-level source you add, not to files inside the folder.
           </p>
           <p className="mt-1 text-sm text-muted">
-            Manual means no automatic scanning. Use Process now when you want MindForge to check this source. Automation only creates ai_draft. human_approved requires explicit approval.
+            Manual means no automatic scanning. Use Process now when you want MindForge to check this source. Automation only creates draft knowledge cards. Approved knowledge requires explicit approval.
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-[1fr_180px_auto_auto]">
@@ -140,18 +138,6 @@ export function SourcesPage({
         </div>
         <p className="mt-3 text-sm text-muted">{data.ingestion.safety_note}</p>
         {result ? <p className="mt-3 text-sm text-primary">{result}</p> : null}
-        <details className="mt-4 rounded-md border border-line p-3">
-          <summary className="cursor-pointer text-sm font-medium text-ink">More actions</summary>
-          <p className="mt-2 text-sm text-muted">Using Cubox? Export articles into a local folder, then add that folder as a source.</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-sm">
-            <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, false)} type="button">
-              Process all due sources
-            </button>
-            <button className="rounded-md border border-line px-3 py-1 text-ink disabled:opacity-50" disabled={busy} onClick={() => scanWatch(undefined, true)} type="button">
-              Process all sources now
-            </button>
-          </div>
-        </details>
       </section>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <h2 className="text-lg font-semibold text-ink">Watched sources</h2>
@@ -172,8 +158,8 @@ export function SourcesPage({
               {data.watched_sources.map((source) => (
                 <tr key={source.id}>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-ink">{source.id}</div>
-                    <div className="text-xs text-muted">{source.path_type} · {source.kind}</div>
+                    <div className="font-medium text-ink">{sourceLabel(source)}</div>
+                    <div className="text-xs text-muted">{source.path_type}{source.is_default ? " · built-in inbox" : ""}</div>
                     {source.path_type === "folder" ? (
                       <div className="mt-1 text-xs text-muted">{source.recursive ? "Recursive: yes" : "Recursive: no"}</div>
                     ) : null}
@@ -191,12 +177,14 @@ export function SourcesPage({
                   </td>
                   <td className="px-4 py-3">
                     <div>{source.status_label || (source.status === "active" ? "Watching" : source.status)}</div>
-                    <div className="mt-1 text-xs text-muted">{source.generated_knowledge_status}</div>
                     <div className="mt-1 text-xs text-muted">
-                      supported={source.supported_file_count} processed={source.processed_count} skipped={source.skipped_count} failed={source.failed_count}
+                      New={source.diff_counts.added ?? 0} Changed={source.diff_counts.changed ?? 0} Missing={source.diff_counts.deleted ?? 0}
                     </div>
                     <div className="mt-1 text-xs text-muted">
                       New since last scan={source.diff_counts.added ?? 0} Changed since last scan={source.diff_counts.changed ?? 0} Deleted since last scan={source.diff_counts.deleted ?? 0}
+                    </div>
+                    <div className="mt-1 text-xs text-muted">
+                      Skipped={source.skipped_count} Drafts created={source.generated_card_count}
                     </div>
                     {Object.keys(source.skipped_reason_summary).length ? (
                       <div className="mt-1 text-xs text-muted">
@@ -236,8 +224,13 @@ export function SourcesPage({
                         Remove
                       </button>
                     ) : (
-                      <span className="text-xs text-muted">default cannot be deleted</span>
+                      <span className="text-xs text-muted">built-in inbox</span>
                     )}
+                    {source.generated_card_count ? (
+                      <button className="mt-2 block rounded-md border border-line px-3 py-1 text-xs text-primary" onClick={() => onNavigate("/library")} type="button">
+                        Open related knowledge
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -246,14 +239,8 @@ export function SourcesPage({
         </div>
         <p className="mt-3 text-sm text-muted">Removing a watched source only stops future intake. It does not delete original files or knowledge cards.</p>
       </section>
-      <SourceList sources={data.sources} onCopyPath={copyPath} onRevealPath={revealPath} onOpenCards={() => onNavigate("/library")} />
-      <section className="grid gap-4 md:grid-cols-2">
-        {data.available_imports.map((item) => (
-          <StatusCard key={item.key} label={item.label} value={item.value} status={item.status} detail={item.detail} nextAction={item.next_action} />
-        ))}
-      </section>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
-        <h2 className="text-lg font-semibold text-ink">Advanced / Troubleshooting</h2>
+        <h2 className="text-lg font-semibold text-ink">Advanced / Technical details</h2>
         <p className="mt-2 text-sm text-muted">{data.ingestion.advanced_note}</p>
         <code className="mt-3 block text-xs text-ink">mindforge import /path/to/source</code>
       </section>
@@ -278,4 +265,10 @@ function formatRunSummary(message: string, counts: Record<string, number>) {
   const draftsCreated = counts.processed ?? 0;
   const errors = counts.failed ?? 0;
   return `${message}; files scanned=${filesScanned}, skipped=${skipped}, drafts created=${draftsCreated}, errors=${errors}`;
+}
+
+function sourceLabel(source: SourcesResponse["watched_sources"][number]) {
+  if (source.is_default) return "System inbox";
+  const cleanPath = source.path.replace(/\/$/, "");
+  return cleanPath.split("/").pop() || source.path;
 }

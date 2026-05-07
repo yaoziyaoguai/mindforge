@@ -495,7 +495,7 @@ def _watch_status_label(
         return "Processed"
     if supported_count:
         return "Watching"
-    return "No generated knowledge"
+    return "Manual"
 
 
 def _due_status(source) -> str:

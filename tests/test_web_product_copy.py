@@ -100,11 +100,15 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     checklist = _read("components/ConfigChecklist.tsx")
     combined = "\n".join([setup, checklist])
 
-    assert "Effective base URL" in setup
-    assert "Effective model" in setup
-    assert "source: config default" in setup
-    assert "Copy base URL" in setup
-    assert "Copy model" in setup
+    assert "source = config" in setup
+    assert "source = env" in setup
+    assert "source = missing" in setup
+    assert "Default model" not in setup
+    assert "Default base URL" not in setup
+    assert "Effective base URL" not in setup
+    assert "Effective model" not in setup
+    assert "Copy base URL" not in setup
+    assert "Copy model" not in setup
     assert "Copy API key env name" in setup
     assert "Copy API key value" not in setup
     assert "present (" in setup
@@ -123,9 +127,11 @@ def test_setup_page_uses_effective_env_config_language() -> None:
 def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
 
-    assert "Default watched inbox" in setup
-    assert "MindForge can process files placed in this inbox. Add more files or folders from Sources." in setup
-    assert "Manage sources" in setup
+    assert "Local workspace" in setup
+    assert "Model provider" in setup
+    assert "Default watched inbox" not in setup
+    assert "Manage sources" not in setup
+    assert "MindForge can process files placed in this inbox" not in setup
     assert "Cubox JSON export path" not in setup
     assert "Cubox import path" not in setup
     assert "Cubox export folder" not in setup
@@ -143,8 +149,6 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Reveal in Finder" in combined
     assert "Copied" in combined
     assert "Processed" in combined
-    assert "Has generated knowledge" in combined
-    assert "Adapter ready" in combined
     assert "Recursive: yes" in combined
     assert "Frequency" in sources
     assert "Last scan" in sources
@@ -163,18 +167,28 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Folders are scanned recursively." in sources
     assert "Frequency applies only to the top-level source you add" in sources
     assert "Manual means no automatic scanning." in sources
-    assert "Automation only creates ai_draft." in sources
-    assert "human_approved requires explicit approval." in sources
+    assert "Automation only creates draft knowledge cards." in sources
+    assert "Approved knowledge requires explicit approval." in sources
     assert "files scanned" in sources
     assert "skipped" in sources
     assert "drafts created" in sources
+    assert "More actions" not in sources
+    assert "Process all due sources" not in sources
+    assert "Process all sources now" not in sources
     assert "Add watched file" not in sources
     assert "Add watched folder" not in sources
     assert "Import once" not in sources
     assert "Scan now" not in sources
+    assert "folder · default" not in sources
+    assert "default cannot be deleted" not in sources
+    assert "built-in inbox" in sources
     assert "Skipped reasons" in combined
-    assert "supported=" in combined
-    assert "failed=" in combined
-    assert "Open generated knowledge" in combined
+    assert "Drafts created" in sources
+    assert "Open related knowledge" in sources
+    assert "supported=" not in sources
+    assert "failed=" not in sources
+    assert "Open generated knowledge" not in combined
+    assert "Adapter ready" not in sources
+    assert "Has generated knowledge" not in sources
     assert "\"ready\"" not in source_list
     assert "Approved" not in source_list
