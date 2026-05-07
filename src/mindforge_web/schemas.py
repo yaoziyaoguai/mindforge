@@ -576,7 +576,7 @@ class TrashListResponse(BaseModel):
 
 
 class TrashActionRequest(BaseModel):
-    trash_rel_path: str
+    trash_rel_path: str = ""
     confirm: bool = False
 
 
