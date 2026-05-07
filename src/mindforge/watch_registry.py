@@ -136,7 +136,12 @@ def registry_path_for_vault(vault_root: Path) -> Path:
 def list_watch_sources(vault_root: Path, registry_path: Path | None = None) -> tuple[WatchedSource, ...]:
     path = registry_path or registry_path_for_vault(vault_root)
     registry = WatchRegistry.load(path)
-    return (default_inbox_watch(vault_root), *registry.sources)
+    persisted_default = next(
+        (source for source in registry.sources if source.id == DEFAULT_INBOX_ID),
+        None,
+    )
+    user_sources = tuple(source for source in registry.sources if source.id != DEFAULT_INBOX_ID)
+    return (persisted_default or default_inbox_watch(vault_root), *user_sources)
 
 
 def add_watch_source(
@@ -218,6 +223,32 @@ def update_watch_source(
             diff_counts=diff_counts if diff_counts is not None else source.diff_counts,
         )
         updated.append(found)
+    if found is None and source_id == DEFAULT_INBOX_ID:
+        # Built-in inbox 是初始化时创建的普通 watched folder。它默认可动态合成，
+        # 但一旦用户改频率或停止监控，就需要把这个选择持久化到 registry。
+        source = default_inbox_watch(vault_root)
+        found = WatchedSource(
+            id=source.id,
+            path=source.path,
+            path_type=source.path_type,
+            is_default=source.is_default,
+            added_at=source.added_at,
+            last_seen_at=last_seen_at if last_seen_at is not None else source.last_seen_at,
+            last_processed_at=(
+                last_processed_at if last_processed_at is not None else source.last_processed_at
+            ),
+            fingerprint=fingerprint if fingerprint is not None else source.fingerprint,
+            strategy_id=source.strategy_id,
+            status=status if status is not None else source.status,
+            error=error,
+            recursive=source.recursive,
+            frequency=normalize_frequency(frequency) if frequency is not None else source.frequency,
+            last_scan_at=last_scan_at if last_scan_at is not None else source.last_scan_at,
+            next_scan_at=next_scan_at if next_scan_at is not None else source.next_scan_at,
+            baseline=baseline if baseline is not None else source.baseline,
+            diff_counts=diff_counts if diff_counts is not None else source.diff_counts,
+        )
+        updated.insert(0, found)
     if found is not None:
         WatchRegistry(sources=tuple(updated)).save(registry_path)
     return found
@@ -225,9 +256,20 @@ def update_watch_source(
 
 def delete_watch_source(vault_root: Path, registry_path: Path, ref: str) -> DeleteWatchResult:
     if ref == DEFAULT_INBOX_ID or ref == str((vault_root / "00-Inbox").resolve()):
+        stopped = update_watch_source(
+            vault_root,
+            registry_path,
+            DEFAULT_INBOX_ID,
+            status="paused",
+            error=None,
+        )
         return DeleteWatchResult(
-            deleted=False,
-            message="default 00-Inbox cannot be deleted",
+            deleted=True,
+            message=(
+                "This only stops future monitoring. It does not delete the folder, "
+                "source files, or knowledge cards."
+            ),
+            source=stopped,
         )
     canonical = _try_resolve(ref)
     registry = WatchRegistry.load(registry_path)
@@ -246,7 +288,7 @@ def delete_watch_source(vault_root: Path, registry_path: Path, ref: str) -> Dele
 
 def set_watch_status(vault_root: Path, registry_path: Path, ref: str, status: WatchStatus) -> WatchedSource | None:
     source = find_watch_source(vault_root, registry_path, ref)
-    if source is None or source.is_default:
+    if source is None:
         return None
     return update_watch_source(vault_root, registry_path, source.id, status=status, error=None)
 
@@ -269,7 +311,7 @@ def normalize_frequency(value: str | None) -> str:
 
 
 def is_due(source: WatchedSource, *, now: datetime | None = None) -> bool:
-    if source.is_default or source.status == "paused":
+    if source.status == "paused":
         return False
     if source.frequency == "manual":
         return False

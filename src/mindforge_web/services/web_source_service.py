@@ -201,11 +201,7 @@ class WebSourceService:
             mode="watch_delete",
             target=str(result.source.path) if result.source is not None else ref,
             counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
-            message=(
-                "watch source registry record removed; source and cards were not deleted"
-                if result.deleted
-                else result.message
-            ),
+            message=result.message,
             added_to_registry=False,
             registry_path=str(registry_path),
             watch_id=result.source.id if result.source is not None else None,
@@ -223,13 +219,13 @@ class WebSourceService:
     def watch_frequency(self, ref: str, frequency: str) -> IngestionActionResponse:
         registry_path = registry_path_for_vault(self.cfg.vault.root)
         source = find_watch_source(self.cfg.vault.root, registry_path, ref)
-        if source is None or source.is_default:
+        if source is None:
             return IngestionActionResponse(
                 ok=False,
                 mode="watch_frequency",
                 target=ref,
                 counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
-                message="watched source not found or frequency cannot be changed",
+                message="watched source not found",
                 added_to_registry=False,
                 registry_path=str(registry_path),
             )
@@ -379,7 +375,7 @@ class WebSourceService:
             frequency=source.frequency,
             due_status=_due_status(source),
             fingerprint=source.fingerprint,
-            can_delete=not source.is_default,
+            can_delete=True,
             error=source.error,
             recursive=source.path_type == "folder",
             supported_file_count=supported_count,

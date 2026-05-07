@@ -1024,13 +1024,15 @@ def test_watch_delete_default_and_approve_boundary(tmp_path: Path, monkeypatch) 
     source.write_text("# Approval Boundary\n\nbody\n", encoding="utf-8")
 
     add = runner.invoke(app, ["watch", "add", str(source), "--config", str(cfg)])
-    reject_delete = runner.invoke(app, ["watch", "delete", "default-inbox", "--config", str(cfg)])
+    stop_default = runner.invoke(app, ["watch", "delete", "default-inbox", "--config", str(cfg)])
     cfg_obj = load_mindforge_config(cfg)
     card = _card_paths(vault)[0]
 
     assert add.exit_code == 0, add.output
-    assert reject_delete.exit_code == 2, reject_delete.output
-    assert "default 00-Inbox cannot be deleted" in reject_delete.output
+    assert stop_default.exit_code == 0, stop_default.output
+    assert "only stops future monitoring" in stop_default.output
+    assert "source files, or knowledge cards" in stop_default.output
+    assert (vault / "00-Inbox").exists()
     assert read_card_frontmatter(card)["status"] == "ai_draft"
     approve = approve_explicit_card(cfg_obj, card)
     assert approve.error is None

@@ -486,6 +486,27 @@ def test_llm_default_model_missing_fails_clearly(tmp_path: Path) -> None:
         load_mindforge_config(p)
 
 
+def test_llm_model_type_is_required_and_not_inferred_from_url(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://api.anthropic.com",
+                        "model": "claude-3-5-haiku-latest",
+                    }
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.models.main.type"):
+        load_mindforge_config(p)
+
+
 def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) -> None:
     p = _write_yaml(
         tmp_path,

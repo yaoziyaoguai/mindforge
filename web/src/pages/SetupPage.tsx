@@ -194,8 +194,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                           <span className="font-medium text-ink">Type</span>
                           <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={item.type} onChange={(event) => updateModelField(modelId, "type", event.target.value)}>
                             <option value="openai_compatible">openai_compatible</option>
-                            <option value="anthropic_compatible">anthropic_compatible</option>
                             <option value="anthropic">anthropic</option>
+                            <option value="anthropic_compatible">anthropic_compatible</option>
                           </select>
                         </label>
                         <label className="space-y-1 text-sm">

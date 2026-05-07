@@ -210,8 +210,10 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "SummaryMetric" in sources
     assert "Diagnostics" in sources
     assert "Source details" in sources
-    assert "Built-in inbox cannot be removed." in sources
-    assert "Built-in inbox frequency is fixed." in sources
+    assert "This only stops future monitoring. It does not delete the folder, source files, or knowledge cards." in sources
+    assert "Stop watching" in sources
+    assert "Built-in inbox cannot be removed." not in sources
+    assert "Built-in inbox frequency is fixed." not in sources
     assert "More actions" not in sources
     assert "Process all due sources" not in sources
     assert "Process all sources now" not in sources

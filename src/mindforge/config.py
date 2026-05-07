@@ -1006,6 +1006,11 @@ def _parse_llm_models(models_raw: dict[str, Any]) -> dict[str, ModelConfig]:
 
 
 def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
+    if "type" not in mraw:
+        raise ConfigError(
+            f"llm.models.{model_id}.type 缺失；必须显式配置为 "
+            "anthropic, anthropic_compatible 或 openai_compatible，不能从 base_url/model 自动猜协议"
+        )
     model_type = _require(mraw, "type", str, ctx=f"llm.models.{model_id}")
     if model_type not in {"anthropic", "anthropic_compatible", "openai_compatible", "fake"}:
         raise ConfigError(

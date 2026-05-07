@@ -961,7 +961,18 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     listed = client.get("/api/sources/watch").json()
     assert listed["watched_sources"][0]["id"] == "default-inbox"
     assert listed["watched_sources"][0]["is_default"] is True
-    assert listed["watched_sources"][0]["can_delete"] is False
+    assert listed["watched_sources"][0]["can_delete"] is True
+
+    default_frequency_update = client.patch(
+        "/api/sources/watch/default-inbox/frequency",
+        json={"frequency": "daily"},
+    ).json()
+    assert default_frequency_update["ok"] is True
+    default_stop = client.delete("/api/sources/watch/default-inbox").json()
+    assert default_stop["ok"] is True
+    assert default_stop["source_deleted"] is False
+    assert default_stop["cards_deleted"] is False
+    assert "only stops future monitoring" in default_stop["message"]
 
     added_file = client.post("/api/sources/watch", json={"path": str(watch_file)}).json()
     added_folder = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
@@ -986,14 +997,15 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert "top-level source only" in frequency_update["message"]
 
     registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
-    assert {source.path for source in registry.sources} == {
+    user_sources = [source for source in registry.sources if not source.is_default]
+    assert {source.path for source in user_sources} == {
         watch_file.resolve(),
         watch_folder.resolve(),
         registered_only_file.resolve(),
     }
-    assert next(source for source in registry.sources if source.path == registered_only_file.resolve()).frequency == "daily"
+    assert next(source for source in user_sources if source.path == registered_only_file.resolve()).frequency == "daily"
 
-    deleted = client.delete(f"/api/sources/watch/{registry.sources[0].id}").json()
+    deleted = client.delete(f"/api/sources/watch/{user_sources[0].id}").json()
     assert deleted["ok"] is True
     assert deleted["source_deleted"] is False
     assert deleted["cards_deleted"] is False
@@ -1006,7 +1018,8 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert imported["mode"] == "import"
     assert imported["counts"]["processed"] == 1
     assert imported["added_to_registry"] is False
-    assert len(WatchRegistry.load(vault / ".mindforge" / "watched_sources.json").sources) == 2
+    final_registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
+    assert len([source for source in final_registry.sources if not source.is_default]) == 2
     assert len(list(cards.rglob("*.md"))) == 3
     assert all("status: ai_draft" in card.read_text(encoding="utf-8") for card in cards.rglob("*.md"))
 
@@ -1065,6 +1078,26 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
     assert "TEMP_BODY_MUST_NOT_LEAK" not in combined
     assert "HIDDEN_BODY_MUST_NOT_LEAK" not in combined
     assert "GENERATED_BODY_MUST_NOT_LEAK" not in combined
+
+
+def test_web_stop_watching_built_in_inbox_does_not_delete_knowledge_cards(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, cards = _client(tmp_path, monkeypatch)
+    approved = _write_approved(cards)
+
+    response = client.delete("/api/sources/watch/default-inbox").json()
+    after = client.get("/api/sources/watch").json()
+    built_in = next(item for item in after["watched_sources"] if item["id"] == "default-inbox")
+
+    assert response["ok"] is True
+    assert response["source_deleted"] is False
+    assert response["cards_deleted"] is False
+    assert "only stops future monitoring" in response["message"]
+    assert approved.exists()
+    assert "status: human_approved" in approved.read_text(encoding="utf-8")
+    assert built_in["status"] == "paused"
 
 
 def test_sources_path_actions_are_allowlisted_and_do_not_read_file_content(

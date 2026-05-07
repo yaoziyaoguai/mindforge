@@ -16,11 +16,14 @@ export function SourcesPage({
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function removeWatch(ref: string) {
+  async function removeWatch(source: SourcesResponse["watched_sources"][number]) {
+    const confirmation =
+      "This only stops future monitoring. It does not delete the folder, source files, or knowledge cards.";
+    if (source.is_default && !window.confirm(confirmation)) return;
     setBusy(true);
     setResult(null);
     try {
-      const response = await deleteWatchedSource(ref);
+      const response = await deleteWatchedSource(source.id);
       setResult(response.message);
       await onRefresh?.();
     } catch (error) {
@@ -133,16 +136,15 @@ export function SourcesPage({
                     <div className="mt-1 text-sm text-ink">{source.frequency}</div>
                     <select
                       className="mt-2 w-full max-w-[220px] rounded-md border border-line bg-white px-2 py-1 text-xs disabled:bg-stone-100"
-                      disabled={busy || !source.can_delete}
+                      disabled={busy}
                       onChange={(event) => setRowFrequencies({ ...rowFrequencies, [source.id]: event.target.value })}
-                      title={source.can_delete ? "Edit frequency" : "Built-in inbox frequency is fixed."}
+                      title="Edit frequency"
                       value={rowFrequencies[source.id] ?? source.frequency}
                     >
                       {frequencyOptions.map((item) => (
                         <option key={item.value} value={item.value}>{item.label}</option>
                       ))}
                     </select>
-                    {!source.can_delete ? <p className="mt-1 text-xs text-muted">Built-in inbox frequency is fixed.</p> : null}
                   </div>
                   <details className="rounded-md border border-line p-3">
                     <summary className="cursor-pointer text-sm font-medium text-ink">Diagnostics</summary>
@@ -172,7 +174,7 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-primary" onClick={() => onNavigate("/library")} type="button">
                         Open related knowledge
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => editFrequency(source.id, source.frequency)} title={source.can_delete ? "Edit frequency" : "Built-in inbox frequency is fixed."} type="button">
+                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => editFrequency(source.id, source.frequency)} title="Edit frequency" type="button">
                         Edit frequency
                       </button>
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
@@ -181,11 +183,11 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => revealPath(source.path)} type="button">
                         Reveal in Finder
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy || !source.can_delete} onClick={() => removeWatch(source.id)} title={source.can_delete ? "Remove" : "Built-in inbox cannot be removed."} type="button">
-                        Remove
+                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source)} title="Stop watching" type="button">
+                        Stop watching
                       </button>
                     </div>
-                    {!source.can_delete ? <p className="mt-2 text-xs text-muted">Built-in inbox cannot be removed.</p> : null}
+                    {source.is_default ? <p className="mt-2 text-xs text-muted">This only stops future monitoring. It does not delete the folder, source files, or knowledge cards.</p> : null}
                   </div>
                 </div>
               </div>
