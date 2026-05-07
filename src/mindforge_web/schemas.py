@@ -47,7 +47,7 @@ class ProviderAliasStatus(BaseModel):
 
 
 class ProviderStatus(BaseModel):
-    active_profile: str
+    active_profile: str  # legacy: 现在使用 llm.models/default_model/routing 模型路由体系
     opt_in_state: str
     can_run_real_smoke: bool
     aliases: list[ProviderAliasStatus]

@@ -86,7 +86,7 @@ mindforge demo
 | **Review** | 查看 AI 草稿、编辑、审批 |
 | **Library** | 浏览已审批知识卡片 |
 | **Trash** | 查看和恢复已移除的卡片 |
-| **Search** | 本地词法检索（BM25） |
+| **Recall** | 本地词法检索（BM25） |
 
 ---
 
