@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/config";
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
 import { ConfigChecklist } from "../components/ConfigChecklist";
+import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 
 type SetupForm = {
@@ -214,6 +215,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
             </dl>
           </details>
+          <SourceAddPanel onRefresh={onRefresh} />
           {message ? <p className="text-sm text-primary">{message}</p> : null}
         </section>
       ) : null}

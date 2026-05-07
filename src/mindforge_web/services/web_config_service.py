@@ -134,7 +134,7 @@ class WebConfigService:
             ),
             llm=EditableLLMConfig(
                 active_provider=self.cfg.llm.active_profile,
-                available_providers=self._available_provider_names(raw),
+                available_providers=self._configured_provider_names(raw),
                 providers=self._editable_providers(raw),
                 readiness=self.provider_status(),
             ),
@@ -180,13 +180,13 @@ class WebConfigService:
                 elif resolved.exists() and not resolved.is_dir():
                     errors.append("Vault path must be a directory.")
 
-        if patch.active_provider is not None and patch.active_provider not in self._available_provider_names(raw):
+        if patch.active_provider is not None and patch.active_provider not in self._configured_provider_names(raw):
             errors.append(
                 f"Active provider {patch.active_provider!r} is not configured."
             )
 
         for provider, provider_patch in patch.providers.items():
-            if provider not in self._available_provider_names(raw):
+            if provider not in self._configured_provider_names(raw):
                 errors.append(f"Provider {provider!r} is not configured.")
             for field_name in ("api_key_env", "base_url_env", "model_env"):
                 value = getattr(provider_patch, field_name)
@@ -266,9 +266,42 @@ class WebConfigService:
             return sorted(str(name) for name in profiles)
         return []
 
+    def _configured_provider_names(self, raw: dict[str, Any]) -> list[str]:
+        """返回 Setup 主 UI 可展示的产品 provider。
+
+        中文学习型说明：配置加载层会把 legacy profiles、fallback 和测试替身展开
+        成可执行的内部结构；Setup 不能把这些内部路由当作用户可选 provider。
+        因此这里优先使用用户 YAML 的 ``llm.providers``，并过滤 fake/local/test/default。
+        """
+
+        llm = raw.get("llm")
+        if not isinstance(llm, dict):
+            return []
+        providers = llm.get("providers")
+        if isinstance(providers, dict):
+            return sorted(
+                str(name)
+                for name, provider in providers.items()
+                if isinstance(provider, dict) and _is_product_provider(str(name), provider.get("type"))
+            )
+        profiles = llm.get("profiles")
+        if not isinstance(profiles, dict):
+            return []
+        models = llm.get("models")
+        if not isinstance(models, dict):
+            return []
+        names: list[str] = []
+        for name, profile in profiles.items():
+            if not isinstance(profile, dict):
+                continue
+            aliases = {str(value) for value in profile.values()}
+            if any(_is_product_model(models.get(alias)) for alias in aliases):
+                names.append(str(name))
+        return sorted(names)
+
     def _editable_providers(self, raw: dict[str, Any]) -> dict[str, EditableProviderConfig]:
         providers: dict[str, EditableProviderConfig] = {}
-        for name in self._available_provider_names(raw):
+        for name in self._configured_provider_names(raw):
             providers[name] = self._editable_provider(raw, name)
         return providers
 
@@ -488,6 +521,18 @@ def _api_key_status_label(env_name: str | None, present: bool) -> str:
     if env_name:
         return "env name configured, value missing"
     return "env name missing"
+
+
+def _is_product_provider(name: str, provider_type: Any) -> bool:
+    text = f"{name} {provider_type or ''}".lower()
+    blocked = ("fake", "local", "test", "default")
+    return not any(token in text for token in blocked)
+
+
+def _is_product_model(model: Any) -> bool:
+    if not isinstance(model, dict):
+        return False
+    return _is_product_provider(str(model.get("provider") or ""), model.get("type"))
 
 
 def _is_dangerous_vault_path(path: Path) -> bool:

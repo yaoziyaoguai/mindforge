@@ -126,18 +126,33 @@ def test_setup_page_uses_effective_env_config_language() -> None:
 
 def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
+    add_panel = _read("components/SourceAddPanel.tsx")
+    combined = "\n".join([setup, add_panel])
 
     assert "Local workspace" in setup
     assert "Model provider" in setup
-    assert "Default watched inbox" not in setup
-    assert "Manage sources" not in setup
-    assert "MindForge can process files placed in this inbox" not in setup
-    assert "Cubox JSON export path" not in setup
-    assert "Cubox import path" not in setup
-    assert "Cubox export folder" not in setup
-    assert "Obsidian inbox" not in setup
-    assert "Downloads folder" not in setup
-    assert "Manual notes folder" not in setup
+    assert "SourceAddPanel" in setup
+    assert "Add a file or folder" in combined
+    assert "Path input" in combined
+    assert "Frequency" in combined
+    assert "Add source" in combined
+    assert "Add and process now" in combined
+    assert "View in Sources" in combined
+    assert "MindForge automatically detects whether the path is a file or folder." in combined
+    assert "Folders are scanned recursively." in combined
+    assert "Frequency applies only to the top-level source you add." in combined
+    assert "Manual means no automatic scanning." in combined
+    assert "Automation only creates draft knowledge cards." in combined
+    assert "Approved knowledge requires explicit approval." in combined
+    assert "Default watched inbox" not in combined
+    assert "Manage sources" not in combined
+    assert "MindForge can process files placed in this inbox" not in combined
+    assert "Cubox JSON export path" not in combined
+    assert "Cubox import path" not in combined
+    assert "Cubox export folder" not in combined
+    assert "Obsidian inbox" not in combined
+    assert "Downloads folder" not in combined
+    assert "Manual notes folder" not in combined
 
 
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
@@ -157,21 +172,18 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Changed since last scan" in sources
     assert "Deleted since last scan" in sources
     assert "New since last scan" in sources
-    assert "Add a file or folder" in sources
-    assert "Add source" in sources
-    assert "Add and process now" in sources
+    assert "Add source in Setup" in sources
+    assert "Add a file or folder" not in sources
+    assert "Path input" not in sources
+    assert "Add and process now" not in sources
     assert "Process now" in sources
     assert "Edit frequency" in sources
     assert "Processing..." in sources
-    assert "MindForge automatically detects whether the path is a file or folder." in sources
-    assert "Folders are scanned recursively." in sources
-    assert "Frequency applies only to the top-level source you add" in sources
-    assert "Manual means no automatic scanning." in sources
-    assert "Automation only creates draft knowledge cards." in sources
-    assert "Approved knowledge requires explicit approval." in sources
-    assert "files scanned" in sources
-    assert "skipped" in sources
-    assert "drafts created" in sources
+    assert "Last run summary" in sources
+    assert "Diagnostics" in sources
+    assert "Source details" in sources
+    assert "Built-in inbox cannot be removed." in sources
+    assert "Built-in inbox frequency is fixed." in sources
     assert "More actions" not in sources
     assert "Process all due sources" not in sources
     assert "Process all sources now" not in sources
@@ -181,7 +193,7 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Scan now" not in sources
     assert "folder · default" not in sources
     assert "default cannot be deleted" not in sources
-    assert "built-in inbox" in sources
+    assert "Built-in inbox" in sources
     assert "Skipped reasons" in combined
     assert "Drafts created" in sources
     assert "Open related knowledge" in sources

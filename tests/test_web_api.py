@@ -477,6 +477,73 @@ def test_setup_effective_provider_config_reports_configured_secret_name_when_val
     assert provider["effective_model"] == "claude-3-5-haiku-latest"
 
 
+def test_setup_provider_dropdown_uses_only_configured_real_providers(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "active": "openai_compatible",
+        "providers": {
+            "openai_compatible": {
+                "type": "openai_compatible",
+                "api_key_env": "MINDFORGE_OPENAI_API_KEY",
+                "default_model": "gpt-test",
+            },
+            "all_local": {
+                "type": "local",
+                "triage": "local_alias",
+                "distill": "local_alias",
+                "link_suggestion": "local_alias",
+                "review_questions": "local_alias",
+                "action_extraction": "local_alias",
+            },
+            "fake": {"type": "fake", "default_model": "fake-fast", "default_base_url": "fake://"},
+            "test_default": {
+                "type": "test",
+                "triage": "test_alias",
+                "distill": "test_alias",
+                "link_suggestion": "test_alias",
+                "review_questions": "test_alias",
+                "action_extraction": "test_alias",
+            },
+        },
+        "models": {
+            "local_alias": {
+                "provider": "local",
+                "type": "local",
+                "base_url": "http://127.0.0.1:11434",
+                "model": "local-model",
+            },
+            "test_alias": {
+                "provider": "test",
+                "type": "test",
+                "base_url": "test://",
+                "model": "test-model",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    provider = editable["llm"]["providers"]["openai_compatible"]
+
+    assert editable["llm"]["active_provider"] == "openai_compatible"
+    assert editable["llm"]["available_providers"] == ["openai_compatible"]
+    assert sorted(editable["llm"]["providers"]) == ["openai_compatible"]
+    assert "all_local" not in editable["llm"]["available_providers"]
+    assert "anthropic_coding_plan" not in editable["llm"]["available_providers"]
+    assert "fake" not in editable["llm"]["available_providers"]
+    assert "test_default" not in editable["llm"]["available_providers"]
+    assert provider["effective_model"] == "gpt-test"
+    assert provider["model_source"] == "config_default"
+    assert provider["effective_base_url"] is None
+    assert provider["base_url_source"] == "missing"
+
+
 def test_web_drafts_detail_and_approve_confirmation_boundary(tmp_path: Path, monkeypatch) -> None:
     client, cards = _client(tmp_path, monkeypatch)
     card = _write_draft(cards)
