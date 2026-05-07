@@ -11,6 +11,7 @@ from .openai_compatible import OpenAICompatibleProvider
 
 _BUILDERS = {
     "openai_compatible": lambda mc: OpenAICompatibleProvider.from_model_config(mc),
+    "anthropic": lambda mc: AnthropicCompatibleProvider.from_model_config(mc),
     "anthropic_compatible": lambda mc: AnthropicCompatibleProvider.from_model_config(mc),
     "fake": lambda mc: FakeProvider(),
 }

@@ -4,7 +4,7 @@
 - 本模块只构造字符串；不打印（``console.print`` 留在 cli.py）、不调
   ``typer.prompt`` / ``typer.confirm``、不写 ``configs/mindforge.yaml``、
   不读 ``.env``、不访问 ``os.environ``。
-- 交互式 vault 路径 / telemetry / active_profile 的 prompt 仍属于 cli.py 的
+- 交互式 vault 路径 / telemetry / default_model 的 prompt 仍属于 cli.py 的
   ``init`` 命令体，因为它们与 Typer 的输入流强耦合，移出去会让 ``init_cmd``
   变成隐式 CLI adapter。
 - 文件副作用（创建目录、复制 templates、覆写 mindforge.yaml）仍属于
@@ -48,13 +48,13 @@ def format_interactive_summary(
     telemetry_enabled: bool | None,
     active_profile: str | None,
 ) -> list[str]:
-    """interactive 模式下展示用户最终选定的 telemetry / active_profile。"""
+    """interactive 模式下展示用户最终选定的 telemetry / default_model。"""
 
     if not interactive:
         return []
     return [
         f"- telemetry   : enabled={telemetry_enabled} (local_only=True)",
-        f"- profile     : {active_profile}",
+        f"- default_model: {active_profile}",
     ]
 
 

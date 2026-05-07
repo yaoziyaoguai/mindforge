@@ -29,6 +29,7 @@ class StageResult:
     prompt_version: str            # 形如 "triage@v1"
     model_alias: str
     provider: str
+    provider_type: str
     actual_model: str
     tokens_in: int | None
     tokens_out: int | None
@@ -153,6 +154,7 @@ def run_stage(
         prompt_version=prompt_version_tag,
         model_alias=call.resolved.model_alias,
         provider=call.resolved.provider,
+        provider_type=call.resolved.type,
         actual_model=call.resolved.actual_model,
         tokens_in=call.result.tokens_in,
         tokens_out=call.result.tokens_out,

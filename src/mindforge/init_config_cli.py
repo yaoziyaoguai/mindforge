@@ -51,12 +51,12 @@ def _resolve_non_interactive_vault(vault: Path | None, project_root: Path) -> Pa
 
 def _interactive_init_choices(*, project_root: Path, repo_root: Path, vault_dirs: tuple[str, ...]) -> tuple[Path, bool, str]:
     default_vault = Path("~/MindForgeVault").expanduser()
-    profile_names = _available_profile_names(project_root, repo_root)
-    default_profile = "fake" if "fake" in profile_names else (profile_names[0] if profile_names else "fake")
+    model_ids = _available_model_ids(project_root, repo_root)
+    default_model = "main" if "main" in model_ids else (model_ids[0] if model_ids else "main")
     console.print("[bold]MindForge init --interactive[/bold]")
     console.print("[dim]说明：telemetry 只写本地文件，不上传；init 不读取 .env、不调用 LLM。[/dim]")
     console.print(
-        f"[dim]已注册 provider：{', '.join(profile_names) if profile_names else '(未能读取，默认 fake)'}[/dim]"
+        f"[dim]已配置 model id：{', '.join(model_ids) if model_ids else '(未能读取，默认 main)'}[/dim]"
     )
     try:
         target_vault = _prompt_interactive_vault(default_vault=default_vault, vault_dirs=vault_dirs)
@@ -65,11 +65,11 @@ def _interactive_init_choices(*, project_root: Path, repo_root: Path, vault_dirs
             default=True,
         )
         console.print(
-            "[yellow]提示：真实 provider 需要单独配置 .env；MindForge init 不会读取 .env。[/yellow]"
+            "[yellow]提示：API key 需要单独配置 .env；MindForge init 不会读取 .env。[/yellow]"
         )
         active_profile = _prompt_interactive_profile(
-            default_profile=default_profile,
-            profile_names=profile_names,
+            default_profile=default_model,
+            profile_names=model_ids,
         )
         return target_vault, telemetry_enabled, active_profile
     except (KeyboardInterrupt, EOFError):
@@ -91,13 +91,13 @@ def _prompt_interactive_vault(*, default_vault: Path, vault_dirs: tuple[str, ...
 
 
 def _prompt_interactive_profile(*, default_profile: str, profile_names: list[str]) -> str:
-    profile_text = typer.prompt("llm.active provider", default=default_profile).strip()
+    profile_text = typer.prompt("llm.default_model", default=default_profile).strip()
     if not profile_text:
-        console.print("[red]✗ llm.active 不能为空。[/red]")
+        console.print("[red]✗ llm.default_model 不能为空。[/red]")
         raise typer.Exit(code=2)
     if profile_names and profile_text not in profile_names:
         console.print(
-            f"[red]✗ llm.active={profile_text!r} 不在已注册 provider 中：{profile_names}[/red]"
+            f"[red]✗ llm.default_model={profile_text!r} 不在已配置 model id 中：{profile_names}[/red]"
         )
         raise typer.Exit(code=2)
     return profile_text
@@ -177,7 +177,7 @@ def init(
     interactive: bool = typer.Option(
         False,
         "--interactive",
-        help="交互式初始化：选择 vault 路径、telemetry、本次 llm.active provider",
+        help="交互式初始化：选择 vault 路径、telemetry、本次 llm.default_model",
     ),
 ) -> None:
     """初始化最小可用的 vault 骨架与配置文件。
@@ -229,7 +229,7 @@ def init(
     )
 
 
-def _available_profile_names(project_root: Path, repo_root: Path) -> list[str]:
+def _available_model_ids(project_root: Path, repo_root: Path) -> list[str]:
     """只读 yaml provider/profile 名，不读取 .env、不解析 provider 环境变量。"""
     import yaml as _yaml
 
@@ -242,15 +242,20 @@ def _available_profile_names(project_root: Path, repo_root: Path) -> list[str]:
         try:
             data = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             llm = data.get("llm") if isinstance(data, dict) else None
-            providers = llm.get("providers") if isinstance(llm, dict) else None
-            if isinstance(providers, dict):
-                return sorted(str(k) for k in providers)
-            profiles = llm.get("profiles") if isinstance(llm, dict) else None
-            if isinstance(profiles, dict):
-                return sorted(str(k) for k in profiles)
+            if not (isinstance(llm, dict) and "default_model" in llm):
+                continue
+            models = llm.get("models") if isinstance(llm, dict) else None
+            if isinstance(models, dict):
+                # 新配置里 model id 才是用户要选择的对象；legacy profiles 不再作为
+                # init 主交互入口，避免把 fake/test/default 语义带回用户配置。
+                return sorted(str(k) for k in models)
         except Exception:  # noqa: BLE001
             continue
-    return ["fake"]
+    return ["main"]
+
+
+# 兼容旧测试/内部 re-export 名称；返回值已经是新语义下的 model id，不再是 profile。
+_available_profile_names = _available_model_ids
 
 
 def _validate_interactive_vault_target(target_vault: Path, vault_dirs: tuple[str, ...]) -> None:
@@ -318,13 +323,13 @@ def _rewrite_init_config(
             new_text = _replace_yaml_scalar_in_block(
                 text,
                 block_name="llm",
-                key="active",
+                key="default_model",
                 value=active_profile,
                 quote=False,
             )
             if new_text != text:
                 text = new_text
-                changed.append(f"llm.active → {active_profile}")
+                changed.append(f"llm.default_model → {active_profile}")
         if changed:
             cfg_dst.write_text(text, encoding="utf-8")
             console.print(f"  rewrote {cfg_dst}  " + "；".join(changed))
@@ -564,7 +569,7 @@ def _print_config_init_plan(plan: dict[str, object], *, dry_run: bool) -> None:
     console.print(f"vault  : {plan['vault']}")
     console.print(f"exists : {plan['exists']}  force={plan['force']}")
     console.print(
-        "defaults: llm.active=openai_compatible, secrets via env/.env, no API call during init",
+        "defaults: llm.default_model=main, secrets via env/.env, no API call during init",
         markup=False,
     )
     if dry_run:

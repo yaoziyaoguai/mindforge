@@ -2,8 +2,7 @@
 
 目标:
 
-- 守住 ``configs/mindforge.yaml`` 默认 ``active_profile: fake`` 不被
-  静默切到真实 profile;
+- 守住 bundled user config 使用新的 ``llm.models/default_model`` 语义;
 - 守住 canonical roadmap / usage 的 excluded 列表不漂移;
 - 守住 ``mindforge llm ping`` 与 ``mindforge provider readiness`` 在
   fake-default 下给出语义一致的判定;
@@ -40,25 +39,22 @@ def clean_env(monkeypatch):
 
 
 def test_bundled_config_active_provider_is_real_dogfood():
-    """package user config 默认 provider 必须是 openai_compatible。
+    """package user config 默认 LLM 语义必须是 models/default_model。
 
     fake provider 仍保留给 CI/offline demo/deterministic tests；新用户主配置
-    则面向真实 dogfood，缺 key 时由命令友好失败并保持不自动 approve。
+    不再暴露 active_profile/profile/fake alias。
     """
     text = Path("src/mindforge/assets/configs/mindforge.user.yaml").read_text(encoding="utf-8")
-    found = False
+    assert "default_model: main" in text
+    assert "models:" in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        if stripped.startswith("active:"):
-            value = stripped.split(":", 1)[1].strip().strip("'\"")
-            assert value == "openai_compatible", (
-                f"default active provider must be 'openai_compatible'; got {value!r}"
-            )
-            found = True
+        assert not stripped.startswith("active:")
         assert not stripped.startswith("active_profile:")
-    assert found, "active key not found in configs/mindforge.user.yaml"
+        assert not stripped.startswith("profiles:")
 
 
 def test_provider_readiness_json_schema(clean_env):

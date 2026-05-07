@@ -718,9 +718,10 @@ def test_config_init_defaults_real_dogfood_and_refuses_overwrite(tmp_path: Path)
     written = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
     assert written.exit_code == 0, written.output
     text = cfg.read_text(encoding="utf-8")
-    assert "active: openai_compatible" in text
+    assert "default_model: main" in text
     assert "active_profile:" not in text
-    assert "Do not put secrets in YAML" in text
+    assert "profiles:" not in text
+    assert "Do not put API keys in this YAML" in text
     assert str(vault.resolve()) in text
 
     second = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
@@ -812,7 +813,7 @@ def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
     text = doc.read_text(encoding="utf-8")
     for required in [
         "non-sensitive",
-        "真实 LLM 只在你配置 `MINDFORGE_OPENAI_API_KEY`",
+        "真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY`",
         "No RAG / embedding",
         "No Obsidian plugin",
         "No automatic approve",

@@ -205,20 +205,15 @@ def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
     assert res.exit_code == 0, res.output
     text = (tmp_path / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
     assert "# MindForge user config." in text
-    assert "active: openai_compatible" in text
+    assert "default_model: main" in text
+    assert "models:" in text
     assert "active_profile:" not in text
-    assert "providers:" in text
     assert "profiles:" not in text
-    assert "anthropic:" in text
-    assert "MINDFORGE_OPENAI_API_KEY" in text
-    assert "MINDFORGE_OPENAI_MODEL" in text
-    assert "MINDFORGE_ANTHROPIC_API_KEY" in text
-    assert "MINDFORGE_ANTHROPIC_MODEL" in text
-    assert "https://api.openai.com/v1" in text
-    assert "https://api.anthropic.com" in text
-    assert "Do not put secrets in YAML" in text
-    assert "fake" in text
-    assert "offline_demo_ci_deterministic_tests" in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "https://your-router.example.com/v1" in text
+    assert "Do not put API keys in this YAML" in text
+    assert "fake_fast" not in text
+    assert "fake://" not in text
     assert "sources:" not in text
     assert "state:" not in text
     assert "search:" not in text

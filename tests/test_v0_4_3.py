@@ -24,7 +24,7 @@ def test_init_interactive_creates_vault_and_rewrites_choices(tmp_path: Path) -> 
     res = runner.invoke(
         app,
         ["init", "--interactive", "--project-root", str(tmp_path)],
-        input=f"{target}\ny\nfake\n",
+        input=f"{target}\ny\nmain\n",
     )
     assert res.exit_code == 0, res.output
     assert (target / "00-Inbox" / "ManualNotes").is_dir()
@@ -35,7 +35,8 @@ def test_init_interactive_creates_vault_and_rewrites_choices(tmp_path: Path) -> 
     assert cfg["vault"]["root"] == str(target.resolve())
     assert cfg["telemetry"]["enabled"] is True
     assert cfg["telemetry"]["local_only"] is True
-    assert cfg["llm"]["active"] == "fake"
+    assert cfg["llm"]["default_model"] == "main"
+    assert "active" not in cfg["llm"]
     assert "active_profile" not in cfg["llm"]
 
 

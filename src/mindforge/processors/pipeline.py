@@ -175,6 +175,7 @@ class Pipeline:
         outcome.stages_meta[sr.stage] = {
             "model_alias": sr.model_alias,
             "provider": sr.provider,
+            "type": sr.provider_type,
             "actual_model": sr.actual_model,
             "prompt_version": sr.prompt_version,
             "status": status,

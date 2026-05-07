@@ -108,21 +108,15 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     assert set(parsed) == {"version", "vault", "llm", "telemetry"}
     assert parsed["vault"]["root"] == str(vault)
     assert load_mindforge_config(generated).vault.root == vault.resolve()
-    assert parsed["llm"]["active"] == "openai_compatible"
+    assert parsed["llm"]["default_model"] == "main"
     assert "active_profile" not in parsed["llm"]
     assert "profiles" not in parsed["llm"]
-    assert {"openai_compatible", "anthropic", "fake"} <= set(parsed["llm"]["providers"])
-    assert parsed["llm"]["providers"]["openai_compatible"]["type"] == "openai_compatible"
-    assert parsed["llm"]["providers"]["openai_compatible"]["api_key_env"] == "MINDFORGE_OPENAI_API_KEY"
-    assert parsed["llm"]["providers"]["openai_compatible"]["base_url_env"] == "MINDFORGE_OPENAI_BASE_URL"
-    assert parsed["llm"]["providers"]["openai_compatible"]["model_env"] == "MINDFORGE_OPENAI_MODEL"
-    assert parsed["llm"]["providers"]["openai_compatible"]["default_model"] == "gpt-4o-mini"
-    assert parsed["llm"]["providers"]["anthropic"]["type"] == "anthropic"
-    assert parsed["llm"]["providers"]["anthropic"]["api_key_env"] == "MINDFORGE_ANTHROPIC_API_KEY"
-    assert parsed["llm"]["providers"]["anthropic"]["base_url_env"] == "MINDFORGE_ANTHROPIC_BASE_URL"
-    assert parsed["llm"]["providers"]["anthropic"]["model_env"] == "MINDFORGE_ANTHROPIC_MODEL"
-    assert parsed["llm"]["providers"]["anthropic"]["default_model"] == "claude-3-5-haiku-latest"
-    assert parsed["llm"]["providers"]["fake"]["purpose"] == "offline_demo_ci_deterministic_tests"
+    assert "active" not in parsed["llm"]
+    assert "providers" not in parsed["llm"]
+    assert parsed["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert parsed["llm"]["models"]["main"]["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    assert parsed["llm"]["models"]["main"]["base_url"] == "https://your-router.example.com/v1"
+    assert parsed["llm"]["models"]["main"]["model"] == "your-model-name"
     assert parsed["telemetry"]["local_only"] is True
 
     forbidden = (
@@ -138,13 +132,15 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
         "bm25:",
         "hybrid:",
         "prompts:",
-        "triage:",
         "record_prompts",
         "record_outputs",
         "cheap-model",
         "strong-model",
         "qwen_coder_fast",
         "qwen_coder_strong",
+        "fake_fast",
+        "fake_strong",
+        "fake://",
     )
     for marker in forbidden:
         assert marker not in text
@@ -374,6 +370,164 @@ def test_minimal_valid_config(tmp_path: Path) -> None:
     p = _write_yaml(tmp_path, _minimal_valid_config())
     cfg = load_mindforge_config(p)
     assert cfg.llm.active_profile == "default"
+
+
+def _minimal_config_with_new_llm(llm: dict) -> dict:
+    data = _minimal_valid_config()
+    data["llm"] = llm
+    return data
+
+
+def test_single_model_llm_config_uses_default_for_all_workflow_steps(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.default_model == "main"
+    assert cfg.llm.routing == {stage: "main" for stage in REQUIRED_STAGES}
+    for stage in REQUIRED_STAGES:
+        model = cfg.llm.resolve_stage(stage)
+        assert model.alias == "main"
+        assert model.type == "openai_compatible"
+        assert model.model == "main-model"
+
+
+def test_partial_llm_routing_falls_back_to_default_model(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "strong",
+                "models": {
+                    "cheap": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "cheap-model",
+                    },
+                    "strong": {
+                        "type": "anthropic_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/anthropic",
+                        "model": "strong-model",
+                    },
+                },
+                "routing": {
+                    "triage": "cheap",
+                    "link_suggestion": "cheap",
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.routing["triage"] == "cheap"
+    assert cfg.llm.routing["link_suggestion"] == "cheap"
+    assert cfg.llm.routing["distill"] == "strong"
+    assert cfg.llm.routing["review_questions"] == "strong"
+    assert cfg.llm.routing["action_extraction"] == "strong"
+
+
+def test_llm_routing_missing_model_fails_clearly(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+                "routing": {"triage": "ghost"},
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.routing.triage='ghost'.*llm.models"):
+        load_mindforge_config(p)
+
+
+def test_llm_default_model_missing_fails_clearly(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "ghost",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.default_model='ghost'.*llm.models"):
+        load_mindforge_config(p)
+
+
+def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "local",
+                "models": {
+                    "anthropic_native": {
+                        "type": "anthropic",
+                        "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                        "base_url": "https://api.anthropic.com",
+                        "model": "claude-3-5-haiku-latest",
+                    },
+                    "anthropic_router": {
+                        "type": "anthropic_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/anthropic",
+                        "model": "strong-model",
+                    },
+                    "local": {
+                        "type": "openai_compatible",
+                        "api_key_env": "MINDFORGE_LOCAL_API_KEY",
+                        "api_key_optional": True,
+                        "base_url": "http://localhost:11434/v1",
+                        "model": "qwen2.5:14b",
+                    },
+                },
+                "routing": {
+                    "triage": "local",
+                    "distill": "anthropic_native",
+                    "review_questions": "anthropic_router",
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.models["anthropic_native"].type == "anthropic"
+    assert cfg.llm.models["anthropic_router"].type == "anthropic_compatible"
+    assert cfg.llm.models["local"].type == "openai_compatible"
+    assert cfg.llm.models["local"].api_key_optional is True
 
 
 def test_relative_workdir_resolves_against_cwd_not_config_parent(

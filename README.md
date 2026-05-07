@@ -3,8 +3,8 @@
 MindForge is a local-first personal AI learning memory tool.
 
 MindForge 帮你把本地资料整理成可以 review、recall、项目化使用的知识卡片。
-真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的 `llm.active`
-选择默认 provider，但安全边界不变：
+真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的 `llm.models` 和
+`llm.default_model` 配置默认模型，但安全边界不变：
 AI 只能生成 `ai_draft`；只有你显式确认后，卡片才会变成
 `human_approved`。API key 只放在 shell env 或本地 `.env`，不要写进 YAML。
 
@@ -39,24 +39,17 @@ cat > vault/00-Inbox/ManualNotes/first-note.md <<'EOF'
 EOF
 ```
 
-在 `configs/mindforge.yaml` 里选择默认 real provider：
-`llm.active: openai_compatible` 或 `llm.active: anthropic`。可以用 shell
-export，也可以放在当前项目或 vault 上级目录的本地 `.env`；不要写 API key
-进 YAML。
-OpenAI-compatible 需要：
+在 `configs/mindforge.yaml` 里配置 `llm.models.main`，并把
+`llm.default_model` 指向 `main`。可以用 shell export，也可以放在当前项目或
+vault 上级目录的本地 `.env`；不要写 API key 进 YAML。
+通用 OpenAI-compatible / Anthropic-compatible 路由示例通常只需要：
 
-- `MINDFORGE_OPENAI_API_KEY`
-- `MINDFORGE_OPENAI_BASE_URL`
-- `MINDFORGE_OPENAI_MODEL`
-
-Anthropic-compatible / Claude 需要：
-
-- `MINDFORGE_ANTHROPIC_API_KEY`
-- `MINDFORGE_ANTHROPIC_BASE_URL`
-- `MINDFORGE_ANTHROPIC_MODEL`
+- `MINDFORGE_LLM_API_KEY`
+- `type: openai_compatible`，或 Anthropic 协议 endpoint 用
+  `type: anthropic_compatible` / `type: anthropic`
 
 ```bash
-export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
+export MINDFORGE_LLM_API_KEY="<your-api-key>"
 mindforge llm ping
 ```
 
@@ -229,10 +222,11 @@ frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
 这是普通用户最重要的基础配置文件。第一天只需要关心：
 
 - `vault.root`: vault 在哪里；新 init 默认写 `vault`，按 project root 解析。
-- `llm.active`: 真实 dogfood 主路径可以选 `openai_compatible` 或
-  `anthropic`。
-- `llm.providers.openai_compatible` / `llm.providers.anthropic`: 只声明 env
-  变量名映射和非 secret 默认值；真实 key/base_url/model 放 shell env 或 `.env`。
+- `llm.models`: 用户配置的可调用模型清单。每个 model id 指向一个 endpoint、
+  协议类型、实际模型名和 API key env var name。
+- `llm.default_model`: 默认使用的 model id。大多数用户只需要一个模型。
+- `llm.routing`: 可选。高级用户可以把 workflow step 路由到不同 model id；
+  省略时所有步骤使用 `default_model`。
 - `strategy.active`: 默认知识抽取策略；缺省为 `knowledge_card`
   （Knowledge Card Strategy）。它只决定 SourceDocument 如何变成 AI Card
   envelope，不决定 provider/model。
@@ -253,22 +247,13 @@ version: 0.1
 vault:
   root: vault
 llm:
-  active: openai_compatible
-  providers:
-    openai_compatible:
+  default_model: main
+  models:
+    main:
       type: openai_compatible
-      api_key_env: MINDFORGE_OPENAI_API_KEY
-      base_url_env: MINDFORGE_OPENAI_BASE_URL
-      model_env: MINDFORGE_OPENAI_MODEL
-      default_base_url: https://api.openai.com/v1
-      default_model: gpt-4o-mini
-    anthropic:
-      type: anthropic
-      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
-      base_url_env: MINDFORGE_ANTHROPIC_BASE_URL
-      model_env: MINDFORGE_ANTHROPIC_MODEL
-      default_base_url: https://api.anthropic.com
-      default_model: claude-3-5-haiku-latest
+      api_key_env: MINDFORGE_LLM_API_KEY
+      base_url: https://your-router.example.com/v1
+      model: your-model-name
 strategy:
   active: knowledge_card
 telemetry:
@@ -276,19 +261,59 @@ telemetry:
   local_only: true
 ```
 
-第一天只需要确认 `vault.root`、`llm.active` 和对应 provider 的 env
-是否正确。`learning_tracks.yaml` 使用 package
+第一天只需要确认 `vault.root`、`llm.default_model` 和对应 model 的
+`api_key_env/base_url/model` 是否正确。`learning_tracks.yaml` 使用 package
 内置默认值，不再由 init 默认生成。`llm.example.yaml` 不再是新用户项目里的
 第二个配置入口；主配置入口就是 `configs/mindforge.yaml`。
 
 Legacy configs with `llm.active_profile` / `llm.profiles` still load, but new
-configs should use `llm.active` / `llm.providers`.
+configs should use `llm.models` / `llm.default_model` / optional `llm.routing`.
+
+Advanced routing example:
+
+```yaml
+llm:
+  default_model: strong
+  models:
+    cheap:
+      type: openai_compatible
+      api_key_env: MINDFORGE_LLM_API_KEY
+      base_url: https://router.example.com/v1
+      model: cheap-model
+    strong:
+      type: anthropic_compatible
+      api_key_env: MINDFORGE_LLM_API_KEY
+      base_url: https://router.example.com/anthropic
+      model: strong-model
+  routing:
+    triage: cheap
+    distill: strong
+    link_suggestion: cheap
+    review_questions: strong
+    action_extraction: strong
+```
+
+Local models are regular OpenAI-compatible endpoints:
+
+```yaml
+llm:
+  default_model: local
+  models:
+    local:
+      type: openai_compatible
+      api_key_env: MINDFORGE_LOCAL_API_KEY
+      api_key_optional: true
+      base_url: http://localhost:11434/v1
+      model: qwen2.5:14b
+```
+
+Fake/stub/test models are development fixtures, not user configuration.
 
 ### `.env.example`
 
 secret/API key 样例。真正使用时复制成 `.env`。`.env` 不能提交到 git。
 MindForge 只显示 key 是否存在，不打印 secret 值。也可以不用 `.env`，直接
-用 shell `export MINDFORGE_OPENAI_API_KEY=...`。
+用 shell `export MINDFORGE_LLM_API_KEY=...`。
 
 ### Existing vault / old config
 
@@ -322,7 +347,7 @@ MindForge 的中心架构。
 
 ## Safety Model
 
-- 真实 LLM 只在你配置 `MINDFORGE_OPENAI_API_KEY` 并运行 watch/import/process
+- 真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY` 并运行 watch/import/process
   时调用；`llm ping` 只检查 env presence，不发 HTTP。
 - no real LLM call happens during init/config/status/readiness checks.
 - `real-opt-in` / explicit opt-in 仍适用于 guarded smoke、custom strategy
@@ -454,21 +479,19 @@ to roll back. Do not run broad destructive cleanup commands against a real vault
 
 ### Real Provider Opt-In
 
-Real Provider Setup: 真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的
-`llm.active: openai_compatible` 或 `llm.active: anthropic`。
-只把 API key / base_url / model 放进 shell env 或本地 `.env`：
+Real Model Setup: 真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的
+`llm.models` 和 `llm.default_model`。只把 API key 放进 shell env 或本地
+`.env`：
 
 ```bash
-export MINDFORGE_OPENAI_API_KEY="<your-api-key>"
-export MINDFORGE_OPENAI_MODEL="gpt-4o-mini"
+export MINDFORGE_LLM_API_KEY="<your-api-key>"
 mindforge llm ping
 mindforge watch add /path/to/non-sensitive-note.md
 ```
 
 `llm ping` 只检查 key 是否存在，不发 HTTP。`watch add` / `import` 会生成
-`ai_draft`，不会自动 approve。缺 key 时命令会提示：
-`real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY` 或
-`real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY`。MindForge
+`ai_draft`，不会自动 approve。缺 key 时命令会提示对应 model 配置的
+`api_key_env` 缺失，例如 `MINDFORGE_LLM_API_KEY`。MindForge
 不会 fallback 到测试替身。
 
 底层 synthetic provider smoke 仍需要显式 `--allow-real`；普通 Quick Start
@@ -564,8 +587,8 @@ mindforge process --strategy knowledge_card
 
 Priority is explicit `--strategy`, then a watched source `strategy_id` if one was
 stored by `watch add`, then `configs/mindforge.yaml` `strategy.active`, then the
-built-in default `knowledge_card`. Provider selection remains separate:
-`--provider` / `llm.active` choose the LLM provider/model; `--strategy` /
+built-in default `knowledge_card`. Model routing remains separate:
+`llm.default_model` / `llm.routing` choose model ids; `--strategy` /
 `strategy.active` choose the extraction strategy. Internal deterministic
 baselines and planned/custom declarative metadata are hidden from normal
 discovery; `mindforge strategies list --include-internal` exists for developer

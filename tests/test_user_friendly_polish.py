@@ -111,8 +111,7 @@ def test_readme_quickstart_promotes_mindforge_demo_first():
     quickstart_block = after_quickstart.split("\n## ", 1)[0]
 
     assert "mindforge init" in quickstart_block
-    assert "MINDFORGE_OPENAI_API_KEY" in quickstart_block
-    assert "MINDFORGE_ANTHROPIC_API_KEY" in quickstart_block
+    assert "MINDFORGE_LLM_API_KEY" in quickstart_block
     assert "openai_compatible" in quickstart_block
     assert "anthropic" in quickstart_block
     assert "mindforge watch add" in quickstart_block

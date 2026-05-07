@@ -22,12 +22,14 @@ from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
 from mindforge_web.schemas import (
     EditableCuboxConfig,
     EditableLLMConfig,
+    EditableModelConfig,
     EditableProviderConfig,
     EditableVaultConfig,
     EnvKeyStatus,
     NextAction,
     ProviderAliasStatus,
     ProviderStatus,
+    ResolvedWorkflowModelConfig,
     SetupConfigPatch,
     SetupEditableConfigResponse,
     SetupValidationResponse,
@@ -137,6 +139,15 @@ class WebConfigService:
                 available_providers=self._configured_provider_names(raw),
                 providers=self._editable_providers(raw),
                 readiness=self.provider_status(),
+                configured_model_ids=self._configured_model_ids(raw),
+                configured_models=self._editable_models(raw),
+                default_model=self._editable_default_model(raw),
+                routing=self._editable_routing(raw),
+                routing_is_explicit=self._routing_is_explicit(raw),
+                resolved_per_step_models=self._resolved_per_step_models(raw),
+                legacy_config_detected=self._legacy_config_detected(raw),
+                validation_errors=self._llm_validation_errors(raw),
+                warnings=self._llm_warnings(raw),
             ),
             cubox=EditableCuboxConfig(
                 export_path=cubox_export,
@@ -185,6 +196,17 @@ class WebConfigService:
                 f"Active provider {patch.active_provider!r} is not configured."
             )
 
+        model_names = set(self._configured_model_ids(raw)) | set(patch.models)
+        if patch.default_model is not None and patch.default_model not in model_names:
+            errors.append(
+                f"Default model {patch.default_model!r} is not configured."
+            )
+        for stage, model_id in patch.routing.items():
+            if stage not in self.cfg.llm.profiles[self.cfg.llm.active_profile]:
+                errors.append(f"Workflow step {stage!r} is not supported.")
+            elif model_id not in model_names:
+                errors.append(f"Routing model {model_id!r} for {stage} is not configured.")
+
         for provider, provider_patch in patch.providers.items():
             if provider not in self._configured_provider_names(raw):
                 errors.append(f"Provider {provider!r} is not configured.")
@@ -226,6 +248,9 @@ class WebConfigService:
 
         for provider, provider_patch in patch.providers.items():
             self._apply_provider_patch(raw, provider, provider_patch)
+
+        if patch.default_model is not None or patch.models or patch.routing:
+            self._apply_llm_model_routing_patch(raw, patch)
 
         self.config_path.write_text(
             yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
@@ -292,6 +317,139 @@ class WebConfigService:
         for name in self._configured_provider_names(raw):
             providers[name] = self._editable_provider(raw, name)
         return providers
+
+    def _configured_model_ids(self, raw: dict[str, Any]) -> list[str]:
+        llm = raw.get("llm")
+        if not isinstance(llm, dict) or "default_model" not in llm:
+            return []
+        models = llm.get("models")
+        if not isinstance(models, dict):
+            return []
+        return sorted(
+            str(model_id)
+            for model_id, model_raw in models.items()
+            if isinstance(model_raw, dict)
+            and _is_product_model_entry(str(model_id), model_raw.get("type"))
+        )
+
+    def _editable_models(self, raw: dict[str, Any]) -> dict[str, EditableModelConfig]:
+        llm = raw.get("llm")
+        if not isinstance(llm, dict):
+            return {}
+        models_raw = llm.get("models")
+        if not isinstance(models_raw, dict):
+            return {}
+        models: dict[str, EditableModelConfig] = {}
+        for model_id in self._configured_model_ids(raw):
+            model_raw = models_raw.get(model_id)
+            if isinstance(model_raw, dict):
+                models[model_id] = self._editable_model(model_id, model_raw)
+        return models
+
+    def _editable_model(self, model_id: str, model_raw: dict[str, Any]) -> EditableModelConfig:
+        api_key_env = _str_or_none(model_raw.get("api_key_env"))
+        base_url = _str_or_none(model_raw.get("base_url"))
+        base_url_env = _str_or_none(model_raw.get("base_url_env"))
+        model_value = _str_or_none(model_raw.get("model"))
+        model_env = _str_or_none(model_raw.get("model_env"))
+        effective_base_url, base_url_source = self._effective_non_secret_value(
+            env_name=base_url_env,
+            default_value=base_url,
+        )
+        effective_model, model_source = self._effective_non_secret_value(
+            env_name=model_env,
+            default_value=model_value,
+        )
+        api_key_present = self._process_env_present(api_key_env)
+        return EditableModelConfig(
+            model_id=model_id,
+            type=str(model_raw.get("type") or ""),
+            base_url=base_url,
+            model=model_value,
+            api_key_env=api_key_env,
+            api_key_optional=bool(model_raw.get("api_key_optional", False)),
+            api_key_status="present" if api_key_present else "missing",
+            api_key_env_configured=bool(api_key_env),
+            api_key_secret_present=api_key_present,
+            api_key_masked_value=_masked_secret(os.environ.get(api_key_env, ""))
+            if api_key_present and api_key_env
+            else None,
+            api_key_status_label=_api_key_status_label(api_key_env, api_key_present),
+            base_url_env=base_url_env,
+            model_env=model_env,
+            effective_base_url=effective_base_url,
+            base_url_source=base_url_source,
+            effective_model=effective_model,
+            model_source=model_source,
+        )
+
+    def _editable_default_model(self, raw: dict[str, Any]) -> str | None:
+        llm = raw.get("llm")
+        if not isinstance(llm, dict):
+            return None
+        return _str_or_none(llm.get("default_model"))
+
+    def _routing_is_explicit(self, raw: dict[str, Any]) -> bool:
+        llm = raw.get("llm")
+        return isinstance(llm, dict) and isinstance(llm.get("routing"), dict)
+
+    def _editable_routing(self, raw: dict[str, Any]) -> dict[str, str]:
+        default_model = self._editable_default_model(raw)
+        if default_model is None:
+            return {}
+        llm = raw.get("llm")
+        routing_raw = llm.get("routing") if isinstance(llm, dict) else {}
+        if not isinstance(routing_raw, dict):
+            routing_raw = {}
+        return {
+            stage: str(routing_raw.get(stage) or default_model)
+            for stage in self.cfg.llm.profiles[self.cfg.llm.active_profile]
+        }
+
+    def _resolved_per_step_models(self, raw: dict[str, Any]) -> dict[str, ResolvedWorkflowModelConfig]:
+        editable_models = self._editable_models(raw)
+        resolved: dict[str, ResolvedWorkflowModelConfig] = {}
+        for stage, model_id in self._editable_routing(raw).items():
+            model = editable_models.get(model_id)
+            if model is None:
+                continue
+            resolved[stage] = ResolvedWorkflowModelConfig(
+                workflow_step=stage,
+                model_id=model_id,
+                type=model.type,
+                base_url=model.effective_base_url,
+                model=model.effective_model,
+            )
+        return resolved
+
+    def _legacy_config_detected(self, raw: dict[str, Any]) -> bool:
+        llm = raw.get("llm")
+        return isinstance(llm, dict) and "default_model" not in llm
+
+    def _llm_validation_errors(self, raw: dict[str, Any]) -> list[str]:
+        errors: list[str] = []
+        llm = raw.get("llm")
+        if not isinstance(llm, dict) or "default_model" not in llm:
+            return errors
+        models = llm.get("models")
+        if not isinstance(models, dict):
+            return ["llm.models missing"]
+        default_model = _str_or_none(llm.get("default_model"))
+        if default_model is None or default_model not in models:
+            errors.append(f"llm.default_model={default_model!r} is not defined in llm.models")
+        routing = llm.get("routing") or {}
+        if isinstance(routing, dict):
+            for stage, model_id in routing.items():
+                if str(model_id) not in models:
+                    errors.append(f"llm.routing.{stage}={model_id!r} is not defined in llm.models")
+        return errors
+
+    def _llm_warnings(self, raw: dict[str, Any]) -> list[str]:
+        if self._legacy_config_detected(raw):
+            return [
+                "Legacy LLM config detected. Save to migrate to the new llm.models/default_model/routing format."
+            ]
+        return []
 
     def _editable_provider(self, raw: dict[str, Any], name: str) -> EditableProviderConfig:
         llm = raw.get("llm") if isinstance(raw.get("llm"), dict) else {}
@@ -438,6 +596,38 @@ class WebConfigService:
             _assign_if_present(model, "base_url_env", provider_patch.base_url_env)
             _assign_if_present(model, "model_env", provider_patch.model_env)
 
+    def _apply_llm_model_routing_patch(self, raw: dict[str, Any], patch: SetupConfigPatch) -> None:
+        """保存 Setup 新 LLM 语义，不把 legacy profile/provider 写回用户配置。"""
+
+        llm = raw.setdefault("llm", {})
+        if not isinstance(llm, dict):
+            raise ConfigUpdateError(["llm must be a YAML object"])
+        if patch.default_model is not None:
+            llm["default_model"] = patch.default_model
+        if patch.models:
+            llm["models"] = {}
+        models = llm.setdefault("models", {})
+        if not isinstance(models, dict):
+            raise ConfigUpdateError(["llm.models must be a YAML object"])
+        for model_id, model_patch in patch.models.items():
+            item = models.setdefault(model_id, {})
+            if not isinstance(item, dict):
+                raise ConfigUpdateError([f"llm.models.{model_id} must be a YAML object"])
+            _assign_if_present(item, "type", model_patch.type)
+            _assign_if_present(item, "base_url", model_patch.base_url)
+            _assign_if_present(item, "model", model_patch.model)
+            _assign_if_present(item, "api_key_env", model_patch.api_key_env)
+            _assign_if_present(item, "base_url_env", model_patch.base_url_env)
+            _assign_if_present(item, "model_env", model_patch.model_env)
+            if model_patch.api_key_optional is not None:
+                item["api_key_optional"] = model_patch.api_key_optional
+        if patch.routing:
+            llm["routing"] = dict(patch.routing)
+        elif "routing" in llm:
+            llm.pop("routing", None)
+        for legacy_key in ("active", "active_profile", "providers", "profiles"):
+            llm.pop(legacy_key, None)
+
     def _create_vault_dirs(self, root: Path) -> None:
         root.mkdir(parents=True, exist_ok=True)
         (root / self.cfg.vault.inbox_root).mkdir(parents=True, exist_ok=True)
@@ -521,6 +711,12 @@ def _is_product_model(model: Any) -> bool:
     if not isinstance(model, dict):
         return False
     return _is_product_provider(str(model.get("provider") or ""), model.get("type"))
+
+
+def _is_product_model_entry(model_id: str, model_type: Any) -> bool:
+    text = f"{model_id} {model_type or ''}".lower()
+    blocked = ("fake", "test", "default", "demo")
+    return not any(token in text for token in blocked)
 
 
 def _is_dangerous_vault_path(path: Path) -> bool:

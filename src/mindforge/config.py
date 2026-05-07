@@ -173,6 +173,9 @@ class LLMConfig:
     active_profile: str
     profiles: dict[str, dict[str, str]]               # profile_name -> {stage: alias}
     models: dict[str, ModelConfig]                    # alias -> ModelConfig
+    default_model: str | None = None
+    routing: dict[str, str] = field(default_factory=dict)
+    legacy_config_detected: bool = False
 
     def resolve_stage(self, stage: str) -> ModelConfig:
         """按当前 active_profile 把 stage 解析为 ModelConfig。"""
@@ -379,6 +382,28 @@ def _deep_merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) ->
     return merged
 
 
+def _merge_user_config_with_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """合并用户配置，同时保护新的 LLM 用户语义不被 legacy defaults 污染。
+
+    中文学习型说明：package defaults 仍含内部 fake/profile 兼容配置。用户写了
+    新格式 ``llm.default_model`` 时，表示他已经在使用 ``models/routing`` 语义；
+    此时不能把 defaults 里的 ``active_profile/profiles/fake_fast`` 深合并回来，
+    否则 Setup 和错误信息又会暴露旧世界。
+    """
+
+    if not isinstance(overrides.get("llm"), dict):
+        return _deep_merge_defaults(defaults, overrides)
+    user_llm = overrides["llm"]
+    if "default_model" not in user_llm:
+        return _deep_merge_defaults(defaults, overrides)
+
+    overrides_without_llm = dict(overrides)
+    overrides_without_llm.pop("llm")
+    merged = _deep_merge_defaults(defaults, overrides_without_llm)
+    merged["llm"] = dict(user_llm)
+    return merged
+
+
 def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     """把用户层 provider 选择映射成 internal stage/model 结构。
 
@@ -390,6 +415,8 @@ def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
 
     llm = raw.get("llm")
     if not isinstance(llm, dict):
+        return raw
+    if "default_model" in llm:
         return raw
     providers = llm.get("providers")
     if isinstance(providers, dict):
@@ -652,7 +679,9 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         raise ConfigError(
             f"{p}: 不是有效的 MindForge 配置；至少需要 version/vault/llm/telemetry 之一"
         )
-    raw = _expand_user_profile_overrides(_deep_merge_defaults(_load_internal_defaults(), user_raw))
+    raw = _expand_user_profile_overrides(
+        _merge_user_config_with_defaults(_load_internal_defaults(), user_raw)
+    )
     config_path = p.expanduser().resolve()
     project_root = _project_root_for_config(config_path)
     raw["_mindforge_config"] = {
@@ -827,6 +856,9 @@ def _project_root_for_config(config_path: Path) -> Path:
 
 
 def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
+    if "default_model" in raw:
+        return _parse_model_routing_llm(raw)
+
     active_profile = _require(raw, "active_profile", str, ctx="llm")
     profiles_raw = _require(raw, "profiles", dict, ctx="llm")
     models_raw = _require(raw, "models", dict, ctx="llm")
@@ -903,7 +935,117 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             # 不强制现在就读环境变量（开发阶段可能没设），仅记录契约要求
             pass
 
-    return LLMConfig(active_profile=active_profile, profiles=profiles, models=models)
+    return LLMConfig(
+        active_profile=active_profile,
+        profiles=profiles,
+        models=models,
+        default_model=None,
+        routing=dict(profiles[active_profile]),
+        legacy_config_detected=True,
+    )
+
+
+def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
+    """解析用户可见的新 LLM 语义，并生成现有执行层可消费的 routing plan。
+
+    ``LLMClient`` / provider factory 当前仍消费 ``active_profile/profiles``。
+    这里把新格式转换成单个内部 profile，保持执行链稳定；对用户和 Setup 暴露
+    的 source of truth 仍是 ``default_model/models/routing``。
+    """
+
+    default_model = _require(raw, "default_model", str, ctx="llm")
+    models_raw = _require(raw, "models", dict, ctx="llm")
+    if default_model not in models_raw:
+        raise ConfigError(
+            f"llm.default_model={default_model!r} 不在 llm.models 中；"
+            f"已知：{sorted(models_raw)}"
+        )
+
+    models = _parse_llm_models(models_raw)
+    routing_raw = raw.get("routing") or {}
+    if not isinstance(routing_raw, dict):
+        raise ConfigError(
+            f"llm.routing 必须是 YAML 对象，得到 {type(routing_raw).__name__}"
+        )
+    routing: dict[str, str] = {}
+    for stage in REQUIRED_STAGES:
+        value = routing_raw.get(stage, default_model)
+        if not isinstance(value, str):
+            raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
+        if value not in models:
+            raise ConfigError(
+                f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
+                f"已知：{sorted(models)}"
+            )
+        routing[stage] = value
+    for stage in routing_raw:
+        if stage not in REQUIRED_STAGES:
+            raise ConfigError(
+                f"llm.routing 出现未知 workflow step {stage!r}；"
+                f"已知：{list(REQUIRED_STAGES)}"
+            )
+
+    active_profile = "__model_routing__"
+    return LLMConfig(
+        active_profile=active_profile,
+        profiles={active_profile: dict(routing)},
+        models=models,
+        default_model=default_model,
+        routing=dict(routing),
+        legacy_config_detected=False,
+    )
+
+
+def _parse_llm_models(models_raw: dict[str, Any]) -> dict[str, ModelConfig]:
+    models: dict[str, ModelConfig] = {}
+    for model_id, mraw in models_raw.items():
+        if not isinstance(mraw, dict):
+            raise ConfigError(f"llm.models.{model_id} 必须是 YAML 对象")
+        models[str(model_id)] = _parse_llm_model(str(model_id), mraw)
+    return models
+
+
+def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
+    model_type = _require(mraw, "type", str, ctx=f"llm.models.{model_id}")
+    if model_type not in {"anthropic", "anthropic_compatible", "openai_compatible", "fake"}:
+        raise ConfigError(
+            f"llm.models.{model_id}.type={model_type!r} 不支持；"
+            "支持：anthropic, anthropic_compatible, openai_compatible"
+        )
+
+    base_url_env = mraw.get("base_url_env")
+    if "base_url" in mraw:
+        base_url = str(mraw["base_url"])
+    elif base_url_env:
+        base_url = ""
+    elif model_type == "fake":
+        base_url = "fake://"
+    else:
+        raise ConfigError(
+            f"llm.models.{model_id} 必须提供 base_url 或 base_url_env 之一"
+        )
+
+    model_env = mraw.get("model_env")
+    model_str = mraw.get("model")
+    if not model_str and not model_env:
+        raise ConfigError(
+            f"llm.models.{model_id} 必须提供 model 或 model_env 之一"
+        )
+
+    return ModelConfig(
+        alias=model_id,
+        provider=str(mraw.get("provider") or model_id),
+        type=model_type,
+        base_url=base_url,
+        model=str(model_str or ""),
+        timeout_seconds=int(mraw.get("timeout_seconds", 120)),
+        max_retries=int(mraw.get("max_retries", 1)),
+        api_key_env=mraw.get("api_key_env"),
+        api_key_optional=bool(mraw.get("api_key_optional", False)),
+        base_url_env=base_url_env,
+        version_env=mraw.get("version_env"),
+        model_env=model_env,
+    )
 
 
 def load_learning_tracks(path: str | Path) -> LearningTracksConfig:

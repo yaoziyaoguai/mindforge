@@ -149,11 +149,48 @@ class EditableProviderConfig(BaseModel):
     model_source: Literal["env", "config_default", "missing"] = "missing"
 
 
+class EditableModelConfig(BaseModel):
+    model_id: str
+    type: str
+    base_url: str | None = None
+    model: str | None = None
+    api_key_env: str | None = None
+    api_key_optional: bool = False
+    api_key_status: Literal["present", "missing", "hidden"]
+    api_key_env_configured: bool = False
+    api_key_secret_present: bool = False
+    api_key_masked_value: str | None = None
+    api_key_status_label: str
+    base_url_env: str | None = None
+    model_env: str | None = None
+    effective_base_url: str | None = None
+    base_url_source: Literal["env", "config_default", "missing"] = "missing"
+    effective_model: str | None = None
+    model_source: Literal["env", "config_default", "missing"] = "missing"
+
+
+class ResolvedWorkflowModelConfig(BaseModel):
+    workflow_step: str
+    model_id: str
+    type: str
+    base_url: str | None = None
+    model: str | None = None
+
+
 class EditableLLMConfig(BaseModel):
     active_provider: str
     available_providers: list[str]
     providers: dict[str, EditableProviderConfig]
     readiness: ProviderStatus
+    configured_model_ids: list[str] = Field(default_factory=list)
+    configured_models: dict[str, EditableModelConfig] = Field(default_factory=dict)
+    default_model: str | None = None
+    routing: dict[str, str] = Field(default_factory=dict)
+    routing_is_explicit: bool = False
+    resolved_per_step_models: dict[str, ResolvedWorkflowModelConfig] = Field(default_factory=dict)
+    legacy_config_detected: bool = False
+    validation_errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class EditableCuboxConfig(BaseModel):
@@ -179,11 +216,24 @@ class SetupProviderPatch(BaseModel):
     model_env: str | None = None
 
 
+class SetupModelPatch(BaseModel):
+    type: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key_env: str | None = None
+    api_key_optional: bool | None = None
+    base_url_env: str | None = None
+    model_env: str | None = None
+
+
 class SetupConfigPatch(BaseModel):
     vault_root: str | None = None
     create_vault: bool = False
     active_provider: str | None = None
     providers: dict[str, SetupProviderPatch] = Field(default_factory=dict)
+    default_model: str | None = None
+    models: dict[str, SetupModelPatch] = Field(default_factory=dict)
+    routing: dict[str, str] = Field(default_factory=dict)
     cubox_export_path: str | None = None
     cubox_import_path: str | None = None
 

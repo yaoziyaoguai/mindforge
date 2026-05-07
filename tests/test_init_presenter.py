@@ -66,7 +66,7 @@ def test_format_mode_lines_emits_only_active_modes() -> None:
 
 
 def test_format_interactive_summary_omits_when_not_interactive() -> None:
-    """非 interactive 时不输出 telemetry / profile 行；interactive 时必须输出。"""
+    """非 interactive 时不输出 telemetry / default_model 行；interactive 时必须输出。"""
 
     assert (
         format_interactive_summary(
@@ -80,11 +80,11 @@ def test_format_interactive_summary_omits_when_not_interactive() -> None:
     lines = format_interactive_summary(
         interactive=True,
         telemetry_enabled=True,
-        active_profile="fake",
+        active_profile="main",
     )
     text = " ".join(lines)
     assert "telemetry" in text and "True" in text and "local_only=True" in text
-    assert "profile" in text and "fake" in text
+    assert "default_model" in text and "main" in text
 
 
 def test_format_plan_summary_reports_four_action_counts(tmp_path: Path) -> None:

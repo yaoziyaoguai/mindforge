@@ -261,6 +261,14 @@ def processed_run_dict(*, cfg: MindForgeConfig, outcome, logger, now: datetime) 
         "schema_version": str(card_payload.get("schema_version") or ""),
         "source_content_hash": str(source_evidence.get("content_hash") or ""),
         "profile": cfg.llm.active_profile,
+        "model_routing": {
+            stage: {
+                "model_id": meta["model_alias"],
+                "type": meta.get("type") or meta.get("provider_type") or meta["provider"],
+                "model": meta["actual_model"],
+            }
+            for stage, meta in outcome.stages_meta.items()
+        },
         "stage_models": {
             stage: {
                 "alias": meta["model_alias"],

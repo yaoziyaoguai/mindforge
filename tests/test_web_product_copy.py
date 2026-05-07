@@ -89,7 +89,9 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "Revert" in setup
     assert "Unsaved changes" in setup
     assert "Vault path" in setup
-    assert "Active provider" in setup
+    assert "Configured models" in setup
+    assert "Default model" in setup
+    assert "Model routing" in setup
     assert "API key" in setup
     assert "type=\"password\"" not in setup
     assert "api_key_value" not in setup
@@ -103,7 +105,6 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "source = config" in setup
     assert "source = env" in setup
     assert "source = missing" in setup
-    assert "Default model" not in setup
     assert "Default base URL" not in setup
     assert "Effective base URL" not in setup
     assert "Effective model" not in setup
@@ -113,7 +114,7 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Copy API key value" not in setup
     assert "present (" in setup
     assert "No model provider configured" in setup
-    assert "Configure a provider to generate AI drafts." in setup
+    assert "Configure a model to generate AI drafts." in setup
     assert "You can still add and monitor sources" in setup
     assert "fake-fast" not in setup
     assert "fake://" not in setup
@@ -124,13 +125,35 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "0 configured" not in combined
 
 
+def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "Configured models" in setup
+    assert "Default model" in setup
+    assert "Model routing" in setup
+    assert "Workflow step" in setup
+    assert "All workflow steps use default model" in setup
+    assert "Legacy LLM config detected" in setup
+    assert "model id" in setup
+    assert "API key status" in setup
+    assert "stage_models" not in setup
+    assert "Stage models" not in setup
+    assert "active_profile" not in setup
+    assert "profiles" not in setup
+    assert "Active provider" not in setup
+    assert "provider profiles" not in setup
+    assert "fake_fast" not in setup
+    assert "fake_strong" not in setup
+    assert "all_local" not in setup
+
+
 def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
     add_panel = _read("components/SourceAddPanel.tsx")
     combined = "\n".join([setup, add_panel])
 
     assert "Local workspace" in setup
-    assert "Model provider" in setup
+    assert "Configured models" in setup
     assert "SourceAddPanel" in setup
     assert "Add a file or folder" in combined
     assert "Path input" in combined

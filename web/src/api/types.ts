@@ -122,6 +122,34 @@ export interface EditableProviderConfig {
   model_source: "env" | "config_default" | "missing";
 }
 
+export interface EditableModelConfig {
+  model_id: string;
+  type: string;
+  base_url?: string | null;
+  model?: string | null;
+  api_key_env?: string | null;
+  api_key_optional: boolean;
+  api_key_status: "present" | "missing" | "hidden";
+  api_key_env_configured: boolean;
+  api_key_secret_present: boolean;
+  api_key_masked_value?: string | null;
+  api_key_status_label: string;
+  base_url_env?: string | null;
+  model_env?: string | null;
+  effective_base_url?: string | null;
+  base_url_source: "env" | "config_default" | "missing";
+  effective_model?: string | null;
+  model_source: "env" | "config_default" | "missing";
+}
+
+export interface ResolvedWorkflowModelConfig {
+  workflow_step: string;
+  model_id: string;
+  type: string;
+  base_url?: string | null;
+  model?: string | null;
+}
+
 export interface SetupEditableConfigResponse {
   config_path: string;
   normalized_on_save: boolean;
@@ -137,6 +165,15 @@ export interface SetupEditableConfigResponse {
     available_providers: string[];
     providers: Record<string, EditableProviderConfig>;
     readiness: ProviderStatus;
+    configured_model_ids: string[];
+    configured_models: Record<string, EditableModelConfig>;
+    default_model?: string | null;
+    routing: Record<string, string>;
+    routing_is_explicit: boolean;
+    resolved_per_step_models: Record<string, ResolvedWorkflowModelConfig>;
+    legacy_config_detected: boolean;
+    validation_errors: string[];
+    warnings: string[];
   };
   cubox: {
     export_path?: string | null;
@@ -157,6 +194,17 @@ export interface SetupConfigPatch {
     base_url_env?: string | null;
     model_env?: string | null;
   }>;
+  default_model?: string | null;
+  models?: Record<string, {
+    type?: string | null;
+    base_url?: string | null;
+    model?: string | null;
+    api_key_env?: string | null;
+    api_key_optional?: boolean | null;
+    base_url_env?: string | null;
+    model_env?: string | null;
+  }>;
+  routing?: Record<string, string>;
   cubox_export_path?: string | null;
   cubox_import_path?: string | null;
 }

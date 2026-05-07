@@ -125,7 +125,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved }: Props) {
           <Meta label="Model run" value={card.profile ?? card.provider} />
           <Meta label="Run id" value={card.run_id} />
           <Meta label="Prompt versions" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
-          <Meta label="Stage models" value={JSON.stringify(card.stage_models ?? {})} />
+          <Meta label="Model routing" value={JSON.stringify(card.stage_models ?? {})} />
         </dl>
       </details>
     </article>

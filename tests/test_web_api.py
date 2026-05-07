@@ -532,6 +532,189 @@ def test_setup_provider_dropdown_uses_only_configured_real_providers(
     assert provider["base_url_source"] == "missing"
 
 
+def test_setup_editable_llm_view_uses_models_default_and_routing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    secret_value = "sk-test-secret-value-abcd"
+    raw["llm"] = {
+        "default_model": "strong",
+        "models": {
+            "cheap": {
+                "type": "openai_compatible",
+                "api_key_env": "MINDFORGE_LLM_API_KEY",
+                "base_url": "https://router.example.com/v1",
+                "model": "cheap-model",
+            },
+            "strong": {
+                "type": "anthropic_compatible",
+                "api_key_env": "MINDFORGE_LLM_API_KEY",
+                "base_url": "https://router.example.com/anthropic",
+                "model": "strong-model",
+            },
+            "local": {
+                "type": "openai_compatible",
+                "api_key_optional": True,
+                "base_url": "http://localhost:11434/v1",
+                "model": "local-model",
+            },
+            "fake_fast": {
+                "type": "fake",
+                "model": "fake-fast",
+            },
+        },
+        "routing": {
+            "triage": "cheap",
+            "link_suggestion": "cheap",
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", secret_value)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    editable = client.get("/api/config/editable").json()
+    llm = editable["llm"]
+    combined = f"{editable}"
+
+    assert llm["default_model"] == "strong"
+    assert sorted(llm["configured_model_ids"]) == ["cheap", "local", "strong"]
+    assert sorted(llm["configured_models"]) == ["cheap", "local", "strong"]
+    assert llm["routing"]["triage"] == "cheap"
+    assert llm["routing"]["distill"] == "strong"
+    assert llm["routing"]["review_questions"] == "strong"
+    assert llm["routing_is_explicit"] is True
+    assert llm["legacy_config_detected"] is False
+    assert llm["validation_errors"] == []
+    assert llm["configured_models"]["cheap"]["type"] == "openai_compatible"
+    assert llm["configured_models"]["cheap"]["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    assert llm["configured_models"]["cheap"]["api_key_secret_present"] is True
+    assert llm["configured_models"]["cheap"]["api_key_masked_value"] == "sk-****abcd"
+    assert llm["configured_models"]["local"]["api_key_optional"] is True
+    assert llm["resolved_per_step_models"]["triage"]["model_id"] == "cheap"
+    assert llm["resolved_per_step_models"]["distill"]["model_id"] == "strong"
+    assert "fake_fast" not in llm["configured_models"]
+    assert secret_value not in combined
+
+
+def test_setup_editable_llm_view_reports_omitted_routing_and_legacy_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://router.example.com/v1",
+                "model": "main-model",
+            }
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    llm = client.get("/api/config/editable").json()["llm"]
+
+    assert llm["routing_is_explicit"] is False
+    assert llm["routing"] == {stage: "main" for stage in [
+        "triage",
+        "distill",
+        "link_suggestion",
+        "review_questions",
+        "action_extraction",
+    ]}
+
+    legacy_raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    legacy_raw["llm"] = {
+        "active_profile": "fake",
+        "profiles": {
+            "fake": {
+                "triage": "fake_alias",
+                "distill": "fake_alias",
+                "link_suggestion": "fake_alias",
+                "review_questions": "fake_alias",
+                "action_extraction": "fake_alias",
+            },
+            "all_local": {
+                "triage": "local_alias",
+                "distill": "local_alias",
+                "link_suggestion": "local_alias",
+                "review_questions": "local_alias",
+                "action_extraction": "local_alias",
+            },
+        },
+        "models": {
+            "fake_alias": {"provider": "fake", "type": "fake", "model": "fake"},
+            "local_alias": {
+                "provider": "local",
+                "type": "openai_compatible",
+                "base_url": "http://localhost:11434/v1",
+                "model": "local-model",
+            },
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(legacy_raw, sort_keys=False), encoding="utf-8")
+
+    legacy_llm = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/config/editable"
+    ).json()["llm"]
+
+    assert legacy_llm["legacy_config_detected"] is True
+    assert any("Legacy LLM config detected" in warning for warning in legacy_llm["warnings"])
+    assert legacy_llm["configured_models"] == {}
+    assert "all_local" not in legacy_llm["configured_model_ids"]
+    assert "fake_alias" not in f"{legacy_llm['configured_models']}"
+
+
+def test_setup_save_writes_new_llm_format_without_legacy_profiles(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://router.example.com/v1",
+                    "model": "main-model",
+                    "api_key_env": "MINDFORGE_LLM_API_KEY",
+                },
+                "strong": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://router.example.com/anthropic",
+                    "model": "strong-model",
+                    "api_key_env": "MINDFORGE_LLM_API_KEY",
+                },
+            },
+            "routing": {"distill": "strong"},
+        },
+    )
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    text = cfg_path.read_text(encoding="utf-8")
+
+    assert response.status_code == 200
+    assert raw["llm"]["default_model"] == "main"
+    assert sorted(raw["llm"]["models"]) == ["main", "strong"]
+    assert raw["llm"]["routing"] == {"distill": "strong"}
+    assert "active_profile" not in raw["llm"]
+    assert "profiles" not in raw["llm"]
+    assert "providers" not in raw["llm"]
+    assert "stage_models" not in text
+
+
 def test_setup_provider_dropdown_ignores_legacy_profile_defaults_in_main_ui(
     tmp_path: Path,
     monkeypatch,

@@ -10,8 +10,7 @@
 
 本文件覆盖：
 
-1. 默认 bundled 配置 ``configs/mindforge.yaml`` 的 ``active_profile``
-   是 ``fake``；
+1. 默认 bundled user config 使用新的 ``llm.models/default_model`` 语义；
 2. ``build_providers`` 在 fake profile 下**只**实例化 ``FakeProvider``，
    绝不实例化 OpenAI / Anthropic provider；
 3. fake profile 下构造 providers 不会触发 ``os.environ.get`` 读
@@ -31,9 +30,11 @@ import ast
 import os
 import socket
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from mindforge.config import LLMConfig, ModelConfig
 from mindforge.llm.base import LLMRequest, ProviderError
 from mindforge.llm.factory import build_providers
 from mindforge.llm.fake import FakeProvider
@@ -51,15 +52,19 @@ _DEFAULT_YAML = _REPO / "src" / "mindforge" / "assets" / "configs" / "mindforge.
 
 def test_default_bundled_config_active_profile_is_real_dogfood() -> None:
     text = _DEFAULT_YAML.read_text(encoding="utf-8")
-    # 真实 dogfood 阶段：新用户主配置默认指向 openai_compatible；fake 保留为
-    # offline demo / CI / deterministic tests，但不再作为普通用户主路径。
-    assert "active: openai_compatible" in text
-    # 逐行扫一遍，确保用户模板没有 legacy active_profile 行潜藏
-    for line in text.splitlines():
-        s = line.strip()
-        assert not s.startswith("active_profile:"), (
-            f"新用户模板必须使用 llm.active，不应出现 legacy active_profile：{s!r}"
-        )
+    # 新用户主配置只暴露 models/default_model；fake/profile 只属于内部测试兼容层。
+    assert "default_model: main" in text
+    assert "models:" in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    for forbidden in (
+        "active:",
+        "active_profile:",
+        "profiles:",
+        "fake_fast",
+        "fake_strong",
+        "fake://",
+    ):
+        assert forbidden not in text
 
 
 def test_packaged_user_config_active_provider_is_real_dogfood() -> None:
@@ -70,7 +75,10 @@ def test_packaged_user_config_active_provider_is_real_dogfood() -> None:
     bundled = asset_root().joinpath("configs", "mindforge.user.yaml").read_text(
         encoding="utf-8"
     )
-    assert "active: openai_compatible" in bundled
+    assert "default_model: main" in bundled
+    assert "models:" in bundled
+    assert "active_profile:" not in bundled
+    assert "profiles:" not in bundled
 
 
 # ---------------------------------------------------------------------------
@@ -79,11 +87,36 @@ def test_packaged_user_config_active_provider_is_real_dogfood() -> None:
 
 
 def _load_default_cfg_fake_override():
-    from mindforge.config import load_mindforge_config
-    from dataclasses import replace
+    """构造 legacy fake-only 配置，守住测试替身不读 secret/不联网的边界。
 
-    cfg = load_mindforge_config(_DEFAULT_YAML)
-    return replace(cfg, llm=replace(cfg.llm, active_profile="fake"))
+    用户模板已经迁移到 ``llm.models/default_model/routing``，因此这里不再从
+    用户模板“改写出 fake profile”。fake 是测试夹具，不是用户配置入口。
+    """
+
+    fake_model = ModelConfig(
+        alias="fake_fast",
+        provider="fake",
+        type="fake",
+        base_url="fake://",
+        model="fake-fast",
+        timeout_seconds=5,
+        max_retries=0,
+    )
+    llm = LLMConfig(
+        active_profile="fake",
+        profiles={
+            "fake": {
+                "triage": "fake_fast",
+                "distill": "fake_fast",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_fast",
+                "action_extraction": "fake_fast",
+            }
+        },
+        models={"fake_fast": fake_model},
+        legacy_config_detected=True,
+    )
+    return SimpleNamespace(llm=llm)
 
 
 def test_build_providers_fake_profile_only_constructs_fake_provider() -> None:

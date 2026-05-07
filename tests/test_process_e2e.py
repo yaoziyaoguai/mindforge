@@ -349,6 +349,7 @@ def _assert_ai_draft_card_contract(vault: Path) -> None:
         "prompt_version",
         "prompt_versions",
         "profile",
+        "model_routing",
         "stage_models",
         "run_id",
     ):
@@ -369,6 +370,7 @@ def _assert_ai_draft_card_contract(vault: Path) -> None:
         "review_questions": "v1",
         "action_extraction": "v1",
     }
+    assert isinstance(fm["model_routing"], dict) and len(fm["model_routing"]) == 5
     assert isinstance(fm["stage_models"], dict) and len(fm["stage_models"]) == 5
 
 
