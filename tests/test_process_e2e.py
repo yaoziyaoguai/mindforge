@@ -133,6 +133,9 @@ def test_process_writes_card_state_and_run_log(tmp_path: Path) -> None:
     assert "source_id:" in card_text
     assert "source_type: plain_markdown" in card_text
     assert "adapter_name: PlainMarkdownAdapter" in card_text
+    assert "strategy_id: \"knowledge_card\"" in card_text
+    assert "source_content_hash:" in card_text
+    assert "prompt_versions:" in card_text
     assert "prompt_version:" in card_text
     assert "run_id:" in card_text
     # 不能把 raw_text 整段塞进来；body 应来自 distill 的 source_excerpt（fake 占位）
@@ -249,6 +252,151 @@ def test_process_skipped_when_threshold_too_high(tmp_path: Path) -> None:
     assert "triage" in item.stages and item.stages["triage"].status == "ok"
 
 
+_FORBIDDEN_STATE_FIELDS = (
+    "api_key",
+    "Authorization",
+    "x-api-key",
+    "Bearer ",
+    "raw_text",
+    "prompt_text",
+    "completion_text",
+)
+
+_FORBIDDEN_RUN_FIELDS = (
+    *_FORBIDDEN_STATE_FIELDS,
+    "request_body",
+    "response_body",
+)
+
+_ALLOWED_LLM_CALL_FIELDS = {
+    "ts",
+    "run_id",
+    "event",
+    "stage",
+    "model_alias",
+    "provider",
+    "provider_type",
+    "actual_model",
+    "prompt_version",
+    "input_file_hash",
+    "status",
+    "error_message",
+    "tokens_in",
+    "tokens_out",
+    "latency_ms",
+}
+
+
+def _isolate_fake_cli_path(tmp_path: Path, monkeypatch) -> None:
+    """隔离端到端测试环境，证明 fake process 路径不依赖真实 env 或网络。
+
+    这里是测试架构边界：CLI 可以读传入的临时 config，但不能从开发者机器
+    的 ``.env`` 或 HTTP 出口获得隐式能力。
+    """
+    import httpx
+
+    for k in list(__import__("os").environ.keys()):
+        if k.startswith("MINDFORGE_"):
+            monkeypatch.delenv(k, raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    def _no_http(*a, **kw):  # type: ignore[no-untyped-def]
+        raise AssertionError("v0.1 fake 路径绝不应该发起 HTTP 请求")
+
+    monkeypatch.setattr(httpx.Client, "post", _no_http, raising=True)
+
+
+def _run_scan_process_status(cfg_path: Path):
+    """执行用户可见的 scan → process → status 闭环。"""
+    r_scan = runner.invoke(app, ["scan", "--config", str(cfg_path)])
+    assert r_scan.exit_code == 0, r_scan.output
+
+    r_proc = runner.invoke(app, _common_process_args(cfg_path))
+    assert r_proc.exit_code == 0, r_proc.output
+    assert "processed=1" in r_proc.output
+
+    r_stat = runner.invoke(app, ["status", "--config", str(cfg_path)])
+    assert r_stat.exit_code == 0, r_stat.output
+    return r_scan, r_proc, r_stat
+
+
+def _assert_ai_draft_card_contract(vault: Path) -> None:
+    """验证写出的 Knowledge Card 仍是 ai_draft，不能越权成人工批准态。"""
+    cards = list((vault / "20-Knowledge-Cards").rglob("*.md"))
+    assert len(cards) == 1
+    card_text = cards[0].read_text("utf-8")
+    assert card_text.startswith("---\n")
+    fm_text = card_text.split("---\n", 2)[1]
+    fm = yaml.safe_load(fm_text)
+    assert isinstance(fm, dict)
+    for required in (
+        "id",
+        "title",
+        "status",
+        "track",
+        "tags",
+        "value_score",
+        "confidence",
+        "strategy_id",
+        "strategy_version",
+        "schema_version",
+        "source_id",
+        "source_type",
+        "adapter_name",
+        "source_path",
+        "source_content_hash",
+        "created_at",
+        "prompt_version",
+        "prompt_versions",
+        "profile",
+        "model_routing",
+        "run_id",
+    ):
+        assert required in fm, f"frontmatter 缺关键字段 {required!r}"
+    assert fm["status"] == "ai_draft"
+    assert fm["strategy_id"] == "knowledge_card"
+    assert fm["strategy_version"]
+    assert str(fm["schema_version"]) == "1"
+    assert fm["source_type"] == "plain_markdown"
+    assert isinstance(fm["source_content_hash"], str)
+    assert len(fm["source_content_hash"]) >= 12
+    # 中文学习型说明：prompt provenance 记录 stage -> version，不记录完整
+    # prompt 文本。这样新卡可追踪生成材料，同时不会把 prompt asset 塞进卡片。
+    assert fm["prompt_versions"] == {
+        "triage": "v1",
+        "distill": "v1",
+        "link_suggestion": "v1",
+        "review_questions": "v1",
+        "action_extraction": "v1",
+    }
+    assert isinstance(fm["model_routing"], dict) and len(fm["model_routing"]) == 5
+    assert "stage_models" not in fm
+
+
+def _assert_forbidden_terms_absent(text: str, forbidden_terms: tuple[str, ...], context: str) -> None:
+    """统一检查持久化产物没有泄漏 prompt、completion、raw_text 或密钥字段。"""
+    for forbidden in forbidden_terms:
+        assert forbidden not in text, f"{context} 含禁字段 {forbidden!r}（v0.1 反泄漏约束）"
+
+
+def _assert_run_log_safety(runs_dir: Path) -> None:
+    """runs jsonl 只允许记录安全元数据，不保存请求/响应正文。"""
+    files = list(runs_dir.glob("*.jsonl"))
+    assert len(files) >= 1
+    flat = "\n".join(f.read_text("utf-8") for f in files)
+    _assert_forbidden_terms_absent(flat, _FORBIDDEN_RUN_FIELDS, "runs/*.jsonl")
+
+    for f in files:
+        for line in f.read_text("utf-8").splitlines():
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            if event.get("event") != "llm_call":
+                continue
+            extra = set(event) - _ALLOWED_LLM_CALL_FIELDS
+            assert not extra, f"llm_call 含白名单外字段 {extra}（v0.1 反泄漏约束）"
+
+
 def test_v0_1_stop_rule_safety_guarantees(
     tmp_path: Path,
     monkeypatch: "pytest.MonkeyPatch",  # noqa: F821
@@ -261,139 +409,17 @@ def test_v0_1_stop_rule_safety_guarantees(
     任何 .env 变量。任何一条断言失败都意味着 v0.1 停手规则被破坏，
     rc1 不应发布。
     """
-    import httpx
-    import pytest as _pytest  # 局部导入仅供 noqa
-
-    _ = _pytest  # 让静态检查不报未使用
-
-    # 1) 清理所有 MINDFORGE_* 环境变量；fake 路径必须能在零 env 下跑通
-    for k in list(__import__("os").environ.keys()):
-        if k.startswith("MINDFORGE_"):
-            monkeypatch.delenv(k, raising=False)
-    # 防止 cwd 上的真实 .env 被自动加载到本测试中（env > dotfile，但保险起见）
-    monkeypatch.chdir(tmp_path)
-
-    # 2) 拦截真实 HTTP；fake provider 一旦走出本地就立即失败
-    def _no_http(*a, **kw):  # type: ignore[no-untyped-def]
-        raise AssertionError("v0.1 fake 路径绝不应该发起 HTTP 请求")
-
-    monkeypatch.setattr(httpx.Client, "post", _no_http, raising=True)
-
+    _isolate_fake_cli_path(tmp_path, monkeypatch)
     cfg_path, vault, src_file = _build_vault_with_fake_llm(tmp_path)
     src_md5_before = src_file.read_text("utf-8")
 
-    # 3) 走 scan → process → status 三步，全部应 exit 0
-    r_scan = runner.invoke(
-        app,
-        ["scan", "--config", str(cfg_path)],
-    )
-    assert r_scan.exit_code == 0, r_scan.output
+    _run_scan_process_status(cfg_path)
 
-    r_proc = runner.invoke(app, _common_process_args(cfg_path))
-    assert r_proc.exit_code == 0, r_proc.output
-    assert "processed=1" in r_proc.output
-
-    r_stat = runner.invoke(app, ["status", "--config", str(cfg_path)])
-    assert r_stat.exit_code == 0, r_stat.output
-
-    # 4) source 文件 100% 未被改写
     assert src_file.read_text("utf-8") == src_md5_before, (
         "v0.1 硬约束：原始 source 文件不可被改写"
     )
+    _assert_ai_draft_card_contract(vault)
 
-    # 5) 卡片落地、ai_draft 默认、frontmatter 关键字段齐全（YAML 可解析）
-    cards = list((vault / "20-Knowledge-Cards").rglob("*.md"))
-    assert len(cards) == 1
-    card_text = cards[0].read_text("utf-8")
-    assert card_text.startswith("---\n")
-    fm_text = card_text.split("---\n", 2)[1]
-    fm = yaml.safe_load(fm_text)
-    assert isinstance(fm, dict)
-    # v0.1 协议字段
-    for required in (
-        "id",
-        "title",
-        "status",
-        "track",
-        "tags",
-        "value_score",
-        "confidence",
-        "source_id",
-        "source_type",
-        "adapter_name",
-        "source_path",
-        "created_at",
-        "prompt_version",
-        "profile",
-        "stage_models",
-        "run_id",
-    ):
-        assert required in fm, f"frontmatter 缺关键字段 {required!r}"
-    assert fm["status"] == "ai_draft"
-    assert fm["source_type"] == "plain_markdown"
-    # M2.9 验证：stage_models 必须是 dict（缩进正确才能被 YAML 解析为 map）
-    assert isinstance(fm["stage_models"], dict) and len(fm["stage_models"]) == 5
-
-    # 6) state.json 仅含安全摘要：不得出现 prompt 全文 / completion / api_key
     state_text = (tmp_path / ".mindforge" / "state.json").read_text("utf-8")
-    for forbidden in (
-        "api_key",
-        "Authorization",
-        "x-api-key",
-        "Bearer ",
-        "raw_text",
-        "prompt_text",
-        "completion_text",
-    ):
-        assert forbidden not in state_text, (
-            f"state.json 含禁字段 {forbidden!r}（v0.1 反泄漏约束）"
-        )
-
-    # 7) runs/*.jsonl 字段在白名单 + 不含敏感原文
-    runs_dir = tmp_path / ".mindforge" / "runs"
-    files = list(runs_dir.glob("*.jsonl"))
-    assert len(files) >= 1
-    flat = "\n".join(f.read_text("utf-8") for f in files)
-    for forbidden in (
-        "api_key",
-        "Authorization",
-        "x-api-key",
-        "Bearer ",
-        "raw_text",
-        "prompt_text",
-        "completion_text",
-        "request_body",
-        "response_body",
-    ):
-        assert forbidden not in flat, (
-            f"runs/*.jsonl 含禁字段 {forbidden!r}（v0.1 反泄漏约束）"
-        )
-    # llm_call 字段白名单逐条校验
-    allowed = {
-        "ts",
-        "run_id",
-        "event",
-        "stage",
-        "model_alias",
-        "provider",
-        "provider_type",
-        "actual_model",
-        "prompt_version",
-        "input_file_hash",
-        "status",
-        "error_message",
-        "tokens_in",
-        "tokens_out",
-        "latency_ms",
-    }
-    for f in files:
-        for line in f.read_text("utf-8").splitlines():
-            if not line.strip():
-                continue
-            event = json.loads(line)
-            if event.get("event") != "llm_call":
-                continue
-            extra = set(event) - allowed
-            assert not extra, (
-                f"llm_call 含白名单外字段 {extra}（v0.1 反泄漏约束）"
-            )
+    _assert_forbidden_terms_absent(state_text, _FORBIDDEN_STATE_FIELDS, "state.json")
+    _assert_run_log_safety(tmp_path / ".mindforge" / "runs")

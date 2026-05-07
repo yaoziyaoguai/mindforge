@@ -1,6 +1,7 @@
 """可执行 onboarding smoke：demo vault 的主路径不能回归。
 
-只使用 examples/demo-vault 的虚构资料和 fake provider；运行时产物写入 tmp_path。
+只使用 examples/demo-vault 的虚构资料；process smoke 通过显式 ``--profile fake``
+在内存注入测试 provider，运行时产物写入 tmp_path。
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ def _copy_demo_vault(tmp_path: Path) -> tuple[Path, Path]:
     cfg["vault"]["root"] = str(vault)
     cfg["state"]["workdir"] = str(tmp_path / ".mindforge")
     cfg["logging"]["file"] = str(tmp_path / "mindforge.log")
-    cfg["llm"]["active_profile"] = "fake"
     cfg_path = tmp_path / "mindforge.yaml"
     cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return vault, cfg_path
@@ -100,8 +100,59 @@ def test_packaged_default_assets_exist() -> None:
         ("templates", "knowledge_card.md.j2"),
         ("configs", "learning_tracks.yaml"),
         ("configs", "mindforge.yaml"),
+        ("fixtures", "sample_cubox_api_export.json"),
+        ("examples", "demo-vault", "README.md"),
     ):
         assert root.joinpath(*rel).is_file(), "/".join(rel)
+
+
+def test_dogfood_init_demo_copies_packaged_demo_from_non_repo_cwd(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """安装态 dogfood bootstrap 不应依赖仓库根的 examples/demo-vault。
+
+    中文学习：用户 pip install 后通常在任意目录运行 CLI。本测试切到非 repo
+    cwd，要求 ``dogfood init-demo`` 从 package assets 复制 demo vault，并输出
+    后续 readiness/quickstart/doctor/cleanup 命令。
+    """
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    target = tmp_path / "dogfood-vault"
+    monkeypatch.chdir(run_dir)
+
+    res = runner.invoke(app, ["dogfood", "init-demo", "--target", str(target)])
+    assert res.exit_code == 0, res.output
+    assert (target / "README.md").exists()
+    assert (target / "00-Inbox" / "ManualNotes" / "my-first-agent-rough-notes.md").exists()
+    assert "dogfood readiness --vault" in res.output
+    assert "dogfood quickstart --vault" in res.output
+    assert f"rm -rf {target.resolve()}" in res.output
+
+
+def test_dogfood_init_demo_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    """默认拒绝覆盖，避免误删用户已有 workspace。"""
+    target = tmp_path / "dogfood-vault"
+    target.mkdir()
+    (target / "keep.md").write_text("keep", encoding="utf-8")
+
+    res = runner.invoke(app, ["dogfood", "init-demo", "--target", str(target)])
+    assert res.exit_code == 2, res.output
+    assert "target already exists" in res.output
+    assert (target / "keep.md").exists()
+
+
+def test_dogfood_init_demo_force_replaces_target(tmp_path: Path) -> None:
+    """显式 --force 才能重建 disposable demo vault。"""
+    target = tmp_path / "dogfood-vault"
+    target.mkdir()
+    (target / "old.md").write_text("old", encoding="utf-8")
+
+    res = runner.invoke(
+        app, ["dogfood", "init-demo", "--target", str(target), "--force"]
+    )
+    assert res.exit_code == 0, res.output
+    assert not (target / "old.md").exists()
+    assert (target / "README.md").exists()
 
 
 def test_process_uses_packaged_assets_from_non_repo_cwd(

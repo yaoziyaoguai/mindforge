@@ -2,7 +2,7 @@
 
 验收点：
 - ``Pipeline`` 结构性满足 ``KnowledgeStrategy`` Protocol；
-- 默认策略名 ``"five_stage"`` 在 registry 中可解析；
+- 默认策略名 ``"knowledge_card"`` 在 registry 中可解析；
 - 未知策略名抛 ``UnknownStrategyError``，不静默回退；
 - ``StrategyContext`` 字段映射到 ``Pipeline.__init__`` 完全一致；
 - 默认策略产出的 ``PipelineOutcome`` 与直接使用 ``Pipeline`` 的产出相同。
@@ -46,8 +46,8 @@ def _make_ctx(*, logger=None) -> StrategyContext:
     )
 
 
-def test_default_strategy_name_is_five_stage() -> None:
-    assert DEFAULT_STRATEGY_NAME == "five_stage"
+def test_default_strategy_name_is_knowledge_card() -> None:
+    assert DEFAULT_STRATEGY_NAME == "knowledge_card"
 
 
 def test_available_strategies_contains_default() -> None:

@@ -343,12 +343,12 @@ def test_unknown_strategy_message_lists_implemented_alternatives() -> None:
 
 
 def test_custom_strategy_doc_explains_preview_to_implementation_path() -> None:
-    """``docs/CUSTOM_STRATEGY.md`` 必须解释 preview → 未来 implementation
+    """``README.md`` 必须解释 preview → 未来 implementation
     的安全演进路径（即"如何把一个 preview 定义变成可执行策略"），并
     再次重申不会引入 arbitrary plugin / shell / 默认真实 LLM。
     """
 
-    p = Path("docs/CUSTOM_STRATEGY.md")
+    p = Path("README.md")
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "preview to",
@@ -357,7 +357,7 @@ def test_custom_strategy_doc_explains_preview_to_implementation_path() -> None:
         "no shell",
     ):
         assert token in text, (
-            f"docs/CUSTOM_STRATEGY.md 缺 preview→implementation 演进说明 "
+            f"README.md 缺 preview→implementation 演进说明 "
             f"{token!r}"
         )
 

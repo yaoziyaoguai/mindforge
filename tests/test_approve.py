@@ -1,6 +1,6 @@
 """M3 — `mindforge approve` 反 AI 污染闸门测试。
 
-覆盖矩阵见 docs/M3_HUMAN_APPROVAL_PROTOCOL.md §7。要点：
+覆盖矩阵对应 README.md 的 explicit approval boundary。要点：
 - ai_draft 可晋升、human_approved 幂等、其他 status 拒绝；
 - approve 不调 LLM、不需要 .env、不改正文、不改源文件；
 - runs jsonl 字段全在白名单；
@@ -82,7 +82,7 @@ def test_approve_promotes_ai_draft_to_human_approved(
     fm0 = _read_fm(card)
     assert fm0["status"] == "ai_draft"
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
     fm1 = _read_fm(card)
     assert fm1["status"] == "human_approved"
@@ -99,6 +99,148 @@ def test_approve_promotes_ai_draft_to_human_approved(
     assert item.approved_at is not None
 
 
+def test_approve_accepts_vault_relative_card_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用户从 approve list/show 复制的是 vault-relative path，也应该可直接 approve。
+
+    中文学习型说明：真实 dogfood 里 ``approve list`` 暴露的是 vault 内相对路径；
+    CLI adapter 不能逼普通用户再手动拼绝对路径。路径解析集中在
+    approval_service，approve CLI 只传用户输入。
+    """
+
+    cfg_path, vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    rel = card.relative_to(vault)
+
+    r = runner.invoke(app, ["approve", "--card", rel.as_posix(), "--config", str(cfg_path), "--confirm"])
+
+    assert r.exit_code == 0, r.output
+    assert _read_fm(card)["status"] == "human_approved"
+
+
+def test_approve_accepts_existing_cwd_relative_card_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """如果用户传的是当前目录下真实存在的相对路径，优先按 cwd-relative 解析。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    rel = card.relative_to(tmp_path)
+
+    r = runner.invoke(app, ["approve", "--card", rel.as_posix(), "--config", str(cfg_path), "--confirm"])
+
+    assert r.exit_code == 0, r.output
+    assert _read_fm(card)["status"] == "human_approved"
+
+
+def test_approve_list_shows_short_refs_and_numbered_tasks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve list 是待办列表：短编号是主路径，长 --card path 只留作详情。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(app, ["approve", "list", "--config", str(cfg_path)])
+
+    assert r.exit_code == 0, r.output
+    assert "[1]" in r.output
+    assert card.stem.removeprefix("20260505--") in r.output or card.stem in r.output
+    assert "mindforge approve 1 --confirm" in r.output
+    assert "full_path" in r.output
+
+
+def test_approve_without_args_shows_pending_review_without_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """无参数 approve 是 review 入口，不是错误，也不能偷偷批准。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, ["approve", "--config", str(cfg_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Approve Todo" in result.output
+    assert "mindforge approve 1 --confirm" in result.output
+    assert _read_fm(card)["status"] == "ai_draft"
+
+
+def test_approve_number_ref_promotes_and_rebuilds_recall_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用户可以用短编号批准；批准后默认刷新 BM25 index，recall 立即可用。"""
+
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    approved = runner.invoke(app, ["approve", "1", "--config", str(cfg_path), "--confirm"])
+    listed = runner.invoke(app, ["approve", "list", "--config", str(cfg_path)])
+    recall = runner.invoke(app, ["recall", "--config", str(cfg_path), "--query", "agent"])
+
+    assert approved.exit_code == 0, approved.output
+    assert "recall index updated" in approved.output
+    assert _read_fm(card)["status"] == "human_approved"
+    assert listed.exit_code == 0, listed.output
+    assert "没有待 approve 的卡片" in listed.output
+    assert recall.exit_code == 0, recall.output
+    assert "agent" in recall.output.lower()
+
+
+def test_approve_ambiguous_ref_does_not_promote_any_card(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """模糊 ref 必须列候选并退出，避免把错误卡片写入长期记忆。"""
+
+    cfg_path, vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    cards_dir = vault / "20-Knowledge-Cards" / "agent-runtime"
+    one = cards_dir / "20260506--alpha-note.md"
+    two = cards_dir / "20260506--alpha-notebook.md"
+    for path, title in ((one, "Alpha Note"), (two, "Alpha Notebook")):
+        path.write_text(
+            "---\n"
+            f"id: {path.stem}\n"
+            f"title: {title}\n"
+            "status: ai_draft\n"
+            "track: agent-runtime\n"
+            "---\n\n"
+            "## AI Summary\nalpha body\n",
+            encoding="utf-8",
+        )
+
+    result = runner.invoke(app, ["approve", "alpha", "--config", str(cfg_path), "--confirm"])
+
+    assert result.exit_code == 2, result.output
+    assert "ambiguous" in result.output
+    assert "alpha-note" in result.output
+    assert "alpha-notebook" in result.output
+    assert _read_fm(one)["status"] == "ai_draft"
+    assert _read_fm(two)["status"] == "ai_draft"
+
+
+def test_approve_missing_card_error_explains_path_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """缺失路径要说明尝试过 cwd/vault 解析，避免用户不知道该检查哪一层。"""
+
+    cfg_path, _vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(
+        app,
+        [
+            "approve",
+            "--card",
+            "20-Knowledge-Cards/missing.md",
+            "--config",
+            str(cfg_path),
+            "--confirm",
+        ],
+    )
+
+    assert r.exit_code == 2, r.output
+    assert "card path could not be resolved" in r.output
+    assert "cwd-relative" in r.output
+    assert "vault-relative" in r.output
+    assert "vault.root" in r.output
+    assert "approve list" in r.output
+
+
 # ---------------------------------------------------------------------------
 # (2) approve 不修改正文
 # ---------------------------------------------------------------------------
@@ -109,24 +251,27 @@ def test_approve_preserves_body(
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     body_before = _read_body(card)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
     assert _read_body(card) == body_before
 
 
 # ---------------------------------------------------------------------------
-# (3) approve 不修改源文件
+# (3) approve 归档源文件但不删除证据
 # ---------------------------------------------------------------------------
 
 
-def test_approve_does_not_touch_source(
+def test_approve_archives_source_without_losing_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg_path, _v, src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+    cfg_path, vault, src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     src_bytes = src.read_bytes()
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
-    assert src.read_bytes() == src_bytes
+    archived = vault / "00-Inbox" / "_processed" / "ManualNotes" / src.name
+    assert not src.exists()
+    assert archived.read_bytes() == src_bytes
+    assert "source_archive_path:" in card.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +287,7 @@ def test_approve_works_with_zero_env(
     for k in list(os.environ.keys()):
         if k.startswith("MINDFORGE_") or k.startswith("OPENAI"):
             monkeypatch.delenv(k, raising=False)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
 
 
@@ -162,7 +307,7 @@ def test_approve_never_calls_llm(
         raise AssertionError("approve 路径绝不应该发起 HTTP 请求")
 
     monkeypatch.setattr(httpx.Client, "post", _no_http, raising=True)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0, r.output
 
 
@@ -175,12 +320,12 @@ def test_approve_is_idempotent_on_human_approved(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
-    r1 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r1 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r1.exit_code == 0
     fm1 = _read_fm(card)
     text1 = card.read_text("utf-8")
 
-    r2 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r2 = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r2.exit_code == 0
     fm2 = _read_fm(card)
     text2 = card.read_text("utf-8")
@@ -205,7 +350,7 @@ def test_approve_rejects_non_promotable_status(
     assert text2 != text
     card.write_text(text2, encoding="utf-8")
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 4, r.output
     # 卡片完全没变
     assert card.read_text("utf-8") == text2
@@ -222,7 +367,7 @@ def test_approve_rejects_corrupt_frontmatter(
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     # 写一个明显非法的 YAML
     card.write_text("---\nstatus: ai_draft\n  bad: : :\n---\nbody\n", encoding="utf-8")
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 3, r.output
 
 
@@ -231,7 +376,7 @@ def test_approve_rejects_missing_status(
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     card.write_text("---\ntitle: X\n---\nbody\n", encoding="utf-8")
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 3, r.output
 
 
@@ -246,7 +391,14 @@ def test_approve_rejects_missing_card(
     cfg_path, _v, _s, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
     r = runner.invoke(
         app,
-        ["approve", "--card", str(tmp_path / "no-such-card.md"), "--config", str(cfg_path)],
+        [
+            "approve",
+            "--card",
+            str(tmp_path / "no-such-card.md"),
+            "--config",
+            str(cfg_path),
+            "--confirm",
+        ],
     )
     assert r.exit_code == 2, r.output
 
@@ -263,7 +415,7 @@ def test_approve_runs_jsonl_uses_whitelisted_fields_only(
     runs_dir = tmp_path / ".mindforge" / "runs"
     before = {p.name for p in runs_dir.glob("*.jsonl")}
 
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
 
     after_files = [p for p in runs_dir.glob("*.jsonl") if p.name not in before]
@@ -292,7 +444,7 @@ def test_state_json_round_trip_with_approval_fields(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg_path, _v, _s, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
 
     state_path = tmp_path / ".mindforge" / "state.json"

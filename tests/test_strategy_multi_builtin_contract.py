@@ -195,9 +195,11 @@ def test_concept_extraction_module_does_not_call_llm_or_read_env() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_strategies_list_shows_at_least_three_built_in_strategies() -> None:
-    """``mindforge strategies list`` 必须列出至少 3 个内建策略，
-    让用户明确"我有多个选择"。Red 期望：当前只有 2 个。
+def test_cli_strategies_list_hides_internal_builtins_by_default() -> None:
+    """普通 discovery 只展示生产策略，internal built-ins 需显式 opt-in。
+
+    中文学习型说明：多策略 registry 可以保留 internal metadata，但默认 CLI UX
+    不能让用户以为 deterministic baseline 是正式产品策略。
     """
 
     from mindforge.cli import app
@@ -205,24 +207,24 @@ def test_cli_strategies_list_shows_at_least_three_built_in_strategies() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["strategies", "list"])
     assert result.exit_code == 0, result.output
-    # 用 ID 字面量统计而不是行数 —— 行数易被多行 description 干扰
-    metas = list_strategies()
-    assert len(metas) >= 3, (
-        f"list_strategies 当前只有 {len(metas)} 个内建策略：{[m.strategy_id for m in metas]}"
-    )
+    assert "knowledge_card" in result.output
+    assert "default_knowledge_card" not in result.output
+
+    internal = runner.invoke(app, ["strategies", "list", "--include-internal"])
+    assert internal.exit_code == 0, internal.output
+    metas = list_strategies(include_internal=True)
+    assert len(metas) >= 4
     for m in metas:
-        assert m.strategy_id in result.output
+        assert m.strategy_id in internal.output
 
 
-def test_cli_strategies_list_output_includes_status_label() -> None:
-    """``mindforge strategies list`` 输出必须包含每个策略的 status，
-    让用户区分 implemented / preview / planned。
-    """
+def test_cli_strategies_list_include_internal_output_includes_status_label() -> None:
+    """``--include-internal`` 输出必须包含每个 strategy 的 status。"""
 
     from mindforge.cli import app
 
     runner = CliRunner()
-    result = runner.invoke(app, ["strategies", "list"])
+    result = runner.invoke(app, ["strategies", "list", "--include-internal"])
     assert result.exit_code == 0, result.output
     for m in list_strategies():
         # status 字面量必须出现在输出某处（不一定贴近 strategy_id，但

@@ -1,6 +1,6 @@
 """M4 — Knowledge Card 只读读取层。
 
-设计契约（详见 docs/M4_RECALL_REVIEW_PROTOCOL.md §2 / §5.3）：
+设计契约（详见 README.md 的 cards / recall 说明）：
 
 1. **只读**。本模块永远不写卡片、不写 source、不写 state.json。
 2. **白名单字段**。CardSummary 仅含 §5.3 安全字段；卡片正文段落由调用方
@@ -33,10 +33,16 @@ class CardSummary:
     projects: tuple[str, ...]
     tags: tuple[str, ...]
     source_type: str | None
-    source_title: str | None
-    source_url: str | None
-    value_score: int | None
-    created_at: datetime | None
+    source_id: str | None = None
+    adapter_name: str | None = None
+    source_path: str | None = None
+    source_title: str | None = None
+    source_url: str | None = None
+    source_content_hash: str | None = None
+    source_archive_path: str | None = None
+    source_missing: bool = False
+    value_score: int | None = None
+    created_at: datetime | None = None
     # M4 review 字段（缺失按默认值）
     reviewed_at: datetime | None = None
     review_count: int = 0
@@ -47,6 +53,15 @@ class CardSummary:
     # M5.3：卡片级结构化补充字段（项目 profile 永远优先；这里只做补充）
     principles: tuple[str, ...] = ()
     known_risks: tuple[str, ...] = ()
+    profile: str | None = None
+    provider: str | None = None
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    schema_version: str | None = None
+    prompt_version: str | None = None
+    prompt_versions: dict[str, str] = field(default_factory=dict)
+    stage_models: dict[str, Any] = field(default_factory=dict)
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -210,9 +225,15 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         track=_str_or_none(data.get("track")),
         projects=_str_tuple(data.get("projects")),
         tags=_str_tuple(data.get("tags")),
+        source_id=_str_or_none(data.get("source_id")),
         source_type=_str_or_none(data.get("source_type")),
+        adapter_name=_str_or_none(data.get("adapter_name")),
+        source_path=_str_or_none(data.get("source_path")),
         source_title=_str_or_none(data.get("source_title")),
         source_url=_str_or_none(data.get("source_url")),
+        source_content_hash=_str_or_none(data.get("source_content_hash")),
+        source_archive_path=_str_or_none(data.get("source_archive_path")),
+        source_missing=_bool_or_false(data.get("source_missing")),
         value_score=_int_or_none(data.get("value_score")),
         created_at=_dt_or_none(data.get("created_at")),
         reviewed_at=_dt_or_none(data.get("reviewed_at")),
@@ -222,6 +243,15 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         updated_at=mtime,
         principles=_str_tuple(data.get("principles")),
         known_risks=_str_tuple(data.get("known_risks")),
+        profile=_str_or_none(data.get("profile")),
+        provider=_provider_from_stage_models(data.get("stage_models")),
+        strategy_id=_str_or_none(data.get("strategy_id")),
+        strategy_version=_str_or_none(data.get("strategy_version")),
+        schema_version=_str_or_none(data.get("schema_version")),
+        prompt_version=_str_or_none(data.get("prompt_version")),
+        prompt_versions=_str_dict(data.get("prompt_versions")),
+        stage_models=_dict_or_empty(data.get("stage_models")),
+        run_id=_str_or_none(data.get("run_id")),
     )
 
 
@@ -246,12 +276,44 @@ def _int_or_none(v: Any) -> int | None:
         return None
 
 
+def _str_dict(v: Any) -> dict[str, str]:
+    if not isinstance(v, dict):
+        return {}
+    return {str(k): str(val) for k, val in v.items() if val is not None}
+
+
+def _dict_or_empty(v: Any) -> dict[str, Any]:
+    return dict(v) if isinstance(v, dict) else {}
+
+
+def _bool_or_false(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in {"1", "true", "yes", "y"}
+    return False
+
+
 def _str_tuple(v: Any) -> tuple[str, ...]:
     if v is None:
         return ()
     if isinstance(v, (list, tuple)):
         return tuple(str(x) for x in v if x is not None and str(x))
     return (str(v),)
+
+
+def _provider_from_stage_models(v: Any) -> str | None:
+    if not isinstance(v, dict):
+        return None
+    providers: list[str] = []
+    for meta in v.values():
+        if isinstance(meta, dict):
+            provider = _str_or_none(meta.get("provider"))
+            if provider and provider not in providers:
+                providers.append(provider)
+    if not providers:
+        return None
+    return ",".join(providers)
 
 
 def _dt_or_none(v: Any) -> datetime | None:

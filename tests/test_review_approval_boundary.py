@@ -307,7 +307,62 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # required for any human_approved record" 来固化 readiness 路径
         # 永不产生 human_approved 的不变量。
         "cubox_readiness.py",
-    }
+        # Local User Productization Pack — demo_tour 用 human_approved=False
+        # 字面量在 review-packet step 与 safety_invariants 中声明
+        # "demo 永远不产生 human_approved", 反向边界守护 (与 dogfood_safety
+        # / cubox_readiness 同款模式)。
+        "demo_tour.py",
+        # Architecture Quality Pack — next_suggestions.py 是从 cli.py 巨石
+        # 拆出的纯逻辑层。它只在 *只读* 路径上用 "human_approved" 字面量来
+        # 过滤"已由人类审核过、可参与 review/recall 调度"的卡片，从未把任何
+        # 卡片晋升到 human_approved。与 cli.py 内的同名查询同语义、同安全约束。
+        "next_suggestions.py",
+        # Architecture Quality Pack 2 — services/doctor.py 同样是从 cli.py
+        # 抽出的纯逻辑层。只在 *只读* 路径用 "human_approved" 字面量过滤
+        # 卡片以做诊断统计与 BM25 / overdue 推断，从未做晋升动作。
+        "doctor.py",
+        # Full Repo Decomposition milestone — backup_cli.py 从 cli.py 抽出
+        # backup export adapter，只读导出 human_approved 卡片的安全摘要；
+        # 不写卡片状态，也不产生任何 approval side effect。
+            "backup_cli.py",
+            # library_service.py 是只读 inventory 查询面，只统计和展示
+            # human_approved / ai_draft 状态，不产生审批副作用。
+            "library_service.py",
+            # card_workspace_service.py 是 Web/Service 共享的卡片正文编辑边界。
+            # 它只在保存已 approved 卡片后保留 human_approved 状态并刷新 recall
+            # index，不把 ai_draft 晋升为 human_approved；晋升仍只能走
+            # approval_service/approver 的显式 approve 路径。
+            "card_workspace_service.py",
+        # real-data CLI status presenter 只读展示 approved 计数；不写状态、
+        # 不调用 approval_service，也不产生 human_approved。
+        "local_status.py",
+                # daily_cli.py 从 cli.py 抽出 today/start/next 只读入口，只用
+            # human_approved 统计 review due 信号，不写状态、不 approve。
+            "daily_cli.py",
+            # approval_cli.py 是显式人工 approve 的 CLI adapter owner。它只把
+            # 用户命令转交给 approval_service/approver，不允许静默自动晋升；
+            # human_approved 字面量出现在用户可见说明和边界提示中是合理的。
+            "approval_cli.py",
+            # process_cli.py 只在命令 docstring/help 中声明默认 ai_draft 与
+            # 必须人工晋升的边界；实际 process 写卡路径不会产生 human_approved。
+            "process_cli.py",
+            # process_executor.py 是 process/watch/import 共享执行原语。这里的
+            # human_approved 只用于构建已审核 source 的只读索引，避免重复处理
+            # 已 approve source；它不写卡片状态，也不产生审批副作用。
+            "process_executor.py",
+                # review_cli.py 是 review adapter，只读取 human_approved 卡片做
+                # 到期/统计展示；不写卡片状态。
+                "review_cli.py",
+            # recall_index_cli.py 是 recall/index adapter，只用 human_approved
+            # 作为默认检索过滤条件；不负责 approve。
+            "recall_index_cli.py",
+            # project_cli.py 只在 project context / evidence 只读汇总中默认过滤
+            # human_approved 卡片；不产生审批副作用。
+            "project_cli.py",
+            # dogfood_cli.py 只打印安全 dogfooding runbook 和说明，声明不会
+            # 生成 human_approved；不执行审批路径。
+            "dogfood_cli.py",
+        }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
         if "human_approved" in text and f.name not in allowed:

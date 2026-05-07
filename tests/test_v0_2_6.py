@@ -177,12 +177,63 @@ def test_init_creates_vault_and_configs(tmp_path: Path) -> None:
         assert (target / d).is_dir(), f"missing {d}"
     # configs
     assert (tmp_path / "configs" / "mindforge.yaml").exists()
-    assert (tmp_path / "configs" / "learning_tracks.yaml").exists()
+    assert not (tmp_path / "configs" / "learning_tracks.yaml").exists()
+    assert not (tmp_path / "configs" / "llm.example.yaml").exists()
     # .env.example 而非 .env
     assert (tmp_path / ".env.example").exists()
     assert not (tmp_path / ".env").exists()
     # next steps 提示
     assert "Next steps" in res.output
+
+
+def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
+    tmp_path: Path,
+) -> None:
+    """init 生成的主配置必须自解释。
+
+    中文学习型说明：真实 dogfood 后，``configs/mindforge.yaml`` 是唯一主配置
+    入口。init 只能替换少数字段，不能用 ``yaml.safe_dump`` 重写整份文件，
+    否则注释会消失，新用户又会被 llm.example.yaml 之类旁路配置牵走。
+    """
+
+    target = tmp_path / "newvault"
+    res = runner.invoke(
+        app,
+        ["init", "--vault", str(target), "--project-root", str(tmp_path)],
+    )
+
+    assert res.exit_code == 0, res.output
+    text = (tmp_path / "configs" / "mindforge.yaml").read_text(encoding="utf-8")
+    assert "# MindForge user config." in text
+    assert "default_model: main" in text
+    assert "models:" in text
+    assert "active_profile:" not in text
+    assert "profiles:" not in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "https://your-router.example.com/v1" in text
+    assert "Do not put API keys in this YAML" in text
+    assert "fake_fast" not in text
+    assert "fake://" not in text
+    assert "sources:" not in text
+    assert "state:" not in text
+    assert "search:" not in text
+    assert str(target) in text
+
+
+def test_env_example_lists_openai_and_anthropic_without_secret_values() -> None:
+    text = Path(".env.example").read_text(encoding="utf-8")
+    for name in (
+        "MINDFORGE_OPENAI_API_KEY",
+        "MINDFORGE_OPENAI_BASE_URL",
+        "MINDFORGE_OPENAI_MODEL",
+        "MINDFORGE_ANTHROPIC_API_KEY",
+        "MINDFORGE_ANTHROPIC_BASE_URL",
+        "MINDFORGE_ANTHROPIC_MODEL",
+    ):
+        assert name in text
+    assert "sk-" not in text
+    assert "sk-ant" not in text
+    assert "sk-proj" not in text
 
 
 def test_init_is_idempotent(tmp_path: Path) -> None:
@@ -226,10 +277,18 @@ def test_init_force_overwrites_template_only(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_approve_card_still_works_backward_compat(tmp_path: Path) -> None:
+def test_approve_card_requires_confirm_for_real_write(tmp_path: Path) -> None:
     cfg_path = _make_min_cfg(tmp_path)
     card = tmp_path / "vault" / "20-Knowledge-Cards" / "c1.md"
     res = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    assert res.exit_code == 2, res.output
+    assert "--confirm" in res.output
+    assert "human_approved" not in card.read_text("utf-8")
+
+    res = runner.invoke(
+        app,
+        ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"],
+    )
     assert res.exit_code == 0, res.output
     assert "approved" in res.output.lower()
     # 真的被改了
@@ -370,7 +429,7 @@ def test_approve_source_id_resolves_card(tmp_path: Path) -> None:
 
     res = runner.invoke(
         app,
-        ["approve", "--source-id", "sha1:fake-c1", "--config", str(cfg_path)],
+        ["approve", "--source-id", "sha1:fake-c1", "--config", str(cfg_path), "--confirm"],
     )
     assert res.exit_code == 0, res.output
     assert "human_approved" in target.read_text("utf-8")
@@ -379,8 +438,11 @@ def test_approve_source_id_resolves_card(tmp_path: Path) -> None:
 def test_approve_no_args_friendly_hint(tmp_path: Path) -> None:
     cfg_path = _make_min_cfg(tmp_path)
     res = runner.invoke(app, ["approve", "--config", str(cfg_path)])
-    assert res.exit_code == 2
-    assert "--card" in res.output
+    assert res.exit_code == 0
+    assert "Approve Todo" in res.output
+    assert "mindforge approve 1 --confirm" in res.output
+    card = tmp_path / "vault" / "20-Knowledge-Cards" / "c1.md"
+    assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

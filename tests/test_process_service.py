@@ -162,6 +162,7 @@ def _stage_result(parsed: dict) -> StageResult:
         prompt_version="triage@v1",
         model_alias="f1",
         provider="fake-local",
+        provider_type="fake",
         actual_model="fake-1",
         tokens_in=0,
         tokens_out=0,

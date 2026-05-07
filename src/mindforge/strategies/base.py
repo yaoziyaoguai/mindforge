@@ -28,7 +28,7 @@ CLI 在构造 ``Pipeline`` 时传入 ``logger=None``，然后在 ``with RunLogge
 路径，不消费 ``client``；强制要求一个真实 ``LLMClient`` 反而把测试 fixture
 和无 LLM 策略不必要地耦合到 LLM 子系统。把 ``client`` 设为 ``Optional``
 并默认 ``None``，让"是否调 LLM"成为策略自身的实现细节，而不是 context 的
-强制契约 —— 这正是 fake-first / no-real-LLM-by-default 的 seam 形态。
+强制契约。生产测试应注入 LLM stub response，而不是替换 strategy runtime。
 
 需要 LLM 的策略（如 ``five_stage``）应在工厂里显式校验 ``ctx.client is
 not None``，确保失败信号清晰、不会悄悄走到一半才 NoneType crash。
@@ -69,6 +69,7 @@ class StrategyContext:
     prompts_dir: Any = None
     prompt_versions: Any = None
     triage_threshold: int = 0
+    bypass_triage_gate: bool = False
     learning_tracks_text: str = ""
     logger: "RunLogger | None" = None
 

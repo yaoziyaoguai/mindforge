@@ -52,12 +52,16 @@ from .concept_extraction import build_concept_extraction_strategy
 from .five_stage import build_five_stage_strategy
 from .registry import (
     DEFAULT_STRATEGY_NAME,
+    INTERNAL_STRATEGY_IDS,
+    LEGACY_FIVE_STAGE_ALIAS,
     NotYetImplementedStrategyError,
     StrategyMetadata,
     UnknownStrategyError,
     available_strategies,
+    canonical_strategy_id,
     get_strategy_metadata,
     list_strategies,
+    public_strategies,
 )
 from .registry import build_strategy as _build_builtin_strategy
 
@@ -209,7 +213,9 @@ def build_strategy(
 
 __all__ = [
     "DEFAULT_STRATEGY_NAME",
+    "INTERNAL_STRATEGY_IDS",
     "KnowledgeStrategy",
+    "LEGACY_FIVE_STAGE_ALIAS",
     "NotYetImplementedStrategyError",
     "StrategyContext",
     "StrategyMetadata",
@@ -218,7 +224,9 @@ __all__ = [
     "build_concept_extraction_strategy",
     "build_five_stage_strategy",
     "build_strategy",
+    "canonical_strategy_id",
     "discover_strategies",
     "get_strategy_metadata",
     "list_strategies",
+    "public_strategies",
 ]

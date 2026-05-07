@@ -27,6 +27,7 @@ from pathlib import Path
 import typer
 
 from .app_context import load_app_config
+from .config import with_fake_llm_profile
 from .env_loader import load_dotenv_silently
 from .provider_readiness import build_readiness_report, render_readiness_report
 from .real_smoke import run_synthetic_real_smoke
@@ -131,15 +132,19 @@ def provider_smoke_cmd(
         # 与 llm ping 的覆盖语义保持一致: 只调整内存中的 LLMConfig 副本,
         # 不持久化, 不影响其他命令。LLMConfig 是 frozen dataclass, 必须
         # 走 dataclasses.replace, 不能直接赋值。
-        if profile not in app_cfg.llm.profiles:
-            typer.echo(
-                f"unknown --profile {profile!r}; available: "
-                f"{sorted(app_cfg.llm.profiles)}",
-                err=True,
-            )
-            raise typer.Exit(code=2)
-        from dataclasses import replace
-        new_llm = replace(app_cfg.llm, active_profile=profile)
+        if profile == "fake" and profile not in app_cfg.llm.profiles:
+            new_llm = with_fake_llm_profile(app_cfg.llm)
+        else:
+            if profile not in app_cfg.llm.profiles:
+                typer.echo(
+                    f"unknown --profile {profile!r}; available: "
+                    f"{sorted(app_cfg.llm.profiles)}",
+                    err=True,
+                )
+                raise typer.Exit(code=2)
+            from dataclasses import replace
+
+            new_llm = replace(app_cfg.llm, active_profile=profile)
     else:
         new_llm = app_cfg.llm
     result = run_synthetic_real_smoke(

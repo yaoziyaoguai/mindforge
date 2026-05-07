@@ -4,8 +4,8 @@
 ================
 
 v0.9.x KnowledgeStrategy Customization Readiness 已经把
-``DefaultKnowledgeCardStrategy`` 的 10 字段 payload contract 写在
-``docs/ROADMAP.md``（§v0.9.x KnowledgeStrategy 之 Default contract）。
+``DefaultKnowledgeCardStrategy`` 的 10 字段 payload contract 已收敛为
+README-first 文档中的策略边界说明。
 v0.10 Slice 1 的工作就是**先用测试把这个 contract 钉死**，确保
 Slice 2 实现时只能产出符合契约的 payload —— 而不是边写边改 schema。
 
@@ -40,7 +40,7 @@ from mindforge.sources.base import SourceDocument, compute_content_hash
 
 
 # ---------------------------------------------------------------------------
-# 10 字段 contract（与 docs/ROADMAP.md §v0.9.x Default contract 对齐）
+# 10 字段 contract（与 README-first 策略边界对齐）
 # ---------------------------------------------------------------------------
 
 
@@ -124,9 +124,9 @@ def test_factory_exists() -> None:
 def test_registry_lists_default_knowledge_card() -> None:
     """``registry.available_strategies()`` 必须包含新策略名。
 
-    Slice 2 在 ``registry.py`` 注册新名后此条转绿。注意：
-    ``DEFAULT_STRATEGY_NAME`` 必须**仍**是 ``"five_stage"``，新策略
-    只是**额外**注册。
+    Slice 2 在 ``registry.py`` 注册新名后此条转绿。当前产品语义下，
+    ``DEFAULT_STRATEGY_NAME`` 必须是 production ``"knowledge_card"``；
+    ``default_knowledge_card`` 仅作为 internal deterministic baseline 保留。
     """
     from mindforge.strategies.registry import (
         DEFAULT_STRATEGY_NAME,
@@ -134,7 +134,7 @@ def test_registry_lists_default_knowledge_card() -> None:
     )
 
     assert "default_knowledge_card" in available_strategies()
-    assert DEFAULT_STRATEGY_NAME == "five_stage"
+    assert DEFAULT_STRATEGY_NAME == "knowledge_card"
 
 
 # ---------------------------------------------------------------------------

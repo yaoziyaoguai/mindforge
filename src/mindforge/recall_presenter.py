@@ -63,6 +63,8 @@ def build_recall_json_payload(result: RecallSearchResult, context: RecallRenderC
             "source": result.index.source,
             "used_disk": result.index.used_disk,
             "path": str(result.index.path),
+            "vault_root": str(result.index.vault_root),
+            "cards_dir": result.index.cards_dir,
             "suggest_rebuild": result.index.suggest_rebuild,
             "card_counts": result.index.card_counts,
         },

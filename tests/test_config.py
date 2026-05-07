@@ -14,12 +14,14 @@ from pathlib import Path
 import pytest
 import yaml
 
+from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.config import (
     ConfigError,
     REQUIRED_STAGES,
     load_learning_tracks,
     load_mindforge_config,
 )
+from mindforge.init_cmd import build_plan, execute_plan
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
@@ -31,39 +33,242 @@ CONFIG_DIR = REPO_ROOT / "configs"
 
 
 def test_real_mindforge_yaml_loads() -> None:
-    cfg = load_mindforge_config(CONFIG_DIR / "mindforge.yaml")
+    cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     # vault
     assert cfg.vault.inbox_root == "00-Inbox"
     # sources
     assert "cubox_markdown" in cfg.sources.enabled
     assert "plain_markdown" in cfg.sources.enabled
     active = {e.source_type for e in cfg.sources.active_entries()}
-    # v0.2.4 起 webclip_markdown / chat_export 默认启用（真实 adapter 已落地）
+    # v0.2.4 起 webclip_markdown / chat_export 默认启用；本 milestone 增加
+    # common_document 作为通用本地文档入口，不把 Cubox 当核心配置项。
     assert active == {
         "cubox_markdown",
         "plain_markdown",
         "webclip_markdown",
         "chat_export",
+        "common_document",
     }
-    # llm
-    # 真实 mindforge.yaml 默认走 fake，避免误调用真实模型；切换到 anthropic_coding_plan / openai_compatible 需用户显式改。
-    assert cfg.llm.active_profile == "fake"
-    assert "anthropic_coding_plan" in cfg.llm.profiles
-    assert "openai_compatible" in cfg.llm.profiles
+    # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
+    assert cfg.llm.active_profile == "__model_routing__"
+    assert cfg.llm.default_model == "main"
+    assert cfg.llm.routing == {stage: "main" for stage in REQUIRED_STAGES}
     for stage in REQUIRED_STAGES:
         m = cfg.llm.resolve_stage(stage)
         assert m.alias in cfg.llm.models
-        assert m.type == "fake"
+        assert m.type == "openai_compatible"
     # 真实路径模型一律不允许把 secret 写进 yaml
-    qcs = cfg.llm.models["qwen_coder_strong"]
-    assert qcs.type == "anthropic_compatible"
-    assert qcs.base_url_env == "MINDFORGE_LLM_BASE_URL"
-    assert qcs.api_key_env == "MINDFORGE_LLM_API_KEY"
-    assert qcs.version_env == "MINDFORGE_LLM_VERSION"
-    assert qcs.base_url == ""  # yaml 里不能写真实 base_url
+    main = cfg.llm.models["main"]
+    assert main.type == "openai_compatible"
+    assert main.api_key_env == "MINDFORGE_LLM_API_KEY"
+    assert main.model == "your-model-name"
+    assert main.base_url == "https://your-router.example.com/v1"  # endpoint 不是 secret
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"
+
+
+def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
+    """init 输出的是用户 override，而不是 internal full config dump。
+
+    中文学习型说明：运行时仍需要 sources/state/search/prompts 等系统默认值，
+    但这些属于 MindForge 内置 defaults。新用户第一天看到的 YAML 只应该承载
+    vault、provider env 映射和 telemetry 这类用户决策。
+    """
+
+    project_root = tmp_path / "project"
+    vault = tmp_path / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    generated = project_root / "configs" / "mindforge.yaml"
+    text = generated.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(text)
+
+    assert sorted(p.relative_to(project_root).as_posix() for p in project_root.rglob("*") if p.is_file()) == [
+        ".env.example",
+        "configs/mindforge.yaml",
+    ]
+    assert set(parsed) == {"version", "vault", "llm", "telemetry"}
+    assert parsed["vault"]["root"] == str(vault)
+    assert load_mindforge_config(generated).vault.root == vault.resolve()
+    assert parsed["llm"]["default_model"] == "main"
+    assert "active_profile" not in parsed["llm"]
+    assert "profiles" not in parsed["llm"]
+    assert "active" not in parsed["llm"]
+    assert "providers" not in parsed["llm"]
+    assert parsed["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert parsed["llm"]["models"]["main"]["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    assert parsed["llm"]["models"]["main"]["base_url"] == "https://your-router.example.com/v1"
+    assert parsed["llm"]["models"]["main"]["model"] == "your-model-name"
+    assert parsed["telemetry"]["local_only"] is True
+
+    forbidden = (
+        "sources:",
+        "registry:",
+        "state:",
+        "runs_dir",
+        "index_file",
+        "obsidian:",
+        "include_dirs",
+        "exclude_dirs",
+        "search:",
+        "bm25:",
+        "hybrid:",
+        "prompts:",
+        "record_prompts",
+        "record_outputs",
+        "cheap-model",
+        "strong-model",
+        "qwen_coder_fast",
+        "qwen_coder_strong",
+        "fake_fast",
+        "fake_strong",
+        "fake://",
+    )
+    for marker in forbidden:
+        assert marker not in text
+
+
+def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    vault = tmp_path / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    text = (project_root / ".env.example").read_text(encoding="utf-8")
+
+    for marker in (
+        "MINDFORGE_OPENAI_API_KEY",
+        "MINDFORGE_OPENAI_BASE_URL",
+        "MINDFORGE_OPENAI_MODEL",
+        "MINDFORGE_ANTHROPIC_API_KEY",
+        "MINDFORGE_ANTHROPIC_BASE_URL",
+        "MINDFORGE_ANTHROPIC_MODEL",
+    ):
+        assert marker in text
+    assert "sk-" not in text
+    assert "MINDFORGE_LLM_API_KEY" not in text
+
+
+def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:
+    """默认 init 在 project root 下创建 ``vault/``，YAML 也写相对 ``vault``。"""
+
+    project_root = tmp_path / "project"
+    vault = project_root / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    generated = project_root / "configs" / "mindforge.yaml"
+    parsed = yaml.safe_load(generated.read_text(encoding="utf-8"))
+
+    assert parsed["vault"]["root"] == "vault"
+    assert load_mindforge_config(generated).vault.root == vault.resolve()
+
+
+def test_minimal_user_override_merges_with_internal_defaults(tmp_path: Path) -> None:
+    """极简用户 YAML 必须能和 internal defaults 合并成完整运行配置。"""
+
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    vault = tmp_path / "vault"
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "{vault}"
+llm:
+  active: fake
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+telemetry:
+  enabled: true
+  local_only: true
+""".format(vault=vault),
+        encoding="utf-8",
+    )
+
+    cfg = load_mindforge_config(cfg_path)
+
+    assert cfg.vault.root == vault
+    assert cfg.vault.inbox_root == "00-Inbox"
+    assert cfg.sources.active_entries()
+    assert cfg.state.state_file == "state.json"
+    assert cfg.prompts.for_stage("distill") == "v1"
+    assert cfg.search.bm25.enabled is True
+    assert cfg.llm.active_profile == "fake"
+
+
+def test_new_active_wins_over_legacy_active_profile(tmp_path: Path) -> None:
+    """同时存在新旧字段时，产品语义以 ``llm.active`` 为准。"""
+
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "/tmp/provider-selection"
+llm:
+  active: fake
+  active_profile: anthropic
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+    anthropic:
+      type: anthropic
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      default_base_url: "https://api.anthropic.com"
+      default_model: "claude-3-5-haiku-latest"
+  profiles:
+    anthropic:
+      provider: anthropic
+      api_key_env: MINDFORGE_ANTHROPIC_API_KEY
+      default_model: "claude-3-5-haiku-latest"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_mindforge_config(cfg_path)
+
+    assert cfg.llm.active_profile == "fake"
+
+
+def test_llm_active_unknown_provider_fails_fast(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir()
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "/tmp/provider-selection"
+llm:
+  active: missing_provider
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="missing_provider"):
+        load_mindforge_config(cfg_path)
 
 
 def test_real_learning_tracks_yaml_loads() -> None:
@@ -155,6 +360,185 @@ def test_minimal_valid_config(tmp_path: Path) -> None:
     assert cfg.llm.active_profile == "default"
 
 
+def _minimal_config_with_new_llm(llm: dict) -> dict:
+    data = _minimal_valid_config()
+    data["llm"] = llm
+    return data
+
+
+def test_single_model_llm_config_uses_default_for_all_workflow_steps(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.default_model == "main"
+    assert cfg.llm.routing == {stage: "main" for stage in REQUIRED_STAGES}
+    for stage in REQUIRED_STAGES:
+        model = cfg.llm.resolve_stage(stage)
+        assert model.alias == "main"
+        assert model.type == "openai_compatible"
+        assert model.model == "main-model"
+
+
+def test_partial_llm_routing_falls_back_to_default_model(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "strong",
+                "models": {
+                    "cheap": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "cheap-model",
+                    },
+                    "strong": {
+                        "type": "anthropic_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/anthropic",
+                        "model": "strong-model",
+                    },
+                },
+                "routing": {
+                    "triage": "cheap",
+                    "link_suggestion": "cheap",
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.routing["triage"] == "cheap"
+    assert cfg.llm.routing["link_suggestion"] == "cheap"
+    assert cfg.llm.routing["distill"] == "strong"
+    assert cfg.llm.routing["review_questions"] == "strong"
+    assert cfg.llm.routing["action_extraction"] == "strong"
+
+
+def test_llm_routing_missing_model_fails_clearly(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+                "routing": {"triage": "ghost"},
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.routing.triage='ghost'.*llm.models"):
+        load_mindforge_config(p)
+
+
+def test_llm_default_model_missing_fails_clearly(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "ghost",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "base_url": "https://router.example.com/v1",
+                        "model": "main-model",
+                    }
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.default_model='ghost'.*llm.models"):
+        load_mindforge_config(p)
+
+
+def test_llm_model_type_is_required_and_not_inferred_from_url(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://api.anthropic.com",
+                        "model": "claude-3-5-haiku-latest",
+                    }
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(ConfigError, match="llm.models.main.type"):
+        load_mindforge_config(p)
+
+
+def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) -> None:
+    p = _write_yaml(
+        tmp_path,
+        _minimal_config_with_new_llm(
+            {
+                "default_model": "local",
+                "models": {
+                    "anthropic_native": {
+                        "type": "anthropic",
+                        "api_key_env": "MINDFORGE_ANTHROPIC_API_KEY",
+                        "base_url": "https://api.anthropic.com",
+                        "model": "claude-3-5-haiku-latest",
+                    },
+                    "anthropic_router": {
+                        "type": "anthropic_compatible",
+                        "api_key_env": "MINDFORGE_LLM_API_KEY",
+                        "base_url": "https://router.example.com/anthropic",
+                        "model": "strong-model",
+                    },
+                    "local": {
+                        "type": "openai_compatible",
+                        "api_key_env": "MINDFORGE_LOCAL_API_KEY",
+                        "api_key_optional": True,
+                        "base_url": "http://localhost:11434/v1",
+                        "model": "qwen2.5:14b",
+                    },
+                },
+                "routing": {
+                    "triage": "local",
+                    "distill": "anthropic_native",
+                    "review_questions": "anthropic_router",
+                },
+            }
+        ),
+    )
+
+    cfg = load_mindforge_config(p)
+
+    assert cfg.llm.models["anthropic_native"].type == "anthropic"
+    assert cfg.llm.models["anthropic_router"].type == "anthropic_compatible"
+    assert cfg.llm.models["local"].type == "openai_compatible"
+    assert cfg.llm.models["local"].api_key_optional is True
+
+
 def test_relative_workdir_resolves_against_cwd_not_config_parent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -227,15 +611,17 @@ def test_source_type_unknown(tmp_path: Path) -> None:
 
 def test_enabled_not_in_registry(tmp_path: Path) -> None:
     data = _minimal_valid_config()
-    data["sources"]["enabled"].append("pdf")
+    data["sources"]["enabled"].append("ghost_source")
     p = _write_yaml(tmp_path, data)
-    with pytest.raises(ConfigError, match="pdf"):
+    with pytest.raises(ConfigError, match="ghost_source"):
         load_mindforge_config(p)
 
 
-def test_missing_required_top_field(tmp_path: Path) -> None:
+def test_missing_required_top_field_uses_internal_defaults(tmp_path: Path) -> None:
+    """用户 override 可以省略 internal defaults 已覆盖的顶层配置。"""
+
     data = _minimal_valid_config()
     data.pop("triage")
     p = _write_yaml(tmp_path, data)
-    with pytest.raises(ConfigError, match="triage"):
-        load_mindforge_config(p)
+    cfg = load_mindforge_config(p)
+    assert cfg.triage.default_track == "unrouted"

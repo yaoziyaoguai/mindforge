@@ -60,7 +60,7 @@ Service 边界（运行时禁止）
 8. 写正式 Obsidian notes；
 9. RAG / embedding；
 10. 改变 processor 主链路；
-11. 改变 fake provider 默认安全路径；
+11. 改变 provider/LLM 测试替身的离线边界；
 12. 承担 Markdown / JSON / Rich 输出。
 
 与 ``safety_policy.py`` 的关系
@@ -108,6 +108,7 @@ class ProcessRequest:
     prompts_dir: Path | None = None
     tracks: Path | None = None
     template: Path | None = None
+    bypass_triage_gate: bool = False
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,7 @@ class ProcessRuntime:
 
     provider: ProviderSelection
     assets: ProcessAssets
+    bypass_triage_gate: bool = False
 
 
 # ---- 结构化错误码 ----------------------------------------------------------
@@ -255,7 +257,11 @@ def resolve_process_runtime(req: ProcessRequest) -> ProcessRuntime | ProcessErro
         requires_real_env=(cfg.llm.active_profile != FAKE_PROFILE),
     )
     assets = _resolve_assets(req)
-    return ProcessRuntime(provider=provider, assets=assets)
+    return ProcessRuntime(
+        provider=provider,
+        assets=assets,
+        bypass_triage_gate=req.bypass_triage_gate,
+    )
 
 
 def _resolve_assets(req: ProcessRequest) -> ProcessAssets:

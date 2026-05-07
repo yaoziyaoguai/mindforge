@@ -321,56 +321,59 @@ def test_obsidian_cli_does_not_import_top_cli() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_delegates_approval_via_service() -> None:
-    """正向断言：``cli.py`` 的 approve 命令必须委托
+def test_approval_cli_delegates_approval_via_service() -> None:
+    """正向断言：``approval_cli.py`` 的 approve 命令必须委托
     ``approve_explicit_card``（来自 ``approval_service``）。
 
-    这一条与"不直接 Assign human_approved"配对：CLI 必须**通过** service
-    delegation 完成人审，否则人审契约被绕过。若有人未来"重构掉" delegation，
-    本测试会立刻失败。
+    中文学习型说明：root ``cli.py`` 现在只注册子 app；人工审批的 CLI
+    adapter 边界在 ``approval_cli.py``。本测试锚定真正拥有该职责的模块，
+    避免为了满足旧断言把 approval_service 反向塞回 root CLI。
     """
-    cli_tree = ast.parse((SRC_DIR / "cli.py").read_text(encoding="utf-8"))
-    calls = _all_call_names(cli_tree)
+    approval_tree = ast.parse((SRC_DIR / "approval_cli.py").read_text(encoding="utf-8"))
+    calls = _all_call_names(approval_tree)
     assert "approve_explicit_card" in calls, (
-        "cli.py 必须调用 approval_service.approve_explicit_card "
+        "approval_cli.py 必须调用 approval_service.approve_explicit_card "
         "完成人审；delegation 缺失意味着 approval 路径有越界风险"
     )
-    # 同时确认 import 也在
-    assert "mindforge.approval_service" in _all_imported_names(cli_tree), (
-        "cli.py 必须 import approval_service"
+    assert "mindforge.approval_service" in _all_imported_names(approval_tree), (
+        "approval_cli.py 必须 import approval_service"
     )
 
 
-def test_cli_uses_env_loader_not_direct_dotenv() -> None:
-    """正向断言：``cli.py`` 必须 import 并使用 ``env_loader`` 入口。
+def test_cli_runtime_uses_env_loader_not_direct_dotenv() -> None:
+    """正向断言：``cli_runtime.py`` 必须 import 并使用 ``env_loader`` 入口。
 
-    .env 加载只允许走 ``mindforge.env_loader.load_dotenv_silently``；
-    本断言要求该入口在 cli.py 的 import 表里——它是 fake-safety 边界
-    的"opt-in 安全门"。
+    ``cli_runtime.load_cfg`` 是拆分后所有 CLI adapter 的统一配置入口；
+    .env 加载只允许走 ``mindforge.env_loader.load_dotenv_silently``。
     """
-    cli_tree = ast.parse((SRC_DIR / "cli.py").read_text(encoding="utf-8"))
-    imports = _all_imported_names(cli_tree)
+    runtime_tree = ast.parse((SRC_DIR / "cli_runtime.py").read_text(encoding="utf-8"))
+    imports = _all_imported_names(runtime_tree)
     assert "mindforge.env_loader" in imports, (
-        "cli.py 必须 import mindforge.env_loader 以走 fake-safety 安全 .env 入口"
+        "cli_runtime.py 必须 import mindforge.env_loader 以走 fake-safety 安全 .env 入口"
     )
-    calls = _all_call_names(cli_tree)
+    calls = _all_call_names(runtime_tree)
     assert "load_dotenv_silently" in calls, (
-        "cli.py 必须调用 load_dotenv_silently（env_loader 入口），"
+        "cli_runtime.py 必须调用 load_dotenv_silently（env_loader 入口），"
         "不允许其他 .env 加载方式"
     )
 
 
-def test_cli_uses_llm_provider_factory() -> None:
-    """正向断言：``cli.py`` 必须通过 ``mindforge.llm.build_providers``
-    工厂构造 provider，而不是直接 import ``openai`` / ``anthropic``。
+def test_process_execution_uses_llm_provider_factory() -> None:
+    """正向断言：process 执行组合根必须通过 provider factory 构造 LLM。
 
-    这一条与"无真实 LLM SDK 直 import"配对：CLI 必须**通过**工厂获取
-    provider；fake provider 默认路径由工厂内部决定。
+    watch/import 复用 process 执行原语后，provider 构造从 ``process_cli.py``
+    下沉到 ``process_executor.py``。CLI adapter 只保留参数解析和用户输出；
+    复用层才持有 ``LLMClient`` / ``build_providers`` 细节，避免把业务执行逻辑
+    复制到 watch/import 或塞回顶层 CLI。
     """
-    cli_tree = ast.parse((SRC_DIR / "cli.py").read_text(encoding="utf-8"))
-    assert "mindforge.llm" in _all_imported_names(cli_tree), (
-        "cli.py 必须 import mindforge.llm 以走 provider factory"
+    process_tree = ast.parse((SRC_DIR / "process_cli.py").read_text(encoding="utf-8"))
+    executor_tree = ast.parse((SRC_DIR / "process_executor.py").read_text(encoding="utf-8"))
+    assert "mindforge.process_executor" in _all_imported_names(process_tree), (
+        "process_cli.py 必须委托 process_executor 运行共享 process 原语"
     )
-    assert "build_providers" in _all_call_names(cli_tree), (
-        "cli.py 必须调用 build_providers 工厂构造 LLM provider"
+    assert "mindforge.llm" in _all_imported_names(executor_tree), (
+        "process_executor.py 必须 import mindforge.llm 以走 provider factory"
+    )
+    assert "build_providers" in _all_call_names(executor_tree), (
+        "process_executor.py 必须调用 build_providers 工厂构造 LLM provider"
     )

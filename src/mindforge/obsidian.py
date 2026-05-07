@@ -17,7 +17,14 @@ from typing import Any
 import yaml
 
 from .config import ObsidianConfig
-from .safety_policy import OBSIDIAN_MANIFEST_SAFETY_LABELS, forbidden_derived_parts
+from .obsidian_manifest_policy import (
+    check_no_forbidden_machine_parts,
+    check_safety_boundary,
+    check_staged_output_policy,
+    manifest_path_value,
+    manifest_write_gate_path,
+    require_manifest_value,
+)
 from .sources.base import SourceDocument
 from .sources.obsidian_vault import ObsidianVaultSourceAdapter
 
@@ -309,15 +316,15 @@ def obsidian_preflight(
             else:
                 payload = loaded
 
-    staged_markdown = _manifest_path_value(payload, "staged_markdown", "proposed_file")
-    proposed_target = _manifest_write_gate_path(payload, "proposed_target")
-    backup_path = _manifest_write_gate_path(payload, "backup_path")
+    staged_markdown = manifest_path_value(payload, "staged_markdown", "proposed_file")
+    proposed_target = manifest_write_gate_path(payload, "proposed_target")
+    backup_path = manifest_write_gate_path(payload, "backup_path")
     recovery_plan = str((payload.get("write_gate") or {}).get("recovery_plan") or "")
 
-    _require_manifest_value(payload, ("source_note", "source"), "source", blocked)
-    _require_manifest_value(payload, ("action",), "action", blocked)
-    _require_manifest_value(payload, ("timestamp",), "timestamp", blocked)
-    _require_manifest_value(payload, ("safety",), "safety boundary", blocked)
+    require_manifest_value(payload, ("source_note", "source"), "source", blocked)
+    require_manifest_value(payload, ("action",), "action", blocked)
+    require_manifest_value(payload, ("timestamp",), "timestamp", blocked)
+    require_manifest_value(payload, ("safety",), "safety boundary", blocked)
 
     if staged_markdown is None:
         blocked.append("manifest 缺少 staged_markdown/proposed_file")
@@ -326,14 +333,14 @@ def obsidian_preflight(
             blocked.append(f"staged markdown 不存在：{staged_markdown}")
         elif staged_markdown.suffix.lower() != ".md":
             blocked.append(f"staged markdown 不是 .md 文件：{staged_markdown}")
-        _check_staged_output_policy(
+        check_staged_output_policy(
             payload=payload,
             staged_markdown=staged_markdown,
             manifest=manifest,
             default_staged_root=staged_root,
             blocked=blocked,
         )
-        _check_no_forbidden_machine_parts(staged_markdown, "staged markdown", blocked)
+        check_no_forbidden_machine_parts(staged_markdown, "staged markdown", blocked)
 
     if proposed_target is None:
         blocked.append("manifest.write_gate 缺少 proposed_target")
@@ -342,14 +349,14 @@ def obsidian_preflight(
             blocked.append(f"proposed target 不在 Obsidian vault 内：{proposed_target}")
         if proposed_target.exists():
             warnings.append(f"proposed target 已存在；preflight 不会覆盖：{proposed_target}")
-        _check_no_forbidden_machine_parts(proposed_target, "proposed target", blocked)
+        check_no_forbidden_machine_parts(proposed_target, "proposed target", blocked)
 
     if backup_path is None:
         blocked.append("manifest.write_gate 缺少 backup_path")
     if not recovery_plan:
         blocked.append("manifest.write_gate 缺少 rollback/recovery plan")
 
-    _check_safety_boundary(payload, blocked)
+    check_safety_boundary(payload, blocked)
     if payload.get("mode") not in {"staged_export", "human_approved"}:
         blocked.append("manifest.mode 必须来自 staged_export 或 explicit human-approved")
     if (payload.get("write_gate") or {}).get("writes_formal_notes_now") is not False:
@@ -366,71 +373,6 @@ def obsidian_preflight(
         backup_path=backup_path,
         recovery_plan=recovery_plan,
     )
-
-
-def _manifest_path_value(payload: dict[str, Any], *keys: str) -> Path | None:
-    for key in keys:
-        value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            return Path(value).expanduser().resolve()
-    return None
-
-
-def _manifest_write_gate_path(payload: dict[str, Any], key: str) -> Path | None:
-    write_gate = payload.get("write_gate")
-    if not isinstance(write_gate, dict):
-        return None
-    value = write_gate.get(key)
-    if isinstance(value, str) and value.strip():
-        return Path(value).expanduser().resolve()
-    return None
-
-
-def _require_manifest_value(
-    payload: dict[str, Any],
-    keys: tuple[str, ...],
-    label: str,
-    blocked: list[str],
-) -> None:
-    if not any(key in payload and payload.get(key) not in (None, "", {}) for key in keys):
-        blocked.append(f"manifest 缺少 {label}")
-
-
-def _check_staged_output_policy(
-    *,
-    payload: dict[str, Any],
-    staged_markdown: Path,
-    manifest: Path,
-    default_staged_root: Path,
-    blocked: list[str],
-) -> None:
-    policy = str(payload.get("staged_output_policy") or "")
-    if policy == "explicit-output-dir":
-        if staged_markdown.parent != manifest.parent:
-            blocked.append("explicit output-dir 下 manifest 与 staged markdown 必须在同一目录")
-        return
-    if policy != "default-state-workdir":
-        blocked.append("manifest 缺少 staged_output_policy")
-        return
-    manifest_root = _manifest_path_value(payload, "staged_export_dir") or default_staged_root
-    if not _is_relative_to(staged_markdown, manifest_root):
-        blocked.append(f"default staged output 必须位于 {manifest_root}")
-
-
-def _check_safety_boundary(payload: dict[str, Any], blocked: list[str]) -> None:
-    safety = payload.get("safety")
-    if not isinstance(safety, dict):
-        blocked.append("manifest.safety 必须是 object")
-        return
-    for key, label in OBSIDIAN_MANIFEST_SAFETY_LABELS.items():
-        if safety.get(key) is not True:
-            blocked.append(f"manifest.safety 必须声明 {label}")
-
-
-def _check_no_forbidden_machine_parts(path: Path, label: str, blocked: list[str]) -> None:
-    bad = forbidden_derived_parts(path)
-    if bad:
-        blocked.append(f"{label} 包含禁止的机器派生层路径：{', '.join(bad)}")
 
 
 def _is_excluded(path: Path, root: Path, exclude_dirs: tuple[str, ...]) -> bool:

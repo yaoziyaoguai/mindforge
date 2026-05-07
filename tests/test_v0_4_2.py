@@ -127,6 +127,7 @@ def test_commands_lists_key_groups() -> None:
         assert cmd in out
     assert "[[wikilinks]]" in out
     assert "mindforge obsidian next --vault PATH" in out
+    assert "mindforge dogfood readiness --vault PATH" in out
     assert "mindforge obsidian preflight --manifest PATH" in out
     assert "--staged-export" in out
     assert "--write" in out
@@ -170,6 +171,7 @@ def test_next_suggests_approve_when_drafts_exist(tmp_path: Path) -> None:
     res = runner.invoke(app, ["next", "--config", str(cfg)])
     assert res.exit_code == 0
     assert "approve list" in res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
 
 
 def test_next_suggests_index_rebuild_when_index_missing(tmp_path: Path) -> None:
@@ -216,6 +218,19 @@ def test_next_json_format_is_parseable(tmp_path: Path) -> None:
     assert all("command" in s and "reason" in s and "priority" in s for s in data["suggestions"])
 
 
+def test_next_text_suggestions_keep_current_vault(tmp_path: Path) -> None:
+    """真实 dogfood 输出的下一步命令必须保留当前 vault 上下文。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-1", {
+        "id": "draft-1", "title": "draft", "status": "ai_draft",
+        "track": "agent-runtime", "value_score": 5,
+    })
+    res = runner.invoke(app, ["next", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
+
+
 def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None:
     """v0.5.4: today 是只读每日入口，展示状态和下一步，不触发加工。
 
@@ -256,6 +271,19 @@ def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
     assert "human_approved" in res.output
     assert "Next actions" in res.output
     assert "不读 .env" in res.output
+
+
+def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
+    """start 是第一天入口，建议命令也必须能直接复制到同一 vault。"""
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "draft-1", {
+        "id": "draft-1", "title": "draft", "status": "ai_draft",
+        "track": "agent-runtime", "value_score": 5,
+    })
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+    assert res.exit_code == 0, res.output
+    assert f"--vault {tmp_path / 'vault'}" in res.output
 
 
 def test_start_missing_config_suggests_init(tmp_path: Path) -> None:
@@ -365,7 +393,7 @@ def test_approve_list_outputs_todo_view_without_auto_approving(tmp_path: Path) -
     assert "Demo source" in res.output
     assert "2026-01-02T03:04" in res.output
     assert "不会自动 approve" in res.output
-    assert "mindforge approve --card" in res.output
+    assert "mindforge approve 1 --confirm" in res.output
     assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 
@@ -380,6 +408,14 @@ def test_approve_explicit_action_mentions_human_approval_boundary(tmp_path: Path
     })
 
     res = runner.invoke(app, ["approve", "--config", str(cfg), "--card", str(card)])
+    assert res.exit_code == 2, res.output
+    assert "--confirm" in res.output
+    assert "ai_draft" in card.read_text(encoding="utf-8")
+
+    res = runner.invoke(
+        app,
+        ["approve", "--config", str(cfg), "--card", str(card), "--confirm"],
+    )
 
     assert res.exit_code == 0, res.output
     assert "human_approved" in res.output
@@ -549,8 +585,36 @@ def test_recall_missing_index_says_temporary_index_and_rebuild(tmp_path: Path) -
     res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "agent"])
 
     assert res.exit_code == 0, res.output
+    assert "vault.root" in res.output
+    assert "cards_dir" in res.output
     assert "temporary in-memory index" in res.output
     assert "suggest_rebuild=yes" in res.output
+
+
+def test_recall_stale_disk_index_suggests_rebuild_after_card_change(tmp_path: Path) -> None:
+    """approve/process 后卡片变化时，recall 要说明磁盘索引已 stale 并建议 rebuild。"""
+
+    cfg = _make_vault(tmp_path)
+    cards = tmp_path / "vault" / "20-Knowledge-Cards"
+    _write_card(cards, "agent-card", {
+        "id": "agent-card",
+        "title": "Agent card",
+        "status": "human_approved",
+    })
+    rebuild = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
+    assert rebuild.exit_code == 0, rebuild.output
+    _write_card(cards, "new-agent-card", {
+        "id": "new-agent-card",
+        "title": "New Agent card",
+        "status": "human_approved",
+    })
+
+    res = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "new"])
+
+    assert res.exit_code == 0, res.output
+    assert "source=memory-rebuilt-stale" in res.output
+    assert "suggest_rebuild=yes" in res.output
+    assert "index rebuild" in res.output
 
 
 def test_recall_include_drafts_marks_draft_risk(tmp_path: Path) -> None:
@@ -615,7 +679,7 @@ def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
     assert show.exit_code == 0, show.output
     assert "MindForge config show" in show.output
     assert "vault.root" in show.output
-    assert "active_profile: fake" in show.output
+    assert "active_provider: fake" in show.output
     assert "calls_real_llm" in show.output
     assert "False" in show.output
 
@@ -641,8 +705,8 @@ def test_config_missing_and_bad_yaml_are_actionable(tmp_path: Path) -> None:
     assert "fix YAML" in res.output
 
 
-def test_config_init_defaults_fake_and_refuses_overwrite(tmp_path: Path) -> None:
-    """config init 只写安全默认配置，并默认拒绝覆盖用户文件。"""
+def test_config_init_defaults_real_dogfood_and_refuses_overwrite(tmp_path: Path) -> None:
+    """config init 写真实 dogfood 默认配置，并默认拒绝覆盖用户文件。"""
     cfg = tmp_path / "mindforge.yaml"
     vault = tmp_path / "vault"
 
@@ -654,7 +718,10 @@ def test_config_init_defaults_fake_and_refuses_overwrite(tmp_path: Path) -> None
     written = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
     assert written.exit_code == 0, written.output
     text = cfg.read_text(encoding="utf-8")
-    assert "active_profile: fake" in text
+    assert "default_model: main" in text
+    assert "active_profile:" not in text
+    assert "profiles:" not in text
+    assert "Do not put API keys in this YAML" in text
     assert str(vault.resolve()) in text
 
     second = runner.invoke(app, ["config", "init", "--output", str(cfg), "--vault", str(vault)])
@@ -687,8 +754,8 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
 
     setup = runner.invoke(app, ["setup", "--config", str(run_dir / "new.yaml"), "--vault", str(tmp_path / "vault"), "--dry-run"])
     assert setup.exit_code == 0, setup.output
-    assert "no .env" in setup.output
-    assert "no real LLM" in setup.output
+    assert "secrets stay in env/.env" in setup.output
+    assert "no LLM call" in setup.output
     assert not (run_dir / "new.yaml").exists()
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
@@ -739,60 +806,41 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
 
 
 def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
-    """dogfooding pack 文档必须强调非敏感、安全、CLI-first 边界。"""
+    """README-first 文档必须强调非敏感、安全边界。"""
     root = Path(__file__).resolve().parent.parent
-    pack = root / "docs" / "V0_6_5_DOGFOODING_PACK.md"
-    checklist = root / "docs" / "templates" / "NON_SENSITIVE_DOGFOODING_CHECKLIST.md"
-    assert pack.exists()
-    assert checklist.exists()
-    text = pack.read_text(encoding="utf-8") + "\n" + checklist.read_text(encoding="utf-8")
+    doc = root / "README.md"
+    assert doc.exists()
+    text = doc.read_text(encoding="utf-8")
     for required in [
         "non-sensitive",
-        "no real LLM",
+        "真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY`",
         "No RAG / embedding",
         "No Obsidian plugin",
-        "No Web UI / TUI",
         "No automatic approve",
-        "mindforge process --profile fake --limit 1",
+        "mindforge status",
         "mindforge obsidian stage",
     ]:
         assert required in text
 
 
 def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
-    """v0.6.x 收尾文档是轻量 release readiness，不应宣称新大功能已实现。"""
+    """README-first 文档不应宣称新大功能已实现。"""
     root = Path(__file__).resolve().parent.parent
-    doc = root / "docs" / "V0_6_X_LOCAL_PRODUCT_UX_READINESS.md"
+    doc = root / "README.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
-
-    for version in ("v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5"):
-        assert version in text
-    for command in (
-        "mindforge start --vault examples/demo-vault",
-        "mindforge config show --vault examples/demo-vault",
-        "mindforge process --profile fake --limit 1 --vault examples/demo-vault",
-        "mindforge approve show --card <card-path> --vault examples/demo-vault",
-        "mindforge recall --query \"agent\" --explain --vault examples/demo-vault",
-        "mindforge backup export --vault examples/demo-vault",
-        "mindforge obsidian stage --vault examples/demo-vault",
-    ):
-        assert command in text
     for boundary in (
-        "No real LLM by default",
-        "No `.env` read",
-        "No writes to real Obsidian notes",
-        "No RAG / embedding platform",
-        "No Obsidian plugin",
-        "No Web UI or TUI",
-        "No telemetry upload",
+        "Real LLM enabled by default",
+        "does not print `.env` secret values",
+        "No formal Obsidian note writes",
+        "RAG / embedding",
+        "Obsidian plugin",
     ):
         assert boundary in text
     for forbidden in (
         "RAG is implemented",
         "embedding search is implemented",
         "Obsidian plugin is implemented",
-        "Web UI is available",
         "real LLM default path is implemented",
     ):
         assert forbidden not in text

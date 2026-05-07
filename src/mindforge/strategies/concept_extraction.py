@@ -80,6 +80,14 @@ STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 # 严格区分，让 CLI strategies list 能向用户表达"这个策略已经能跑，但
 # 别按生产质量要求"。
 STRATEGY_STATUS = "preview"
+STRATEGY_ROLE = "preview_internal"
+STRATEGY_PRODUCTION_READY = False
+STRATEGY_USER_RECOMMENDED = False
+STRATEGY_CANONICAL_ID = STRATEGY_ID
+STRATEGY_LEGACY_ALIASES: tuple[str, ...] = ()
+STRATEGY_WARNING = (
+    "internal preview baseline; not a production extraction strategy."
+)
 
 
 # ---------------------------------------------------------------------------

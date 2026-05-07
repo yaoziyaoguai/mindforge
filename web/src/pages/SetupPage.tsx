@@ -1,0 +1,626 @@
+import { useEffect, useMemo, useState } from "react";
+import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/config";
+import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
+import { ConfigChecklist } from "../components/ConfigChecklist";
+import { SourceAddPanel } from "../components/SourceAddPanel";
+import { StatusCard } from "../components/StatusCard";
+
+const supportedTypes = ["openai_compatible", "anthropic", "anthropic_compatible"] as const;
+
+/** 前端模型表单 —— api_key 仅用于用户输入，永不从后端回填 raw value。 */
+type ModelForm = {
+  type: string;
+  base_url: string;
+  model: string;
+  api_key_env: string;
+  api_key_optional: boolean;
+  base_url_env: string;
+  model_env: string;
+  api_key: string;
+  api_key_action: "keep" | "clear" | "update";
+};
+
+type SetupForm = {
+  vault_root: string;
+  create_vault: boolean;
+  default_model: string;
+  models: Record<string, ModelForm>;
+  routing: Record<string, string>;
+  routing_is_explicit: boolean;
+};
+
+/** 新增/编辑模型时的临时编辑状态 */
+type EditingModel = {
+  modelId: string;
+  isNew: boolean;
+  form: ModelForm;
+};
+
+function emptyModelForm(): ModelForm {
+  return {
+    type: "openai_compatible",
+    base_url: "",
+    model: "",
+    api_key_env: "",
+    api_key_optional: false,
+    base_url_env: "",
+    model_env: "",
+    api_key: "",
+    api_key_action: "keep",
+  };
+}
+
+export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onRefresh?: () => void }) {
+  const [editable, setEditable] = useState<SetupEditableConfigResponse | null>(null);
+  const [form, setForm] = useState<SetupForm | null>(null);
+  const [savedForm, setSavedForm] = useState<SetupForm | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<EditingModel | null>(null);
+  const [promptPreview, setPromptPreview] = useState<{ stage: string; version: string; content: string } | null>(null);
+
+  useEffect(() => {
+    void loadEditable();
+  }, []);
+
+  async function loadEditable() {
+    const response = await getEditableConfig();
+    const next = formFromEditable(response);
+    setEditable(response);
+    setForm(next);
+    setSavedForm(next);
+  }
+
+  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(savedForm), [form, savedForm]);
+  const modelIds = Object.keys(form?.models ?? {});
+  const hasConfiguredModels = modelIds.length > 0;
+  const onlyDemoModel = editable
+    ? modelIds.length === 1 && editable.llm.configured_models[modelIds[0]]?.is_demo_model
+    : false;
+
+  function updateModelField(modelId: string, field: keyof ModelForm, value: string | boolean) {
+    if (!form) return;
+    setForm({
+      ...form,
+      models: {
+        ...form.models,
+        [modelId]: {
+          ...form.models[modelId],
+          [field]: value,
+          api_key_action: field === "api_key" && value ? "update" as const : form.models[modelId].api_key_action,
+        },
+      },
+    });
+  }
+
+  function updateRouting(step: string, modelId: string) {
+    if (!form) return;
+    setForm({
+      ...form,
+      routing_is_explicit: true,
+      routing: {
+        ...form.routing,
+        [step]: modelId,
+      },
+    });
+  }
+
+  function startAdd() {
+    setEditing({ modelId: "", isNew: true, form: emptyModelForm() });
+  }
+
+  function startEdit(modelId: string) {
+    if (!form) return;
+    const existing = form.models[modelId];
+    setEditing({
+      modelId,
+      isNew: false,
+      form: {
+        ...existing,
+        api_key: "",
+        api_key_action: "keep",
+      },
+    });
+  }
+
+  async function viewPrompt(stage: string, version: string) {
+    try {
+      const resp = await fetch(`/api/prompts/${stage}?version=${encodeURIComponent(version)}`);
+      if (!resp.ok) throw new Error("Prompt not found");
+      const data = await resp.json();
+      setPromptPreview({ stage: data.stage, version: data.version, content: data.content });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to load prompt");
+    }
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+  }
+
+  function saveModelEdit() {
+    if (!form || !editing) return;
+    const { modelId: originalId, isNew, form: editForm } = editing;
+    const newId = (isNew ? (document.getElementById("model-id-input") as HTMLInputElement)?.value?.trim() : originalId) || originalId;
+
+    if (!newId) {
+      setMessage("Model id is required.");
+      return;
+    }
+    if (isNew && modelIds.includes(newId)) {
+      setMessage(`Model id ${newId!} already exists.`);
+      return;
+    }
+    if (!editForm.type) {
+      setMessage("Type is required.");
+      return;
+    }
+    if (!editForm.model) {
+      setMessage("Model name is required.");
+      return;
+    }
+
+    const nextModels = { ...form.models };
+
+    if (isNew) {
+      nextModels[newId!] = { ...editForm };
+    } else if (originalId !== newId) {
+      // 允许改 id → delete old + add new
+      delete nextModels[originalId];
+      nextModels[newId!] = { ...editForm };
+    } else {
+      nextModels[originalId] = { ...editForm };
+    }
+
+    setForm({
+      ...form,
+      models: nextModels,
+      ...(isNew && !form.default_model ? { default_model: newId! } : {}),
+    });
+    setEditing(null);
+  }
+
+  function deleteModel(modelId: string) {
+    if (!form) return;
+    // 前端预检：不允许删除 default_model 或 routing 引用的模型
+    if (form.default_model === modelId) {
+      setMessage(`Cannot delete model ${modelId!}: it is the default model. Change default model first.`);
+      return;
+    }
+    const routingRefs = Object.entries(form.routing)
+      .filter(([, mid]) => mid === modelId)
+      .map(([step]) => step);
+    if (routingRefs.length) {
+      setMessage(`Cannot delete model ${modelId!}: it is referenced by routing steps: ${routingRefs.join(", ")}. Update routing first.`);
+      return;
+    }
+    const next = { ...form.models };
+    delete next[modelId];
+    setForm({
+      ...form,
+      models: next,
+      ...(form.default_model === modelId ? { default_model: Object.keys(next)[0] ?? "" } : {}),
+      routing: Object.fromEntries(
+        Object.entries(form.routing).map(([step, mid]) => [step, mid === modelId ? (Object.keys(next)[0] ?? "") : mid])
+      ),
+    });
+  }
+
+  async function validate() {
+    if (!form) return;
+    setBusy(true);
+    try {
+      const response = await validateSetupConfig(patchFromForm(form));
+      setMessage(response.ok ? "Validation passed" : response.errors.join(" "));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Validation failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save() {
+    if (!form) return;
+    setBusy(true);
+    try {
+      const response = await saveSetupConfig(patchFromForm(form));
+      const next = formFromEditable(response.editable);
+      setEditable(response.editable);
+      setForm(next);
+      setSavedForm(next);
+      setEditing(null);
+      setMessage("Setup saved");
+      onRefresh?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function revert() {
+    setForm(savedForm);
+    setEditing(null);
+    setMessage("Reverted");
+  }
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-ink">Setup</h1>
+        <p className="mt-1 text-sm text-muted">Local configuration editor. API keys are stored securely — secret values are never returned or shown.</p>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatusCard label="Local vault" value={data.vault.exists ? "Ready" : "Missing"} status={data.vault.exists ? "ok" : "warn"} detail={data.vault.path} />
+        <StatusCard label="Model config" value={data.provider.opt_in_state === "env_only" ? "Configured" : "Check setup"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
+        <StatusCard label="Config file" value="Loaded" status="ok" detail={data.config_path} />
+      </div>
+
+      {form && editable ? (
+        <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Local workspace</h2>
+              <p className="text-sm text-muted">Config saves are limited to non-secret fields. YAML comments may be normalized on save.</p>
+            </div>
+            <div className="flex gap-2">
+              {dirty ? <span className="self-center text-xs font-medium text-warn">Unsaved changes</span> : null}
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !dirty} onClick={revert} type="button">Revert</button>
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy} onClick={validate} type="button">Validate</button>
+              <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !dirty} onClick={save} type="button">Save setup</button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-ink">Vault path</span>
+              <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.vault_root} onChange={(event) => setForm({ ...form, vault_root: event.target.value })} />
+            </label>
+            <label className="flex items-end gap-2 text-sm text-ink">
+              <input checked={form.create_vault} onChange={(event) => setForm({ ...form, create_vault: event.target.checked })} type="checkbox" />
+              Create missing vault directories on save
+            </label>
+          </div>
+
+          {/* ================================================================ */}
+          {/* Configured models 区域 —— 主 UI */}
+          {/* ================================================================ */}
+          <section className="space-y-4 rounded-md border border-line p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Configured models</h2>
+                <p className="mt-1 text-sm text-muted">Models are named endpoints. Each model defines type, URL, model name, and API key.</p>
+              </div>
+              <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={startAdd} type="button" disabled={editing !== null}>
+                + Add model
+              </button>
+            </div>
+
+            {editable.llm.legacy_config_detected ? (
+              <div className="rounded-md border border-warn bg-amber-50 p-3 text-sm text-ink">
+                Legacy LLM config detected. Save to migrate to the new llm.models/default_model/routing format.
+              </div>
+            ) : null}
+
+            {editable.llm.validation_errors.length ? (
+              <div className="rounded-md border border-danger bg-red-50 p-3 text-sm text-ink">
+                {editable.llm.validation_errors.join(" ")}
+              </div>
+            ) : null}
+
+            {onlyDemoModel ? (
+              <div className="rounded-md border border-info bg-blue-50 p-3 text-sm">
+                <div className="font-medium text-ink">Built-in demo model</div>
+                <div className="mt-1 text-muted">You are using the built-in demo model. Add a real model to generate useful draft knowledge cards.</div>
+              </div>
+            ) : null}
+
+            {/* ---- Add/Edit form (inline) ---- */}
+            {editing ? (
+              <div className="rounded-md border border-line bg-stone-50 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? "Add model" : `Edit model: ${editing.modelId}`}</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-ink">Model id {editing.isNew ? "*" : "(read-only)"}</span>
+                    <input id="model-id-input" className="w-full rounded-md border border-line bg-white px-3 py-2" defaultValue={editing.modelId} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-ink">Type *</span>
+                    <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.type} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, type: event.target.value } })}>
+                      {supportedTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-ink">Base URL *</span>
+                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.base_url} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, base_url: event.target.value } })} placeholder="https://api.anthropic.com" />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-ink">Model *</span>
+                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.model} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, model: event.target.value } })} placeholder="claude-3-5-haiku-latest" />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-ink">API key</span>
+                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? "Enter API key" : "Leave empty to keep current key"} />
+                    <span className="text-xs text-muted">{editing.isNew ? "" : "Leave empty to preserve existing API key."}</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
+                    API key optional (local endpoints)
+                  </label>
+                  {!editing.isNew ? (
+                    <div className="flex items-center gap-2">
+                      <button className="text-xs text-danger" onClick={() => setEditing({ ...editing, form: { ...editing.form, api_key: "", api_key_action: "clear" } })} type="button">
+                        Clear stored key
+                      </button>
+                      {editing.form.api_key_action === "clear" ? <span className="text-xs font-medium text-danger">Key will be removed on save</span> : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={saveModelEdit} type="button">Save</button>
+                  <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={cancelEdit} type="button">Cancel</button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* ---- Model cards ---- */}
+            {hasConfiguredModels ? (
+              <div className="space-y-3">
+                {modelIds.map((modelId) => {
+                  const item = form.models[modelId];
+                  const status = editable.llm.configured_models[modelId];
+                  const isDemo = status?.is_demo_model ?? false;
+                  const keySource = status?.api_key_source ?? "missing";
+                  const apiKeyLabel = keySource === "local_secret"
+                    ? `configured · ${status?.api_key_masked_value ?? "****"}`
+                    : keySource === "env"
+                    ? `env (${status?.api_key_status_label ?? ""})`
+                    : keySource === "demo"
+                    ? "demo (not real)"
+                    : "missing";
+                  return (
+                    <article key={modelId} className="rounded-md border border-line p-3">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold text-ink">{modelId}</div>
+                          {isDemo ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Built-in demo</span> : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-md px-2 py-0.5 text-xs ${keySource === "local_secret" || keySource === "env" ? "bg-green-100 text-green-700" : keySource === "demo" ? "bg-blue-100 text-blue-700" : "bg-stone-100 text-muted"}`}>
+                            API key: {apiKeyLabel}
+                          </span>
+                          <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">Edit</button>
+                          <button className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-red-50" onClick={() => deleteModel(modelId)} type="button">Delete</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted md:grid-cols-4">
+                        <div><span className="text-xs text-muted">type</span><div className="text-ink">{item.type}</div></div>
+                        <div><span className="text-xs text-muted">base URL</span><div className="truncate text-ink">{item.base_url || "—"}</div></div>
+                        <div><span className="text-xs text-muted">model</span><div className="text-ink">{item.model}</div></div>
+                        <div><span className="text-xs text-muted">default</span><div className="text-ink">{modelId === form.default_model ? "Yes" : "No"}</div></div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-md border border-line p-3 text-sm">
+                <div className="font-medium text-ink">No model configured</div>
+                <div className="mt-1 text-muted">Add a model to generate AI drafts.</div>
+                <div className="mt-1 text-xs text-muted">You can still add and monitor sources, but draft generation requires a configured model.</div>
+              </div>
+            )}
+          </section>
+
+          {/* ================================================================ */}
+          {/* Default model */}
+          {/* ================================================================ */}
+          <section className="space-y-4 rounded-md border border-line p-4">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Default model</h2>
+              <p className="mt-1 text-sm text-muted">Workflow steps without an explicit route use this model.</p>
+            </div>
+            <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.default_model} onChange={(event) => setForm({ ...form, default_model: event.target.value })}>
+              {!hasConfiguredModels ? <option value="">No model configured</option> : null}
+              {modelIds.map((modelId) => {
+                const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
+                return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
+              })}
+            </select>
+          </section>
+
+          {/* ================================================================ */}
+          {/* Processing workflow */}
+          {/* ================================================================ */}
+          <section className="space-y-4 rounded-md border border-line p-4">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Processing workflow</h2>
+              <p className="mt-1 text-sm text-muted">MindForge turns sources into draft knowledge cards through a workflow. Each step has a purpose, a prompt, and a model assignment.</p>
+            </div>
+
+            {/* Active strategy */}
+            {editable.llm.processing_workflow ? (
+              <div className="rounded-md border border-line bg-stone-50 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-muted">Active workflow</div>
+                    <div className="font-semibold text-ink">{editable.llm.processing_workflow.active_strategy_label}</div>
+                    <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
+                  </div>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{editable.llm.processing_workflow.active_strategy_status}</span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Workflow steps */}
+            <div className="space-y-3">
+              {(editable.llm.processing_workflow?.workflow_steps ?? []).map((step) => {
+                const current = form.routing[step.id] ?? form.default_model;
+                const isCustomModel = form.routing_is_explicit && form.routing[step.id] && form.routing[step.id] !== form.default_model;
+
+                return (
+                  <article key={step.id} className="rounded-md border border-line p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-ink">{step.label}</span>
+                          <span className="text-xs text-muted">{step.id}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">{step.purpose}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button className="rounded-md border border-line bg-white px-2 py-0.5 text-xs text-primary hover:bg-stone-50" onClick={() => viewPrompt(step.id, step.prompt_version)} type="button">View prompt ({step.prompt_version})</button>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-xs text-muted">Model</label>
+                      <select className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
+                        {modelIds.map((modelId) => {
+                          const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
+                          return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
+                        })}
+                      </select>
+                      {!isCustomModel ? <span className="text-xs text-muted">(uses default)</span> : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Reset routing */}
+            {form.routing_is_explicit ? (
+              <button className="text-xs text-muted hover:text-ink" onClick={() => { setForm({ ...form, routing_is_explicit: false, routing: {} }); }} type="button">
+                Reset all steps to use default model
+              </button>
+            ) : null}
+
+            <p className="text-xs text-muted">Workflow steps are fixed in this version. Model assignment is configurable. Click View prompt to see the prompt used by each step.</p>
+          </section>
+
+          {/* Prompt preview modal */}
+          {promptPreview ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setPromptPreview(null)}>
+              <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-md border border-line bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-ink">Prompt: {promptPreview.stage} @ {promptPreview.version}</h3>
+                  <button className="text-sm text-muted hover:text-ink" onClick={() => setPromptPreview(null)} type="button">Close</button>
+                </div>
+                <p className="text-xs text-muted mb-3">Read-only — this is the prompt currently used by the workflow step.</p>
+                <pre className="whitespace-pre-wrap rounded-md border border-line bg-stone-50 p-4 text-sm text-ink max-h-[60vh] overflow-y-auto">{promptPreview.content}</pre>
+              </div>
+            </div>
+          ) : null}
+
+          <SourceAddPanel onRefresh={onRefresh} />
+
+          {/* ================================================================ */}
+          {/* Advanced / Technical details (env var mode, diagnostics) */}
+          {/* ================================================================ */}
+          <details className="rounded-md border border-line p-3">
+            <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
+            <div className="mt-3 space-y-4">
+              <p className="text-xs text-muted">Env var mode is read-only diagnostics for advanced users and deployment scenarios. Use the main UI above to configure models instead.</p>
+
+              {modelIds.map((modelId) => {
+                const status = editable.llm.configured_models[modelId];
+                const hasEnv = status?.api_key_env || status?.base_url_env || status?.model_env;
+                return (
+                  <div key={modelId} className="rounded-md border border-line p-3">
+                    <div className="mb-2 text-xs font-medium text-ink">Environment variable overrides: {modelId}</div>
+                    {hasEnv ? (
+                      <dl className="grid gap-x-4 gap-y-1 text-sm md:grid-cols-3">
+                        <div><dt className="text-xs text-muted">API key env</dt><dd className="text-ink">{status?.api_key_env || "—"}</dd></div>
+                        <div><dt className="text-xs text-muted">Base URL env</dt><dd className="text-ink">{status?.base_url_env || "—"}</dd></div>
+                        <div><dt className="text-xs text-muted">Model env</dt><dd className="text-ink">{status?.model_env || "—"}</dd></div>
+                      </dl>
+                    ) : (
+                      <p className="text-xs text-muted">No env var overrides configured.</p>
+                    )}
+                    <div className="mt-2 text-xs text-muted">
+                      {status?.effective_base_url ? <span>Effective base URL: {status.effective_base_url} ({status.base_url_source})</span> : null}
+                      {status?.effective_model ? <span className="ml-4">Effective model: {status.effective_model} ({status.model_source})</span> : null}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {!hasConfiguredModels ? (
+                <div className="rounded-md border border-line p-3 text-sm text-muted">No models configured. Add a model above to see env var options.</div>
+              ) : null}
+
+              <dl className="space-y-2 text-sm text-muted">
+                <div><dt className="font-medium text-ink">Provider readiness</dt><dd>{editable.llm.readiness.opt_in_state}</dd></div>
+                <div><dt className="font-medium text-ink">Technical internal route</dt><dd>{editable.llm.active_provider}</dd></div>
+                <div><dt className="font-medium text-ink">Raw config path</dt><dd>{editable.config_path}</dd></div>
+                <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
+              </dl>
+            </div>
+          </details>
+
+          {message ? <p className="text-sm text-primary">{message}</p> : null}
+        </section>
+      ) : null}
+      <ConfigChecklist items={data.checklist} keys={[...data.configured_keys, ...data.missing_keys]} />
+    </div>
+  );
+}
+
+function sourceText(source: "env" | "config_default" | "missing") {
+  if (source === "env") return "source = env";
+  if (source === "config_default") return "source = config";
+  return "source = missing";
+}
+
+function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
+  return {
+    vault_root: editable.vault.root,
+    create_vault: false,
+    default_model: editable.llm.default_model ?? "",
+    models: Object.fromEntries(
+      Object.entries(editable.llm.configured_models).map(([modelId, model]) => [
+        modelId,
+        {
+          type: model.type,
+          base_url: model.base_url ?? "",
+          model: model.model ?? "",
+          api_key_env: model.api_key_env ?? "",
+          api_key_optional: model.api_key_optional,
+          base_url_env: model.base_url_env ?? "",
+          model_env: model.model_env ?? "",
+          api_key: "",
+          api_key_action: "keep" as const,
+        },
+      ]),
+    ),
+    routing: editable.llm.routing,
+    routing_is_explicit: editable.llm.routing_is_explicit,
+  };
+}
+
+function patchFromForm(form: SetupForm): SetupConfigPatch {
+  const modelIds = Object.keys(form.models);
+  const models: Record<string, Record<string, unknown>> = {};
+  for (const modelId of modelIds) {
+    const m = form.models[modelId];
+    models[modelId] = {
+      type: m.type || undefined,
+      base_url: m.base_url || undefined,
+      model: m.model || undefined,
+      api_key_optional: m.api_key_optional || undefined,
+      api_key: m.api_key || undefined,
+      api_key_action: m.api_key_action || undefined,
+    };
+  }
+  return {
+    vault_root: form.vault_root,
+    create_vault: form.create_vault,
+    default_model: modelIds.length ? form.default_model : undefined,
+    models: modelIds.length ? models : undefined,
+    routing: form.routing_is_explicit ? compactRouting(form.routing, form.default_model) : undefined,
+  };
+}
+
+function compactRouting(routing: Record<string, string>, defaultModel: string) {
+  return Object.fromEntries(Object.entries(routing).filter(([, modelId]) => modelId && modelId !== defaultModel));
+}

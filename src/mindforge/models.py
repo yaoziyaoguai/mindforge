@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
-# ItemStatus 的状态枚举，对应 docs/MINDFORGE_PROTOCOL.md §状态机
+# ItemStatus 的状态枚举，对应 README.md 中的 Source → approval 链路
 # v0.1 只在 M1 用 raw / skipped 两个状态；其余在 M2/M3 才会被 set。
 ItemStatus = Literal[
     "raw",            # scanner 看到了，但还没 triage
@@ -87,7 +87,7 @@ class ItemState:
     error_message: str | None = None
     stages: dict[str, StageRecord] = field(default_factory=dict)
     # M3 反 AI 污染闸门：仅 `mindforge approve` CLI 写入，pipeline 永远不写。
-    # 详见 docs/M3_HUMAN_APPROVAL_PROTOCOL.md。
+    # 详见 README.md 的 explicit approval boundary。
     approved_at: datetime | None = None
     approval_method: str | None = None  # v0.1 仅 "explicit_cli"
 

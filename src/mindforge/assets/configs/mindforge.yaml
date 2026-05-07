@@ -1,15 +1,17 @@
 # =============================================================================
-# MindForge 主配置（草案 / Milestone 0）
+# MindForge 主配置
 #
-# ⚠️ 本文件在 M0 阶段是"契约样例"，M1 才会被真正加载。
-# 所有路径示例都以 macOS 个人路径为例，使用前请按需修改。
+# 普通用户只需要看这一份配置。API key / secret 不要写进 YAML；
+# use MINDFORGE_LLM_API_KEY from shell env
+# or local .env.
+# Do not put secrets in YAML.
 #
 # 顶层结构：
 #   vault    — Obsidian Vault 的位置与子目录约定
 #   sources  — 多源接入：哪些 source_type 启用，每个对应哪个 inbox 子目录与 adapter
 #   state    — MindForge 运行时产物存放位置（state.json / runs / index）
 #   triage   — 分流参数（阈值、默认 track）
-#   llm      — LLM Provider/Profile/Model（核心：profile + stage routing）
+#   llm      — LLM models/default_model/routing（核心：workflow step → model id）
 #   prompts  — 每个 stage 的 prompt 版本绑定
 #   logging  — 日志开关与位置
 # =============================================================================
@@ -42,6 +44,7 @@ sources:
     - plain_markdown
     - webclip_markdown
     - chat_export
+    - common_document
 
   registry:
     cubox_markdown:
@@ -78,13 +81,19 @@ sources:
       adapter: PdfAdapter
       inbox_subdir: "PDFs"
       file_glob: "*.pdf"
-      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[pdf]'`` 后再开启（详见 docs/M5_1_PDF_DOCX_ADAPTER_PROTOCOL.md）
+      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[pdf]'`` 后再开启（详见 README.md）
 
     docx:
       adapter: DocxAdapter
       inbox_subdir: "Docs"
       file_glob: "*.docx"
       enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[docx]'`` 后再开启
+
+    common_document:
+      adapter: CommonDocumentAdapter
+      inbox_subdir: "Documents"
+      file_glob: "*"
+      enabled: true                  # 通用本地文档：md/txt/html/json/csv/tsv/xml/url/webloc；不会联网 fetch
 
 # -----------------------------------------------------------------------------
 # 状态与日志
@@ -128,134 +137,33 @@ triage:
 # -----------------------------------------------------------------------------
 # LLM 配置（核心）
 #
-# 三层：
-#   active_profile  — 选择当前生效的 profile
-#   profiles        — 每个 profile = "stage → model_alias" 映射
-#   models          — 每个 model_alias 的具体 provider 配置
+# 用户可见语义只有三层：
+#   models         — 用户配置的可用模型清单，每个 model id 对应一个 endpoint。
+#   default_model  — routing 缺省时使用的 model id。
+#   routing        — workflow step → model id；可省略，缺失 step 回落到 default_model。
 #
-# 设计原则：
-#   - 配置层面开放：你可以列任意多个 profile / model；
-#   - 执行层面克制：只做 active_profile 里声明的静态 stage→alias 映射；
-#   - 不做 fallback / 投票 / 动态路由 / token-aware routing。
-#
-# 同一 provider 下允许多个 model（如 cheap_cloud / strong_cloud）。
+# type 必须显式配置，MindForge 不从 base_url/model 猜 OpenAI 或 Anthropic 协议。
+# 支持：anthropic、anthropic_compatible、openai_compatible。
+# API key / secret 只放 env 或本地 .env，不写进 YAML。
 # -----------------------------------------------------------------------------
 llm:
-  # 默认走 fake，**不会**调用真实模型；切换到真实路径必须显式改 active_profile。
-  # 这样保护：clone 仓库后误执行 `mindforge process` 不会消耗真实配额、不会泄漏 prompt。
-  active_profile: fake
-
-  profiles:
-    # —— 安全默认：fake provider，离线、确定性 schema 输出 ——
-    fake:
-      triage: fake_fast
-      distill: fake_strong
-      link_suggestion: fake_fast
-      review_questions: fake_strong
-      action_extraction: fake_strong
-
-    # —— 真实主路径：阿里云 DashScope Coding Plan（Anthropic-compatible 协议）——
-    # 显式切换后才会生效；base_url / api_key 一律从 .env 读取。
-    anthropic_coding_plan:
-      triage: qwen_coder_fast
-      distill: qwen_coder_strong
-      link_suggestion: qwen_coder_fast
-      review_questions: qwen_coder_strong
-      action_extraction: qwen_coder_strong
-
-    # —— 备选：OpenAI-compatible 云端 ——
-    openai_compatible:
-      triage: openai_fast
-      distill: openai_strong
-      link_suggestion: openai_fast
-      review_questions: openai_strong
-      action_extraction: openai_strong
-
-    # —— 备选：本地 Ollama / LM Studio 完全离线（仍走 OpenAI-compatible 协议）——
-    all_local:
-      triage: local_fast
-      distill: local_strong
-      link_suggestion: local_fast
-      review_questions: local_strong
-      action_extraction: local_strong
+  default_model: main
 
   models:
-    # —— fake：离线测试 ——
-    fake_fast:
-      provider: fake
-      type: fake
-      model: fake-fast
-
-    fake_strong:
-      provider: fake
-      type: fake
-      model: fake-strong
-
-    # —— Anthropic-compatible：通过 .env 注入 base_url / api_key；
-    # 模型名内置稳妥默认，并允许通过 model_env 覆盖（同 endpoint 切 fast/strong）。
-    qwen_coder_fast:
-      provider: dashscope_coding_plan
-      type: anthropic_compatible
-      base_url_env: MINDFORGE_LLM_BASE_URL
-      api_key_env: MINDFORGE_LLM_API_KEY
-      version_env: MINDFORGE_LLM_VERSION
-      model_env: MINDFORGE_LLM_MODEL_FAST    # 可选：覆盖默认 fast 模型
-      model: "qwen3-coder-next"
-      timeout_seconds: 180
-      max_retries: 2
-
-    qwen_coder_strong:
-      provider: dashscope_coding_plan
-      type: anthropic_compatible
-      base_url_env: MINDFORGE_LLM_BASE_URL
-      api_key_env: MINDFORGE_LLM_API_KEY
-      version_env: MINDFORGE_LLM_VERSION
-      model_env: MINDFORGE_LLM_MODEL_STRONG  # 可选：覆盖默认 strong 模型
-      model: "qwen3-coder-plus"
-      timeout_seconds: 240
-      max_retries: 2
-
-    # —— OpenAI-compatible 云端 ——
-    openai_fast:
-      provider: openai_compatible
+    main:
       type: openai_compatible
-      base_url_env: MINDFORGE_OPENAI_BASE_URL
-      api_key_env: MINDFORGE_OPENAI_API_KEY
-      model: "cheap-model"
+      api_key_env: MINDFORGE_LLM_API_KEY
+      base_url: "https://your-router.example.com/v1"
+      model: "your-model-name"
       timeout_seconds: 120
       max_retries: 2
 
-    openai_strong:
-      provider: openai_compatible
-      type: openai_compatible
-      base_url_env: MINDFORGE_OPENAI_BASE_URL
-      api_key_env: MINDFORGE_OPENAI_API_KEY
-      model: "strong-model"
-      timeout_seconds: 240
-      max_retries: 2
-
-    # —— 本地 Ollama / LM Studio（OpenAI-compatible 协议；api_key 可选）——
-    local_fast:
-      provider: local_ollama
-      type: openai_compatible
-      base_url_env: MINDFORGE_LOCAL_LLM_BASE_URL
-      api_key_env: MINDFORGE_LOCAL_LLM_API_KEY
-      api_key_optional: true
-      base_url: "http://localhost:11434/v1"   # base_url_env 缺失时的兜底
-      model: "qwen2.5:7b"
-      timeout_seconds: 120
-      max_retries: 1
-
-    local_strong:
-      provider: local_ollama
-      type: openai_compatible
-      base_url_env: MINDFORGE_LOCAL_LLM_BASE_URL
-      api_key_env: MINDFORGE_LOCAL_LLM_API_KEY
-      api_key_optional: true
-      base_url: "http://localhost:11434/v1"
-      model: "qwen2.5:14b"
-      timeout_seconds: 240
-      max_retries: 1
+  routing:
+    triage: main
+    distill: main
+    link_suggestion: main
+    review_questions: main
+    action_extraction: main
 
 # -----------------------------------------------------------------------------
 # Prompts：每个 stage 当前使用哪个版本
@@ -269,6 +177,19 @@ prompts:
   link_suggestion_version: "v1"
   review_questions_version: "v1"
   action_extraction_version: "v1"
+
+# -----------------------------------------------------------------------------
+# Strategy：知识抽取/卡片组织策略
+#
+# 中文学习型说明：strategy.active 与 llm.default_model/routing 是两条正交轴：
+# - strategy.active 选择“如何抽取知识、如何组织 card envelope”；
+# - llm.default_model/routing 选择“如果该 strategy 需要模型，使用哪个 model id”。
+# 默认 Knowledge Card Strategy 保持生产主链路；five_stage 仅作为 legacy
+# alias 兼容旧配置。deterministic baseline 属于内部测试夹具，不能作为
+# production active_strategy。
+# -----------------------------------------------------------------------------
+strategy:
+  active: "knowledge_card"
 
 # -----------------------------------------------------------------------------
 # Logging
@@ -285,7 +206,7 @@ logging:
 # - enabled: false 时整个 telemetry 模块静默；
 # - local_only: v0.2.3 固定 true；任何远程 sink 都需要先扩协议；
 # - 写入位置：<state.workdir>/telemetry.jsonl（默认 .mindforge/telemetry.jsonl）；
-# - 字段白名单：见 docs/M5_7_TELEMETRY_PROTOCOL.md，绝不写卡片正文 / prompt /
+# - 字段白名单：见 README.md，绝不写卡片正文 / prompt /
 #   completion / api_key / .env / 全绝对私有路径。
 # -----------------------------------------------------------------------------
 telemetry:
@@ -324,3 +245,16 @@ search:
       bm25: 0.75
       value_score: 0.15
       review_due: 0.10
+
+# -----------------------------------------------------------------------------
+# Advanced / Troubleshooting
+#
+# 普通用户主路径是:
+#   mindforge watch add <file-or-folder>
+#   mindforge import <file-or-folder>
+#   mindforge approve
+#   mindforge recall --query "..."
+#
+# scan/process 仍保留给 Advanced / Troubleshooting，并使用上面的
+# llm.default_model/routing 解析 model。
+# -----------------------------------------------------------------------------

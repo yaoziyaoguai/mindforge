@@ -36,7 +36,7 @@ presenter 各跑一遍同一组检查，便于对照定位违规来源。
 allowed_per_presenter:
   approve_presenter:
     {__future__, json, typing, rich.console, rich.table,
-     mindforge.approval_service, mindforge.cards}
+     mindforge.approval_refs, mindforge.approval_service, mindforge.cards}
   recall_presenter:
     {__future__, json, dataclasses, pathlib, typing,
      rich.console, rich.table, mindforge.recall_service}
@@ -87,6 +87,7 @@ PRESENTERS: tuple[PresenterSpec, ...] = (
             "typing",
             "rich.console",
             "rich.table",
+            "mindforge.approval_refs",
             "mindforge.approval_service",
             "mindforge.cards",
         }),
@@ -110,6 +111,7 @@ PRESENTERS: tuple[PresenterSpec, ...] = (
             "render_execution_failure",
             "render_execution_success",
             "render_lookup_error",
+            "render_ref_lookup_error",
             "render_routing_hint",
         }),
     ),

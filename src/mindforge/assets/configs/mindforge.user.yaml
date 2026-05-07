@@ -1,0 +1,36 @@
+# MindForge user config.
+#
+# Most users only need one model. Secrets must stay in shell env or local .env.
+# Do not put API keys in this YAML.
+#
+# This file is a user-level override. MindForge keeps source registry,
+# state/index paths, prompt versions, search defaults, and other runtime details
+# as internal package defaults, then merges this file on top at runtime.
+
+version: 0.1
+
+vault:
+  root: "/Users/jinkun.wang/MindForgeVault"
+
+llm:
+  # model id chosen from llm.models keys.
+  default_model: main
+
+  models:
+    main:
+      type: openai_compatible
+      api_key_env: MINDFORGE_LLM_API_KEY
+      base_url: "https://your-router.example.com/v1"
+      model: "your-model-name"
+
+  # Optional. If omitted, all workflow steps use default_model.
+  # routing:
+  #   triage: main
+  #   distill: main
+  #   link_suggestion: main
+  #   review_questions: main
+  #   action_extraction: main
+
+telemetry:
+  enabled: true
+  local_only: true

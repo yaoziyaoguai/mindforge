@@ -1,6 +1,6 @@
 """M4 — recall / review / project memory 最小闭环测试。
 
-覆盖矩阵见 docs/M4_RECALL_REVIEW_PROTOCOL.md §8。
+覆盖矩阵对应 README.md 中 review / recall 的只读边界。
 
 设计原则：
 - 全部使用真实 vault + fake LLM，复用 M2 端到端 fixture；
@@ -51,7 +51,9 @@ def _vault_with_approved_card(
     card = cards[0]
 
     # approve → human_approved
-    r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path)])
+    r = runner.invoke(
+        app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"]
+    )
     assert r.exit_code == 0, r.output
     return cfg_path, vault, card
 

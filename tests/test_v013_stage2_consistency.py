@@ -2,9 +2,8 @@
 
 目标:
 
-- 守住 ``configs/mindforge.yaml`` 默认 ``active_profile: fake`` 不被
-  静默切到真实 profile;
-- 守住 capability matrix §8 与 §6 "Excluded" 列表不漂移;
+- 守住 bundled user config 使用新的 ``llm.models/default_model`` 语义;
+- 守住 canonical roadmap / usage 的 excluded 列表不漂移;
 - 守住 ``mindforge llm ping`` 与 ``mindforge provider readiness`` 在
   fake-default 下给出语义一致的判定;
 - 守住 provider readiness JSON 输出 schema 稳定 (含 invariants)。
@@ -28,8 +27,10 @@ def clean_env(monkeypatch):
     """中和 .env 自动加载并清掉所有 alias 声明的 api_key/base_url env;
     保证 readiness/ping 测试不被开发者本地 shell 状态污染。"""
     monkeypatch.setattr("mindforge.cli.load_dotenv_silently", lambda *_a, **_k: None)
+    monkeypatch.setattr("mindforge.provider_cli.load_dotenv_silently", lambda *_a, **_k: None)
+    from mindforge.assets_runtime import bundled_asset_path_for_process
     from mindforge.app_context import load_app_config
-    cfg = load_app_config(Path("configs/mindforge.yaml"))
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     for mc in cfg.llm.models.values():
         if mc.api_key_env:
             monkeypatch.delenv(mc.api_key_env, raising=False)
@@ -38,32 +39,36 @@ def clean_env(monkeypatch):
     return monkeypatch
 
 
-def test_default_config_active_profile_is_fake():
-    """configs/mindforge.yaml 默认 profile 必须是 fake。
+def test_bundled_config_active_provider_is_real_dogfood():
+    """package user config 默认 LLM 语义必须是 models/default_model。
 
-    这是 fake-default 安全契约的最外层防线: 一旦默认 profile 被改成
-    真实 provider, 所有 'real-opt-in' 文档与测试失去保护意义。
+    fake provider 仍保留给 CI/offline demo/deterministic tests；新用户主配置
+    不再暴露 active_profile/profile/fake alias。
     """
-    text = Path("configs/mindforge.yaml").read_text(encoding="utf-8")
-    # 容忍注释行; 仅断言至少一处 active_profile: fake (无引号)
-    found = False
+    text = Path("src/mindforge/assets/configs/mindforge.user.yaml").read_text(encoding="utf-8")
+    assert "default_model: main" in text
+    assert "models:" in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        if stripped.startswith("active_profile:"):
-            value = stripped.split(":", 1)[1].strip().strip("'\"")
-            assert value == "fake", (
-                f"default active_profile must be 'fake'; got {value!r}"
-            )
-            found = True
-    assert found, "active_profile key not found in configs/mindforge.yaml"
+        assert not stripped.startswith("active:")
+        assert not stripped.startswith("active_profile:")
+        assert not stripped.startswith("profiles:")
 
 
 def test_provider_readiness_json_schema(clean_env):
     result = runner.invoke(
         app,
-        ["provider", "readiness", "--config", "configs/mindforge.yaml", "--format", "json"],
+        [
+            "provider",
+            "readiness",
+            "--config",
+            "src/mindforge/assets/configs/mindforge.yaml",
+            "--format",
+            "json",
+        ],
     )
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
@@ -79,8 +84,8 @@ def test_provider_readiness_json_schema(clean_env):
         "real_output_is_review_only",
     ):
         assert invariants[k] is True, f"invariant {k} flipped"
-    # default config → opt_in_state must be fake_default
-    assert report["opt_in"]["opt_in_state"] == "fake_default"
+    # real dogfood default config 缺 key 时必须清楚显示 profile_only，不 fallback fake。
+    assert report["opt_in"]["opt_in_state"] == "profile_only"
 
 
 def test_readiness_unknown_format_rejected():
@@ -91,40 +96,34 @@ def test_readiness_unknown_format_rejected():
     assert result.exit_code == 2
 
 
-def test_llm_ping_and_provider_readiness_agree_on_fake_default(clean_env):
-    """两个 surface 在 fake-default 下都不应该报告 missing required env。
+def test_llm_ping_and_provider_readiness_agree_on_real_profile_missing_env(clean_env):
+    """真实 dogfood 默认 profile 缺 key 时，两个 surface 都应提示缺 env。
 
-    避免 readiness 与 llm ping 在 'fake 是否安全' 这个最基本判断上
-    出现漂移; 漂移 = 用户看到两份矛盾报告 = 安全契约信任下降。
+    这里不调用真实 provider，只验证 readiness/ping 的 presence-only 诊断一致。
     """
 
-    ping = runner.invoke(app, ["llm", "ping", "--config", "configs/mindforge.yaml"])
-    assert ping.exit_code == 0, ping.output
-    # fake provider 没有 required env, 不应该出现 MISSING
-    assert "MISSING" not in ping.output
+    config = "src/mindforge/assets/configs/mindforge.yaml"
+    ping = runner.invoke(app, ["llm", "ping", "--config", config])
+    assert ping.exit_code == 1, ping.output
+    assert "MISSING" in ping.output
 
     readiness = runner.invoke(
-        app,
-        ["provider", "readiness", "--config", "configs/mindforge.yaml", "--format", "json"],
+        app, ["provider", "readiness", "--config", config, "--format", "json"],
     )
     assert readiness.exit_code == 0
     report = json.loads(readiness.output)
-    assert report["opt_in"]["opt_in_state"] == "fake_default"
+    assert report["opt_in"]["opt_in_state"] == "profile_only"
     assert report["opt_in"]["can_run_real_smoke"] is False
 
 
 def test_capability_matrix_section_consistency():
-    """§8 不能撤销 §6 Excluded 中已经声明 ❌ 的不变量。
+    """Canonical docs 不能撤销已声明的 excluded 不变量。
 
-    §6 列出的 ❌ 必须在 §8 仍是关闭状态的语义 (no real-by-default,
+    Roadmap / Usage 必须保持关闭状态语义 (no real-by-default,
     no auto-approval, no real vault writes, no Cubox real ingestion);
-    若 §8 行允许某项 by default = ✅, 则与 §6 矛盾。
     """
-    text = Path("docs/V0_12_CAPABILITY_MATRIX.md").read_text(encoding="utf-8")
-    assert "## 6. What is *not* in v0.12" in text or "## 6." in text
-    assert "## 8. v0.13 Stage 1" in text
-    # §8 必须明确列出 'Real provider opt-in (profile 切换)' 默认 ❌
-    assert "Real provider opt-in" in text
-    assert "❌ 默认" in text
-    # 与 §6 一致性宣言
-    assert "§6 不需要修改" in text or "§6 \"Excluded\" 列表" in text
+    text = Path("README.md").read_text(encoding="utf-8")
+    assert "Real LLM enabled by default" in text
+    assert "Real Cubox API calls enabled by default" in text
+    assert "Hidden automatic approval" in text
+    assert "does not automatically modify a real private vault" in text

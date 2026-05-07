@@ -108,7 +108,7 @@ def build_obsidian_next_plan(
         manual_inspection_steps=(
             "Inspect staged markdown and manifest by hand.",
             "Confirm backup expectations before any future write gate.",
-            "Record unclear output in docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md.",
+            "Record unclear output in a local dogfood note; see README.md.",
         ),
     )
 

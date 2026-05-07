@@ -1,10 +1,7 @@
-"""v0.13 Stage 0 readiness assertion tests.
+"""Real dogfood readiness assertion tests.
 
-Stage 0 不动 production runtime；它的"已交付"靠 docs / fixtures /
-轻量断言来证明。本文件就是那一层断言：把 readiness 文档的关键安全
-承诺与同步存在的 capability matrix / preview packet / synthetic
-fixture 锁在一起，让任何后续 PR 在悄悄抹掉某条安全承诺时立刻在
-CI 失败。
+历史 v0.13 文档已经合并进 canonical docs；本文件继续守护同一组安全
+承诺，但不再要求旧 milestone 文档存在。
 
 设计原则
 ========
@@ -22,8 +19,7 @@ import pytest
 import yaml
 
 
-_README = Path("docs/V0_13_DOGFOODING_READINESS.md")
-_MATRIX = Path("docs/V0_12_CAPABILITY_MATRIX.md")
+_README = Path("README.md")
 _FIXTURE_DIR = Path("examples/custom-strategies")
 _FIXTURE_YAML = _FIXTURE_DIR / "user_concept_review.yaml"
 _FIXTURE_README = _FIXTURE_DIR / "README.md"
@@ -46,7 +42,7 @@ _READINESS_REQUIRED_PHRASES: tuple[str, ...] = (
 
 
 def test_v013_stage0_readiness_doc_exists() -> None:
-    """文档存在 = Stage 0 的可见交付物存在。"""
+    """canonical dogfood 文档存在。"""
 
     assert _README.exists(), f"missing {_README}"
 
@@ -57,23 +53,24 @@ def test_v013_stage0_readiness_doc_pins_safety_promise(phrase: str) -> None:
 
     text = _README.read_text(encoding="utf-8").lower()
     assert phrase.lower() in text, (
-        f"docs/V0_13_DOGFOODING_READINESS.md 缺安全承诺关键字: {phrase!r}"
+        f"canonical docs 缺安全承诺关键字: {phrase!r}"
     )
 
 
-def test_v013_stage0_readiness_doc_links_capability_matrix() -> None:
-    """Stage 0 文档必须显式 link v0.12 capability matrix —— 让读者一眼
-    看到上一阶段的硬边界仍然有效。"""
+def test_v013_stage0_readiness_doc_links_current_safety_docs() -> None:
+    """Usage 必须让读者能找到 safety/roadmap 边界。"""
 
     text = _README.read_text(encoding="utf-8")
-    assert "V0_12_CAPABILITY_MATRIX.md" in text
+    assert "real Cubox API" in text
+    assert "human_approved" in text
 
 
-def test_v013_stage0_capability_matrix_still_present() -> None:
-    """Stage 0 文档断言"capability matrix delta 为空"，前提是 v0.12
-    capability matrix 仍然存在；这条测试守住前提条件。"""
+def test_v013_stage0_future_gates_still_present() -> None:
+    """Roadmap 必须继续列出 real/RAG/approval 这些 future gates。"""
 
-    assert _MATRIX.exists(), f"missing {_MATRIX} (referenced by Stage 0)"
+    text = _README.read_text(encoding="utf-8")
+    for token in ("Real Cubox", "Real Obsidian", "RAG / embedding", "Approval UX"):
+        assert token in text
 
 
 def test_v013_stage0_synthetic_custom_strategy_fixture_exists() -> None:

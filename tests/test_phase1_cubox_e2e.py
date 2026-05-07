@@ -1,7 +1,7 @@
 """Phase 1 — CLI Product Shape Completion: 端到端闭环 dogfood smoke。
 
 本测试不是为了"再测一遍 process pipeline"，而是 Phase 1 的**叙述脊柱**：
-用一份真实形态的 Cubox markdown 样本，把 ``docs/ROADMAP.md`` 中"9 步闭环"
+用一份真实形态的 Cubox markdown 样本，把 README-first 文档中的闭环
 里的核心 5 步串起来跑一次，验证 Bundle A (KnowledgeStrategy seam) 与
 Bundle B (ApprovalDecision seam) 在真实路径上协同工作。
 

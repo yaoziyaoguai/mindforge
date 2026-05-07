@@ -5,10 +5,9 @@
 
 - 只覆盖 ``POST {base_url}/v1/messages``；够 v0.1 用。
 - 不做 streaming、不做 tool_use（v0.1 仅文本 in / 文本 out）。
-- 不做 fallback / 多模型投票（路由由 LLMClient + active_profile 决定）。
-- ``base_url`` 与 ``api_key`` 优先从 **环境变量** 读取
-  （``MINDFORGE_LLM_BASE_URL`` / ``MINDFORGE_LLM_API_KEY`` 等），
-  避免写进 yaml 被误提交。
+- 不做 fallback / 多模型投票。
+- API key 解析优先级：env var（legacy/advanced mode） > local secret store（推荐）。
+  普通 Web 用户 key 存在 .mindforge/secrets.json；env var 是部署兼容路径。
 - 网络错误 / 4xx / 5xx 统一抛 :class:`ProviderError`，由 LLMClient 处理重试。
 - 任何异常都不能把 api_key、Authorization header、env value 等敏感信息
   泄漏到 ``error_message``；本模块严格脱敏。
@@ -111,15 +110,14 @@ class AnthropicCompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key：必须来自 env（不允许写进 yaml）
-        if not mc.api_key_env:
-            raise ProviderError(
-                f"模型 {mc.alias} 必须声明 api_key_env；anthropic_compatible 不允许把 api_key 写进 yaml"
-            )
-        api_key = os.environ.get(mc.api_key_env, "") or ""
+        # api_key 解析优先级：env var > local secret store > missing
+        # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
+        # env var mode 是 legacy/advanced deployment mode，仍可读取。
+        api_key = _resolve_api_key(mc.alias, mc.api_key_env)
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
-                f"模型 {mc.alias} 要求环境变量 {mc.api_key_env} 提供 api_key，但未设置或为空。"
+                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
+                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
             )
 
         # anthropic-version：可选，默认 2023-06-01
@@ -208,4 +206,38 @@ def _extract_text_from_content_blocks(data: dict[str, Any]) -> str | None:
     return "".join(parts)
 
 
-__all__ = ["AnthropicCompatibleProvider"]
+def _resolve_api_key(alias: str, api_key_env: str | None) -> str | None:
+    """API key 解析：env var > local secret store > None。
+
+    中文学习型说明：Web 用户通过 Setup 输入的 key 存在 .mindforge/secrets.json；
+    env var mode 是 legacy/advanced deployment mode。
+
+    Secret store 路径从 CWD 向上查找（与 env_loader 查找 .env 逻辑一致），
+    避免硬编码相对路径导致的跨目录 CLI 失败。
+    """
+    # 1) env var（legacy/advanced mode）
+    if api_key_env:
+        value = os.environ.get(api_key_env)
+        if value:
+            return value
+    # 2) local secret store — 从 CWD 向上查找 .mindforge/secrets.json
+    from mindforge.secret_store import SecretStore
+    secrets_path = _find_secrets_store()
+    if secrets_path is not None:
+        store = SecretStore(secrets_path)
+        return store.get(alias)
+    return None
+
+
+def _find_secrets_store():
+    """从 CWD 向上查找 .mindforge/secrets.json，与 env_loader 模式一致。"""
+    from pathlib import Path
+    cur = Path.cwd().resolve()
+    for directory in (cur, *cur.parents):
+        candidate = directory / ".mindforge" / "secrets.json"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+__all__ = ["AnthropicCompatibleProvider", "_resolve_api_key"]

@@ -109,7 +109,7 @@ def _capture_console() -> tuple[Console, io.StringIO]:
 
 
 def test_render_approval_list_table_contains_header_and_row():
-    """approve list Rich 输出含表头标题、行数、6 列字段、Todo commands 段。"""
+    """approve list Rich 输出含短编号任务，而不是只给长路径命令。"""
     cards = (_card(),)
     res = ApprovalListResult(
         candidates=cards, scan_errors=(), statuses=("ai_draft",)
@@ -123,7 +123,9 @@ def test_render_approval_list_table_contains_header_and_row():
     assert "ai_draft" in out
     assert "示例卡片" in out
     assert "Todo commands" in out
-    assert "mindforge approve --card knowledge-cards/general/sample.md" in out
+    assert "[1]" in out
+    assert "mindforge approve 1 --confirm" in out
+    assert "full_path=knowledge-cards/general/sample.md" in out
     assert "MindForge 不会自动 approve" in out
 
 
@@ -318,7 +320,9 @@ def test_render_routing_hint_lists_all_actions():
     console, buf = _capture_console()
     approve_presenter.render_routing_hint(console)
     out = buf.getvalue()
-    assert "--card" in out and "--source-id" in out and "--all --dry-run" in out
+    assert "mindforge approve list" in out
+    assert "mindforge approve 1 --confirm" in out
+    assert "--card" in out
     assert "approve list" in out
 
 

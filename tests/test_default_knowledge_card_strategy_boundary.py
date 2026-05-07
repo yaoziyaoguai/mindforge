@@ -50,7 +50,7 @@ def _imports(path: Path) -> set[str]:
     return names
 
 
-# 任何一项命中即违规（与 docs/ROADMAP.md §Boundary test candidates 对齐）
+# 任何一项命中即违规（与 README 中的架构边界对齐）
 _FORBIDDEN_FOR_DEFAULT_KCS: frozenset[str] = frozenset({
     # source domain（strategy 必须 source-agnostic）
     "mindforge.cubox_cli",

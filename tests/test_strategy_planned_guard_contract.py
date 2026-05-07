@@ -272,9 +272,11 @@ sources:
 # ---------------------------------------------------------------------------
 
 
-def test_planned_strategy_remains_listable_in_cli_output() -> None:
-    """planned 策略**仍**必须出现在 ``mindforge strategies list`` 输出里 ——
-    UX 是 "我看见有这个策略，知道它还不能跑"，而不是 "我根本看不见它"。
+def test_planned_strategy_requires_internal_list_flag_in_cli_output() -> None:
+    """planned 策略只在 developer/internal discovery 中展示。
+
+    中文学习型说明：普通用户默认只看到生产 Knowledge Card Strategy；planned
+    metadata 不该被包装成产品路线里的可选项。
     """
 
     from mindforge.cli import app
@@ -286,12 +288,12 @@ def test_planned_strategy_remains_listable_in_cli_output() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["strategies", "list"])
     assert result.exit_code == 0, result.output
-    assert name in result.output, (
-        f"planned 策略 {name!r} 必须出现在 strategies list 输出中"
-    )
-    assert "planned" in result.output, (
-        "strategies list 输出应包含 planned 字面量作为 status 标签"
-    )
+    assert name not in result.output
+
+    internal = runner.invoke(app, ["strategies", "list", "--include-internal"])
+    assert internal.exit_code == 0, internal.output
+    assert name in internal.output
+    assert "planned" in internal.output
 
 
 # ---------------------------------------------------------------------------

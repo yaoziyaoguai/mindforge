@@ -25,6 +25,8 @@ from typing import Any
 
 import yaml
 
+from .assets_runtime import bundled_text
+
 # v0.1 固定的 5 个 stage（与 prompts/ 下子目录一一对应）
 REQUIRED_STAGES: tuple[str, ...] = (
     "triage",
@@ -46,6 +48,7 @@ KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
         "chat_export",
         "manual_note",
         "obsidian_note",
+        "common_document",
     }
 )
 
@@ -134,7 +137,7 @@ class TriageConfig:
 class ReviewIntervals:
     """review mark 写卡片时按 result 计算 next review_after 的间隔（天）。
 
-    见 docs/M4_RECALL_REVIEW_PROTOCOL.md §0 #1 / §4。"""
+    复习字段属于本地 review 子系统；当前实现导览见 README.md。"""
 
     remembered: int = 14
     partial: int = 7
@@ -170,12 +173,62 @@ class LLMConfig:
     active_profile: str
     profiles: dict[str, dict[str, str]]               # profile_name -> {stage: alias}
     models: dict[str, ModelConfig]                    # alias -> ModelConfig
+    default_model: str | None = None
+    routing: dict[str, str] = field(default_factory=dict)
+    legacy_config_detected: bool = False
 
     def resolve_stage(self, stage: str) -> ModelConfig:
         """按当前 active_profile 把 stage 解析为 ModelConfig。"""
         profile = self.profiles[self.active_profile]
         alias = profile[stage]
         return self.models[alias]
+
+
+def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
+    """为 legacy/dev-only 离线路径临时注入 fake profile。
+
+    中文学习型说明：用户默认配置和 package defaults 不再暴露 fake/profile 语义；
+    但老的 smoke、preview 和 ``--profile fake`` 仍需要 deterministic 本地替身。
+    这里在内存中派生 fake profile，不写回 YAML，也不污染 Setup 主 UI。
+    """
+
+    fake_models = {
+        "fake_fast": ModelConfig(
+            alias="fake_fast",
+            provider="fake",
+            type="fake",
+            base_url="fake://",
+            model="fake-fast",
+            timeout_seconds=5,
+            max_retries=0,
+        ),
+        "fake_strong": ModelConfig(
+            alias="fake_strong",
+            provider="fake",
+            type="fake",
+            base_url="fake://",
+            model="fake-strong",
+            timeout_seconds=5,
+            max_retries=0,
+        ),
+    }
+    return LLMConfig(
+        active_profile="fake",
+        profiles={
+            **llm.profiles,
+            "fake": {
+                "triage": "fake_fast",
+                "distill": "fake_strong",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_strong",
+                "action_extraction": "fake_strong",
+            },
+        },
+        models={**llm.models, **fake_models},
+        default_model=llm.default_model,
+        routing=dict(llm.routing),
+        legacy_config_detected=llm.legacy_config_detected,
+    )
 
 
 @dataclass(frozen=True)
@@ -200,7 +253,7 @@ class LoggingConfig:
 
 @dataclass(frozen=True)
 class TelemetryConfig:
-    """M5.7 — 本地 telemetry 子配置（详见 docs/M5_7_TELEMETRY_PROTOCOL.md）。
+    """本地 telemetry 子配置（边界见 README.md）。
 
     - ``enabled``：False 时模块完全静默，不写盘；
     - ``local_only``：v0.2.3 固定 True；任何远程 sink 都需要先扩协议。
@@ -275,6 +328,19 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class StrategyConfig:
+    """知识抽取策略配置。
+
+    中文学习型说明：provider selection 与 strategy selection 是两条正交轴。
+    ``llm.active`` 决定“用哪个 provider/model”，``strategy.active`` 决定
+    “用哪种知识抽取/卡片组织方式”。配置层只记录用户意图；是否可执行由
+    strategy registry 在运行边界验证，避免 config.py 反向依赖 runtime。
+    """
+
+    active: str = "knowledge_card"
+
+
+@dataclass(frozen=True)
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -290,6 +356,7 @@ class MindForgeConfig:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
+    strategy: StrategyConfig = field(default_factory=StrategyConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -331,81 +398,278 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def load_mindforge_config(path: str | Path) -> MindForgeConfig:
-    """加载并校验 mindforge.yaml，返回不可变快照。
+def _load_internal_defaults() -> dict[str, Any]:
+    """读取 package 内置 full config defaults。
 
-    中文学习型说明：相对 ``state.workdir`` 按当前工作目录解析，而不是按
-    config 文件父目录猜测仓库根。packaged install 下 config 可能被复制到任意
-    位置，继续使用 ``config.parent.parent`` 会把 `.mindforge` 写到违背直觉
-    的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
+    中文学习型说明：新用户的 ``configs/mindforge.yaml`` 是 override，不再承担
+    sources/state/search/prompts 等系统默认细节。这里把 internal full config
+    作为运行时默认值，再让用户 YAML 覆盖它；CLI/provider/ingestion 不需要
+    知道这层合并存在。
     """
-    p = Path(path)
-    raw = _read_yaml(p)
-    base_dir = Path.cwd()
 
-    # ---- vault ----
-    vault_raw = _require(raw, "vault", dict, ctx=str(p))
-    vault = VaultConfig(
-        root=Path(_require(vault_raw, "root", str, ctx="vault")).expanduser(),
+    try:
+        data = yaml.safe_load(bundled_text("configs", "mindforge.yaml"))
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"内置 mindforge defaults YAML 解析失败: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError("内置 mindforge defaults 顶层必须是 YAML 对象")
+    return data
+
+
+def _deep_merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """递归合并 config：dict 合并，scalar/list 由用户 override 覆盖。"""
+
+    merged = dict(defaults)
+    for key, value in overrides.items():
+        default_value = merged.get(key)
+        if isinstance(default_value, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge_defaults(default_value, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _merge_user_config_with_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """合并用户配置，同时保护 LLM 用户语义不被另一种格式污染。
+
+    中文学习型说明：package defaults 使用新的 ``models/default_model/routing``。
+    用户配置如果也是新格式，就不能深合并出其它 model id；用户配置如果是
+    legacy ``active_profile/profiles`` 或过渡期 ``active/providers``，也不能让
+    defaults 里的 ``default_model`` 抢先把它解析成新格式。
+    """
+
+    if not isinstance(overrides.get("llm"), dict):
+        return _deep_merge_defaults(defaults, overrides)
+    user_llm = overrides["llm"]
+    if "default_model" not in user_llm and not _is_legacy_llm_override(user_llm):
+        return _deep_merge_defaults(defaults, overrides)
+
+    overrides_without_llm = dict(overrides)
+    overrides_without_llm.pop("llm")
+    merged = _deep_merge_defaults(defaults, overrides_without_llm)
+    merged["llm"] = dict(user_llm)
+    return merged
+
+
+def _is_legacy_llm_override(llm: dict[str, Any]) -> bool:
+    return any(key in llm for key in ("active", "active_profile", "providers", "profiles"))
+
+
+def _expand_user_profile_overrides(raw: dict[str, Any]) -> dict[str, Any]:
+    """把用户层 provider 选择映射成 internal stage/model 结构。
+
+    新用户 YAML 使用 ``llm.active`` + ``llm.providers``；旧配置仍可能使用
+    ``active_profile`` + ``profiles``。完整 pipeline 仍需要五个 stage 的 alias
+    映射与 ``llm.models``。本函数在配置层完成兼容翻译，保持
+    watch/import/process 的业务管线不感知 provider selection UX 的变化。
+    """
+
+    llm = raw.get("llm")
+    if not isinstance(llm, dict):
+        return raw
+    if "default_model" in llm:
+        return raw
+    providers = llm.get("providers")
+    if isinstance(providers, dict):
+        active = llm.get("active")
+        if not isinstance(active, str) or not active.strip():
+            raise ConfigError("llm.active 必须指定 llm.providers 下的 provider key")
+        if active not in providers:
+            raise ConfigError(
+                f"llm.active={active!r} 不在 llm.providers 中；已知：{sorted(providers)}"
+            )
+        llm["active_profile"] = active
+        profiles_from_providers = {
+            str(name): _legacy_profile_from_provider(str(name), value)
+            for name, value in providers.items()
+            if isinstance(value, dict)
+        }
+        legacy_profiles = llm.get("profiles")
+        if isinstance(legacy_profiles, dict):
+            for name, value in legacy_profiles.items():
+                profiles_from_providers.setdefault(str(name), value)
+        llm["profiles"] = profiles_from_providers
+
+    profiles = llm.get("profiles")
+    if not isinstance(profiles, dict):
+        return raw
+    models = llm.setdefault("models", {})
+    if not isinstance(models, dict):
+        return raw
+
+    _expand_real_provider_profile(
+        profiles,
+        models,
+        profile_name="openai_compatible",
+        provider_type="openai_compatible",
+        provider_name="openai_compatible",
+        alias="openai_strong",
+        fallback_base_url="https://api.openai.com/v1",
+        fallback_model="gpt-4o-mini",
+    )
+    _expand_real_provider_profile(
+        profiles,
+        models,
+        profile_name="anthropic",
+        provider_type="anthropic_compatible",
+        provider_name="anthropic",
+        alias="anthropic_strong",
+        fallback_base_url="https://api.anthropic.com",
+        fallback_model="claude-3-5-haiku-latest",
+    )
+
+    fake_profile = profiles.get("fake")
+    if (
+        isinstance(fake_profile, dict)
+        and fake_profile.get("provider") == "fake"
+        and not all(stage in fake_profile for stage in REQUIRED_STAGES)
+    ):
+        fake_profile.update(
+            {
+                "triage": "fake_fast",
+                "distill": "fake_strong",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_strong",
+                "action_extraction": "fake_strong",
+            }
+        )
+    if isinstance(fake_profile, dict) and fake_profile.get("provider") == "fake":
+        models.setdefault(
+            "fake_fast",
+            {"provider": "fake", "type": "fake", "model": "fake-fast"},
+        )
+        models.setdefault(
+            "fake_strong",
+            {"provider": "fake", "type": "fake", "model": "fake-strong"},
+        )
+    return raw
+
+
+def _legacy_profile_from_provider(name: str, provider: dict[str, Any]) -> dict[str, Any]:
+    """把新 ``llm.providers`` 项转换成 legacy profile 形状。
+
+    这是配置兼容层，不是业务 provider 路由。生成的 stage 映射会继续交给
+    ``_expand_real_provider_profile`` / fake 展开逻辑处理。
+    """
+
+    provider_type = str(provider.get("type") or name)
+    legacy: dict[str, Any] = dict(provider)
+    legacy.pop("type", None)
+    legacy["provider"] = provider_type
+    if "default_base_url" in legacy:
+        legacy["base_url"] = legacy.pop("default_base_url")
+    if "default_model" in legacy:
+        legacy["model"] = legacy.pop("default_model")
+    return legacy
+
+
+def _expand_real_provider_profile(
+    profiles: dict[str, Any],
+    models: dict[str, Any],
+    *,
+    profile_name: str,
+    provider_type: str,
+    provider_name: str,
+    alias: str,
+    fallback_base_url: str,
+    fallback_model: str,
+) -> None:
+    profile = profiles.get(profile_name)
+    if not isinstance(profile, dict):
+        return
+    if all(stage in profile for stage in REQUIRED_STAGES):
+        return
+    if profile.get("provider") != provider_name:
+        return
+
+    default_base_url = str(profile.get("default_base_url") or profile.get("base_url") or fallback_base_url)
+    default_model = str(profile.get("default_model") or profile.get("model") or fallback_model)
+    models[alias] = {
+        "provider": provider_name,
+        "type": provider_type,
+        "base_url": default_base_url,
+        "api_key_env": profile.get("api_key_env"),
+        "base_url_env": profile.get("base_url_env"),
+        "model_env": profile.get("model_env"),
+        "model": default_model,
+        "timeout_seconds": int(profile.get("timeout_seconds") or 120),
+        "max_retries": int(profile.get("max_retries") or 2),
+    }
+    profile.update({stage: alias for stage in REQUIRED_STAGES})
+
+
+def _parse_vault(raw: dict[str, Any], *, ctx: str) -> VaultConfig:
+    vault_raw = _require(raw, "vault", dict, ctx=ctx)
+    root = Path(_require(vault_raw, "root", str, ctx="vault")).expanduser()
+    config_meta = raw.get("_mindforge_config")
+    project_root = None
+    if isinstance(config_meta, dict) and config_meta.get("project_root"):
+        project_root = Path(str(config_meta["project_root"])).expanduser()
+    if not root.is_absolute() and project_root is not None:
+        root = project_root / root
+    return VaultConfig(
+        root=root.resolve(),
         inbox_root=_require(vault_raw, "inbox_root", str, ctx="vault"),
         cards_dir=_require(vault_raw, "cards_dir", str, ctx="vault"),
         archive_dir=_require(vault_raw, "archive_dir", str, ctx="vault"),
         projects_dir=str(vault_raw.get("projects_dir") or "30-Projects"),
     )
 
-    # ---- sources ----
-    sources_raw = _require(raw, "sources", dict, ctx=str(p))
+
+def _parse_sources(raw: dict[str, Any], *, ctx: str) -> SourcesConfig:
+    sources_raw = _require(raw, "sources", dict, ctx=ctx)
     enabled_list = _require(sources_raw, "enabled", list, ctx="sources")
     registry_raw = _require(sources_raw, "registry", dict, ctx="sources")
 
     registry: dict[str, SourceRegistryEntry] = {}
-    for st, entry in registry_raw.items():
-        if st not in KNOWN_SOURCE_TYPES:
+    for source_type, entry in registry_raw.items():
+        if source_type not in KNOWN_SOURCE_TYPES:
             raise ConfigError(
-                f"sources.registry 出现未知 source_type {st!r}；"
+                f"sources.registry 出现未知 source_type {source_type!r}；"
                 f"已知集合：{sorted(KNOWN_SOURCE_TYPES)}"
             )
         if not isinstance(entry, dict):
-            raise ConfigError(f"sources.registry.{st} 必须是 YAML 对象")
-        registry[st] = SourceRegistryEntry(
-            source_type=st,
-            adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{st}"),
-            inbox_subdir=_require(entry, "inbox_subdir", str, ctx=f"sources.registry.{st}"),
-            file_glob=_require(entry, "file_glob", str, ctx=f"sources.registry.{st}"),
-            # enabled 字段在 v0.1 默认 True；显式 false 表示占位 stub
+            raise ConfigError(f"sources.registry.{source_type} 必须是 YAML 对象")
+        registry[source_type] = SourceRegistryEntry(
+            source_type=source_type,
+            adapter=_require(entry, "adapter", str, ctx=f"sources.registry.{source_type}"),
+            inbox_subdir=_require(entry, "inbox_subdir", str, ctx=f"sources.registry.{source_type}"),
+            file_glob=_require(entry, "file_glob", str, ctx=f"sources.registry.{source_type}"),
+            # enabled 字段在 v0.1 默认 True；显式 false 表示占位 stub。
             enabled=bool(entry.get("enabled", True)),
         )
-    for st in enabled_list:
-        if st not in registry:
+    for source_type in enabled_list:
+        if source_type not in registry:
             raise ConfigError(
-                f"sources.enabled 列出的 {st!r} 不在 sources.registry 中"
+                f"sources.enabled 列出的 {source_type!r} 不在 sources.registry 中"
             )
-    sources = SourcesConfig(enabled=tuple(enabled_list), registry=registry)
+    return SourcesConfig(enabled=tuple(enabled_list), registry=registry)
 
-    # ---- state ----
-    state_raw = _require(raw, "state", dict, ctx=str(p))
+
+def _parse_state(raw: dict[str, Any], *, ctx: str, base_dir: Path) -> StateConfig:
+    state_raw = _require(raw, "state", dict, ctx=ctx)
     workdir_str = _require(state_raw, "workdir", str, ctx="state")
-    state = StateConfig(
-        workdir=(base_dir / workdir_str) if not Path(workdir_str).is_absolute() else Path(workdir_str),
+    workdir = Path(workdir_str)
+    return StateConfig(
+        workdir=(base_dir / workdir_str) if not workdir.is_absolute() else workdir,
         state_file=_require(state_raw, "state_file", str, ctx="state"),
         runs_dir=_require(state_raw, "runs_dir", str, ctx="state"),
         index_file=_require(state_raw, "index_file", str, ctx="state"),
         backup_state=bool(state_raw.get("backup_state", True)),
     )
 
-    # ---- triage ----
-    triage_raw = _require(raw, "triage", dict, ctx=str(p))
-    triage = TriageConfig(
+
+def _parse_triage(raw: dict[str, Any], *, ctx: str) -> TriageConfig:
+    triage_raw = _require(raw, "triage", dict, ctx=ctx)
+    return TriageConfig(
         value_score_threshold=int(_require(triage_raw, "value_score_threshold", int, ctx="triage")),
         default_track=_require(triage_raw, "default_track", str, ctx="triage"),
     )
 
-    # ---- llm ----
-    llm = _parse_llm(_require(raw, "llm", dict, ctx=str(p)))
 
-    # ---- prompts ----
-    prompts_raw = _require(raw, "prompts", dict, ctx=str(p))
-    prompts = PromptVersions(
+def _parse_prompts(raw: dict[str, Any], *, ctx: str) -> PromptVersions:
+    prompts_raw = _require(raw, "prompts", dict, ctx=ctx)
+    return PromptVersions(
         triage=_require(prompts_raw, "triage_version", str, ctx="prompts"),
         distill=_require(prompts_raw, "distill_version", str, ctx="prompts"),
         link_suggestion=_require(prompts_raw, "link_suggestion_version", str, ctx="prompts"),
@@ -413,16 +677,18 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         action_extraction=_require(prompts_raw, "action_extraction_version", str, ctx="prompts"),
     )
 
-    # ---- logging ----
-    logging_raw = _require(raw, "logging", dict, ctx=str(p))
-    logging_cfg = LoggingConfig(
+
+def _parse_logging(raw: dict[str, Any], *, ctx: str) -> LoggingConfig:
+    logging_raw = _require(raw, "logging", dict, ctx=ctx)
+    return LoggingConfig(
         level=str(logging_raw.get("level", "INFO")),
         file=str(logging_raw.get("file", ".mindforge/mindforge.log")),
         record_prompts=bool(logging_raw.get("record_prompts", True)),
         record_outputs=bool(logging_raw.get("record_outputs", True)),
     )
 
-    # ---- review (M4 — optional block；缺失走全默认) ----
+
+def _parse_review(raw: dict[str, Any]) -> ReviewConfig:
     review_raw = raw.get("review") or {}
     if not isinstance(review_raw, dict):
         raise ConfigError(f"review 必须是 YAML 对象，得到 {type(review_raw).__name__}")
@@ -434,34 +700,69 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         partial=int(intervals_raw.get("partial", 7)),
         forgotten=int(intervals_raw.get("forgotten", 1)),
     )
-    for fname, val in (
+    for name, value in (
         ("remembered", intervals.remembered),
         ("partial", intervals.partial),
         ("forgotten", intervals.forgotten),
     ):
-        if val < 0:
-            raise ConfigError(f"review.intervals.{fname} 必须 >=0，得到 {val}")
-    review_cfg = ReviewConfig(
+        if value < 0:
+            raise ConfigError(f"review.intervals.{name} 必须 >=0，得到 {value}")
+    return ReviewConfig(
         intervals=intervals,
         default_include_drafts=bool(review_raw.get("default_include_drafts", False)),
     )
 
-    # ---- telemetry (M5.7 — optional block；缺失走全默认) ----
+
+def _parse_telemetry(raw: dict[str, Any]) -> TelemetryConfig:
     telemetry_raw = raw.get("telemetry") or {}
     if not isinstance(telemetry_raw, dict):
         raise ConfigError(
             f"telemetry 必须是 mapping，得到 {type(telemetry_raw).__name__}"
         )
-    telemetry_cfg = TelemetryConfig(
+    return TelemetryConfig(
         enabled=bool(telemetry_raw.get("enabled", True)),
         local_only=bool(telemetry_raw.get("local_only", True)),
     )
 
-    # ---- obsidian (v0.5 — optional；缺失走安全默认) ----
-    obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
 
-    # ---- search (v0.3.1 — optional；缺失走全默认) ----
+def load_mindforge_config(path: str | Path) -> MindForgeConfig:
+    """加载并校验 mindforge.yaml，返回不可变快照。
+
+    中文学习型说明：相对 ``state.workdir`` 按当前工作目录解析，而不是按
+    config 文件父目录猜测仓库根。packaged install 下 config 可能被复制到任意
+    位置，继续使用 ``config.parent.parent`` 会把 `.mindforge` 写到违背直觉
+    的目录，甚至写到系统根附近。显式绝对路径仍保持原样。
+    """
+    p = Path(path)
+    user_raw = _read_yaml(p)
+    if not any(key in user_raw for key in ("version", "vault", "llm", "telemetry")):
+        raise ConfigError(
+            f"{p}: 不是有效的 MindForge 配置；至少需要 version/vault/llm/telemetry 之一"
+        )
+    raw = _expand_user_profile_overrides(
+        _merge_user_config_with_defaults(_load_internal_defaults(), user_raw)
+    )
+    config_path = p.expanduser().resolve()
+    project_root = _project_root_for_config(config_path)
+    raw["_mindforge_config"] = {
+        "path": str(config_path),
+        "project_root": str(project_root),
+    }
+    base_dir = Path.cwd()
+    ctx = str(p)
+
+    vault = _parse_vault(raw, ctx=ctx)
+    sources = _parse_sources(raw, ctx=ctx)
+    state = _parse_state(raw, ctx=ctx, base_dir=base_dir)
+    triage = _parse_triage(raw, ctx=ctx)
+    llm = _parse_llm(_require(raw, "llm", dict, ctx=str(p)))
+    prompts = _parse_prompts(raw, ctx=ctx)
+    logging_cfg = _parse_logging(raw, ctx=ctx)
+    review_cfg = _parse_review(raw)
+    telemetry_cfg = _parse_telemetry(raw)
+    obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
     search_cfg = _parse_search(raw.get("search") or {})
+    strategy_cfg = _parse_strategy(raw.get("strategy") or {})
 
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
@@ -476,8 +777,25 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         telemetry=telemetry_cfg,
         obsidian=obsidian_cfg,
         search=search_cfg,
+        strategy=strategy_cfg,
         raw=raw,
     )
+
+
+def _parse_strategy(raw: Any) -> StrategyConfig:
+    """解析 ``strategy.active``，缺失时稳定回退 knowledge_card。
+
+    中文学习型说明：这里不校验 strategy 是否存在/可执行。那属于 registry
+    运行边界；如果在 config 层 import registry，会让纯配置 loader 意外承担
+    strategy runtime 知识，也会让错误来源不清晰。
+    """
+
+    if not isinstance(raw, dict):
+        raise ConfigError(f"strategy 必须是 YAML 对象，得到 {type(raw).__name__}")
+    active = str(raw.get("active") or "knowledge_card").strip()
+    if not active:
+        raise ConfigError("strategy.active 不能为空")
+    return StrategyConfig(active=active)
 
 
 def _parse_obsidian(raw: Any) -> "ObsidianConfig":
@@ -583,7 +901,24 @@ def _parse_search(raw: Any) -> "SearchConfig":
     return SearchConfig(bm25=bm25_cfg, hybrid=hybrid_cfg)
 
 
+def _project_root_for_config(config_path: Path) -> Path:
+    """从 config path 推导 project root。
+
+    中文学习型说明：新用户配置是 project-local override，``vault.root: vault``
+    这类相对路径必须稳定地按 project root 解析。标准路径
+    ``<project>/configs/mindforge.yaml`` 的 project root 是 ``<project>``；
+    其它显式 config path 则退回到 config 文件所在目录，保持旧配置兼容。
+    """
+
+    if config_path.name == "mindforge.yaml" and config_path.parent.name == "configs":
+        return config_path.parent.parent
+    return config_path.parent
+
+
 def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
+    if "default_model" in raw:
+        return _parse_model_routing_llm(raw)
+
     active_profile = _require(raw, "active_profile", str, ctx="llm")
     profiles_raw = _require(raw, "profiles", dict, ctx="llm")
     models_raw = _require(raw, "models", dict, ctx="llm")
@@ -644,11 +979,13 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
                 f"v0.1 必须覆盖 {list(REQUIRED_STAGES)}"
             )
         for stage, alias in pmap.items():
+            if stage not in REQUIRED_STAGES:
+                continue
             if alias not in models:
                 raise ConfigError(
                     f"llm.profiles.{pname}.{stage}={alias!r} 不在 llm.models 中"
                 )
-        profiles[pname] = dict(pmap)
+        profiles[pname] = {stage: str(pmap[stage]) for stage in REQUIRED_STAGES}
 
     # active_profile 是否需要 api_key？仅检查 active_profile 涉及的 model
     active_aliases = set(profiles[active_profile].values())
@@ -658,7 +995,122 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             # 不强制现在就读环境变量（开发阶段可能没设），仅记录契约要求
             pass
 
-    return LLMConfig(active_profile=active_profile, profiles=profiles, models=models)
+    return LLMConfig(
+        active_profile=active_profile,
+        profiles=profiles,
+        models=models,
+        default_model=None,
+        routing=dict(profiles[active_profile]),
+        legacy_config_detected=True,
+    )
+
+
+def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
+    """解析用户可见的新 LLM 语义，并生成现有执行层可消费的 routing plan。
+
+    ``LLMClient`` / provider factory 当前仍消费 ``active_profile/profiles``。
+    这里把新格式转换成单个内部 profile，保持执行链稳定；对用户和 Setup 暴露
+    的 source of truth 仍是 ``default_model/models/routing``。
+    """
+
+    default_model = _require(raw, "default_model", str, ctx="llm")
+    models_raw = _require(raw, "models", dict, ctx="llm")
+    if default_model not in models_raw:
+        raise ConfigError(
+            f"llm.default_model={default_model!r} 不在 llm.models 中；"
+            f"已知：{sorted(models_raw)}"
+        )
+
+    models = _parse_llm_models(models_raw)
+    routing_raw = raw.get("routing") or {}
+    if not isinstance(routing_raw, dict):
+        raise ConfigError(
+            f"llm.routing 必须是 YAML 对象，得到 {type(routing_raw).__name__}"
+        )
+    routing: dict[str, str] = {}
+    for stage in REQUIRED_STAGES:
+        value = routing_raw.get(stage, default_model)
+        if not isinstance(value, str):
+            raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
+        if value not in models:
+            raise ConfigError(
+                f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
+                f"已知：{sorted(models)}"
+            )
+        routing[stage] = value
+    for stage in routing_raw:
+        if stage not in REQUIRED_STAGES:
+            raise ConfigError(
+                f"llm.routing 出现未知 workflow step {stage!r}；"
+                f"已知：{list(REQUIRED_STAGES)}"
+            )
+
+    active_profile = "__model_routing__"
+    return LLMConfig(
+        active_profile=active_profile,
+        profiles={active_profile: dict(routing)},
+        models=models,
+        default_model=default_model,
+        routing=dict(routing),
+        legacy_config_detected=False,
+    )
+
+
+def _parse_llm_models(models_raw: dict[str, Any]) -> dict[str, ModelConfig]:
+    models: dict[str, ModelConfig] = {}
+    for model_id, mraw in models_raw.items():
+        if not isinstance(mraw, dict):
+            raise ConfigError(f"llm.models.{model_id} 必须是 YAML 对象")
+        models[str(model_id)] = _parse_llm_model(str(model_id), mraw)
+    return models
+
+
+def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
+    if "type" not in mraw:
+        raise ConfigError(
+            f"llm.models.{model_id}.type 缺失；必须显式配置为 "
+            "anthropic, anthropic_compatible 或 openai_compatible，不能从 base_url/model 自动猜协议"
+        )
+    model_type = _require(mraw, "type", str, ctx=f"llm.models.{model_id}")
+    if model_type not in {"anthropic", "anthropic_compatible", "openai_compatible", "fake"}:
+        raise ConfigError(
+            f"llm.models.{model_id}.type={model_type!r} 不支持；"
+            "支持：anthropic, anthropic_compatible, openai_compatible"
+        )
+
+    base_url_env = mraw.get("base_url_env")
+    if "base_url" in mraw:
+        base_url = str(mraw["base_url"])
+    elif base_url_env:
+        base_url = ""
+    elif model_type == "fake":
+        base_url = "fake://"
+    else:
+        raise ConfigError(
+            f"llm.models.{model_id} 必须提供 base_url 或 base_url_env 之一"
+        )
+
+    model_env = mraw.get("model_env")
+    model_str = mraw.get("model")
+    if not model_str and not model_env:
+        raise ConfigError(
+            f"llm.models.{model_id} 必须提供 model 或 model_env 之一"
+        )
+
+    return ModelConfig(
+        alias=model_id,
+        provider=str(mraw.get("provider") or model_id),
+        type=model_type,
+        base_url=base_url,
+        model=str(model_str or ""),
+        timeout_seconds=int(mraw.get("timeout_seconds", 120)),
+        max_retries=int(mraw.get("max_retries", 1)),
+        api_key_env=mraw.get("api_key_env"),
+        api_key_optional=bool(mraw.get("api_key_optional", False)),
+        base_url_env=base_url_env,
+        version_env=mraw.get("version_env"),
+        model_env=model_env,
+    )
 
 
 def load_learning_tracks(path: str | Path) -> LearningTracksConfig:

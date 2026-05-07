@@ -117,7 +117,7 @@ def render_weekly_next_actions(has_weekly_work: bool) -> list[str]:
         return ["运行 `mindforge review due` 聚焦今天到期项。"]
     return [
         "运行 `mindforge approve list` 查看是否有 ai_draft 待人工批准。",
-        "运行 `mindforge process --profile fake --limit 1` 从 inbox 生成新的 ai_draft。",
+        "运行 `mindforge watch add <file-or-folder>` 或 `mindforge import <file-or-folder>` 生成新的 ai_draft；advanced/troubleshooting 可用 `mindforge process --profile fake --limit 1`。",
         "运行 `mindforge recall --query <keyword>` 从已批准卡片里找学习主题。",
     ]
 

@@ -13,16 +13,28 @@ source_id: "{{ source.source_id }}"
 source_type: {{ source.source_type }}
 adapter_name: {{ source.adapter_name }}
 source_path: "{{ source.source_path }}"
+source_content_hash: "{{ run.source_content_hash }}"
+source_archive_path: ""
+source_missing: false
 source_url: "{{ source.source_url | default('') }}"
 source_title: "{{ source.title | default('') }}"
 
 # ── 加工证据链 ──
 created_at: {{ run.created_at }}
-prompt_version: "distill@{{ run.prompts.distill_version }}"
+strategy_id: "{{ run.strategy_id }}"
+strategy_version: "{{ run.strategy_version }}"
+schema_version: "{{ run.schema_version }}"
+prompt_version: "{% if run.prompt_versions.get('distill') %}distill@{{ run.prompt_versions.get('distill') }}{% else %}{% endif %}"
+prompt_versions:{% if run.prompt_versions %}
+{% for stage, version in run.prompt_versions.items() %}  {{ stage }}: "{{ version }}"
+{% endfor %}{% else %} {}
+{% endif %}
 profile: "{{ run.profile }}"
-stage_models:
-{% for stage, info in run.stage_models.items() %}  {{ stage }}: { alias: "{{ info.alias }}", provider: "{{ info.provider }}", model: "{{ info.model }}" }
-{% endfor %}run_id: "{{ run.run_id }}"
+model_routing:{% if run.model_routing %}
+{% for stage, info in run.model_routing.items() %}  {{ stage }}: { model_id: "{{ info.model_id }}", type: "{{ info.type }}", model: "{{ info.model }}" }
+{% endfor %}{% else %} {}
+{% endif %}
+run_id: "{{ run.run_id }}"
 ---
 
 ## Source Excerpt

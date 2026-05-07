@@ -10,8 +10,7 @@
 
 本文件覆盖：
 
-1. 默认 bundled 配置 ``configs/mindforge.yaml`` 的 ``active_profile``
-   是 ``fake``；
+1. 默认 bundled user config 使用新的 ``llm.models/default_model`` 语义；
 2. ``build_providers`` 在 fake profile 下**只**实例化 ``FakeProvider``，
    绝不实例化 OpenAI / Anthropic provider；
 3. fake profile 下构造 providers 不会触发 ``os.environ.get`` 读
@@ -31,9 +30,11 @@ import ast
 import os
 import socket
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from mindforge.config import LLMConfig, ModelConfig
 from mindforge.llm.base import LLMRequest, ProviderError
 from mindforge.llm.factory import build_providers
 from mindforge.llm.fake import FakeProvider
@@ -41,7 +42,7 @@ from mindforge.llm.fake import FakeProvider
 _REPO = Path(__file__).resolve().parent.parent
 _SRC = _REPO / "src" / "mindforge"
 _LLM_DIR = _SRC / "llm"
-_DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
+_DEFAULT_YAML = _REPO / "src" / "mindforge" / "assets" / "configs" / "mindforge.user.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -49,28 +50,35 @@ _DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
 # ---------------------------------------------------------------------------
 
 
-def test_default_bundled_config_active_profile_is_fake() -> None:
+def test_default_bundled_config_active_profile_is_real_dogfood() -> None:
     text = _DEFAULT_YAML.read_text(encoding="utf-8")
-    # 必须显式声明 active_profile: fake；不允许 active_profile: openai 等
-    assert "active_profile: fake" in text
-    # 逐行扫一遍，确保没有别的 active_profile 行潜藏
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("active_profile:"):
-            assert s == "active_profile: fake", (
-                f"默认 bundled 配置必须 active_profile=fake，发现：{s!r}"
-            )
+    # 新用户主配置只暴露 models/default_model；fake/profile 只属于内部测试兼容层。
+    assert "default_model: main" in text
+    assert "models:" in text
+    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    for forbidden in (
+        "active:",
+        "active_profile:",
+        "profiles:",
+        "fake_fast",
+        "fake_strong",
+        "fake://",
+    ):
+        assert forbidden not in text
 
 
-def test_packaged_default_config_active_profile_is_fake() -> None:
+def test_packaged_user_config_active_provider_is_real_dogfood() -> None:
     """与上一条测试不同：本条断言**安装态**下 ``importlib.resources`` 暴露
-    的 packaged 配置同样默认走 fake，避免发布时 yaml 漂移。"""
+    的 packaged 用户配置同样默认走真实 provider，避免发布时 yaml 漂移。"""
     from mindforge.assets_runtime import asset_root
 
-    bundled = asset_root().joinpath("configs", "mindforge.yaml").read_text(
+    bundled = asset_root().joinpath("configs", "mindforge.user.yaml").read_text(
         encoding="utf-8"
     )
-    assert "active_profile: fake" in bundled
+    assert "default_model: main" in bundled
+    assert "models:" in bundled
+    assert "active_profile:" not in bundled
+    assert "profiles:" not in bundled
 
 
 # ---------------------------------------------------------------------------
@@ -78,14 +86,41 @@ def test_packaged_default_config_active_profile_is_fake() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _load_default_cfg():
-    from mindforge.config import load_mindforge_config
+def _load_default_cfg_fake_override():
+    """构造 legacy fake-only 配置，守住测试替身不读 secret/不联网的边界。
 
-    return load_mindforge_config(_DEFAULT_YAML)
+    用户模板已经迁移到 ``llm.models/default_model/routing``，因此这里不再从
+    用户模板“改写出 fake profile”。fake 是测试夹具，不是用户配置入口。
+    """
+
+    fake_model = ModelConfig(
+        alias="fake_fast",
+        provider="fake",
+        type="fake",
+        base_url="fake://",
+        model="fake-fast",
+        timeout_seconds=5,
+        max_retries=0,
+    )
+    llm = LLMConfig(
+        active_profile="fake",
+        profiles={
+            "fake": {
+                "triage": "fake_fast",
+                "distill": "fake_fast",
+                "link_suggestion": "fake_fast",
+                "review_questions": "fake_fast",
+                "action_extraction": "fake_fast",
+            }
+        },
+        models={"fake_fast": fake_model},
+        legacy_config_detected=True,
+    )
+    return SimpleNamespace(llm=llm)
 
 
 def test_build_providers_fake_profile_only_constructs_fake_provider() -> None:
-    cfg = _load_default_cfg()
+    cfg = _load_default_cfg_fake_override()
     providers = build_providers(cfg.llm)
     assert providers, "build_providers 至少应返回 fake profile 引用的 alias"
     for alias, p in providers.items():
@@ -115,7 +150,7 @@ def test_build_providers_fake_profile_does_not_read_secret_env(
         return real_get(name, default)
 
     monkeypatch.setattr(os.environ, "get", spy)
-    cfg = _load_default_cfg()
+    cfg = _load_default_cfg_fake_override()
     build_providers(cfg.llm)
     assert accessed == [], (
         f"fake profile 下不应读取 secret env，违规访问：{accessed}"

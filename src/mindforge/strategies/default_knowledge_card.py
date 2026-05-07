@@ -72,8 +72,8 @@ STRATEGY_VERSION = "0.10.0"
 ENVELOPE_SCHEMA_VERSION = "1"
 STRATEGY_DISPLAY_NAME = "Default Knowledge Card"
 STRATEGY_DESCRIPTION = (
-    "离线确定性策略：从 source 文本派生 10 字段 structured_payload，"
-    "全程不依赖 LLM / .env / 网络；适合作为 fake-first 默认策略与回退路径。"
+    "内部确定性基线：仅用于 schema/card writer/debug 测试；"
+    "不执行生产 prompt pipeline，也不参与默认策略选择。"
 )
 # v0.11 Slice 2：UX 元数据。三项常量帮助 CLI strategies list 向用户解释
 # "我能在离线跑吗 / 我会自动 approve 吗 / 我吐什么 envelope"。
@@ -81,13 +81,21 @@ STRATEGY_PROVIDER_MODE = "deterministic"
 STRATEGY_SAFETY_POLICY = "ai_draft_only"
 STRATEGY_OUTPUT_SCHEMA_ID = f"{STRATEGY_ID}@{ENVELOPE_SCHEMA_VERSION}"
 # v0.11 Slice 3：生命周期状态。受控集合 {implemented, preview, planned}。
-# 本策略已是生产路径默认 fake-first 的事实承担者，标记为 implemented，
-# 与 Slice 3 Red 不变量（"已跑通的两个策略不可被降级"）对齐。
+# 本策略作为内部确定性基线保留 implemented，供 schema/card writer/debug
+# 单测使用；它不是 production default，也不是 fallback。
 STRATEGY_STATUS = "implemented"
+STRATEGY_ROLE = "internal_baseline"
+STRATEGY_PRODUCTION_READY = False
+STRATEGY_USER_RECOMMENDED = False
+STRATEGY_CANONICAL_ID = STRATEGY_ID
+STRATEGY_LEGACY_ALIASES: tuple[str, ...] = ()
+STRATEGY_WARNING = (
+    "internal deterministic baseline; does not exercise the production prompt pipeline."
+)
 
 
 # ---------------------------------------------------------------------------
-# 10 字段 structured_payload schema（与 docs/ROADMAP.md §Default contract 对齐）
+# 10 字段 structured_payload schema（与 README.md 的 default strategy contract 对齐）
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +103,7 @@ STRATEGY_STATUS = "implemented"
 class KnowledgeCardPayload:
     """10 字段 structured_payload。frozen → 调用方无法事后篡改字段。
 
-    字段语义见 docs/ROADMAP.md §v0.9.x Default contract。Slice 4 起这
+    字段语义见 README.md 的 default strategy contract。Slice 4 起这
     10 个字段被装入 envelope 的 ``structured_payload`` 子字典，而非
     envelope 顶层。
     """

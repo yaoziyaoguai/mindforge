@@ -67,7 +67,7 @@ def test_obsidian_workflow_demo_source_hint_and_checklist_order(tmp_path: Path) 
     assert plan.manual_inspection_steps == (
         "Inspect staged markdown and manifest by hand.",
         "Confirm backup expectations before any future write gate.",
-        "Record unclear output in docs/templates/OBSIDIAN_DOGFOODING_CHECKLIST.md.",
+        "Record unclear output in a local dogfood note; see README.md.",
     )
 
 

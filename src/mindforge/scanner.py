@@ -63,6 +63,14 @@ class Scanner:
             for path in sorted(subdir.rglob(entry.file_glob)):
                 if not path.is_file():
                     continue
+                try:
+                    rel_parts = path.resolve().relative_to(inbox_root.resolve()).parts
+                except ValueError:
+                    rel_parts = ()
+                if "_processed" in rel_parts:
+                    # 中文学习型说明：_processed 是已处理 source 的证据归档区；
+                    # 默认 scan 只处理待办 Inbox，不能把归档证据重新当 pending source。
+                    continue
                 yield self._safe_load(adapter, entry.source_type, path)
 
     def scan_all(self) -> list[ScanResult]:

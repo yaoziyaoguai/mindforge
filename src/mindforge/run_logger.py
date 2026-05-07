@@ -100,8 +100,7 @@ _ALLOWED_FIELDS: frozenset[str] = frozenset(
         "prev_status",
         "state_missing",
         "idempotent",
-        # M4 字段（review / recall / project context）— 见
-        # docs/M4_RECALL_REVIEW_PROTOCOL.md §7
+        # review / recall / project context 字段：只记录审计元数据，不写正文。
         "filters",
         "keyword_provided",
         "keyword_hash",

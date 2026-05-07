@@ -17,6 +17,7 @@ from .cards import CardLoadValueError, CardLoadError, CardSummary, iter_cards, r
 from .checkpoint import Checkpoint
 from .config import MindForgeConfig
 from .models import ItemState
+from .source_archive_service import SourceArchiveEffect, archive_source_for_approved_card
 
 
 APPROVAL_PREVIEW_FIELDS: tuple[str, ...] = (
@@ -26,6 +27,17 @@ APPROVAL_PREVIEW_FIELDS: tuple[str, ...] = (
     "track",
     "source_type",
     "source_title",
+    "source_id",
+    "source_path",
+    "source_content_hash",
+    "source_archive_path",
+    "strategy_id",
+    "strategy_version",
+    "schema_version",
+    "prompt_version",
+    "prompt_versions",
+    "stage_models",
+    "run_id",
     "created_at",
     "value_score",
 )
@@ -39,6 +51,26 @@ class ApprovalServiceError:
     message: str
     exit_code: int
     prev_status: str | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedCardPath:
+    """用户传入 card path 的解析结果。
+
+    中文学习型说明：真实 CLI 使用中，``approve list/show`` 会展示 vault 内
+    相对路径（例如 ``20-Knowledge-Cards/...``）。如果 approve 只接受绝对
+    路径，用户必须手动拼 vault root，违背 local-first CLI 的低摩擦目标。
+    因此路径解析集中在 service 层：CLI 只传入用户输入，业务层统一处理
+    absolute / cwd-relative / vault-relative 三种合法形态。
+    """
+
+    original: Path
+    path: Path | None
+    attempts: tuple[tuple[str, Path], ...]
+
+    @property
+    def ok(self) -> bool:
+        return self.path is not None
 
 
 @dataclass(frozen=True)
@@ -94,6 +126,7 @@ class ApprovalExecutionResult:
     """
 
     effect: ApprovalEffect | None = None
+    source_archive: SourceArchiveEffect | None = None
     error: ApprovalServiceError | None = None
 
     @property
@@ -232,22 +265,23 @@ def resolve_candidate_by_card_id(
 def preview_approval_card(cfg: MindForgeConfig, card_path: Path) -> ApprovalPreviewResult:
     """读取 approve preview 的白名单 frontmatter；不读取正文、不改变状态。"""
 
-    resolved = _resolve_user_card_path(cfg, card_path)
-    if not resolved.exists():
+    resolved = resolve_user_card_path(cfg, card_path)
+    if not resolved.ok:
         return ApprovalPreviewResult(
-            card_path=resolved,
+            card_path=resolved.path,
             fields={},
             error=ApprovalServiceError(
                 "card_not_found",
-                f"card 不存在：{resolved}",
+                _format_card_path_resolution_error(cfg, resolved),
                 exit_code=2,
             ),
         )
+    assert resolved.path is not None
     try:
-        frontmatter = read_card_frontmatter(resolved)
+        frontmatter = read_card_frontmatter(resolved.path)
     except (CardLoadValueError, OSError) as exc:
         return ApprovalPreviewResult(
-            card_path=resolved,
+            card_path=resolved.path,
             fields={},
             error=ApprovalServiceError(
                 "frontmatter_unreadable",
@@ -256,7 +290,7 @@ def preview_approval_card(cfg: MindForgeConfig, card_path: Path) -> ApprovalPrev
             ),
         )
     return ApprovalPreviewResult(
-        card_path=resolved,
+        card_path=resolved.path,
         fields={key: frontmatter.get(key, "-") for key in APPROVAL_PREVIEW_FIELDS},
     )
 
@@ -279,8 +313,24 @@ def approve_explicit_card(
                 exit_code=2,
             )
         )
+    resolved = resolve_user_card_path(cfg, card_path)
+    if not resolved.ok:
+        return ApprovalExecutionResult(
+            error=ApprovalServiceError(
+                "card_not_found",
+                _format_card_path_resolution_error(cfg, resolved),
+                exit_code=2,
+            )
+        )
+    assert resolved.path is not None
     try:
-        return ApprovalExecutionResult(effect=approve_card(card_path, cfg=cfg))
+        effect = approve_card(resolved.path, cfg=cfg)
+        archive_effect = (
+            archive_source_for_approved_card(cfg, resolved.path)
+            if effect.kind == "approved"
+            else None
+        )
+        return ApprovalExecutionResult(effect=effect, source_archive=archive_effect)
     except ApprovalError as exc:
         return ApprovalExecutionResult(
             error=ApprovalServiceError(
@@ -292,11 +342,51 @@ def approve_explicit_card(
         )
 
 
-def _resolve_user_card_path(cfg: MindForgeConfig, card_path: Path) -> Path:
+def resolve_user_card_path(cfg: MindForgeConfig, card_path: Path) -> ResolvedCardPath:
+    """解析用户传入的 card path；不读文件内容、不执行 approve。
+
+    解析顺序：
+    1. absolute path：直接使用；
+    2. existing cwd-relative path：当前 shell 下存在就使用；
+    3. vault-relative path：当前目录不存在时，尝试 ``vault.root / path``。
+
+    这里刻意不把 ``cards_dir`` 再拼一次，因为 approve list/show 暴露的是
+    vault-relative ``20-Knowledge-Cards/...``；如果用户只传 track/file，
+    需要先回到 ``approve list/show`` 获取明确路径，避免多重猜测带来歧义。
+    """
+
     expanded = card_path.expanduser()
     if expanded.is_absolute():
-        return expanded
-    return cfg.vault.root / expanded
+        return ResolvedCardPath(
+            original=card_path,
+            path=expanded if expanded.is_file() else None,
+            attempts=(("absolute", expanded),),
+        )
+
+    cwd_candidate = expanded
+    attempts: list[tuple[str, Path]] = [("cwd-relative", cwd_candidate)]
+    if cwd_candidate.is_file():
+        return ResolvedCardPath(original=card_path, path=cwd_candidate, attempts=tuple(attempts))
+
+    vault_candidate = cfg.vault.root / expanded
+    attempts.append(("vault-relative", vault_candidate))
+    if vault_candidate.is_file():
+        return ResolvedCardPath(original=card_path, path=vault_candidate, attempts=tuple(attempts))
+
+    return ResolvedCardPath(original=card_path, path=None, attempts=tuple(attempts))
+
+
+def _format_card_path_resolution_error(cfg: MindForgeConfig, resolved: ResolvedCardPath) -> str:
+    attempted = "\n".join(f"  - {label}: {path}" for label, path in resolved.attempts)
+    return (
+        f"card path could not be resolved: {resolved.original}\n"
+        f"Attempted paths:\n{attempted}\n"
+        f"vault.root: {cfg.vault.root}\n"
+        f"cards_dir: {cfg.vault.cards_dir}\n"
+        "If you passed a vault-relative path, check vault.root. "
+        "You can run `mindforge approve list` or `mindforge approve show --card <path>` "
+        "to copy a complete card path."
+    )
 
 
 __all__ = [

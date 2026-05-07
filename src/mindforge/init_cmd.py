@@ -37,6 +37,7 @@ VAULT_DIRS: tuple[str, ...] = (
 
 
 PlanAction = Literal["create_dir", "copy_file", "skip_exists", "overwrite_force"]
+USER_CONFIG_ASSET = "mindforge.user.yaml"
 
 
 @dataclass(frozen=True)
@@ -87,22 +88,14 @@ def build_plan(
         else:
             items.append(PlanItem("create_dir", target, note="vault skeleton"))
 
-    # 2) 配置 + 模板文件（来自仓库 configs/ + .env.example）
+    # 2) 用户第一天只需要一个主配置入口。learning tracks / llm examples
+    # 仍作为 package 内置资产供 process 与文档引用，但 init 不再把它们复制到
+    # 用户项目里制造多个 LLM 配置入口。
     template_files: tuple[tuple[Path, Path, str], ...] = (
         (
-            repo_root / "configs" / "mindforge.yaml",
+            repo_root / "configs" / USER_CONFIG_ASSET,
             project_root / "configs" / "mindforge.yaml",
-            "mindforge config",
-        ),
-        (
-            repo_root / "configs" / "learning_tracks.yaml",
-            project_root / "configs" / "learning_tracks.yaml",
-            "learning tracks",
-        ),
-        (
-            repo_root / "configs" / "llm.example.yaml",
-            project_root / "configs" / "llm.example.yaml",
-            "llm example",
+            "mindforge user override config",
         ),
     )
     for src, dst, note in template_files:
@@ -119,7 +112,7 @@ def build_plan(
 
     # 3) .env.example —— 不创建真实 .env
     env_example_dst = project_root / ".env.example"
-    env_example_src = repo_root / ".env.example"
+    env_example_src = repo_root / "configs" / "env.example"
     if env_example_dst.exists():
         items.append(
             PlanItem(
@@ -160,7 +153,17 @@ def execute_plan(plan: InitPlan) -> list[str]:
         elif it.action == "copy_file":
             it.target.parent.mkdir(parents=True, exist_ok=True)
             if it.source is not None and it.source.exists():
-                it.target.write_bytes(it.source.read_bytes())
+                if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
+                    it.target.write_text(
+                        _render_user_config_template(
+                            it.source,
+                            vault_root=plan.vault_root,
+                            project_root=plan.project_root,
+                        ),
+                        encoding="utf-8",
+                    )
+                else:
+                    it.target.write_bytes(it.source.read_bytes())
             else:
                 # inline 默认（.env.example fallback）
                 it.target.write_text(_inline_default_for(it.target), encoding="utf-8")
@@ -168,7 +171,17 @@ def execute_plan(plan: InitPlan) -> list[str]:
         elif it.action == "overwrite_force":
             it.target.parent.mkdir(parents=True, exist_ok=True)
             if it.source is not None and it.source.exists():
-                it.target.write_bytes(it.source.read_bytes())
+                if it.source.name == USER_CONFIG_ASSET and it.target.name == "mindforge.yaml":
+                    it.target.write_text(
+                        _render_user_config_template(
+                            it.source,
+                            vault_root=plan.vault_root,
+                            project_root=plan.project_root,
+                        ),
+                        encoding="utf-8",
+                    )
+                else:
+                    it.target.write_bytes(it.source.read_bytes())
             else:
                 it.target.write_text(_inline_default_for(it.target), encoding="utf-8")
             actions.append(f"overwrite {it.target}")
@@ -180,12 +193,50 @@ def execute_plan(plan: InitPlan) -> list[str]:
 def _inline_default_for(target: Path) -> str:
     if target.name == ".env.example":
         return (
-            "# MindForge .env example — copy to .env and fill in real values.\n"
-            "# .env MUST be in .gitignore. MindForge never reads .env content;\n"
-            "# providers read it via env vars.\n"
-            "# MINDFORGE_LLM_API_KEY=sk-...\n"
+            "# MindForge local environment.\n"
+            "# Copy this file to .env or export these variables in your shell.\n"
+            "# Do not commit real API keys.\n\n"
+            "# OpenAI-compatible provider\n"
+            "MINDFORGE_OPENAI_API_KEY=your-openai-compatible-api-key\n"
+            "MINDFORGE_OPENAI_BASE_URL=https://api.openai.com/v1\n"
+            "MINDFORGE_OPENAI_MODEL=gpt-4o-mini\n\n"
+            "# Anthropic provider\n"
+            "MINDFORGE_ANTHROPIC_API_KEY=your-anthropic-api-key\n"
+            "MINDFORGE_ANTHROPIC_BASE_URL=https://api.anthropic.com\n"
+            "MINDFORGE_ANTHROPIC_MODEL=claude-3-5-haiku-latest\n"
         )
     return ""
+
+
+def _render_user_config_template(source: Path, *, vault_root: Path, project_root: Path) -> str:
+    """渲染 init 用户 YAML，只替换 vault.root 并保留注释。
+
+    这里不使用 ``yaml.safe_dump``：用户配置文件的注释就是第一天 setup UX 的一
+    部分。这个 helper 刻意只认识模板里的一行 root，避免把它扩成通用 YAML
+    编辑器。默认 vault 在 project root 下时写成 ``vault``，由 config loader
+    按 project root 解析；这让配置可搬移，也避免用户误以为必须在固定 cwd
+    执行命令。
+    """
+
+    lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_vault = False
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not line.startswith(" ") and stripped.endswith(":"):
+            in_vault = stripped == "vault:"
+            continue
+        if in_vault and line.startswith("  ") and stripped.startswith("root:"):
+            newline = "\n" if line.endswith("\n") else ""
+            rendered_root = _display_vault_root_for_template(vault_root, project_root)
+            lines[idx] = f'  root: "{rendered_root}"{newline}'
+            break
+    return "".join(lines)
+
+
+def _display_vault_root_for_template(vault_root: Path, project_root: Path) -> str:
+    if vault_root.resolve() == (project_root / "vault").resolve():
+        return "vault"
+    return str(vault_root)
 
 
 def is_initialized(vault_root: Path, project_root: Path) -> bool:
@@ -198,13 +249,15 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 把要处理的资料放进 00-Inbox/ 的子目录（Cubox / WebClips / ChatExports / PDFs / Docs / ManualNotes）",
-        "2) 编辑 configs/mindforge.yaml 选择 llm.active_profile（默认 fake，不调真实 LLM）",
-        "3) 如需真实 LLM：把 .env.example 复制为 .env 并填入 API key（.env 必须在 .gitignore）",
-        "4) mindforge scan          # 扫描 inbox",
-        "5) mindforge process --profile fake --limit 1   # 跑一遍 5-stage pipeline",
-        "6) mindforge approve list  # 看看产出哪些 ai_draft",
-        "7) mindforge approve --card 20-Knowledge-Cards/...md  # 显式人工 approve",
-        "8) mindforge review due / mindforge recall / mindforge project context  # 日用",
-        "9) mindforge doctor        # 任何时刻自检",
+        "1) 选择 real provider：configs/mindforge.yaml 里设置 llm.active=openai_compatible 或 anthropic",
+        "2) 设置对应 env：MINDFORGE_OPENAI_* 或 MINDFORGE_ANTHROPIC_*（不要写进 YAML）",
+        "3) mindforge llm ping  # 按 llm.active 检查 env presence，不发 HTTP",
+        "4) mindforge watch list    # 查看 default 00-Inbox watched source",
+        "5) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md",
+        "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
+        "7) mindforge approve list  # 看看产出哪些 ai_draft",
+        "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
+        "9) mindforge recall --query <keyword>",
+        "10) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
+        "11) mindforge doctor       # 任何时刻自检",
     ]

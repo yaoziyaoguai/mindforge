@@ -62,13 +62,15 @@ class OpenAICompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        api_key: str | None = None
-        if mc.api_key_env:
-            api_key = os.environ.get(mc.api_key_env)
-            if not api_key and not mc.api_key_optional:
-                raise ProviderError(
-                    f"模型 {mc.alias} 要求环境变量 {mc.api_key_env} 提供 api_key，但未设置。"
-                )
+        # api_key 解析优先级：env var > local secret store > None
+        # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
+        from mindforge.llm.anthropic_compatible import _resolve_api_key
+        api_key = _resolve_api_key(mc.alias, getattr(mc, "api_key_env", None))
+        if not api_key and not mc.api_key_optional:
+            raise ProviderError(
+                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
+                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
+            )
         return cls(
             name=mc.provider,
             base_url=base_url,

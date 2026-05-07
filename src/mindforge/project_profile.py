@@ -3,7 +3,7 @@
 读取 ``<vault.root>/<vault.projects_dir>/<project_name>.md`` 的 frontmatter，
 为 ``project context`` 命令提供项目级稳定上下文。
 
-设计契约（详见 docs/M5_3_PROJECT_CONTEXT_PROTOCOL.md §1）：
+设计契约（详见 README.md 的 project context 说明）：
 
 1. **只读 frontmatter**：永不读取项目笔记正文，避免误把个人草稿 / secret
    带进 context pack；

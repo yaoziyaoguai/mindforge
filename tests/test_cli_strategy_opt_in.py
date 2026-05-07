@@ -203,14 +203,11 @@ def test_process_help_exposes_strategy_option() -> None:
     )
 
 
-def test_process_accepts_strategy_default_knowledge_card(tmp_path: Path) -> None:
-    """``--strategy default_knowledge_card`` 必须被接受并成功执行 pipeline。
+def test_process_rejects_internal_default_knowledge_card_strategy(tmp_path: Path) -> None:
+    """``default_knowledge_card`` 是 internal baseline，不能证明生产主流程。
 
-    Slice 3 仅负责"opt-in 选择 seam"，不负责把新策略的 10 字段 payload
-    适配到现有 writer schema（那是 writer/strategy adapter integration，
-    属于 v0.10 后续切片或显式 design 决议）。因此使用 ``--dry-run``：
-    跑完整策略路径但不写卡片，只验证 CLI 能 parse + 派发到指定策略 +
-    清晰退出，不 NoneType crash。
+    中文学习型说明：测试应该替身化 LLM response，而不是通过 CLI 选择
+    deterministic strategy 绕过 Knowledge Card Strategy prompt pipeline。
     """
     cfg_path, _ = _build_fake_vault(tmp_path)
     args = _common_process_args(cfg_path) + [
@@ -219,12 +216,8 @@ def test_process_accepts_strategy_default_knowledge_card(tmp_path: Path) -> None
         "default_knowledge_card",
     ]
     r = runner.invoke(app, args)
-    assert r.exit_code == 0, (
-        f"process --dry-run --strategy default_knowledge_card 应 exit 0；"
-        f"实际 {r.exit_code}\noutput:\n{r.output}\nexc: {r.exception!r}"
-    )
-    # processed/skipped/failed 计数行是 process 命令的稳定输出契约
-    assert "processed=" in r.output
+    assert r.exit_code != 0
+    assert "internal/not production-ready" in r.output
 
 
 def test_process_unknown_strategy_fails_with_readable_message(tmp_path: Path) -> None:
@@ -251,8 +244,8 @@ def test_process_unknown_strategy_fails_with_readable_message(tmp_path: Path) ->
 # ---------------------------------------------------------------------------
 
 
-def test_process_default_strategy_unchanged(tmp_path: Path) -> None:
-    """不传 ``--strategy`` 时 CLI 必须仍走默认 five_stage。
+def test_process_default_strategy_is_knowledge_card(tmp_path: Path) -> None:
+    """不传 ``--strategy`` 时 CLI 必须走 Knowledge Card Strategy。
 
     这是 "Slice 3 Green 之后也不能回归" 的护栏：默认行为是历史契约，
     不能因新增 opt-in 选项而被改写。
@@ -265,9 +258,10 @@ def test_process_default_strategy_unchanged(tmp_path: Path) -> None:
     assert len(cards) == 1
     text = cards[0].read_text("utf-8")
     assert "status: ai_draft" in text
-    # 默认 five_stage 通过 fake provider 走完整 5 stage 管线，会带 distill
+    # 默认 knowledge_card 通过 LLM provider test double 走完整 5 stage 管线，会带 distill
     # 占位符；这是历史契约，不允许 default 路径悄悄换策略。
     assert "[fake] excerpt placeholder" in text
+    assert 'strategy_id: "knowledge_card"' in text
 
 
 def test_cli_strategy_selection_does_not_couple_to_source_adapter() -> None:

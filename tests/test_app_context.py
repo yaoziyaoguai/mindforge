@@ -12,7 +12,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from mindforge.app_context import AppContextError, apply_vault_override, build_app_context, load_app_config
+from mindforge.app_context import (
+    AppContextError,
+    apply_vault_override,
+    build_app_context,
+    find_project_root,
+    load_app_config,
+)
 
 
 def _write_config(tmp_path: Path) -> Path:
@@ -138,3 +144,58 @@ def test_app_context_no_cli_env_llm_or_file_write_dependency(tmp_path: Path, mon
     assert "build_providers" not in source
     assert "write_text" not in source
     assert not (tmp_path / ".mindforge").exists()
+
+
+def test_default_config_path_resolves_from_project_root_ancestor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """project root 是 ``mindforge init`` 目录；子目录运行命令也应找到项目配置。
+
+    中文学习型说明：用户不应该被迫记住“必须在项目根运行”。默认
+    ``configs/mindforge.yaml`` 会从 cwd 向上寻找 MindForge project root，
+    找到后再加载同一份配置。
+    """
+
+    project = tmp_path / "project"
+    config_dir = project / "configs"
+    config_dir.mkdir(parents=True)
+    cfg_path = _write_config(config_dir)
+    child = project / "vault" / "00-Inbox" / "ManualNotes"
+    child.mkdir(parents=True)
+    monkeypatch.chdir(child)
+
+    cfg = load_app_config(Path("configs/mindforge.yaml"), cwd=child)
+
+    assert find_project_root(child) == project
+    assert cfg.raw["_mindforge_project"]["root"] == str(project)
+    assert Path(cfg.raw["_mindforge_project"]["config_path"]) == cfg_path
+
+
+def test_relative_vault_root_resolves_against_project_root(tmp_path: Path) -> None:
+    """``vault.root: vault`` 稳定指向 project root 下的 vault，而不是任意 cwd。"""
+
+    project = tmp_path / "project"
+    cfg_path = project / "configs" / "mindforge.yaml"
+    cfg_path.parent.mkdir(parents=True)
+    cfg_path.write_text(
+        """
+version: 0.1
+vault:
+  root: "vault"
+llm:
+  active: fake
+  providers:
+    fake:
+      type: fake
+      purpose: offline_demo_ci_deterministic_tests
+telemetry:
+  enabled: true
+  local_only: true
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_app_config(cfg_path, cwd=project / "nested")
+
+    assert cfg.vault.root == (project / "vault").resolve()

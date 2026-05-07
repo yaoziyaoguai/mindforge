@@ -160,6 +160,7 @@ ALLOWED_TOPLEVEL_IMPORTS: frozenset[str] = frozenset({
     "mindforge.checkpoint",
     "mindforge.config",
     "mindforge.models",
+    "mindforge.source_archive_service",
 })
 
 

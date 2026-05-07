@@ -17,16 +17,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from . import concept_extraction as _concept_extraction_mod
 from . import action_item as _action_item_mod
 from . import default_knowledge_card as _default_knowledge_card_mod
-from . import concept_extraction as _concept_extraction_mod
 from . import five_stage as _five_stage_mod
+from . import knowledge_card as _knowledge_card_mod
 from .base import KnowledgeStrategy, StrategyContext
 from .concept_extraction import build_concept_extraction_strategy
 from .default_knowledge_card import build_default_knowledge_card_strategy
 from .five_stage import build_five_stage_strategy
 
-DEFAULT_STRATEGY_NAME = "five_stage"
+DEFAULT_STRATEGY_NAME = "knowledge_card"
+LEGACY_FIVE_STAGE_ALIAS = "five_stage"
+INTERNAL_STRATEGY_IDS = frozenset(
+    {"default_knowledge_card", "concept_extraction", "action_item"}
+)
 
 
 def _format_unknown_strategy_message(name: str) -> str:
@@ -55,7 +60,9 @@ def _format_planned_strategy_message(name: str) -> str:
     """
 
     implemented = tuple(
-        m.strategy_id for m in list_strategies() if m.status == "implemented"
+        m.strategy_id
+        for m in list_strategies(include_internal=True)
+        if m.status == "implemented" and m.production_ready
     )
     return (
         f"strategy {name!r} is planned (not yet implemented); "
@@ -124,6 +131,16 @@ class StrategyMetadata:
     safety_policy: str
     output_schema_id: str
     status: str
+    role: str = "internal_baseline"
+    production_ready: bool = False
+    user_recommended: bool = False
+    canonical_id: str | None = None
+    legacy_aliases: tuple[str, ...] = ()
+    warning: str = ""
+
+    @property
+    def is_internal(self) -> bool:
+        return not self.user_recommended
 
 
 # 中文学习型注释：``_FACTORIES`` 只登记 *可执行* 策略；planned 策略
@@ -132,6 +149,7 @@ class StrategyMetadata:
 # 策略 —— 因为根本不存在 factory。
 _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
     DEFAULT_STRATEGY_NAME: build_five_stage_strategy,
+    LEGACY_FIVE_STAGE_ALIAS: build_five_stage_strategy,
     "default_knowledge_card": build_default_knowledge_card_strategy,
     "concept_extraction": build_concept_extraction_strategy,
 }
@@ -145,7 +163,8 @@ _FACTORIES: dict[str, Callable[[StrategyContext], KnowledgeStrategy]] = {
 # planned 在内的所有可被发现的策略），而 ``_FACTORIES`` 只登记可执行
 # 工厂。两者解耦让 planned 策略可以"可见但不可执行"。
 _METADATA_MODULES = {
-    DEFAULT_STRATEGY_NAME: _five_stage_mod,
+    DEFAULT_STRATEGY_NAME: _knowledge_card_mod,
+    LEGACY_FIVE_STAGE_ALIAS: _five_stage_mod,
     "default_knowledge_card": _default_knowledge_card_mod,
     "concept_extraction": _concept_extraction_mod,
     "action_item": _action_item_mod,
@@ -177,6 +196,7 @@ def build_strategy(name: str, ctx: StrategyContext) -> KnowledgeStrategy:
     任何分支都不读 ``.env``、不调 LLM、不写 workspace。
     """
 
+    name = canonical_strategy_id(name)
     if name not in _METADATA_MODULES:
         raise UnknownStrategyError(_format_unknown_strategy_message(name))
     status = _METADATA_MODULES[name].STRATEGY_STATUS
@@ -201,9 +221,12 @@ def get_strategy_metadata(name: str) -> StrategyMetadata:
     :func:`build_strategy` 一致 —— CLI 只需要 catch 一种。
     """
 
-    mod = _METADATA_MODULES.get(name)
+    lookup_name = name
+    mod = _METADATA_MODULES.get(lookup_name)
     if mod is None:
         raise UnknownStrategyError(_format_unknown_strategy_message(name))
+    canonical_id = getattr(mod, "STRATEGY_CANONICAL_ID", mod.STRATEGY_ID)
+    aliases = tuple(getattr(mod, "STRATEGY_LEGACY_ALIASES", ()))
     return StrategyMetadata(
         strategy_id=mod.STRATEGY_ID,
         strategy_version=mod.STRATEGY_VERSION,
@@ -213,14 +236,50 @@ def get_strategy_metadata(name: str) -> StrategyMetadata:
         safety_policy=mod.STRATEGY_SAFETY_POLICY,
         output_schema_id=mod.STRATEGY_OUTPUT_SCHEMA_ID,
         status=mod.STRATEGY_STATUS,
+        role=getattr(mod, "STRATEGY_ROLE", _default_role(mod.STRATEGY_ID, mod.STRATEGY_STATUS)),
+        production_ready=bool(getattr(mod, "STRATEGY_PRODUCTION_READY", False)),
+        user_recommended=bool(getattr(mod, "STRATEGY_USER_RECOMMENDED", False)),
+        canonical_id=str(canonical_id),
+        legacy_aliases=aliases,
+        warning=str(getattr(mod, "STRATEGY_WARNING", "")),
     )
 
 
-def list_strategies() -> tuple[StrategyMetadata, ...]:
+def list_strategies(*, include_internal: bool = True) -> tuple[StrategyMetadata, ...]:
     """所有内建策略的元数据元组（顺序与 :func:`available_strategies` 一致）。
 
     这是 CLI ``strategies list`` 的数据源；纯查询，无副作用 —— 不会触发
     LLM、不会读 ``.env``、不会写 workspace。
     """
 
-    return tuple(get_strategy_metadata(name) for name in available_strategies())
+    metas = tuple(get_strategy_metadata(name) for name in available_strategies())
+    if include_internal:
+        return metas
+    return tuple(m for m in metas if m.user_recommended and m.strategy_id == m.canonical_id)
+
+
+def public_strategies() -> tuple[StrategyMetadata, ...]:
+    """普通用户可见 strategy 列表。
+
+    中文学习型说明：测试替身可以存在于 registry 中，但默认 discovery 不能把
+    它们包装成产品能力。CLI/Web 默认只消费这个 public view。
+    """
+
+    return list_strategies(include_internal=False)
+
+
+def canonical_strategy_id(name: str) -> str:
+    """把 legacy/internal alias 规范化成可落盘的 canonical id。"""
+
+    text = str(name or "").strip()
+    if text == LEGACY_FIVE_STAGE_ALIAS:
+        return DEFAULT_STRATEGY_NAME
+    return text
+
+
+def _default_role(strategy_id: str, status: str) -> str:
+    if status == "planned":
+        return "planned"
+    if strategy_id == "concept_extraction":
+        return "preview_internal"
+    return "internal_baseline"

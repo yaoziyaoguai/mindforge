@@ -43,7 +43,7 @@ from typing import Any, Literal
 # 加新类型必须同步：
 #   1. 此处 SourceType
 #   2. configs/mindforge.yaml.sources.registry
-#   3. docs/MINDFORGE_PROTOCOL.md §SourceDocument 协议
+#   3. README.md 的 SourceDocument 协议
 #   4. 一个具体 adapter 实现
 # ---------------------------------------------------------------------------
 SourceType = Literal[
@@ -56,6 +56,7 @@ SourceType = Literal[
     "chat_export",
     "manual_note",
     "obsidian_note",
+    "common_document",
 ]
 
 
@@ -80,7 +81,7 @@ class Highlight:
 class SourceDocument:
     """Adapter 的统一输出 / 下游加工的统一输入。
 
-    13 个字段对应 ``docs/MINDFORGE_PROTOCOL.md`` 中的"SourceDocument 数据契约"。
+    13 个字段对应 ``README.md`` 中的"SourceDocument 数据契约"。
     任何字段语义变更都必须同步更新协议文档与 ``state.json`` schema。
 
     字段说明
