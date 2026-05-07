@@ -14,6 +14,7 @@ import { DraftsPage } from "./pages/DraftsPage";
 import { RecallPage } from "./pages/RecallPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { TrashPage } from "./pages/TrashPage";
+import { WikiPage } from "./pages/WikiPage";
 
 type PageData = {
   home?: HomeStatusResponse;
@@ -71,6 +72,7 @@ export default function App() {
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
   if (!content && path.startsWith("/recall")) content = <RecallPage onNavigate={navigate} />;
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
+  if (!content && path.startsWith("/wiki")) content = <WikiPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) content = <div className="text-sm text-muted">Loading...</div>;
 
