@@ -1,745 +1,461 @@
 # MindForge
 
-MindForge is a local-first personal AI learning memory tool.
+**本地优先的 AI 学习记忆工具。** 把本地文件/文件夹变成可审批的知识卡片，支持 Review、Library、Trash、Recall 和 Processing Workflow 可视化。
 
-MindForge 帮你把本地资料整理成可以 review、recall、项目化使用的知识卡片。
-真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的 `llm.models` 和
-`llm.default_model` 配置默认模型，但安全边界不变：
-AI 只能生成 `ai_draft`；只有你显式确认后，卡片才会变成
-`human_approved`。API key 只放在 shell env 或本地 `.env`，不要写进 YAML。
+- 数据都在你的本地 vault
+- AI 只生成草稿 (`ai_draft`)，你必须显式审批才能成为正式知识 (`human_approved`)
+- API key 只存在本地 secret store 或环境变量，绝不进 Git、不进 YAML、不进 Web 前端
+- Web 控制台 + CLI 双入口，同一套 service 层
 
-MindForge 是 single-user 的本地工具，不是 SaaS，不是多用户后台，not RAG，
-not embedding，也不是 Obsidian plugin。
+---
 
-## Quick Start: First 10 Minutes
+## 目录
 
-初始化你的本地工作区。你在哪里运行 `mindforge init`，哪里就是 MindForge
-project root；默认会生成 `configs/mindforge.yaml`、`.env.example` 和
-`vault/`：
+1. [快速开始](#快速开始)
+2. [核心概念](#核心概念)
+3. [Web 控制台](#web-控制台)
+4. [配置模型](#配置模型)
+5. [添加 Source 并生成 AI Draft](#添加-source-并生成-ai-draft)
+6. [Review 与 Approve](#review-与-approve)
+7. [Library（知识库）](#library知识库)
+8. [Trash（回收站）](#trash回收站)
+9. [Processing Workflow 与 Prompt](#processing-workflow-与-prompt)
+10. [CLI 常用命令](#cli-常用命令)
+11. [架构概览](#架构概览)
+12. [配置文件与本地数据](#配置文件与本地数据)
+13. [安全原则](#安全原则)
+14. [当前限制](#当前限制)
+15. [Roadmap](#roadmap)
+16. [开发者](#开发者)
+
+---
+
+## 快速开始
 
 ```bash
-mkdir -p /tmp/mindforge-first-run
-cd /tmp/mindforge-first-run
+# 1. 克隆项目
+git clone <repo-url>
+cd mindforge
+
+# 2. 安装
+pip install -e .
+
+# 3. 初始化（在空目录或项目目录里运行）
+mkdir -p /tmp/mindforge-first-run && cd /tmp/mindforge-first-run
 mindforge init
+
+# 4. 启动 Web 控制台
+mindforge web
 ```
 
-MindForge 是 cwd-first / vault-first：程序安装目录只放程序，用户数据放在
-project root 下的 `vault/`，或你显式选择的 vault 目录里。新 init 的
-`vault.root` 默认是相对 project root 的 `vault`。
+浏览器打开 `http://127.0.0.1:8765`。
 
-创建第一条 Markdown：
+如果想先体验零配置 tour：
 
 ```bash
-mkdir -p vault/00-Inbox/ManualNotes
-cat > vault/00-Inbox/ManualNotes/first-note.md <<'EOF'
-# 我的第一条 MindForge 笔记
-
-今天我开始测试 MindForge。
-我希望它能帮我把学习资料整理成可以复习和召回的知识卡片。
-EOF
+mindforge demo
 ```
 
-在 `configs/mindforge.yaml` 里配置 `llm.models.main`，并把
-`llm.default_model` 指向 `main`。可以用 shell export，也可以放在当前项目或
-vault 上级目录的本地 `.env`；不要写 API key 进 YAML。
-通用 OpenAI-compatible / Anthropic-compatible 路由示例通常只需要：
+---
 
-- `MINDFORGE_LLM_API_KEY`
-- `type: openai_compatible`，或 Anthropic 协议 endpoint 用
-  `type: anthropic_compatible` / `type: anthropic`
+## 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **Vault** | 本地工作区，包含 Source（原始资料）、Knowledge Cards（知识卡片）、Projects 等 |
+| **Source** | 原始输入文件（Markdown、TXT 等），放在 `00-Inbox/` 下 |
+| **AI Draft** | AI 从 source 自动生成的知识草稿，状态为 `ai_draft` |
+| **Approved Card** | 你显式审批后的正式知识卡片，状态为 `human_approved` |
+| **Library** | 所有 approved card 的可浏览知识库 |
+| **Trash** | 安全回收站——移入 Trash 只移除卡片，**不删除 source 文件** |
+| **Processing Workflow** | 固定五段加工流程：初筛 → 提炼 → 关联建议 → 复习问题 → 行动项提取 |
+
+**关键边界：AI 只生成草稿，审批是人的事。**
+
+---
+
+## Web 控制台
+
+启动后打开 `http://127.0.0.1:8765`，可用页面：
+
+| 页面 | 用途 |
+|------|------|
+| **Home** | 状态总览、下一步建议 |
+| **Setup** | 配置模型、Processing Workflow 查看、添加 source |
+| **Sources** | 管理 watched sources、Process now |
+| **Review** | 查看 AI 草稿、编辑、审批 |
+| **Library** | 浏览已审批知识卡片 |
+| **Trash** | 查看和恢复已移除的卡片 |
+| **Search** | 本地词法检索（BM25） |
+
+---
+
+## 配置模型
+
+### Web Setup（推荐）
+
+1. 打开 **Setup** 页面
+2. 点击 **\+ Add model**
+3. 填写：
+   - **Model id**: 模型别名，如 `main`、`claude`
+   - **Type**: `anthropic` / `anthropic_compatible` / `openai_compatible`
+   - **Base URL**: 模型 endpoint
+   - **Model**: 模型名，如 `claude-3-5-haiku-latest`
+   - **API key**: 输入你的 API key
+4. 保存
+
+API key 会存入本地 **secret store**（`.mindforge/secrets.json`，已 gitignore），不会写入 YAML。Web 和 CLI 只显示脱敏后的 key（如 `sk-****abcd`）。
+
+### Default Model 与 Model Routing
+
+- **Default model**: 所有 workflow step 默认使用的模型
+- **Model routing**: 可选，每个 workflow step（Triage / Distill / Link Suggestion / Review Questions / Action Extraction）可指定不同模型
+
+### 支持的模型类型
+
+| Type | 适用场景 |
+|------|---------|
+| `anthropic` | 原生 Anthropic API |
+| `anthropic_compatible` | 兼容 Anthropic 协议的 endpoint（DashScope、OpenRouter 等） |
+| `openai_compatible` | 兼容 OpenAI 协议的 endpoint（Ollama、vLLM、DeepSeek 等） |
+
+Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_optional: true` 配置。
+
+### 环境变量模式（Advanced）
+
+如果不使用 secret store，也可以设置环境变量：
 
 ```bash
-export MINDFORGE_LLM_API_KEY="<your-api-key>"
-mindforge llm ping
+export MINDFORGE_LLM_API_KEY="<your-key>"
 ```
 
-跑通最小流程：
+并在 YAML 中声明 `api_key_env: MINDFORGE_LLM_API_KEY`。**不建议普通用户使用此方式** —— secret store 更简单安全。
+
+---
+
+## 添加 Source 并生成 AI Draft
+
+### Source 可以是什么
+
+- 单个 Markdown / TXT 文件
+- 整个文件夹（递归扫描子文件夹）
+- 支持 Cubox Markdown、Plain Markdown、WebClip、ChatExport 等格式
+
+### Web 方式
+
+1. 打开 **Setup** 页面，在 "Add a file or folder" 区域输入路径
+2. Frequency 选 **Manual**（手动触发）
+3. 点击 **Add and process now** —— 这会调用真实 LLM 生成 `ai_draft`
+
+### CLI 方式
 
 ```bash
-mindforge watch list
-mindforge watch add vault/00-Inbox/ManualNotes/first-note.md
-mindforge approve list
-mindforge approve
-mindforge approve 1 --confirm
-mindforge recall --query "MindForge"
+# 添加并立即处理（注册为 watched source）
+mindforge watch add /path/to/folder --every manual
+
+# 一次性导入（不注册为 watched source）
+mindforge import /path/to/file.md
 ```
 
-第一次可以先不要 approve。`approve` 是写入边界：它把 `ai_draft` 显式晋升
-为 `human_approved`。`mindforge approve list` 会显示 `[1]` 这样的短编号、
-short ref 和 source 摘要；`mindforge approve 1 --confirm` 是显式人工动作，
-不是自动 approve。approve 成功后 MindForge 会默认刷新本地 recall index，
-所以通常不需要手动运行 `mindforge index rebuild`。如果缺少
-对应 provider 的 API key，真实 provider 会友好失败；MindForge 不会偷偷
-fallback 到 fake。
+### Frequency 说明
 
-`watch add` 会注册一个顶层 watched source（本地文件或本地文件夹），并立即
-处理当前内容生成 `ai_draft`。文件夹默认递归发现 supported files；子文件继承
-顶层文件夹的 scan frequency，不会被注册成独立 watched source。
+| Frequency | 行为 |
+|-----------|------|
+| `manual` | 不自动扫描，需手动 Process now |
+| `hourly` / `daily` / `weekly` | 按周期自动扫描 |
+| `every 1h` / `6h` / `12h` / `24h` | 精确间隔 |
+
+### Source 变更语义
+
+- Source 内容变化 → 可生成新 draft
+- Source 被删除 → 在 diagnostics 中标记 Missing，**不删除已生成的 knowledge card**
+- Stop watching → 只移除 registry 记录，不删除 source 和 cards
+
+---
+
+## Review 与 Approve
+
+### Review（查看草稿）
+
+Web: 打开 **Review** 页面，左侧列表选 card，右侧可阅读、编辑 body。
+
+CLI:
 
 ```bash
-mindforge watch add /path/to/folder --recursive --every daily
-mindforge watch add /path/to/file.md --every manual
-mindforge watch scan
-mindforge watch scan --all
-mindforge watch scan <id-or-path>
+mindforge approve list          # 列出待审批草稿
+mindforge approve show --card <path>  # 查看草稿内容
 ```
 
-第一阶段支持 `manual`、`hourly`、`daily`、`weekly`、`every 1h/6h/12h/24h`。
-本阶段没有长期后台 daemon；未来 polling / filesystem hook 也应复用同一份
-watched source registry、frequency 和 baseline snapshot。
+### Approve（显式审批）
 
-每次 scan 会和上一次 baseline 做 diff：新增或 content hash 变化的文件会重新
-进入 intake pipeline 并生成新的 `ai_draft`；未变化文件跳过；删除或 missing
-的 source 只在 diagnostics/baseline 中标记。核心原则：
+**审批必须显式确认。**
 
-- Source changes can create new drafts.
-- Source deletion never deletes approved knowledge.
-- Knowledge reduction is always manual.
-- Watch is additive by default.
+Web: Review 页面 → 确认 source 已 review → 点击 **Approve**。
 
-如果你只是一次性导入一个文件或文件夹，不想持续关注它，用：
+CLI:
 
 ```bash
-mindforge import /path/to/file-or-folder
+mindforge approve 1 --confirm   # 用短编号审批
 ```
 
-`import` 会处理当前内容生成 `ai_draft`，但不会加入 watched sources。导入目录
-时使用和 watched folder 相同的 recursive scan policy，并跳过 MindForge 生成
-知识输出、runtime/cache/logs、hidden/temp/unsupported 等文件。
-MindForge 会先做 triage 来过滤低价值输入；如果被 skipped，输出会包含
-`value_score`、threshold、`should_process` 和下一步提示。这不是 approve
-边界，只是避免制造低质量草稿。你确认要强制生成草稿时可以用：
+审批后：
+- Card 状态变为 `human_approved`
+- 出现在 Library 中
+- 可被 Search/Recall 检索
+- Source 文件移动到 `00-Inbox/_processed/`（保留证据）
+
+---
+
+## Library（知识库）
+
+Web: **Knowledge Library** 页面浏览所有 approved card。
+
+CLI:
 
 ```bash
-mindforge import /path/to/file-or-folder --force
+mindforge library list           # 列出知识库卡片
+mindforge library show <ref>     # 查看单张卡片
+mindforge library stats          # 统计摘要
 ```
 
-`--force`（同 `--no-triage`）只覆盖 triage 低分拦截，不会绕过
-`already_processed` / `already_approved` 去无限生成重复卡片。生成的
-`ai_draft` 仍必须显式 `approve` 才会进入 `human_approved`。
+每张卡片保留完整 provenance：source path、strategy id/version、prompt versions、model routing per step、run id。
 
-新生成的 AI Card 会在 frontmatter 里保留生成证据链：source id/path/title/type、
-source content hash、strategy id/version/schema、stage prompt versions、
-workflow model routing 和 run id。approve 只把 `status` 改成
-`human_approved` 并回写 source archive path，不会丢掉这些 provenance。
+---
 
-`00-Inbox/` 是系统自带的 default watched source。它不是一个额外命令，也不
-需要删除；`mindforge watch list` 会展示它。
+## Trash（回收站）
 
-Project root / vault path rules:
+Move to Trash 是安全移除：卡片文件移动到 `90-Archive/Trash/Knowledge-Cards/`，**source 文件不受影响**。
 
-- project root 是运行 `mindforge init` 的目录，包含 `configs/mindforge.yaml`、
-  `.env.example` / `.env` 和 `vault/`。
-- `vault.root: vault` 按 project root 解析，不按任意 shell cwd 解析。
-- `import` / `watch add` 支持 absolute path、cwd-relative、
-  project-root-relative 和 active-vault-relative。
-- 找不到路径时会明确报 `File not found`，并打印 cwd / project root /
-  active vault / tried candidates。
+### Web
 
-例如这些都可以：
+- Review / Library 中的卡片有 **Move to Trash** 按钮
+- 点击后确认对话框说明"只移除卡片，不删除 source 文件"
+- **Trash** 页面可查看、预览和 Restore
+
+### CLI
 
 ```bash
-cd /tmp/mindforge-first-run
-mindforge import vault/00-Inbox/ManualNotes/first-note.md
+# 移入 Trash
+mindforge trash move <card-path> --confirm
 
-cd /tmp/mindforge-first-run/vault
-mindforge import 00-Inbox/ManualNotes/first-note.md
+# 查看 Trash
+mindforge trash list
+mindforge trash show <trash-path>
 
-mindforge import /tmp/mindforge-first-run/vault/00-Inbox/ManualNotes/first-note.md
+# 恢复
+mindforge trash restore <trash-path> --confirm
 ```
 
-Active vault resolution rule: explicit `--vault` wins first, then MindForge
-detects a cwd/ancestor vault, then uses project root `configs/mindforge.yaml`
-`vault.root`, then falls back to configured/bundled defaults. A fresh vault only
-needs `00-Inbox/` to be detected, so this works:
+永久删除当前未实现。Restore 后卡片回到 Review 或 Library，状态恢复为移入前的 `ai_draft` 或 `human_approved`。
+
+---
+
+## Processing Workflow 与 Prompt
+
+Web Setup 的 **Processing workflow** 区域展示了当前的固定五段 **Knowledge Card Workflow**：
+
+| Step | 中文 | 做什么 |
+|------|------|--------|
+| Triage | 初筛 | 评估 source 是否值得生成知识卡片，给出 track / value_score |
+| Distill | 提炼 | 从 source 提取核心知识内容，生成卡片草稿主体 |
+| Link Suggestion | 关联建议 | 建议可能相关的主题、项目或已有知识链接 |
+| Review Questions | 复习问题 | 生成用于后续回忆和自测的问题 |
+| Action Extraction | 行动项提取 | 提取可跟进的行动项或待办 |
+
+每个 step 可以：
+- 选择不同的模型
+- **View prompt** —— 点击查看当前使用的 prompt 全文（只读）
+
+### Prompt 查看
+
+CLI:
 
 ```bash
-mkdir -p /tmp/my-mindforge-vault/00-Inbox/ManualNotes
-cd /tmp/my-mindforge-vault
-mindforge watch list
+mindforge prompts list            # 列出所有 prompt
+mindforge prompts show triage@v1  # 查看 triage 的 v1 prompt
 ```
 
-If you run commands from the source repo or another non-vault directory, pass
-`--vault <path>` or run `mindforge init`. When cwd vault and configured vault
-differ, CLI output shows `project root`, `config path`, `active vault`, and
-`configured vault is fallback candidate only: ...`.
+当前 prompt 是只读的。Prompt 版本可在 config 中配置（`prompts.triage_version: v1`），prompt override 和编辑功能是后续计划。
 
-## Three Concepts You Need First
+---
 
-1. **Vault**
-   MindForge 的本地工作区。例子：
-   `/Users/jinkun.wang/MindForgeVault`。
+## CLI 常用命令
 
-2. **Inbox**
-   原始资料入口。第一天只需要用 `00-Inbox/ManualNotes`。
+| 场景 | 命令 | 说明 |
+|------|------|------|
+| 启动 Web | `mindforge web` | 启动本地控制台 `http://127.0.0.1:8765` |
+| 零配置 demo | `mindforge demo` | 60 秒安全 tour |
+| 初始化 | `mindforge init` | 创建 vault 骨架 + config |
+| 查看状态 | `mindforge status` | workspace / vault / draft / recall 汇总 |
+| 诊断 | `mindforge doctor` | 环境 + 配置 + 风险快照 |
+| 添加 source | `mindforge watch add <path>` | 注册 watched source 并立即处理 |
+| 一次性导入 | `mindforge import <path>` | 处理当前内容，不注册为 watched |
+| 查看 watched | `mindforge watch list` | 列出所有 watched sources |
+| 扫描 | `mindforge watch scan --all` | 扫描 due sources |
+| 停止 watching | `mindforge watch delete <ref>` | 只删 registry，不删 source/cards |
+| 查看 drafts | `mindforge approve list` | 列出待审批 ai_draft |
+| 显示 draft | `mindforge approve show --card <path>` | 查看草稿 metadata |
+| 审批 | `mindforge approve 1 --confirm` | 显式审批（短编号） |
+| 知识库列表 | `mindforge library list` | Library card metadata |
+| 知识库详情 | `mindforge library show <ref>` | 查看单张卡片 |
+| Trash 列表 | `mindforge trash list` | 查看已移除卡片 |
+| Trash 移入 | `mindforge trash move <path> --confirm` | 安全移入 Trash |
+| Trash 恢复 | `mindforge trash restore <path> --confirm` | 从 Trash 恢复 |
+| 查看策略 | `mindforge strategies list` | 只读查看内置策略元数据 |
+| 查看 prompt | `mindforge prompts show triage` | 只读查看 prompt 全文 |
+| 检索 | `mindforge recall --query "关键词"` | 本地 BM25 词法检索 |
+| 每日入口 | `mindforge today` | 只读汇总待办/复习/索引 |
+| 版本信息 | `mindforge version` | 版本 + 配置摘要（不含 secret） |
 
-3. **Approve**
-   MindForge 先生成 `ai_draft`。只有你显式 approve 后，才会变成
-   `human_approved`。这是核心安全边界。
+---
 
-## What Init Creates
+## 架构概览
 
-第一次看到很多目录是正常的。第一天只需要关注：
-
-- `00-Inbox/ManualNotes`
-- `20-Knowledge-Cards`
-- `configs/mindforge.yaml`
-
-其他目录先不用管：
-
-- `00-Inbox/Cubox`: Cubox 导出内容；Cubox 只是数据源。
-- `00-Inbox/WebClips`: 网页剪藏。
-- `00-Inbox/ChatExports`: 聊天记录导出。
-- `00-Inbox/Documents`: 通用本地文档（Markdown/TXT/HTML/JSON/CSV/TSV/XML/URL metadata）。
-- `00-Inbox/PDFs` / `00-Inbox/Docs`: 可选依赖入口；缺依赖时会明确提示，不假装成功。
-- `30-Projects`: 项目上下文，第一天不用管。
-- `80-Reviews`: 复习，第一天不用管。
-- `90-System`: 系统辅助，第一天不用管。
-- `_attachments`: 附件，第一天不用管。
-
-`00-Inbox/` 是原始资料入口。`00-Inbox/ManualNotes/` 最适合新手第一天使用，
-直接放普通 Markdown。
-
-`20-Knowledge-Cards/` 是知识卡片输出区，`ai_draft` 和 `human_approved` 都和
-这里有关。新手不要手动乱改 generated 内容。
-
-Source 和 Card 不是同一个东西：`00-Inbox/` 里的文件是原始证据，
-`20-Knowledge-Cards/` 里的文件是加工后的知识卡片。`process` 阶段不会移动
-source；生成 `ai_draft` 后 source 仍留在原始 Inbox。只有你显式 approve 成功
-后，MindForge 才会把 vault 内的 source 移到
-`00-Inbox/_processed/<adapter>/`，例如
-`00-Inbox/_processed/ManualNotes/`。原始 source 不会被默认删除，card
-frontmatter 会保留 `source_path` / `source_archive_path` / `source_id` /
-`adapter_name` 等 provenance。
-
-`20 / 30 / 80 / 90` 这些目录是后续完整知识工作流准备的，不是第一天必须
-理解。不要随便删除即可。
-
-## Config Files
-
-### `configs/mindforge.yaml`
-
-这是普通用户最重要的基础配置文件。第一天只需要关心：
-
-- `vault.root`: vault 在哪里；新 init 默认写 `vault`，按 project root 解析。
-- `llm.models`: 用户配置的可调用模型清单。每个 model id 指向一个 endpoint、
-  协议类型、实际模型名和 API key env var name。
-- `llm.default_model`: 默认使用的 model id。大多数用户只需要一个模型。
-- `llm.routing`: 可选。高级用户可以把 workflow step 路由到不同 model id；
-  省略时所有步骤使用 `default_model`。
-- `strategy.active`: 默认知识抽取策略；缺省为 `knowledge_card`
-  （Knowledge Card Strategy）。它只决定 SourceDocument 如何变成 AI Card
-  envelope，不决定 provider/model。
-- `telemetry.local_only`: 只写本地，不上传。
-
-新项目里的 YAML 是 user override，不是 MindForge internal full config dump。
-`sources.registry`、state/index 路径、prompt versions、search 权重和 logging
-细节由 package 内置 defaults 承担，运行时会做：
-
-```text
-internal defaults + configs/mindforge.yaml override = effective config
+```
+SourceAdapter                ← 文件类型适配（Markdown/TXT/CSV/...）
+  → SourceDocument           ← 统一中间表示
+  → Processing Pipeline      ← 固定五段 Knowledge Card Workflow
+    ├── Triage               ← 初筛（value_score + track）
+    ├── Distill              ← 提炼（card body）
+    ├── Link Suggestion      ← 关联建议
+    ├── Review Questions     ← 复习问题
+    └── Action Extraction    ← 行动项
+  → AI Draft (.md)           ← frontmatter + body，status = ai_draft
+  → Human Approval           ← 显式 approve --confirm
+  → Approved Card            ← status = human_approved
+  → Library / Recall / Trash ← 后续消费
 ```
 
-极简示例：
+**分层边界**：
 
-```yaml
-version: 0.1
-vault:
-  root: vault
-llm:
-  default_model: main
-  models:
-    main:
-      type: openai_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
-      base_url: https://your-router.example.com/v1
-      model: your-model-name
-strategy:
-  active: knowledge_card
-telemetry:
-  enabled: true
-  local_only: true
+| 层 | 职责 | 不做什么 |
+|----|------|---------|
+| Web（React/FastAPI） | UI + API | 不直接操作文件，不碰 raw secret |
+| CLI（Typer） | 命令入口 | 不绕过 service，不直接改 YAML |
+| Service（Python） | 业务语义 | 审批、trash、library、strategy 等规则 |
+| Provider（LLM） | 调用 LLM | 不在前端运行，不打印 raw key |
+| Secret Store | 保存 API key | 已被 gitignore，不入 YAML/Web/CLI 输出 |
+
+---
+
+## 配置文件与本地数据
+
+### 配置文件
+
+- **`configs/mindforge.yaml`**: 非 secret 的用户配置（vault 路径、模型定义、prompt 版本等）。运行时会 merge 内置 defaults。
+- **`.env`**: 环境变量（API key 等）。**已 gitignore，不要提交**。
+- **`.mindforge/secrets.json`**: Web 用户输入的 API key 本地存储。**已 gitignore**。
+
+### 本地运行时数据
+
+`.mindforge/` 目录（已 gitignore）：
+
+| 文件/目录 | 用途 |
+|-----------|------|
+| `secrets.json` | API key 本地存储 |
+| `state.json` | 处理状态 checkpoint |
+| `watched_sources.json` | Watched source registry |
+| `runs/` | 运行日志 |
+| `telemetry.jsonl` | 本地使用统计（不上传） |
+
+### 旧配置兼容
+
+Legacy 配置（`llm.active_profile` / `llm.profiles`）仍可加载，但新写入使用 `llm.models` / `llm.default_model` / `llm.routing`。
+
+---
+
+## 安全原则
+
+| 原则 | 实现 |
+|------|------|
+| API key 不进 Git | `.env` + `.mindforge/` 均已 gitignore |
+| API key 不进 Web 前端 | Secret store 只在后端 runtime；API 只返回 masked 值 |
+| API key 不进 README | ✅ |
+| AI 不自动审批 | 所有 approve 路径必须显式 `--confirm` |
+| Source 删除不删知识 | Stop watching + Move to Trash 都不动 source 文件 |
+| Trash 是安全移除 | 不是永久删除；Restore 可用 |
+| 本地优先 | 不联网、不上传 telemetry、纯本地 BM25 检索 |
+| 不做 RAG/embedding | 当前检索是词法 BM25，不是向量搜索 |
+
+---
+
+## 当前限制
+
+| 限制 | 说明 |
+|------|------|
+| **固定五段 workflow** | 不支持自定义 step 数量/顺序 |
+| **Prompt 只读** | 可查看不可编辑（override 是后续计划） |
+| **一个 production strategy** | `knowledge_card` 是唯一的 production-ready workflow |
+| **无 permanent delete** | Trash 只做安全移除，永久删除未实现 |
+| **无后台 daemon** | Watch frequency 依赖手动 `watch scan` 或 cron 触发 |
+| **不做 RAG/embedding** | BM25 词法检索是当前唯一检索路径 |
+| **不做 Obsidian plugin** | MindForge 是独立本地工具 |
+
+---
+
+## Roadmap
+
+### 近期
+
+- **Prompt override / restore default**: 允许用户 override prompt 并安全回退
+- **Web Prompt 编辑查看增强**: prompt version diff、manifest 可视化
+- **CLI/Web parity polish**: 补齐 CLI trash 和 watch frequency edit
+- **README / docs polish**: 持续更新
+
+### 中期
+
+- **Workflow step atom registry**: 为自定义 workflow 做架构准备
+- **内置 workflow 组合**: 允许在现有多套策略中选择
+- **Wiki View**: 从 approved cards 自动生成可浏览的知识 wiki
+- **Better recall/review**: recall 增强、复习调度改进
+- **Structured source support**: 增强 CSV/JSON/PDF 等 adapter
+
+---
+
+## 开发者
+
+### 项目结构
+
+```
+mindforge/
+├── src/mindforge/          # 核心 Python 包（service、config、pipeline 等）
+├── src/mindforge_web/      # FastAPI Web 后端（router、schema、facade）
+├── web/                    # React/Vite 前端（TypeScript）
+├── tests/                  # 测试
+├── prompts/                # Prompt 模板（用户可见）
+├── templates/              # Card 输出模板（Jinja2）
+├── configs/                # 用户配置（mindforge.yaml 等）
+└── docs/                   # 开发者文档
 ```
 
-第一天只需要确认 `vault.root`、`llm.default_model` 和对应 model 的
-`api_key_env/base_url/model` 是否正确。`learning_tracks.yaml` 使用 package
-内置默认值，不再由 init 默认生成。`llm.example.yaml` 不再是新用户项目里的
-第二个配置入口；主配置入口就是 `configs/mindforge.yaml`。
-
-Legacy configs with `llm.active_profile` / `llm.profiles` still load, but new
-configs should use `llm.models` / `llm.default_model` / optional `llm.routing`.
-
-Advanced routing example:
-
-```yaml
-llm:
-  default_model: strong
-  models:
-    cheap:
-      type: openai_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
-      base_url: https://router.example.com/v1
-      model: cheap-model
-    strong:
-      type: anthropic_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
-      base_url: https://router.example.com/anthropic
-      model: strong-model
-  routing:
-    triage: cheap
-    distill: strong
-    link_suggestion: cheap
-    review_questions: strong
-    action_extraction: strong
-```
-
-Local models are regular OpenAI-compatible endpoints:
-
-```yaml
-llm:
-  default_model: local
-  models:
-    local:
-      type: openai_compatible
-      api_key_env: MINDFORGE_LOCAL_API_KEY
-      api_key_optional: true
-      base_url: http://localhost:11434/v1
-      model: qwen2.5:14b
-```
-
-Fake/stub/test models are development fixtures, not user configuration.
-
-### `.env.example`
-
-secret/API key 样例。真正使用时复制成 `.env`。`.env` 不能提交到 git。
-MindForge 只显示 key 是否存在，不打印 secret 值。也可以不用 `.env`，直接
-用 shell `export MINDFORGE_LLM_API_KEY=...`。
-
-### Existing vault / old config
-
-旧 vault 不会被自动迁移。新 `mindforge init` 只影响新项目；如果你的
-`configs/mindforge.yaml` 是早期生成的 legacy full config，MindForge 仍会
-支持它，但不会自动删除旧字段或覆盖正式 vault。
-
-迁移建议：
-
-- 先备份旧 `configs/mindforge.yaml`。
-- 在临时空目录运行 `mindforge init`，查看新生成的极简模板。
-- 手动把正式配置替换成新模板，并保留原来的 `vault.root`。
-- API key、base_url、model 仍放 `.env` 或 shell env，不要写进 YAML。
-- 如果不确定，不要直接覆盖正式 vault；先在临时 vault 验证。
-
-## Markdown Sources Are Sources, Not Knowledge Types
-
-Cubox Markdown、Plain Markdown、WebClip Markdown、ChatExport 不是不同知识
-类型。
-
-它们只是不同 source adapter：
-
-- `ManualNotes`: 你手写的普通 Markdown。
-- `Cubox`: 从 Cubox 导出的内容，可能带 URL、高亮、原文信息。
-- `WebClips`: 网页剪藏。
-- `ChatExports`: 聊天记录导出。
-
-MindForge 内部会把它们统一成 `SourceDocument`。用户不需要记很多“知识类型”，
-只需要知道这些是不同来源的资料入口。Cubox 只是一个数据源入口，不是
-MindForge 的中心架构。
-
-## Safety Model
-
-- 真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY` 并运行 watch/import/process
-  时调用；`llm ping` 只检查 env presence，不发 HTTP。
-- no real LLM call happens during init/config/status/readiness checks.
-- `real-opt-in` / explicit opt-in 仍适用于 guarded smoke、custom strategy
-  runtime 和任何可能产生费用或读取敏感资料的诊断路径。
-- 不调用真实 Cubox API。
-- does not call a real LLM。
-- does not call the real Cubox API。
-- no real Cubox。
-- 不自动 approve。
-- does not auto-approve。
-- No automatic approve。
-- 不自动写正式 Obsidian note。
-- `.env` secret 不打印；只显示 key 是否存在。
-- does not print `.env` secret values。
-- no `.env` is read by default status/readiness paths。
-- `approve` 必须显式 `--confirm`。
-- `human_approved` 只能由 explicit approval / human decision gate 产生。
-- Human Decision Gate Map: `ai_draft -> mindforge approve --confirm -> human_approved`。
-- Recall 是 local lexical recall / BM25，本地词法检索，不是 RAG /
-  embedding / semantic search / semantic merge。
-- No RAG / embedding。
-- No Obsidian plugin。
-- 不自动整理真实 vault。
-- does not automatically modify a real private vault。
-- 不做 git tag、release automation、force push。
-- 默认 dogfood 路径是 dry-run 或 read-only，真实写入必须明确确认。
-- every dogfooding session must be a dry-run by default。
-- no write occurs into a real obsidian vault unless a future human-authorized
-  write gate is added。
-- no human_approved card is generated by automation。
-- no custom strategy is executed by discovery or preview。
-- local-first privacy contract: local files stay local, secret values are not
-  printed, and writes require an explicit human action。
-- no tag, no force push。
-
-Real ≠ Approved: real provider output is still review-only until a human uses
-the human decision gate.
-
-## Common Commands
-
-### First Status Commands
-
-| Command | Use |
-|---|---|
-| `mindforge demo` | 零配置演示 |
-| `mindforge init --interactive` | 初始化本地工作区 |
-| `mindforge status` | 查看整体状态 |
-| `mindforge doctor` | 检查配置和安全状态 |
-| `mindforge watch list` | 查看 default `00-Inbox` 和用户添加的 watched sources |
-| `mindforge watch add <file-or-folder> --every daily` | 注册 watched source，并立即处理当前内容生成 `ai_draft` |
-| `mindforge watch scan [<id-or-path>]` | 扫描 due source 或指定 source，按 baseline 只处理新增/变化文件 |
-| `mindforge watch scan --all` | 扫描全部 watched sources |
-| `mindforge watch pause/resume <id-or-path>` | 暂停或恢复保存的 watched source |
-| `mindforge watch delete <file-or-folder-or-id>` | 只删除 watched source registry 记录，不删除 source 或 cards |
-| `mindforge import <file-or-folder>` | 一次性导入当前内容，不加入 watched sources；默认尊重 triage |
-| `mindforge import <file-or-folder> --force` | Advanced：覆盖 triage 低分拦截生成 `ai_draft`，不绕过重复/approved 边界 |
-| `mindforge approve list` | 查看待确认 `ai_draft`，带短编号 / short ref |
-| `mindforge approve show --card <path> --show-content` | 查看草稿内容 |
-| `mindforge approve 1 --confirm` | 用短编号显式确认生成 `human_approved`，并默认刷新 recall index |
-| `mindforge approve --card <path> --confirm` | 高级路径模式；仍然兼容长 card path |
-| `mindforge recall --query "query"` | 本地词法召回，不是 RAG |
-| `mindforge library stats` | Inspect：查看知识库总览、状态计数、index 状态 |
-| `mindforge strategies list` | 只读查看用户可见 extraction strategy |
-| `mindforge strategies show knowledge_card` | 只读查看 Knowledge Card Strategy 的版本、安全边界和 prompt version 线索 |
-| `mindforge prompts list` | 只读查看 built-in prompt assets 的 stage/version/manifest 摘要 |
-| `mindforge prompts show triage@v1` | 只读查看某个 prompt asset；不编辑、不调用 LLM |
-| `mindforge library list` | Inspect：列出卡片 metadata 和 source provenance |
-| `mindforge library show <card-id-or-path>` | Inspect：查看单张卡片 metadata；`--show-content` 才显示 card body |
-| `mindforge index rebuild` | Advanced：手动刷新本地 BM25 index |
-
-### Advanced / Troubleshooting
-
-`scan/process` 仍然保留，适合排障、脚本化或检查底层 pipeline：
+### 运行测试
 
 ```bash
-mindforge scan
-mindforge process --limit 1
+ruff check .
+python -m pytest
+cd web && npm run build
 ```
 
-普通 first-run 用户优先使用 `watch add` 或 `import`，不用先理解
-`state.json` / checkpoint / pipeline 的中间状态。
-
-### Safe Real Dogfood
-
-Dogfood helper:
-
-```bash
-mindforge dogfood init-demo --target /tmp/dogfood-vault
-mindforge dogfood readiness --vault /tmp/dogfood-vault
-mindforge dogfood quickstart --vault /tmp/dogfood-vault
-```
-
-The quickstart prints a manual runbook only. It does not execute the listed
-commands, does not read `.env` contents, does not call a real LLM, does not
-call the real Cubox API, does not write formal Obsidian notes, and does not
-produce `human_approved`.
-
-For Cubox JSON export dry-run:
-
-```bash
-mindforge cubox dry-run --export /path/to/cubox-export.json
-mindforge cubox preview-ai-draft --export /path/to/cubox-export.json --limit 5
-```
-
-Start with `--limit 5`; do not exceed `--limit 20` during first runs. MindForge
-does not support full Cubox account sync, has no `--all` ingestion, and does
-not call the real Cubox API on this path.
-
-Obsidian dogfood remains staged/dry-run only:
-
-```bash
-mindforge obsidian next --vault /path/to/project-vault
-mindforge obsidian doctor --vault /path/to/project-vault
-mindforge obsidian scan --vault /path/to/project-vault --limit 20
-mindforge obsidian links --vault /path/to/project-vault
-mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run
-mindforge obsidian preflight --vault /path/to/project-vault --manifest <export>.manifest.json
-```
-
-Use a disposable, non-sensitive vault copy. No formal Obsidian note writes.
-No formal Obsidian notes are written. No default real LLM path. No telemetry upload.
-No `.env`, real LLM, real Cubox API, or auto-approve. This is a
-staged workflow: manifests, include/exclude filters, and diff preview are
-review aids only.
-
-Rollback rule: first dogfood runs should happen in a disposable or git-tracked
-project vault. Use `git status`, `git restore`, or remove specific staged files
-to roll back. Do not run broad destructive cleanup commands against a real vault.
-
-### Real Provider Opt-In
-
-Real Model Setup: 真实 dogfood 主路径使用 `configs/mindforge.yaml` 里的
-`llm.models` 和 `llm.default_model`。只把 API key 放进 shell env 或本地
-`.env`：
-
-```bash
-export MINDFORGE_LLM_API_KEY="<your-api-key>"
-mindforge llm ping
-mindforge watch add /path/to/non-sensitive-note.md
-```
-
-`llm ping` 只检查 key 是否存在，不发 HTTP。`watch add` / `import` 会生成
-`ai_draft`，不会自动 approve。缺 key 时命令会提示对应 model 配置的
-`api_key_env` 缺失，例如 `MINDFORGE_LLM_API_KEY`。MindForge
-不会 fallback 到测试替身。
-
-底层 synthetic provider smoke 仍需要显式 `--allow-real`；普通 Quick Start
-不需要它。它只用于已经理解 billing/privacy 风险后的诊断，不替代
-watch/import 主流程。
-
-### Approval
-
-Approval is the only supported `ai_draft -> human_approved` transition.
-`mindforge approve list` is the main pending review queue. It shows short
-numbers and refs so the usual write action is `mindforge approve 1 --confirm`.
-`mindforge approve --card <path> --confirm` remains available as the advanced
-path mode. After a successful approve, MindForge refreshes the local recall
-index by default; use `--no-index` only for troubleshooting.
-
-### Standard Quality Gate
-
-Maintainers should run `git diff --check`, `ruff check .`, and `python -m
-pytest` before landing documentation or behavior changes.
-
-### Future Gate Notes
-
-- sample folder / no-persist / dry-run modes are preferred for first real
-  dogfood.
-- diff preview and backup expectations are mandatory before any future formal
-  vault write gate.
-- G1 Real Cubox ingestion, G2 Real Obsidian formal-note write, G3 Approval UX,
-  G4 Custom executable strategy runtime, G5 RAG / embedding / semantic merge,
-  and G6 Public release / git tag remain future gates.
-
-## Architecture In One Page
-
-```text
-SourceAdapter
-  -> SourceDocument
-  -> processing pipeline
-  -> ai_draft
-  -> explicit approval
-  -> human_approved
-  -> recall / review / project context
-```
-
-- AI 只能生成 `ai_draft`。
-- `human_approved` 必须显式 approve。
-- Source 是原始证据，Card 是加工结果；Card 不替代 Source。
-- approve 成功后，vault 内 pending source 会移动到
-  `00-Inbox/_processed/<adapter>/` 作为已处理证据保留。
-- Processor / KnowledgeStrategy 只依赖 `SourceDocument`。
-- Cubox 只是 `SourceAdapter`，不是架构中心。
-- Obsidian / OPS 是人类知识工作台，不存机器 runtime/state/cache/index/logs/
-  vector/graph 派生层。
-- BM25/local lexical recall 是当前检索路径，不是 RAG。
-- 当前不做 RAG / embedding / semantic merge。
-- 当前不做 Obsidian plugin。
-- 当前不自动整理真实 vault。
-- Web 是 localhost-only Knowledge Workspace，默认绑定 `127.0.0.1`。
-  Home / Setup / Sources / Drafts / Library / Recall 形成闭环：Drafts 可阅读
-  和编辑 AI 草稿后再显式 approve；Library 可阅读和编辑 `human_approved`
-  卡片，保存后刷新本地 BM25 recall index。Provenance/debug 信息保留在
-  detail 折叠区，主列表优先展示知识正文和来源摘要。Web 复用后端 service，
-  不读取 source 正文，不显示或编辑 `.env` secret，不做 provider/prompt/
-  strategy editor，也不重写 CLI 业务规则。
-
-## Strategy Discovery
-
-```bash
-mindforge strategies list
-mindforge strategies show knowledge_card
-mindforge prompts list
-mindforge prompts show triage@v1
-```
-
-Normal product discovery shows one production extraction strategy:
-`knowledge_card` / Knowledge Card Strategy. It is implemented by the internal
-triage → distill → link_suggestion → review_questions → action_extraction
-prompt pipeline. Legacy configs that say `five_stage` still load as an alias,
-but new configs and new cards use `knowledge_card`.
-
-`strategies show` and `prompts list/show` are read-only visibility commands.
-They do not read `.env`, do not construct provider clients, do not edit prompt
-files, do not write cards, and do not approve anything. New cards generated by
-the default Knowledge Card Strategy persist strategy/prompt/source/provider provenance
-in frontmatter so future CLI/Web views can explain where the draft came from.
-
-Execution selection is now first-class and shared by `import`, `watch add`, and
-`process`:
-
-```bash
-mindforge import ./note.md --strategy knowledge_card
-mindforge watch add ./notes --strategy knowledge_card
-mindforge process --strategy knowledge_card
-```
-
-Priority is explicit `--strategy`, then a watched source `strategy_id` if one was
-stored by `watch add`, then `configs/mindforge.yaml` `strategy.active`, then the
-built-in default `knowledge_card`. Model routing remains separate:
-`llm.default_model` / `llm.routing` choose model ids; `--strategy` /
-`strategy.active` choose the extraction strategy. Internal deterministic
-baselines and planned/custom declarative metadata are hidden from normal
-discovery; `mindforge strategies list --include-internal` exists for developer
-debugging only and does not make those entries production strategies.
-
-## Developer Testing
-
-Tests should fake the LLM response, not the extraction strategy. The production
-test path is:
-
-```text
-SourceDocument
-  -> Knowledge Card Strategy
-  -> injected FakeLLMClient / StubLLM responses
-  -> CardEnvelope
-  -> ai_draft
-```
-
-The historical fake provider and deterministic baselines remain internal
-fixtures for CI, schema tests, and writer/debug baselines. They are not product
-providers or recommended extraction strategies, and README examples for normal
-users should not use them.
-
-Custom strategies are declarative metadata definitions. Use explicit opt-in via
-`--custom-path` to expose a local definition. Discovery is not execution;
-loading is not execution. Custom definitions load from an explicit path only:
-there is no implicit scan of your home directory, vault, or `.env`. A validation error
-should be read as a schema/config problem, not as execution output.
-MindForge does no arbitrary Python plugin loading, no arbitrary python runtime,
-no shell strategy, and no executable strategy runtime.
-Preview packets are review-only: not ai_draft, not human_approved, not
-`ai_draft`, and not `human_approved`. Any future implementation still needs
-explicit approval.
-
-Preview to future implementation remains a gated path: a preview definition can
-only become a future implementation after design review, tests, and explicit
-human authorization. It must not introduce arbitrary Python, shell execution,
-default real LLM usage, or automatic approval.
-
-Review-only artifact kinds include preview packets, readiness checks, and real smoke output.
-None of these artifacts is a Knowledge Card or an approval event.
-
-## Implementation Map
-
-Start reading code here:
-
-- `src/mindforge/cli.py`: top-level Typer command registry.
-- `src/mindforge/status_cli.py`: real-data status / doctor-style output.
-- `src/mindforge/app_context.py`: local config/path context.
-- `src/mindforge/sources/base.py`, `src/mindforge/sources/registry.py`,
-  `src/mindforge/scanner.py`: SourceAdapter and SourceDocument path.
-- `src/mindforge/provider_readiness.py`: provider readiness without real calls.
-- `src/mindforge/cubox_readiness.py`: Cubox readiness without real API calls.
-- `src/mindforge/approval_service.py`, `src/mindforge/approver.py`: approval
-  boundary.
-- `src/mindforge/library_service.py`, `src/mindforge/library_cli.py`: Knowledge
-  Library inventory and card provenance.
-- `src/mindforge/source_archive_service.py`: processed source archive after
-  explicit approve.
-- `src/mindforge/recall_service.py`, `src/mindforge/lexical_index.py`: local
-  lexical recall.
-- `src/mindforge/web_cli.py`, `src/mindforge_web/`, `web/src/`: local Web
-  console.
-- `tests/`: behavior tests and architecture boundary tests.
-
-CLI and Web should stay thin adapters. Services hold business semantics;
-presenters hold output shape. New behavior should not hide inside command
-bodies or routers.
-
-## Current Roadmap
-
-Done:
-
-- Web first slice, now evolved into Web Knowledge Workspace.
-- Real Data CLI Usability.
-- Documentation cleanup.
-- Product visibility and workflow support: CLI library inventory, processed
-  source archive, Web workflow/library visibility.
-
-Current:
-
-- README-first onboarding.
-- Local dogfood on non-sensitive or project-only data.
-
-Next:
-
-- Non-sensitive real vault dogfood.
-- Onboarding polish.
-- Packaging/install readiness.
-
-Not current direction:
-
-- RAG / embedding / semantic merge.
-- Obsidian plugin.
-- Real LLM enabled by default.
-- Real Cubox API calls enabled by default.
-- Hidden automatic approval.
-- Automatic organization of a real vault.
-- Cloud sync, accounts, OAuth, payments, hosting, or multi-user permissions.
-
-Future gates remain explicit: Real Cubox ingestion, Real Obsidian formal-note
-write, Approval UX polish, custom executable strategy runtime, RAG / embedding /
-semantic merge, and public release / git tag all require fresh design review and
-named human authorization. No automation may create a tag.
-
-## FAQ
-
-**我需要先配置真实 LLM 吗？**
-
-不需要。默认 `fake` provider 就能安全跑通流程。
-
-**为什么生成这么多目录？**
-
-它们是为完整知识工作流准备的。第一次只关注
-`00-Inbox/ManualNotes` 和 `20-Knowledge-Cards`。
-
-**Cubox / WebClip / ManualNotes 都是 Markdown，为什么分目录？**
-
-主要是为了保留来源语义和 adapter 处理差异，不代表知识类型不同。
-
-**approve 会发生什么？**
-
-`approve` 会把一张 `ai_draft` 显式晋升为 `human_approved`。不确定时先不要
-approve。approve 成功后，MindForge 会把对应 vault Inbox source 移到
-`00-Inbox/_processed/<adapter>/`，保留原始证据并让 Inbox 更像待处理队列。
-
-**原始 source 会不会被删除？**
-
-不会默认删除。Source 是证据，Card 是知识加工结果。vault 内 source 在
-approve 后会移动到 `_processed` 归档区；vault 外部 source 默认不移动，只在
-card metadata 里保留路径。
-
-**会不会自动读我的 Obsidian vault？**
-
-不会。只有你把路径指向某个 vault 并运行相应命令时，MindForge 才会处理
-对应路径。Obsidian 路径默认是 read-only / staged。
-
-**会不会打印 API key？**
-
-不会。MindForge 只显示 key 是否存在，不打印 secret 值。
-
-**recall 是不是 RAG？**
-
-不是。当前 recall 是本地词法检索 / BM25，不是 RAG、embedding、semantic
-search 或 semantic merge。
-
-## For Maintainers
-
-- [DESIGN.md](DESIGN.md): Web design-system discipline.
-- [docs/TESTING.md](docs/TESTING.md): quality gates and smoke checks.
-- [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md): real provider opt-in.
-- [docs/CUBOX_DRY_RUN.md](docs/CUBOX_DRY_RUN.md): Cubox JSON export dry-run.
-- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md):
-  compact future-gate guard ledger.
+### Service 层入口
+
+| Service | 文件 |
+|---------|------|
+| Config | `src/mindforge/config.py` |
+| Approval | `src/mindforge/approval_service.py` |
+| Library | `src/mindforge/library_service.py` |
+| Trash | `src/mindforge/trash_service.py` |
+| Recall | `src/mindforge/recall_service.py` |
+| Secret Store | `src/mindforge/secret_store.py` |
+| Strategy Registry | `src/mindforge/strategies/registry.py` |
+| Prompt Runtime | `src/mindforge/prompts_runtime.py` |
+| Web Config Service | `src/mindforge_web/services/web_config_service.py` |
+| Web Facade | `src/mindforge_web/services/web_facade.py` |
+
+CLI 和 Web Router 是薄适配器，不承载业务逻辑。
+
+### 相关文档
+
+- [DESIGN.md](DESIGN.md): Web 设计系统
+- [docs/TESTING.md](docs/TESTING.md): 质量门和 smoke check
+- [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md): 真实 provider opt-in
+- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md): 功能完成台账

@@ -494,7 +494,6 @@ class WebConfigService:
         from mindforge.config import REQUIRED_STAGES
         for stage in REQUIRED_STAGES:
             model_id = routing.get(stage, default_model)
-            prompt_ver = getattr(prompt_versions, stage, "v1") if hasattr(prompt_versions, stage) else "v1"
             try:
                 pv = prompt_versions.for_stage(stage)
             except Exception:

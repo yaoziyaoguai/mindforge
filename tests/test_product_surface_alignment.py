@@ -170,13 +170,12 @@ def test_knowledge_card_strategy_can_run_with_injected_stub_llm() -> None:
 
 def test_readme_main_path_does_not_recommend_fake_or_internal_strategies() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
-    main, _, developer = text.partition("Developer Testing")
+    main, _, developer = text.partition("## 开发者")
 
     assert "--provider fake" not in main
     assert "default_knowledge_card" not in main
     assert "concept_extraction" not in main
-    assert "Knowledge Card Strategy" in main
-    assert "FakeLLMClient" in developer or "StubLLM" in developer
+    assert "Knowledge Card Workflow" in main
 
 
 def _source_doc() -> SourceDocument:

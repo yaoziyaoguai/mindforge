@@ -444,7 +444,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <div className="rounded-md border border-line bg-stone-50 p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs text-muted">Active strategy</div>
+                    <div className="text-xs text-muted">Active workflow</div>
                     <div className="font-semibold text-ink">{editable.llm.processing_workflow.active_strategy_label}</div>
                     <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
                   </div>
