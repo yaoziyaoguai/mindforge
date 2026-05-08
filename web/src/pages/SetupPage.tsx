@@ -27,6 +27,9 @@ type SetupForm = {
   models: Record<string, ModelForm>;
   routing: Record<string, string>;
   routing_is_explicit: boolean;
+  wiki_mode: string;
+  wiki_model: string;
+  wiki_auto_rebuild: boolean;
 };
 
 /** 新增/编辑模型时的临时编辑状态 */
@@ -512,6 +515,39 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           ) : null}
 
+          {/* ================================================================ */}
+          {/* Wiki generation */}
+          {/* ================================================================ */}
+          <section className="space-y-4 rounded-md border border-line p-4">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Wiki generation</h2>
+              <p className="mt-1 text-sm text-muted">Configure how the Main Wiki is generated from approved cards.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="font-medium text-ink">Wiki mode</span>
+                <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.wiki_mode} onChange={(event) => setForm({ ...form, wiki_mode: event.target.value })}>
+                  <option value="deterministic">Deterministic (no model)</option>
+                  <option value="llm">LLM synthesis</option>
+                </select>
+                <span className="text-xs text-muted">{form.wiki_mode === "deterministic" ? "Does not call a model." : "Uses a configured model to synthesize the Main Wiki."}</span>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium text-ink">Wiki model</span>
+                <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.wiki_model || ""} onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
+                  <option value="">Use default model</option>
+                  {modelIds.map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
+                </select>
+                <span className="text-xs text-muted">{!hasConfiguredModels ? "Add a model first." : form.wiki_model ? `Uses ${form.wiki_model}.` : "Falls back to default model."}</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
+                Auto rebuild on approve (deterministic only)
+              </label>
+            </div>
+            <p className="text-xs text-muted">LLM rebuild requires manual action unless auto rebuild is enabled. Wiki model can only reference configured models.</p>
+          </section>
+
           <SourceAddPanel onRefresh={onRefresh} />
 
           {/* ================================================================ */}
@@ -595,6 +631,9 @@ function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
     ),
     routing: editable.llm.routing,
     routing_is_explicit: editable.llm.routing_is_explicit,
+    wiki_mode: editable.wiki?.mode ?? "deterministic",
+    wiki_model: editable.wiki?.model ?? "",
+    wiki_auto_rebuild: editable.wiki?.auto_rebuild_on_approve ?? false,
   };
 }
 
@@ -618,6 +657,9 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
     default_model: modelIds.length ? form.default_model : undefined,
     models: modelIds.length ? models : undefined,
     routing: form.routing_is_explicit ? compactRouting(form.routing, form.default_model) : undefined,
+    wiki_mode: form.wiki_mode || undefined,
+    wiki_model: form.wiki_model || undefined,
+    wiki_auto_rebuild_on_approve: form.wiki_auto_rebuild || undefined,
   };
 }
 

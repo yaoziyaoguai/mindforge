@@ -25,6 +25,7 @@ from mindforge_web.schemas import (
     EditableModelConfig,
     EditableProviderConfig,
     EditableVaultConfig,
+    EditableWikiConfig,
     EnvKeyStatus,
     NextAction,
     ProcessingWorkflowConfig,
@@ -158,6 +159,11 @@ class WebConfigService:
                 validation_errors=self._llm_validation_errors(raw),
                 warnings=self._llm_warnings(raw),
             ),
+            wiki=EditableWikiConfig(
+                mode=self.cfg.wiki.mode if hasattr(self.cfg, 'wiki') else "deterministic",
+                model=self.cfg.wiki.model if hasattr(self.cfg, 'wiki') else None,
+                auto_rebuild_on_approve=self.cfg.wiki.auto_rebuild_on_approve if hasattr(self.cfg, 'wiki') else False,
+            ),
             cubox=EditableCuboxConfig(
                 export_path=cubox_export,
                 import_path=cubox_import,
@@ -289,6 +295,15 @@ class WebConfigService:
 
         if patch.default_model is not None or patch.models or patch.routing:
             self._apply_llm_model_routing_patch(raw, patch)
+        # Save wiki config
+        if any(getattr(patch, f) is not None for f in ("wiki_mode", "wiki_model", "wiki_auto_rebuild_on_approve")):
+            wiki = raw.setdefault("wiki", {})
+            if patch.wiki_mode is not None:
+                wiki["mode"] = patch.wiki_mode
+            if patch.wiki_model is not None:
+                wiki["model"] = patch.wiki_model if patch.wiki_model else None
+            if patch.wiki_auto_rebuild_on_approve is not None:
+                wiki["auto_rebuild_on_approve"] = patch.wiki_auto_rebuild_on_approve
 
         self.config_path.write_text(
             yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
@@ -564,9 +579,12 @@ class WebConfigService:
         models = llm.get("models")
         if not isinstance(models, dict):
             return ["llm.models missing"]
+        # 无模型首次状态：default_model=null + models={} 合法，不报错
+        if not models:
+            return errors
         default_model = _str_or_none(llm.get("default_model"))
         if default_model is None or default_model not in models:
-            errors.append(f"llm.default_model={default_model!r} is not defined in llm.models")
+            errors.append("Please choose a default model from the configured models.")
         routing = llm.get("routing") or {}
         if isinstance(routing, dict):
             for stage, model_id in routing.items():

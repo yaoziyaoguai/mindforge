@@ -172,6 +172,12 @@ export interface ProcessingWorkflowConfig {
   workflow_steps: ProcessingWorkflowStep[];
 }
 
+export interface EditableWikiConfig {
+  mode: string;
+  model?: string | null;
+  auto_rebuild_on_approve: boolean;
+}
+
 export interface SetupEditableConfigResponse {
   config_path: string;
   normalized_on_save: boolean;
@@ -182,6 +188,7 @@ export interface SetupEditableConfigResponse {
     cards_exists: boolean;
     projects_exists: boolean;
   };
+  wiki?: EditableWikiConfig | null;
   llm: {
     active_provider: string;
     available_providers: string[];
@@ -230,6 +237,9 @@ export interface SetupConfigPatch {
     api_key_action?: "keep" | "clear" | "update" | null;
   }>;
   routing?: Record<string, string>;
+  wiki_mode?: string | null;
+  wiki_model?: string | null;
+  wiki_auto_rebuild_on_approve?: boolean | null;
   cubox_export_path?: string | null;
   cubox_import_path?: string | null;
 }

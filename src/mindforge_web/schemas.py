@@ -224,11 +224,19 @@ class EditableCuboxConfig(BaseModel):
     token_status: Literal["present", "missing", "hidden"]
 
 
+class EditableWikiConfig(BaseModel):
+    """Wiki 可编辑配置。"""
+    mode: str = "deterministic"
+    model: str | None = None
+    auto_rebuild_on_approve: bool = False
+
+
 class SetupEditableConfigResponse(BaseModel):
     config_path: str
     normalized_on_save: bool
     vault: EditableVaultConfig
     llm: EditableLLMConfig
+    wiki: EditableWikiConfig | None = None
     cubox: EditableCuboxConfig
     watch_summary: StatusItem
 
@@ -263,6 +271,9 @@ class SetupConfigPatch(BaseModel):
     default_model: str | None = None
     models: dict[str, SetupModelPatch] = Field(default_factory=dict)
     routing: dict[str, str] = Field(default_factory=dict)
+    wiki_mode: str | None = None
+    wiki_model: str | None = None
+    wiki_auto_rebuild_on_approve: bool | None = None
     cubox_export_path: str | None = None
     cubox_import_path: str | None = None
 
