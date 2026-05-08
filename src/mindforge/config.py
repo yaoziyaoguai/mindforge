@@ -1038,14 +1038,19 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
 def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
     """解析用户可见的新 LLM 语义，并生成现有执行层可消费的 routing plan。
 
-    ``LLMClient`` / provider factory 当前仍消费 ``active_profile/profiles``。
-    这里把新格式转换成单个内部 profile，保持执行链稳定；对用户和 Setup 暴露
-    的 source of truth 仍是 ``default_model/models/routing``。
+    中文学习型说明：首次安装可以没有模型（default_model=None, models={}）。
+    无模型时 Web/CLI 启动不受影响，需要 LLM 的动作（process/import/LLM wiki）
+    在 runtime 给出清晰错误。default_model 非空时必须引用 models 中存在的 id。
     """
 
-    default_model = _require(raw, "default_model", str, ctx="llm")
+    default_model = raw.get("default_model")  # 允许 None（首次无模型安装）
+    if default_model is not None and not isinstance(default_model, str):
+        raise ConfigError(
+            f"llm.default_model 必须是 str 或 null，得到 {type(default_model).__name__}"
+        )
     models_raw = _require(raw, "models", dict, ctx="llm")
-    if default_model not in models_raw:
+    # 无模型配置：default_model=None + models={} 合法
+    if default_model is not None and default_model not in models_raw:
         raise ConfigError(
             f"llm.default_model={default_model!r} 不在 llm.models 中；"
             f"已知：{sorted(models_raw)}"
@@ -1059,15 +1064,20 @@ def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
         )
     routing: dict[str, str] = {}
     for stage in REQUIRED_STAGES:
-        value = routing_raw.get(stage, default_model)
-        if not isinstance(value, str):
-            raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
-        if value not in models:
-            raise ConfigError(
-                f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
-                f"已知：{sorted(models)}"
-            )
-        routing[stage] = value
+        # 无 default_model 时 routing key 必须显式提供
+        if default_model is not None:
+            value = routing_raw.get(stage, default_model)
+        else:
+            value = routing_raw.get(stage)
+        if value is not None:
+            if not isinstance(value, str):
+                raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
+            if value not in models:
+                raise ConfigError(
+                    f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
+                    f"已知：{sorted(models)}"
+                )
+            routing[stage] = value
     for stage in routing_raw:
         if stage not in REQUIRED_STAGES:
             raise ConfigError(
