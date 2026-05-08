@@ -27,8 +27,10 @@ def _copy_demo_vault(tmp_path: Path) -> tuple[Path, Path]:
 
     cfg = yaml.safe_load(Path("configs/mindforge.yaml").read_text(encoding="utf-8"))
     cfg["vault"]["root"] = str(vault)
-    cfg["state"]["workdir"] = str(tmp_path / ".mindforge")
-    cfg["logging"]["file"] = str(tmp_path / "mindforge.log")
+    # configs/mindforge.yaml 现在是 user-level override；测试只覆盖需要改写的
+    # 用户字段，完整 state/logging 默认由 runtime defaults 合并。
+    cfg.setdefault("state", {})["workdir"] = str(tmp_path / ".mindforge")
+    cfg.setdefault("logging", {})["file"] = str(tmp_path / "mindforge.log")
     cfg_path = tmp_path / "mindforge.yaml"
     cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return vault, cfg_path

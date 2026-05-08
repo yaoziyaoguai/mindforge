@@ -22,8 +22,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
-import yaml
-
 from mindforge.scanner import ScanResult, Scanner
 from mindforge.source_mux import SourceMux
 from mindforge.sources.base import SourceDocument
@@ -42,10 +40,12 @@ _DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
 
 
 def test_default_yaml_enables_cubox_markdown() -> None:
-    """默认 yaml 必须把 cubox_markdown 作为启用 source 之一。"""
-    raw = yaml.safe_load(_DEFAULT_YAML.read_text(encoding="utf-8"))
-    assert "cubox_markdown" in raw["sources"]["enabled"]
-    assert raw["sources"]["registry"]["cubox_markdown"]["enabled"] is True
+    """默认 source 语义来自 runtime defaults + user override 合并后的配置。"""
+    from mindforge.config import load_mindforge_config
+
+    cfg = load_mindforge_config(_DEFAULT_YAML)
+    assert "cubox_markdown" in cfg.sources.enabled
+    assert cfg.sources.registry["cubox_markdown"].enabled is True
 
 
 def test_default_yaml_does_not_enable_cubox_api() -> None:

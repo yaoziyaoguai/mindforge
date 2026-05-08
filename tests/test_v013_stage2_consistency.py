@@ -48,7 +48,8 @@ def test_bundled_config_active_provider_is_real_dogfood():
     text = Path("src/mindforge/assets/configs/mindforge.user.yaml").read_text(encoding="utf-8")
     assert "default_model: main" in text
     assert "models:" in text
-    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "API keys are stored in local secret store" in text
+    assert "api_key_env:" not in text
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):

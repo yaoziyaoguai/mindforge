@@ -11,6 +11,7 @@ from mindforge.llm import (
     LLMClient,
     LLMRequest,
     ProviderError,
+    build_provider_for_model,
     build_providers,
 )
 from mindforge.llm.client import ResolvedModel
@@ -82,6 +83,14 @@ def test_build_providers_unknown_type_raises() -> None:
     cfg.models["a"] = _FakeMC("a", type_="bogus_type")
     with pytest.raises(ProviderError, match="未注册"):
         build_providers(cfg)
+
+
+def test_build_provider_for_model_does_not_require_stage_routing() -> None:
+    """Wiki synthesis 等单模型用途可复用 provider 工厂，但不绑定 processing routing。"""
+
+    provider = build_provider_for_model(_FakeMC("wiki"))
+
+    assert isinstance(provider, FakeProvider)
 
 
 def test_client_resolve_for_each_stage() -> None:

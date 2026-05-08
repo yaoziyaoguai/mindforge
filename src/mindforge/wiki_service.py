@@ -278,9 +278,12 @@ def llm_rebuild_wiki(
     wiki_path = _wiki_path(cfg)
     wiki_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1) 解析 model
+    # 1) 解析 Wiki 专属 model。Wiki synthesis 是 approved cards 的派生视图，
+    # 不属于 processing pipeline 的五阶段 routing。
     model_id = cfg.wiki.model or cfg.llm.default_model
-    if not model_id or model_id not in {m.alias for m in cfg.llm.models.values()}:
+    if not model_id:
+        raise WikiError("wiki.mode=llm 需要配置 wiki.model 或 llm.default_model。请先在 Setup 中添加模型。")
+    if model_id not in cfg.llm.models:
         raise WikiError(f"wiki.model={model_id!r} 不在 llm.models 中。请在 Setup 中配置模型或设置 wiki.model。")
 
     # 2) 构建 CardDigest
@@ -310,31 +313,22 @@ def llm_rebuild_wiki(
 
     # 4) 加载 prompt + 调用 LLM
     from .assets_runtime import asset_root
-    from .llm.factory import build_providers
-    from .llm.client import LLMClient
     from .prompts_runtime import load_prompt, render
 
-    prompts_root = Path(prompts_dir) if prompts_dir else asset_root("prompts")
+    prompts_root = Path(prompts_dir) if prompts_dir else asset_root().joinpath("prompts")
     prompt_text = load_prompt(prompts_root, "wiki_synthesis", "v1")
     rendered = render(prompt_text, {"approved_cards": digest_json, "card_count": str(len(digests))})
 
-    # 5) 构建 provider + client
-    providers = build_providers(cfg.llm)
-    model_config = cfg.llm.models[model_id]
-    provider = providers.get(model_config.alias)
-    if provider is None:
-        raise WikiError(f"模型 {model_id!r} 的 provider 不可用")
-
-    client = LLMClient(cfg.llm, providers)
-    result = client.generate(stage="wiki_synthesis", prompt=rendered)
+    # 5) Wiki 专属 provider 调用；不经过 LLMClient 的 processing stage 路由。
+    result_text = _generate_wiki_synthesis(cfg, model_id, rendered)
 
     # 6) 解析 JSON
     try:
-        output = _json.loads(result.result.text)
+        output = _json.loads(result_text)
     except (ValueError, _json.JSONDecodeError):
         # 尝试 extract first JSON object
         import re
-        m = re.search(r'\{[\s\S]*\}', result.result.text)
+        m = re.search(r'\{[\s\S]*\}', result_text)
         if m:
             try:
                 output = _json.loads(m.group(0))
@@ -445,6 +439,51 @@ def llm_rebuild_wiki(
         model_id=model_id,
         last_rebuilt_at=now,
     )
+
+
+def _generate_wiki_synthesis(cfg: MindForgeConfig, model_id: str, prompt: str) -> str:
+    """调用 Wiki 专属 model 并返回文本，不复用 processing stage routing。
+
+    中文学习型说明：``llm.routing`` 只描述 triage/distill/link/review/action 五个
+    processing step。Wiki synthesis 的输入、失败语义和 provenance 边界都不同，
+    因此在 Wiki service 内按 ``wiki.model`` / ``llm.default_model`` 选择单个
+    provider。这样既复用 provider 抽象，也避免给 processing pipeline 增加伪 stage。
+    """
+
+    from .llm.base import LLMRequest, ProviderError
+    from .llm.factory import build_provider_for_model
+
+    model_config = cfg.llm.models[model_id]
+    try:
+        provider = build_provider_for_model(model_config)
+    except ProviderError as exc:
+        raise WikiError(str(exc)) from exc
+
+    actual_model = model_config.model
+    if model_config.model_env:
+        override = os.environ.get(model_config.model_env)
+        if override:
+            actual_model = override
+    if not actual_model:
+        raise WikiError(f"wiki.model={model_id!r} 没有可用的 model 名称。请配置 model 或 model_env。")
+
+    request = LLMRequest(
+        prompt=prompt,
+        stage="wiki_synthesis",
+        model=actual_model,
+        response_format="json_object",
+    )
+    attempts = max(1, model_config.max_retries + 1)
+    last_error: ProviderError | None = None
+    for attempt in range(attempts):
+        try:
+            return provider.generate(request).text
+        except ProviderError as exc:
+            last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(0.2 * (attempt + 1))
+    assert last_error is not None
+    raise WikiError(f"LLM Wiki synthesis failed: {last_error}") from last_error
 
 
 __all__ = [

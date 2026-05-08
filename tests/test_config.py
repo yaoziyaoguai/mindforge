@@ -522,11 +522,17 @@ def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) 
                         "base_url": "http://localhost:11434/v1",
                         "model": "qwen2.5:14b",
                     },
+                    "official_openai": {
+                        "type": "openai",
+                        "api_key_env": "OPENAI_API_KEY",
+                        "model": "gpt-4o-mini",
+                    },
                 },
                 "routing": {
                     "triage": "local",
                     "distill": "anthropic_native",
                     "review_questions": "anthropic_router",
+                    "action_extraction": "official_openai",
                 },
             }
         ),
@@ -537,6 +543,8 @@ def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) 
     assert cfg.llm.models["anthropic_native"].type == "anthropic"
     assert cfg.llm.models["anthropic_router"].type == "anthropic_compatible"
     assert cfg.llm.models["local"].type == "openai_compatible"
+    assert cfg.llm.models["official_openai"].type == "openai"
+    assert cfg.llm.models["official_openai"].base_url == ""
     assert cfg.llm.models["local"].api_key_optional is True
 
 

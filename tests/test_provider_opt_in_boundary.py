@@ -55,7 +55,8 @@ def test_default_bundled_config_active_profile_is_real_dogfood() -> None:
     # 新用户主配置只暴露 models/default_model；fake/profile 只属于内部测试兼容层。
     assert "default_model: main" in text
     assert "models:" in text
-    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "API keys are stored in local secret store" in text
+    assert "api_key_env:" not in text
     for forbidden in (
         "active:",
         "active_profile:",

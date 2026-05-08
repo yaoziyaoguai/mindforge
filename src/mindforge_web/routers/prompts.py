@@ -76,4 +76,4 @@ def _resolve_prompts_dir():
     if user_prompts.exists() and (user_prompts / "triage" / "v1.md").exists():
         return user_prompts
     # fallback: package assets
-    return asset_root("prompts")
+    return asset_root().joinpath("prompts")

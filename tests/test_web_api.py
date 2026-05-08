@@ -143,6 +143,103 @@ This is safe draft body.
     return card
 
 
+def _write_approved_card(cards: Path, *, name: str = "approved.md") -> Path:
+    """写一张 Web API 测试用 approved card；不含 source 正文或 secret。"""
+
+    card = cards / name
+    card.write_text(
+        """---
+id: approved-web-1
+title: Approved Web Card
+status: human_approved
+track: agent-runtime
+tags:
+  - web
+source_type: manual_note
+source_path: 00-Inbox/ManualNotes/source-note.md
+source_title: Safe source
+value_score: 8
+created_at: 2026-05-08
+---
+
+## AI Summary
+
+Approved summary.
+""",
+        encoding="utf-8",
+    )
+    return card
+
+
+def test_wiki_rebuild_json_mode_overrides_config_mode_for_deterministic(tmp_path: Path) -> None:
+    """Web rebuild 按 JSON body 的 mode 执行，不能因 config wiki.mode=llm 回落误跑 LLM。"""
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["wiki"] = {"mode": "llm", "model": "missing"}
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    _write_approved_card(cards)
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/wiki/rebuild", json={"mode": "deterministic"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["mode"] == "deterministic"
+    assert data["included_cards"] == 1
+
+
+def test_wiki_rebuild_json_mode_runs_llm_branch(tmp_path: Path, monkeypatch) -> None:
+    """Web LLM 按钮传 JSON mode=llm 时后端必须进入 LLM rebuild 分支。"""
+
+    from mindforge.wiki_service import LLMWikiResult
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    called = {"value": False}
+
+    def _fake_llm_rebuild(_cfg):
+        called["value"] = True
+        return LLMWikiResult(
+            wiki_path=str(tmp_path / "Main-Wiki.md"),
+            included_cards=1,
+            section_count=1,
+            additional_cards=0,
+            warnings=[],
+            model_id="main",
+            last_rebuilt_at="2026-05-08T00:00:00+0800",
+        )
+
+    monkeypatch.setattr("mindforge.wiki_service.llm_rebuild_wiki", _fake_llm_rebuild)
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/wiki/rebuild", json={"mode": "llm"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert called["value"] is True
+    assert data["ok"] is True
+    assert data["mode"] == "llm"
+    assert data["model_id"] == "main"
+
+
+def test_setup_save_preserves_wiki_auto_rebuild_false(tmp_path: Path) -> None:
+    """Setup PATCH 中的 false 是显式用户选择，不能被当成未设置丢弃。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={"wiki_mode": "deterministic", "wiki_auto_rebuild_on_approve": False},
+    )
+
+    assert response.status_code == 200
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert raw["wiki"]["mode"] == "deterministic"
+    assert raw["wiki"]["auto_rebuild_on_approve"] is False
+
+
 def _write_approved(cards: Path) -> Path:
     card = cards / "approved.md"
     card.write_text(

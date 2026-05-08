@@ -674,7 +674,7 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
     routing: form.routing_is_explicit ? compactRouting(form.routing, form.default_model) : undefined,
     wiki_mode: form.wiki_mode || undefined,
     wiki_model: form.wiki_model || undefined,
-    wiki_auto_rebuild_on_approve: form.wiki_auto_rebuild || undefined,
+    wiki_auto_rebuild_on_approve: form.wiki_auto_rebuild,
   };
 }
 

@@ -47,4 +47,22 @@ def build_providers(llm_config: Any) -> dict[str, LLMProvider]:
     return providers
 
 
-__all__ = ["build_providers"]
+def build_provider_for_model(model_config: Any) -> LLMProvider:
+    """按单个 model config 构建 provider，不读取 processing routing。
+
+    中文学习型说明：processing pipeline 用 ``build_providers`` 只实例化五阶段
+    routing 需要的 model；Wiki synthesis 是独立派生视图，不属于 processing
+    stage，因此通过本入口按 ``wiki.model`` 直接构建 provider，避免把
+    ``wiki_synthesis`` 塞进处理流水线。
+    """
+
+    builder = _BUILDERS.get(model_config.type)
+    if builder is None:
+        raise ProviderError(
+            f"llm.models.{model_config.alias}.type={model_config.type!r} 未注册；"
+            f"已知类型：{sorted(_BUILDERS)}"
+        )
+    return builder(model_config)
+
+
+__all__ = ["build_providers", "build_provider_for_model"]

@@ -55,8 +55,8 @@ export function WikiPage() {
     try {
       const resp = await fetch(`/api/wiki/rebuild`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ mode }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
       });
       const data: WikiRebuildResult = await resp.json();
       if (data.ok) {

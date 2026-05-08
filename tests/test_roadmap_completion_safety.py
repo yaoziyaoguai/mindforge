@@ -232,7 +232,8 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
     assert "default_model: main" in cfg
     assert "models:" in cfg
     assert "routing:" in cfg
-    assert "MINDFORGE_LLM_API_KEY" in cfg
+    assert "local secret store" in cfg
+    assert "api_key_env:" not in cfg
     assert "active_profile:" not in cfg
     assert "profiles:" not in cfg
     assert "fake_fast" not in cfg

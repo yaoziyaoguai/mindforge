@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from mindforge_web.deps import get_facade
+from mindforge_web.schemas import WikiRebuildRequest
 from mindforge_web.services.web_facade import WebFacade
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
@@ -40,12 +41,13 @@ def wiki_content(facade: WebFacade = Depends(get_facade)):
 
 @router.post("/rebuild")
 def wiki_rebuild(
-    mode: str = "",
+    payload: WikiRebuildRequest | None = None,
     facade: WebFacade = Depends(get_facade),
 ):
-    """从 approved cards 重建 Main Wiki。mode: deterministic | llm（默认使用 config wiki.mode）。"""
+    """从 approved cards 重建 Main Wiki。JSON body: {"mode": "deterministic" | "llm"}。"""
     from mindforge.wiki_service import rebuild_main_wiki, llm_rebuild_wiki, WikiError
-    effective_mode = mode.strip() if mode.strip() else facade.cfg.wiki.mode
+    requested_mode = payload.mode if payload and payload.mode else None
+    effective_mode = requested_mode or facade.cfg.wiki.mode
 
     if effective_mode == "llm":
         try:

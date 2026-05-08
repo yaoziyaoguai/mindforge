@@ -24,7 +24,7 @@
 from .anthropic_compatible import AnthropicCompatibleProvider
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
 from .client import LLMClient, ResolvedModel, StageCallResult
-from .factory import build_providers
+from .factory import build_provider_for_model, build_providers
 from .fake import FakeProvider
 from .openai_compatible import OpenAICompatibleProvider
 
@@ -37,6 +37,7 @@ __all__ = [
     "OpenAICompatibleProvider",
     "AnthropicCompatibleProvider",
     "build_providers",
+    "build_provider_for_model",
     "LLMClient",
     "ResolvedModel",
     "StageCallResult",

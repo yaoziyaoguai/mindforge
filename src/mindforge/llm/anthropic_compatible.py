@@ -50,17 +50,14 @@ from typing import Any
 
 import httpx
 
-from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
+from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 _DEFAULT_VERSION = "2023-06-01"
 
 
 def _redact(s: str) -> str:
     """避免把可疑 secret 写到错误信息里。粗粒度脱敏：长度 > 12 的字母数字串视作可疑。"""
-    if not s:
-        return s
-    # 只做最小处理：去掉 Authorization / x-api-key 这种 header value
-    return s.replace("\n", " ")[:300]
+    return redact_provider_error_text(s)
 
 
 class AnthropicCompatibleProvider(LLMProvider):

@@ -48,7 +48,7 @@ llm:
 2. 在 **Configured models** 区域点击 **\+ Add model**
 3. 填写：
    - **Model id**: 模型别名，如 `main`、`claude`
-   - **Type**: `anthropic` / `anthropic_compatible` / `openai_compatible`
+   - **Type**: `anthropic` / `anthropic_compatible` / `openai` / `openai_compatible`
    - **Base URL**: 模型 endpoint
    - **Model**: 模型名
    - **API key**: 输入你的真实 key
@@ -66,7 +66,8 @@ Web Setup 还支持：
 |------|------|---------|
 | `anthropic` | 原生 Anthropic Messages API | 直接使用 Anthropic Claude |
 | `anthropic_compatible` | 兼容 Anthropic 协议 | DashScope、OpenRouter 等 |
-| `openai_compatible` | 兼容 OpenAI Chat Completions 协议 | OpenAI、Ollama、LM Studio、vLLM、DeepSeek 等 |
+| `openai` | OpenAI 官方 Chat Completions API | 直接使用 OpenAI（默认 `https://api.openai.com/v1`） |
+| `openai_compatible` | 兼容 OpenAI Chat Completions 协议 | Ollama、LM Studio、vLLM、DeepSeek、聚合网关等 |
 
 Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_optional: true` 配置。
 
@@ -114,13 +115,15 @@ Provider runtime 解析 API key 的优先级：**env var > local secret store > 
 
 ## Provider Types
 
-MindForge 在 `src/mindforge/llm/` 下维护三类 provider：
+MindForge 在 `src/mindforge/llm/` 下维护 provider：
 
 | type 字段 | 模块 | 协议 | 适用场景 |
 |---|---|---|---|
-| `fake` | `llm/fake.py` | 本地确定性 JSON | 测试、CI、开发（离线、零成本） |
-| `openai_compatible` | `llm/openai_compatible.py` | `POST /chat/completions` | OpenAI、Ollama、vLLM、聚合网关 |
-| `anthropic_compatible` | `llm/anthropic_compatible.py` | `POST /v1/messages` | Anthropic、DashScope 等 |
+| `fake` | `llm/fake.py` | 本地确定性 JSON | 仅测试、CI、开发替身 |
+| `openai` | `llm/openai_compatible.py` | `POST /chat/completions` | OpenAI 官方 API |
+| `openai_compatible` | `llm/openai_compatible.py` | `POST /chat/completions` | Ollama、vLLM、聚合网关 |
+| `anthropic` | `llm/anthropic_compatible.py` | `POST /v1/messages` | Anthropic 官方 API |
+| `anthropic_compatible` | `llm/anthropic_compatible.py` | `POST /v1/messages` | DashScope、OpenRouter 等 |
 
 三个 provider 分开的原因：
 - 协议不同（chat/completions vs messages）
@@ -164,8 +167,8 @@ MindForge 在 `src/mindforge/llm/` 下维护三类 provider：
 | API key 不进 Git | `.env` + `.mindforge/` 均 gitignore |
 | API key 不进前端 | API response 只返回 masked key |
 | Provider 不打印 key | 错误消息不包含 raw key |
-| 默认不调真实 LLM | fake provider 是默认（零成本、零网络） |
-| 真实 LLM 必须 opt-in | 需配置真实模型 + API key + 显式触发 watch/import/process |
+| 首次启动不调真实 LLM | `llm.default_model: null` / `llm.models: {}` 可启动 Web Setup |
+| 真实 LLM 必须 opt-in | 需配置真实模型 + API key + 显式触发 watch/import/process 或 Wiki LLM rebuild |
 
 ---
 
@@ -238,5 +241,5 @@ llm:
 - ❌ 把 API key 写进 YAML config、commit message、issue 或聊天记录
 - ❌ 把 API key 写进 `.env.example`
 - ❌ 在业务代码中 `if provider_type == ...` 分支 —— 协议差异必须收敛在 provider 层
-- ❌ 默认 `active_profile` 挂真实模型 —— 默认应是 fake，真实模型需用户显式配置
+- ❌ 把 `fake` / `active_profile` / `profiles` 重新写成普通用户主路径
 - ❌ 把 prompt 全文或 LLM 返回文本作为 `error_message`

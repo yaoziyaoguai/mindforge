@@ -209,7 +209,8 @@ def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
     assert "models:" in text
     assert "active_profile:" not in text
     assert "profiles:" not in text
-    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "API keys are stored in local secret store" in text
+    assert "api_key_env:" not in text
     assert "https://your-router.example.com/v1" in text
     assert "Do not put API keys in this YAML" in text
     assert "fake_fast" not in text

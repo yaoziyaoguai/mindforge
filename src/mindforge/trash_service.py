@@ -221,7 +221,7 @@ def restore_trashed_card(
     card_id = _extract_fm_field(fm_text, "id", str(trash_path.stem))
     previous_status = _extract_fm_field(fm_text, "previous_status", "ai_draft")
     original_rel = _extract_fm_field(fm_text, "original_path", str(trash_path))
-    original_path = cfg.vault.root / original_rel
+    original_path = _resolve_restore_target(cfg, original_rel or "")
 
     # 清理 trash metadata
     fm_lines = [line for line in fm_text.split("\n")
@@ -286,6 +286,29 @@ def _validate_card_in_vault(cfg: MindForgeConfig, card_path: Path) -> Path:
     if not resolved.exists() or not resolved.is_file():
         raise TrashError("card 文件不存在")
     return resolved
+
+
+def _resolve_restore_target(cfg: MindForgeConfig, original_path_text: str) -> Path:
+    """校验 Trash frontmatter 中的 original_path 仍落在 cards_dir 内。
+
+    中文学习型说明：Trash frontmatter 属于可被手工编辑的文件内容，restore 不能
+    信任其中的 ``original_path``。这里先拒绝绝对路径和 ``..``，再 resolve
+    检查 symlink 逃逸，确保恢复写入只能发生在当前 vault 的 cards_dir 下。
+    """
+
+    if not original_path_text.strip():
+        raise TrashError("trash original_path 为空，拒绝恢复")
+    original_rel = Path(original_path_text)
+    if original_rel.is_absolute():
+        raise TrashError("trash original_path 必须是 vault-relative 路径，拒绝恢复")
+    if any(part == ".." for part in original_rel.parts):
+        raise TrashError("trash original_path 含有 '..'，拒绝恢复")
+
+    cards_root = cfg.vault.cards_path.resolve(strict=False)
+    target = (cfg.vault.root / original_rel).resolve(strict=False)
+    if not target.is_relative_to(cards_root):
+        raise TrashError("trash original_path 不在当前 vault cards_dir 内，拒绝恢复")
+    return target
 
 
 def _rel_path(root: Path, path: Path) -> str:

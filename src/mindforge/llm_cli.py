@@ -72,6 +72,10 @@ def llm_ping(
             env_reqs.append(("base_url", mc.base_url_env, not bool(mc.base_url)))
         if mc.api_key_env:
             env_reqs.append(("api_key", mc.api_key_env, not mc.api_key_optional))
+        elif mc.type != "fake" and not mc.api_key_optional:
+            # Web Setup 主路径把 key 存在 secret store，不写 api_key_env。
+            # 本诊断不读取 secret 文件内容，只把缺少可验证凭证标成 required。
+            env_reqs.append(("api_key", f"secret_store:{alias}", True))
         if mc.version_env:
             env_reqs.append(("version", mc.version_env, False))
         if mc.model_env:

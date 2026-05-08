@@ -16,6 +16,7 @@ from mindforge.llm.anthropic_compatible import (
     _extract_text_from_content_blocks,
 )
 from mindforge.llm.base import LLMRequest, ProviderError
+from mindforge.llm.openai_compatible import OpenAICompatibleProvider
 
 
 @dataclass
@@ -163,6 +164,43 @@ def test_generate_http_error_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "401" in msg
     # 服务端 echo 出来的"key"也不该被 provider 主动放大；这里只验证不长串 newline 串
     assert "\n\n" not in msg
+
+
+def test_openai_provider_http_error_body_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OpenAI-compatible 4xx body 可能回显 key，provider 边界必须先脱敏。"""
+
+    leaked_key = "sk-test-secret-DO-NOT-LEAK-1234567890"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401,
+            text=(
+                '{"error":{"message":"bad key sk-test-secret-DO-NOT-LEAK-1234567890",'
+                '"api_key":"sk-test-secret-DO-NOT-LEAK-1234567890"}}'
+            ),
+        )
+
+    real_client = httpx.Client
+
+    def _factory(*args, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr("mindforge.llm.openai_compatible.httpx.Client", _factory)
+    provider = OpenAICompatibleProvider(
+        name="openai",
+        base_url="https://fake.example.com/v1",
+        api_key=leaked_key,
+        timeout_seconds=5,
+    )
+
+    with pytest.raises(ProviderError) as exc:
+        provider.generate(LLMRequest(prompt="hi", stage="wiki_synthesis", model="gpt-test"))
+
+    msg = str(exc.value)
+    assert "401" in msg
+    assert leaked_key not in msg
+    assert "[REDACTED]" in msg
 
 
 def test_generate_network_error_does_not_leak(monkeypatch: pytest.MonkeyPatch) -> None:

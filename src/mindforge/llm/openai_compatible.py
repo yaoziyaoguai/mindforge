@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
+from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -106,7 +106,7 @@ class OpenAICompatibleProvider(LLMProvider):
         latency_ms = int((time.perf_counter() - start) * 1000)
 
         if resp.status_code >= 400:
-            snippet = resp.text[:500]
+            snippet = redact_provider_error_text(resp.text)
             raise ProviderError(f"HTTP {resp.status_code}: {snippet}")
 
         try:

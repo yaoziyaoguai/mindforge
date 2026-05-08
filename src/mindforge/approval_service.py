@@ -331,9 +331,10 @@ def approve_explicit_card(
             if effect.kind == "approved"
             else None
         )
-        # Wiki rebuild on approve —— 失败不回滚 approve
+        # Wiki rebuild on approve —— 只在显式开启时运行，且永远是 deterministic。
+        # LLM synthesis 需要用户手动触发，避免 approve 路径隐式调用真实模型。
         wiki_error = None
-        if effect.kind == "approved":
+        if effect.kind == "approved" and cfg.wiki.auto_rebuild_on_approve:
             try:
                 from .wiki_service import rebuild_main_wiki
                 rebuild_main_wiki(cfg)

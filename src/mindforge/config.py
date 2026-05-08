@@ -971,6 +971,8 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             base_url = ""  # 运行时由 provider 从 env 读取
         elif mraw.get("type") == "fake":
             base_url = "fake://"
+        elif mraw.get("type") == "openai":
+            base_url = ""
         else:
             raise ConfigError(
                 f"llm.models.{alias} 必须提供 base_url 或 base_url_env 之一"
@@ -1125,6 +1127,8 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
         base_url = ""
     elif model_type == "fake":
         base_url = "fake://"
+    elif model_type == "openai":
+        base_url = ""
     else:
         raise ConfigError(
             f"llm.models.{model_id} 必须提供 base_url 或 base_url_env 之一"

@@ -231,6 +231,12 @@ class EditableWikiConfig(BaseModel):
     auto_rebuild_on_approve: bool = False
 
 
+class WikiRebuildRequest(BaseModel):
+    """Wiki rebuild API body；前端按钮必须显式传 mode，避免回落到配置值。"""
+
+    mode: Literal["deterministic", "llm"] | None = None
+
+
 class SetupEditableConfigResponse(BaseModel):
     config_path: str
     normalized_on_save: bool

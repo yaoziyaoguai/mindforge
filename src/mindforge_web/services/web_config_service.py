@@ -262,7 +262,7 @@ class WebConfigService:
         patch: SetupConfigPatch,
     ) -> set[str]:
         """计算 patch 应用后的 model id 集合。"""
-        if patch.models is not None:
+        if patch.models:
             return set(patch.models.keys())
         return self._all_model_ids(raw)
 

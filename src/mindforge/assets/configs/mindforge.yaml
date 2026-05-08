@@ -1,10 +1,9 @@
 # =============================================================================
 # MindForge 主配置
 #
-# 普通用户只需要看这一份配置。API key / secret 不要写进 YAML；
-# use MINDFORGE_LLM_API_KEY from shell env
-# or local .env.
-# Do not put secrets in YAML.
+# 普通用户通过 Web Setup 配置模型与 API key；API key / secret 不要写进 YAML。
+# Web Setup 会把 key 存入本地 secret store（.mindforge/secrets.json，已 gitignore）。
+# 环境变量只作为 advanced/deployment/legacy fallback，不是普通用户主路径。
 #
 # 顶层结构：
 #   vault    — Obsidian Vault 的位置与子目录约定
@@ -143,7 +142,7 @@ triage:
 #   routing        — workflow step → model id；可省略，缺失 step 回落到 default_model。
 #
 # type 必须显式配置，MindForge 不从 base_url/model 猜 OpenAI 或 Anthropic 协议。
-# 支持：anthropic、anthropic_compatible、openai_compatible。
+# 支持：anthropic、anthropic_compatible、openai、openai_compatible。
 # API key 通过 Web Setup 保存到 local secret store (.mindforge/secrets.json, gitignored)。
 # 不要将 API key 写进此 YAML。
 # -----------------------------------------------------------------------------
