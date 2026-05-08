@@ -9,25 +9,17 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  /** 从文件/文件夹选择器获取最佳可用路径，填入文本输入框。 */
+  /** 从文件/文件夹选择器获取最佳可用路径，填入文本输入框。
+
+  浏览器限制：不返回绝对路径。webkitRelativePath 提供文件夹内的相对路径；
+  单文件选择仅返回文件名。选择后请手动补全或粘贴目录前缀。*/
   function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     const first = files[0];
-    // webkitRelativePath 在文件夹选择时可用（相对路径）；文件选择时用 name
+    // webkitRelativePath (文件夹内相对路径) > name (单文件名)
     const selected = (first as any).webkitRelativePath || first.name;
-    // 如果有已输入的前缀路径，尝试拼接
-    const current = path.trim();
-    if (current && (current.endsWith("/") || !current.includes("/"))) {
-      setPath(current.replace(/\/$/, "") + "/" + selected);
-    } else if (!current) {
-      setPath(selected);
-    } else {
-      // 已有完整路径 → 替换文件名部分
-      const dir = current.replace(/\/[^/]*$/, "");
-      setPath(dir + "/" + selected);
-    }
-    // Reset input 以便同路径再次选择时仍触发 change
+    setPath(selected);
     event.target.value = "";
   }
 
@@ -97,7 +89,7 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
         </div>
       </div>
       {!path.trim() ? (
-        <p className="mt-2 text-xs text-muted">Type or paste a path, or use Choose File / Choose Folder to pick a location. For the best results, type or paste the full absolute path.</p>
+        <p className="mt-2 text-xs text-muted">Type or paste the full path. Choose File / Choose Folder can fill in the name, but you still need to type or paste the directory portion.</p>
       ) : null}
       {result ? <p className="mt-3 text-sm text-primary">{result}</p> : null}
       <button className="mt-3 text-sm text-primary" onClick={() => { window.location.hash = "#/sources"; }} type="button">
