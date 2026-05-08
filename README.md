@@ -149,7 +149,65 @@ export MINDFORGE_LLM_API_KEY="<your-key>"
 
 ---
 
-## 添加 Source 并生成 AI Draft
+## 路径规则
+
+### Workspace Root（工作区根）
+
+MindForge 的**工作区根**（workspace root / project root）是 config、vault、secret store 解析的基准目录。运行命令时自动发现，按优先级匹配以下标记：
+
+1. `configs/mindforge.yaml` —— 最可靠，是 `mindforge init` 的产物
+2. `.mindforge/` 目录 —— 运行时目录（排除 vault 内部目录）
+3. `vault/` 目录 —— GitHub clone 后的初始状态
+4. `pyproject.toml` + `src/mindforge` —— 开发者 clone 的源码仓库
+
+### 路径语义
+
+| 路径 | 说明 | Git |
+|------|------|-----|
+| **Workspace Root** | 上述 4 个标记之一所在的目录 | — |
+| **`configs/mindforge.yaml`** | 本地运行时配置，由 Web Setup 写入 | **不提交** |
+| **`configs/mindforge_example.yaml`** | 新用户参考模板（含注释与结构） | 提交 |
+| **`.mindforge/secrets.json`** | API key 本地存储（Secret Store） | **不提交** |
+| **`.mindforge/` 目录** | 运行时状态（state、runs、telemetry 等） | **不提交** |
+| **`vault/`** | 本地运行时知识库（默认 vault root） | **不提交** |
+| **`vault_template/`** | Vault 模板（README + .gitkeep 占位文件） | 提交 |
+
+### Web Add Source 路径规则
+
+| 规则 | 行为 |
+|------|------|
+| **必须绝对路径** | 浏览器环境无法可靠解析相对路径，传入相对路径返回 400 |
+| **路径必须存在** | 不允许注册或处理不存在的 source，返回 400 |
+| **~ 自动展开** | 如 `/Users/you/Documents/note.md` |
+
+**macOS 提示：** 在 Finder 中右键文件/文件夹，按住 Option (⌥) 键，选择 **"Copy ... as Pathname"**（⌥⌘C），然后粘贴到 Web 路径输入框。
+
+### CLI Source Path 规则
+
+| 规则 | 行为 |
+|------|------|
+| **支持相对路径** | 按 cwd → project-root → active-vault 优先级自动解析为绝对路径 |
+| **路径必须存在** | 不存在时 exit_code=2 + 友好错误消息，不打印 traceback |
+| **Registry 保存绝对路径** | watched source registry 中始终保存解析后的绝对路径 |
+
+### 从非项目根运行
+
+```bash
+cd /some/other/directory
+mindforge web
+```
+
+- MindForge 自动向上查找 workspace root 标记
+- 找不到时回退到内置默认配置（`configs/mindforge_example.yaml` 的结构）
+- 建议：在项目根或 vault 内运行，以获得最准确的 config 和 vault 解析
+
+### Trash 路径规则
+
+- Trash 操作（move/restore）**不直接接受绝对系统路径**作为 restore target
+- `trash restore` 从 frontmatter 中的 `original_path` 恢复，该路径**必须是 vault-relative 路径**
+- 拒绝含 `..` 的路径、拒绝绝对路径、拒绝 symlink 逃逸——恢复只能发生在 vault cards 目录内
+
+---
 
 ### Source 可以是什么
 
