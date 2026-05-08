@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { addWatchedSource } from "../api/sources";
 
 export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> | void }) {
@@ -6,6 +6,30 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
   const [frequency, setFrequency] = useState("manual");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  /** 从文件/文件夹选择器获取最佳可用路径，填入文本输入框。 */
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    const first = files[0];
+    // webkitRelativePath 在文件夹选择时可用（相对路径）；文件选择时用 name
+    const selected = (first as any).webkitRelativePath || first.name;
+    // 如果有已输入的前缀路径，尝试拼接
+    const current = path.trim();
+    if (current && (current.endsWith("/") || !current.includes("/"))) {
+      setPath(current.replace(/\/$/, "") + "/" + selected);
+    } else if (!current) {
+      setPath(selected);
+    } else {
+      // 已有完整路径 → 替换文件名部分
+      const dir = current.replace(/\/[^/]*$/, "");
+      setPath(dir + "/" + selected);
+    }
+    // Reset input 以便同路径再次选择时仍触发 change
+    event.target.value = "";
+  }
 
   async function addSource(processNow: boolean) {
     if (!path.trim()) return;
@@ -33,31 +57,48 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
           Manual means no automatic scanning. Automation only creates draft knowledge cards. Approved knowledge requires explicit approval.
         </p>
       </div>
-      <div className="grid gap-3 md:grid-cols-[1fr_180px_auto_auto]">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-ink">Path input</span>
-          <input
-            className="min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm"
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="/path/to/file-or-folder"
-            value={path}
-          />
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-ink">Frequency</span>
-          <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm" value={frequency} onChange={(event) => setFrequency(event.target.value)}>
-            {frequencyOptions.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
-        </label>
-        <button className="self-end rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(false)} type="button">
-          {busy ? "Processing..." : "Add source"}
-        </button>
-        <button className="self-end rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(true)} type="button">
-          {busy ? "Processing..." : "Add and process now"}
-        </button>
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <label className="flex-1 space-y-1 text-sm">
+            <span className="font-medium text-ink">Path input</span>
+            <input
+              className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+              onChange={(event) => setPath(event.target.value)}
+              placeholder="/path/to/file-or-folder"
+              value={path}
+            />
+          </label>
+          <div className="flex gap-1 self-end">
+            <input ref={fileInputRef} className="hidden" type="file" onChange={handleFileSelect} />
+            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => fileInputRef.current?.click()} type="button" title="Choose a file">
+              Choose File
+            </button>
+            <input ref={folderInputRef} className="hidden" type="file" {...{ webkitdirectory: "" } as any} onChange={handleFileSelect} />
+            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => folderInputRef.current?.click()} type="button" title="Choose a folder">
+              Choose Folder
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-ink">Frequency</span>
+            <select className="rounded-md border border-line bg-white px-3 py-2 text-sm" value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+              {frequencyOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+          <button className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(false)} type="button">
+            {busy ? "Processing..." : "Add source"}
+          </button>
+          <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(true)} type="button">
+            {busy ? "Processing..." : "Add and process now"}
+          </button>
+        </div>
       </div>
+      {!path.trim() ? (
+        <p className="mt-2 text-xs text-muted">Type or paste a path, or use Choose File / Choose Folder to pick a location. For the best results, type or paste the full absolute path.</p>
+      ) : null}
       {result ? <p className="mt-3 text-sm text-primary">{result}</p> : null}
       <button className="mt-3 text-sm text-primary" onClick={() => { window.location.hash = "#/sources"; }} type="button">
         View in Sources
