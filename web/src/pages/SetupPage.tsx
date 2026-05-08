@@ -521,31 +521,46 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
               <h2 className="text-lg font-semibold text-ink">Wiki generation</h2>
-              <p className="mt-1 text-sm text-muted">Configure how the Main Wiki is generated from approved cards.</p>
+              <p className="mt-1 text-sm text-muted">Configure how MindForge builds the Main Wiki from human-approved cards. The Wiki is a derived view; source files are not modified.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Wiki mode</span>
+                <span className="font-medium text-ink">Generation mode</span>
                 <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.wiki_mode} onChange={(event) => setForm({ ...form, wiki_mode: event.target.value })}>
-                  <option value="deterministic">Deterministic (no model)</option>
+                  <option value="deterministic">Template summary (no model)</option>
                   <option value="llm">LLM synthesis</option>
                 </select>
-                <span className="text-xs text-muted">{form.wiki_mode === "deterministic" ? "Does not call a model." : "Uses a configured model to synthesize the Main Wiki."}</span>
+                <span className="text-xs text-muted">{form.wiki_mode === "deterministic"
+                  ? "Fast and deterministic — builds a structured Wiki from approved cards without calling a model."
+                  : "Uses a configured model to synthesize a more coherent Main Wiki from approved cards."}</span>
               </label>
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Wiki model</span>
-                <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.wiki_model || ""} onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
+                <span className="font-medium text-ink">Model for LLM synthesis</span>
+                <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100"
+                  disabled={!hasConfiguredModels || form.wiki_mode === "deterministic"}
+                  value={form.wiki_model || ""}
+                  onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
                   <option value="">Use default model</option>
                   {modelIds.map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
                 </select>
-                <span className="text-xs text-muted">{!hasConfiguredModels ? "Add a model first." : form.wiki_model ? `Uses ${form.wiki_model}.` : "Falls back to default model."}</span>
+                <span className="text-xs text-muted">
+                  {form.wiki_mode === "deterministic"
+                    ? "No model is needed for template summary mode."
+                    : !hasConfiguredModels
+                    ? "Add a model first to use LLM synthesis."
+                    : form.wiki_model
+                    ? `Will use ${form.wiki_model}.`
+                    : "Falls back to default model."}
+                </span>
               </label>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
-                Auto rebuild on approve (deterministic only)
+              <label className="flex flex-col gap-1 text-sm text-ink">
+                <span className="flex items-center gap-2">
+                  <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
+                  <span className="font-medium">Auto update Wiki after approval</span>
+                </span>
+                <span className="text-xs text-muted ml-6">When enabled, MindForge updates the Main Wiki after each approval using the safe template summary mode. LLM synthesis is never run automatically — trigger it manually from the Wiki page.</span>
               </label>
             </div>
-            <p className="text-xs text-muted">LLM rebuild requires manual action unless auto rebuild is enabled. Wiki model can only reference configured models.</p>
           </section>
 
           <SourceAddPanel onRefresh={onRefresh} />
