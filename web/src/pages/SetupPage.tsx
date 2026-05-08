@@ -563,7 +563,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           </section>
 
-          <SourceAddPanel onRefresh={onRefresh} />
+          <SourceAddPanel onRefresh={onRefresh} hasModels={hasConfiguredModels} />
 
           {/* ================================================================ */}
           {/* Advanced / Technical details (env var mode, diagnostics) */}

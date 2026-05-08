@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { addWatchedSource } from "../api/sources";
 
-export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> | void }) {
+export function SourceAddPanel({ onRefresh, hasModels }: { onRefresh?: () => Promise<void> | void; hasModels?: boolean }) {
   const [path, setPath] = useState("");
   const [frequency, setFrequency] = useState("manual");
   const [result, setResult] = useState<string | null>(null);
@@ -48,6 +48,11 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
         <p className="mt-1 text-sm text-muted">
           Manual means no automatic scanning. Automation only creates draft knowledge cards. Approved knowledge requires explicit approval.
         </p>
+        {!hasModels ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            No model configured. You can register a source now, but AI draft generation requires a configured model. <a href="/setup" className="underline">Add a model in Setup</a> before processing sources.
+          </p>
+        ) : null}
       </div>
       <div className="space-y-3">
         <div className="flex gap-2">
@@ -83,7 +88,7 @@ export function SourceAddPanel({ onRefresh }: { onRefresh?: () => Promise<void> 
           <button className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(false)} type="button">
             {busy ? "Processing..." : "Add source"}
           </button>
-          <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim()} onClick={() => addSource(true)} type="button">
+          <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !path.trim() || !hasModels} onClick={() => addSource(true)} type="button" title={!hasModels ? "Configure a model before processing" : undefined}>
             {busy ? "Processing..." : "Add and process now"}
           </button>
         </div>
