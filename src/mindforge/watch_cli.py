@@ -98,7 +98,7 @@ def watch_add(
             frequency=frequency,
             recursive=recursive if source_path.is_dir() else False,
         )
-    except RuntimeError as exc:
+    except (ValueError, RuntimeError) as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
     registry_result = summary.registry_result
@@ -161,7 +161,7 @@ def watch_scan(
         load_dotenv_silently(Path.cwd())
     try:
         summary = watch_scan_sources(cfg, ref=ref, all_sources=all_sources)
-    except RuntimeError as exc:
+    except (ValueError, RuntimeError) as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
     console.print("[bold]watch scan[/bold]")

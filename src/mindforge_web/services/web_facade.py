@@ -247,8 +247,10 @@ class WebFacade:
                 recursive=recursive,
                 process_now=process_now,
             )
-        except RuntimeError as exc:
+        except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
         return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
@@ -262,8 +264,10 @@ class WebFacade:
     def import_source(self, path: Path) -> IngestionActionResponse:
         try:
             return self.source_service.import_source(path)
-        except RuntimeError as exc:
+        except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     def copy_path(self, path: Path) -> PathActionResponse:
         return self.path_action_service.copy_path(path)

@@ -13,6 +13,7 @@ from pathlib import Path
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
 from mindforge.ingestion_service import (
+    SourcePathError,
     import_sources,
     watch_add_source,
     watch_scan_sources,
@@ -126,14 +127,32 @@ class WebSourceService:
         recursive: bool | None = None,
         process_now: bool = True,
     ) -> IngestionActionResponse:
-        # Web 顶部的 Add source 只表达“开始监控这个顶层 source”；
-        # 真正解析/生成 draft 仍必须通过现有 ingestion pipeline 显式触发。
+        # 中文学习型说明：Web Add Source 统一在这里校验路径，不管 process_now 是 true 还是 false。
+        # 相对路径、不存在路径都必须在 Web 边界被拒绝，不能进入 registry 或 pipeline。
+        # 这样避免了之前"不存在路径 silent ok:true"的问题。
+
+        # 1. 拒绝相对路径 —— 浏览器环境下无法可靠解析
+        if not path.is_absolute():
+            raise SourcePathError(
+                f"Please use an absolute path, such as /Users/you/Documents/note.md. "
+                f"Received relative path: {path}"
+            )
+
+        # 2. 拒绝不存在路径 —— 不允许注册或处理不存在的 source
+        resolved = path.expanduser().resolve()
+        if not resolved.exists():
+            raise SourcePathError(
+                f"File or folder not found: {resolved}. "
+                f"Please choose or paste an existing path."
+            )
+
+        # 3. 路径合法，继续正常流程
         if not process_now:
             registry_path = registry_path_for_vault(self.cfg.vault.root)
             registry_result = add_watch_source(
                 self.cfg.vault.root,
                 registry_path,
-                path,
+                resolved,
                 frequency=frequency or "manual",
                 recursive=recursive,
             )
@@ -154,7 +173,7 @@ class WebSourceService:
             )
         summary = watch_add_source(
             self.cfg,
-            path,
+            resolved,
             frequency=frequency or "manual",
             recursive=recursive,
         )

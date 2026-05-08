@@ -67,12 +67,12 @@ export function SourceAddPanel({ onRefresh, hasModels }: { onRefresh?: () => Pro
           </label>
           <div className="flex gap-1 self-end">
             <input ref={fileInputRef} className="hidden" type="file" onChange={handleFileSelect} />
-            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => fileInputRef.current?.click()} type="button" title="Choose a file">
-              Choose File
+            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => fileInputRef.current?.click()} type="button" title="Browser pickers cannot provide absolute file paths. Use this to fill in the file name, then paste the full path.">
+              Pick file name
             </button>
             <input ref={folderInputRef} className="hidden" type="file" {...{ webkitdirectory: "" } as any} onChange={handleFileSelect} />
-            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => folderInputRef.current?.click()} type="button" title="Choose a folder">
-              Choose Folder
+            <button className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => folderInputRef.current?.click()} type="button" title="Browser pickers cannot provide absolute folder paths. Use this to fill in the relative path, then paste the full path.">
+              Pick folder name
             </button>
           </div>
         </div>
@@ -94,7 +94,7 @@ export function SourceAddPanel({ onRefresh, hasModels }: { onRefresh?: () => Pro
         </div>
       </div>
       {!path.trim() ? (
-        <p className="mt-2 text-xs text-muted">Type or paste the full path. Choose File / Choose Folder can fill in the name, but you still need to type or paste the directory portion.</p>
+        <p className="mt-2 text-xs text-muted">Type or paste the full absolute path (e.g. /Users/you/Documents/notes.md). Browser pickers cannot provide absolute paths — use Finder → Copy as Pathname (⌥⌘C), then paste here. Pick file/folder name only fills in the filename as a helper.</p>
       ) : null}
       {result ? <p className="mt-3 text-sm text-primary">{result}</p> : null}
       <button className="mt-3 text-sm text-primary" onClick={() => { window.location.hash = "#/sources"; }} type="button">

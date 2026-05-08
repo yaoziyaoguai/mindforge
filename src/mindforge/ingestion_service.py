@@ -56,6 +56,14 @@ from .watch_registry import (
 )
 
 
+class SourcePathError(ValueError):
+    """用户级 source path 错误 —— 文件不存在/不可读等。
+
+    Web 层可安全转为 HTTP 400；CLI 输出友好消息不打印 traceback。
+    与内部 RuntimeError（bug/strategy error）严格区分。
+    """
+
+
 @dataclass(frozen=True)
 class IngestionSummary:
     mode: str
@@ -121,7 +129,7 @@ def watch_add_source(
     """
 
     if not target.exists():
-        raise RuntimeError(f"File not found: {target}")
+        raise SourcePathError(f"File not found: {target}. Please use an absolute path to an existing file or folder.")
     selected_strategy = strategy or resolve_strategy_selection(cfg)
     registry_path = registry_path_for_vault(cfg.vault.root)
     registry_result = add_watch_source(
@@ -323,7 +331,7 @@ def _ingest_targets_summary(
 ) -> IngestionSummary:
     target_exists = all(path.exists() for path in target) if isinstance(target, list) else target.exists()
     if not target_exists:
-        raise RuntimeError(f"File not found: {target}")
+        raise SourcePathError(f"File not found: {target}. Please use an absolute path to an existing file or folder.")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     mux = SourceMux()
     results: list = []

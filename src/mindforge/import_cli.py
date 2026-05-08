@@ -74,7 +74,7 @@ def import_cmd(
             bypass_triage_gate=force,
             strategy=selected_strategy,
         )
-    except RuntimeError as exc:
+    except (ValueError, RuntimeError) as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
     console.print("[bold]imported[/bold]")
