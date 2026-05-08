@@ -1,11 +1,11 @@
-# MindForge 示例配置 —— 新用户参考模板。
+# MindForge 示例配置 —— 新用户参考模板（git-tracked）。
+#
+# 此文件仅作为参考；不要直接修改此文件。实际配置请复制到 configs/mindforge.yaml。
+# configs/mindforge.yaml 是本地运行时配置（已 gitignore），由 Web Setup 写入。
 #
 # 推荐路径：
 #   启动 Web Setup（mindforge web → Setup）后直接在界面中配置模型。
 #   API key 通过 Add model 输入，保存在本地 secret store (.mindforge/secrets.json)。
-#
-# 本文件仅展示 YAML 结构参考，不包含 secret / API key / .env var name。
-# 如果直接使用本文件，请在 Web Setup 中为每个 model 填写 API key。
 #
 # 安全性：
 #   - API key 不写在这个 YAML 里

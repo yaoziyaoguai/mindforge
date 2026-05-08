@@ -1,5 +1,9 @@
 # MindForge .gitignore
 
+# Local runtime config written by Web Setup. Use configs/mindforge_example.yaml
+# as the committed template. Do NOT commit local model configuration.
+configs/mindforge.yaml
+
 # 运行时产物（M1+ 才会出现，但提前纳入忽略）
 # .mindforge/ 整目录默认不入库：
 #   - .mindforge/state.json     是本地 checkpoint，含个人知识库的扫描状态
