@@ -377,7 +377,7 @@ SourceAdapter                ← 文件类型适配（Markdown/TXT/CSV/...）
 
 ### 旧配置兼容
 
-Legacy 配置（`llm.active_profile` / `llm.profiles`）仍可加载，但新写入使用 `llm.models` / `llm.default_model` / `llm.routing`。
+Legacy 配置（`llm.active_profile` / `llm.profiles`）仅用于兼容读取旧项目。新用户请勿使用；新写入始终使用 `llm.models` / `llm.default_model` / `llm.routing`。
 
 ---
 

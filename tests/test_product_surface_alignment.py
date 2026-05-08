@@ -2,7 +2,7 @@
 
 中文学习型说明：MindForge 的端到端测试应该替身化 LLM 返回，而不是把
 ``fake provider`` 或 deterministic strategy 包装成用户能力。本文件只锁定
-用户可见语义：正式 extraction strategy 是 Knowledge Card Strategy；
+用户可见语义：正式 production workflow 是 Knowledge Card Workflow；
 ``five_stage`` 是 legacy/internal pipeline alias；deterministic baselines 默认
 隐藏，不能作为 production active_strategy。
 """
@@ -35,7 +35,7 @@ runner = CliRunner()
 def test_default_public_strategy_is_knowledge_card() -> None:
     assert DEFAULT_STRATEGY_NAME == "knowledge_card"
     meta = get_strategy_metadata("knowledge_card")
-    assert meta.display_name == "Knowledge Card Strategy"
+    assert meta.display_name == "Knowledge Card Workflow"
     assert meta.production_ready is True
     assert meta.user_recommended is True
 
@@ -46,7 +46,7 @@ def test_strategies_list_hides_internal_baselines_by_default() -> None:
     assert result.exit_code == 0, result.output
     out = result.output
     assert "knowledge_card" in out
-    assert "Knowledge Card Strategy" in out
+    assert "Knowledge Card Workflow" in out
     assert "default_knowledge_card" not in out
     assert "concept_extraction" not in out
     assert "action_item" not in out
@@ -141,7 +141,7 @@ def test_knowledge_card_strategy_can_run_with_injected_stub_llm() -> None:
     """测试替身化 LLM response，而不是替换 strategy runtime path。
 
     中文学习型说明：这是 production/test path alignment 的核心。大模型返回可以
-    stub，但仍应构造 Knowledge Card Strategy，并走 triage/distill/link/review/
+    stub，但仍应构造 Knowledge Card Workflow，并走 triage/distill/link/review/
     action 五段 prompt pipeline，最后得到 canonical ``knowledge_card`` envelope。
     """
 
