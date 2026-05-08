@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi import HTTPException
+
 from mindforge.app_context import build_app_context
 from mindforge.cards import iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
@@ -238,12 +240,15 @@ class WebFacade:
         recursive: bool | None = None,
         process_now: bool = True,
     ) -> IngestionActionResponse:
-        return self.source_service.watch_add(
-            path,
-            frequency=frequency,
-            recursive=recursive,
-            process_now=process_now,
-        )
+        try:
+            return self.source_service.watch_add(
+                path,
+                frequency=frequency,
+                recursive=recursive,
+                process_now=process_now,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
         return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
@@ -255,7 +260,10 @@ class WebFacade:
         return self.source_service.watch_frequency(ref, frequency)
 
     def import_source(self, path: Path) -> IngestionActionResponse:
-        return self.source_service.import_source(path)
+        try:
+            return self.source_service.import_source(path)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def copy_path(self, path: Path) -> PathActionResponse:
         return self.path_action_service.copy_path(path)
