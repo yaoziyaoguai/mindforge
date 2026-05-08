@@ -60,11 +60,18 @@ class WebConfigService:
         self.cfg = cfg
         self.config_path = config_path
         self.cwd = cwd or Path.cwd()
-        # .mindforge/ 目录在项目根（configs/ 的父目录的父目录，或 cwd）
-        project_root = config_path.resolve().parent.parent
-        if not (project_root / ".mindforge").exists():
-            project_root = self.cwd
-        self.secrets = SecretStore(project_root / ".mindforge" / "secrets.json")
+        # .mindforge/ 目录在项目根（configs/ 的父目录）
+        # 中文学习型说明：不再 fallback 到 cwd。标准结构 <project>/configs/mindforge.yaml
+        # 的 project root 是 <project>；扁平结构 <dir>/mindforge.yaml 的 project root
+        # 是 <dir>。自动创建 .mindforge/，避免 secret store 写到错误目录。
+        config_dir = config_path.resolve().parent
+        if config_dir.name == "configs":
+            project_root = config_dir.parent
+        else:
+            project_root = config_dir
+        mindforge_dir = project_root / ".mindforge"
+        mindforge_dir.mkdir(parents=True, exist_ok=True)
+        self.secrets = SecretStore(mindforge_dir / "secrets.json")
 
     def env_key_statuses(self) -> list[EnvKeyStatus]:
         dotenv = self._read_dotenv_presence()

@@ -146,16 +146,31 @@ def build_app_context(
 def find_project_root(start: Path | None = None) -> Path | None:
     """从 start 向上寻找 MindForge project root。
 
-    规则很窄：包含 ``configs/mindforge.yaml`` 的目录就是 project root。
-    这对应产品语义：用户在哪里运行 ``mindforge init``，哪里就是项目根；
-    默认 ``vault.root``、本地 ``.env``、用户相对 source path 都围绕它解释。
+    规则：按优先级匹配多个标记 ——
+    1. ``configs/mindforge.yaml``（最可靠的产品标记）
+    2. ``.mindforge/`` 目录（排除 vault 内部目录 —— vault 内也可能有 .mindforge）
+    3. ``vault/`` 目录（常见于 GitHub clone 后的初始状态）
+    4. ``pyproject.toml`` + ``src/mindforge``（开发者 clone 的源码仓库）
     """
 
     current = (start or Path.cwd()).expanduser().resolve()
     for candidate in (current, *current.parents):
         if (candidate / "configs" / "mindforge.yaml").is_file():
             return candidate
+        # .mindforge/ 同时存在于 project root 和 vault root（state.workdir）
+        # 只有不包含 00-Inbox 或 20-Knowledge-Cards 的目录才是 project root
+        if (candidate / ".mindforge").is_dir() and not _looks_like_vault(candidate):
+            return candidate
+        if (candidate / "vault").is_dir():
+            return candidate
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "mindforge").is_dir():
+            return candidate
     return None
+
+
+def _looks_like_vault(path: Path) -> bool:
+    """一个目录包含 Inbox 或 Knowledge-Cards 子目录时大概率是 vault。"""
+    return (path / "00-Inbox").is_dir() or (path / "20-Knowledge-Cards").is_dir()
 
 
 def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
@@ -176,6 +191,7 @@ def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
             or (
                 (candidate / ".mindforge").is_dir()
                 and not (candidate / "configs" / "mindforge.yaml").exists()
+                and not (candidate / "mindforge.yaml").exists()
             )
         ):
             return candidate
