@@ -144,7 +144,8 @@ triage:
 #
 # type 必须显式配置，MindForge 不从 base_url/model 猜 OpenAI 或 Anthropic 协议。
 # 支持：anthropic、anthropic_compatible、openai_compatible。
-# API key / secret 只放 env 或本地 .env，不写进 YAML。
+# API key 通过 Web Setup 保存到 local secret store (.mindforge/secrets.json, gitignored)。
+# 不要将 API key 写进此 YAML。
 # -----------------------------------------------------------------------------
 llm:
   default_model: main
@@ -152,7 +153,6 @@ llm:
   models:
     main:
       type: openai_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
       base_url: "https://your-router.example.com/v1"
       model: "your-model-name"
       timeout_seconds: 120

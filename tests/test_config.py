@@ -60,7 +60,8 @@ def test_real_mindforge_yaml_loads() -> None:
     # 真实路径模型一律不允许把 secret 写进 yaml
     main = cfg.llm.models["main"]
     assert main.type == "openai_compatible"
-    assert main.api_key_env == "MINDFORGE_LLM_API_KEY"
+    # API key 不进 YAML；通过 Web Setup 保存到 local secret store
+    assert main.api_key_env is None
     assert main.model == "your-model-name"
     assert main.base_url == "https://your-router.example.com/v1"  # endpoint 不是 secret
     # prompts
@@ -102,7 +103,7 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     assert "active" not in parsed["llm"]
     assert "providers" not in parsed["llm"]
     assert parsed["llm"]["models"]["main"]["type"] == "openai_compatible"
-    assert parsed["llm"]["models"]["main"]["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    # api_key_env 不再是 init 默认内容；API key 通过 Web Setup 填写
     assert parsed["llm"]["models"]["main"]["base_url"] == "https://your-router.example.com/v1"
     assert parsed["llm"]["models"]["main"]["model"] == "your-model-name"
     assert parsed["telemetry"]["local_only"] is True

@@ -1,0 +1,56 @@
+# MindForge 示例配置 —— 新用户参考模板。
+#
+# 推荐路径：
+#   启动 Web Setup（mindforge web → Setup）后直接在界面中配置模型。
+#   API key 通过 Add model 输入，保存在本地 secret store (.mindforge/secrets.json)。
+#
+# 本文件仅展示 YAML 结构参考，不包含 secret / API key / .env var name。
+# 如果直接使用本文件，请在 Web Setup 中为每个 model 填写 API key。
+#
+# 安全性：
+#   - API key 不写在这个 YAML 里
+#   - .mindforge/secrets.json 被 .gitignore 排除，不要提交
+#   - wiki.model 只能引用 llm.models 中已有的 model id
+#   - routing 的值只能引用 llm.models 中已有的 model id
+
+version: 0.1
+
+vault:
+  root: "/path/to/your/mindforge-vault"
+
+# -----------------------------------------------------------------------------
+# LLM 模型配置
+# type 支持：anthropic, anthropic_compatible, openai_compatible
+# -----------------------------------------------------------------------------
+llm:
+  default_model: main
+
+  models:
+    main:
+      type: anthropic_compatible
+      base_url: "https://your-provider.example.com/anthropic"
+      model: "your-model-name"
+      timeout_seconds: 240
+      max_retries: 2
+
+  routing:
+    triage: main
+    distill: main
+    link_suggestion: main
+    review_questions: main
+    action_extraction: main
+
+# -----------------------------------------------------------------------------
+# Wiki 配置（可选）
+# -----------------------------------------------------------------------------
+wiki:
+  mode: deterministic          # deterministic | llm
+  model: main                  # 引用 llm.models 中的 model id
+  auto_rebuild_on_approve: false
+
+# -----------------------------------------------------------------------------
+# 遥测（不上传，纯本地）
+# -----------------------------------------------------------------------------
+telemetry:
+  enabled: true
+  local_only: true

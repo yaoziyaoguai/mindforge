@@ -1,6 +1,7 @@
 # MindForge user config.
 #
-# Most users only need one model. Secrets must stay in shell env or local .env.
+# Most users configure models via Web Setup (http://127.0.0.1:8765/setup).
+# API keys are stored in local secret store (.mindforge/secrets.json, gitignored).
 # Do not put API keys in this YAML.
 #
 # This file is a user-level override. MindForge keeps source registry,
@@ -19,17 +20,16 @@ llm:
   models:
     main:
       type: openai_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
       base_url: "https://your-router.example.com/v1"
       model: "your-model-name"
 
   # Optional. If omitted, all workflow steps use default_model.
-  # routing:
-  #   triage: main
-  #   distill: main
-  #   link_suggestion: main
-  #   review_questions: main
-  #   action_extraction: main
+  routing:
+    triage: main
+    distill: main
+    link_suggestion: main
+    review_questions: main
+    action_extraction: main
 
 telemetry:
   enabled: true

@@ -178,6 +178,39 @@ def test_readme_main_path_does_not_recommend_fake_or_internal_strategies() -> No
     assert "Knowledge Card Workflow" in main
 
 
+def test_example_config_does_not_contain_legacy_tokens() -> None:
+    """configs/mindforge_example.yaml 不包含 legacy 配置标记。"""
+    text = Path("configs/mindforge_example.yaml").read_text(encoding="utf-8")
+    forbidden = ["active_profile", "profiles:", "fake_fast", "fake_strong",
+                 "api_key_env", "base_url_env", "model_env", "anthropic_coding_plan",
+                 "all_local", "active_profile: fake"]
+    for token in forbidden:
+        assert token not in text, f"forbidden token {token!r} found in example config"
+
+
+def test_example_config_routing_refs_valid_models() -> None:
+    """example config 的 routing 和 wiki.model 都引用 llm.models 中存在的 model id。"""
+    import yaml
+    data = yaml.safe_load(Path("configs/mindforge_example.yaml").read_text(encoding="utf-8"))
+    models = set(data["llm"]["models"].keys())
+    for step, model_id in data["llm"]["routing"].items():
+        assert model_id in models, f"routing.{step}={model_id!r} not in models {models}"
+    if "wiki" in data and "model" in data["wiki"]:
+        assert data["wiki"]["model"] in models, f"wiki.model not in models {models}"
+
+
+def test_readme_references_example_config() -> None:
+    """README 引用了 mindforge_example.yaml。"""
+    text = Path("README.md").read_text(encoding="utf-8")
+    assert "mindforge_example.yaml" in text
+
+
+def test_llm_provider_doc_references_example_config() -> None:
+    """docs/LLM_PROVIDER_CONFIG.md 引用了 mindforge_example.yaml。"""
+    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    assert "mindforge_example.yaml" in text
+
+
 def _source_doc() -> SourceDocument:
     raw = "A normal synthetic document about production/test path alignment."
     return SourceDocument(

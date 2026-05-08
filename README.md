@@ -343,8 +343,9 @@ SourceAdapter                ← 文件类型适配（Markdown/TXT/CSV/...）
 ### 配置文件
 
 - **`configs/mindforge.yaml`**: 非 secret 的用户配置（vault 路径、模型定义、prompt 版本等）。运行时会 merge 内置 defaults。
-- **`.env`**: 环境变量（API key 等）。**已 gitignore，不要提交**。
+- **`configs/mindforge_example.yaml`**: 新用户参考配置模板，展示完整的 llm.models/routing/wiki 结构。不含 API key。
 - **`.mindforge/secrets.json`**: Web 用户输入的 API key 本地存储。**已 gitignore**。
+- **`.env`**: Legacy/Advanced 环境变量模式（不推荐普通用户使用）。**已 gitignore，不要提交**。
 
 ### 本地运行时数据
 

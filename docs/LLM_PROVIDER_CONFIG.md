@@ -3,6 +3,8 @@
 本文档说明 MindForge 当前 LLM 模型配置体系。推荐通过 Web Setup 配置模型，
 CLI 用于高级诊断。
 
+完整示例配置参考：`configs/mindforge_example.yaml`
+
 ---
 
 ## 当前主配置格式
