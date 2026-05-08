@@ -341,6 +341,15 @@ class StrategyConfig:
 
 
 @dataclass(frozen=True)
+class WikiConfig:
+    """Wiki 生成配置。"""
+
+    mode: str = "deterministic"  # deterministic | llm
+    model: str | None = None
+    auto_rebuild_on_approve: bool = True
+
+
+@dataclass
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -357,6 +366,7 @@ class MindForgeConfig:
     obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
+    wiki: WikiConfig = field(default_factory=WikiConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -763,6 +773,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
     obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
     search_cfg = _parse_search(raw.get("search") or {})
     strategy_cfg = _parse_strategy(raw.get("strategy") or {})
+    wiki_cfg = _parse_wiki(raw.get("wiki") or {})
 
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
@@ -778,6 +789,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         obsidian=obsidian_cfg,
         search=search_cfg,
         strategy=strategy_cfg,
+        wiki=wiki_cfg,
         raw=raw,
     )
 
@@ -796,6 +808,24 @@ def _parse_strategy(raw: Any) -> StrategyConfig:
     if not active:
         raise ConfigError("strategy.active 不能为空")
     return StrategyConfig(active=active)
+
+
+def _parse_wiki(raw: Any) -> WikiConfig:
+    """解析 ``wiki.mode`` / ``wiki.model``，缺失时稳定回退 deterministic。
+
+    wiki.model 必须引用 llm.models 中已存在的 model id（由调用方校验）。
+    """
+    if not isinstance(raw, dict):
+        return WikiConfig()
+    mode = str(raw.get("mode") or "deterministic").strip()
+    if mode not in {"deterministic", "llm"}:
+        raise ConfigError(f"wiki.mode 必须是 deterministic 或 llm，得到 {mode!r}")
+    model = raw.get("model")
+    return WikiConfig(
+        mode=mode,
+        model=str(model).strip() if model else None,
+        auto_rebuild_on_approve=bool(raw.get("auto_rebuild_on_approve", True)),
+    )
 
 
 def _parse_obsidian(raw: Any) -> "ObsidianConfig":

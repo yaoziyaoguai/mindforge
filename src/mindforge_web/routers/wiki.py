@@ -39,12 +39,35 @@ def wiki_content(facade: WebFacade = Depends(get_facade)):
 
 
 @router.post("/rebuild")
-def wiki_rebuild(facade: WebFacade = Depends(get_facade)):
-    """从 approved cards 重建 Main Wiki（不调 LLM）。"""
-    from mindforge.wiki_service import rebuild_main_wiki
+def wiki_rebuild(
+    mode: str = "",
+    facade: WebFacade = Depends(get_facade),
+):
+    """从 approved cards 重建 Main Wiki。mode: deterministic | llm（默认使用 config wiki.mode）。"""
+    from mindforge.wiki_service import rebuild_main_wiki, llm_rebuild_wiki, WikiError
+    effective_mode = mode.strip() if mode.strip() else facade.cfg.wiki.mode
+
+    if effective_mode == "llm":
+        try:
+            result = llm_rebuild_wiki(facade.cfg)
+            return {
+                "ok": True,
+                "mode": "llm",
+                "wiki_path": result.wiki_path,
+                "included_cards": result.included_cards,
+                "section_count": result.section_count,
+                "additional_cards": result.additional_cards,
+                "model_id": result.model_id,
+                "warnings": result.warnings,
+                "last_rebuilt_at": result.last_rebuilt_at,
+            }
+        except WikiError as e:
+            return {"ok": False, "mode": "llm", "error": str(e)}
+
     result = rebuild_main_wiki(facade.cfg)
     return {
         "ok": True,
+        "mode": "deterministic",
         "wiki_path": result.wiki_path,
         "included_cards": result.included_cards,
         "last_rebuilt_at": result.last_rebuilt_at,
