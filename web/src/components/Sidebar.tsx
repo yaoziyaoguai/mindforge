@@ -1,4 +1,4 @@
-import { BookOpen, CheckSquare, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
+import { BookOpen, BookMarked, CheckSquare, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
 import { cx } from "../lib/utils";
 
 const items = [
@@ -7,6 +7,7 @@ const items = [
   { href: "/sources", label: "Sources", icon: Inbox },
   { href: "/drafts", label: "Review", icon: CheckSquare },
   { href: "/library", label: "Knowledge Library", icon: Library },
+  { href: "/wiki", label: "Wiki", icon: BookMarked },
   { href: "/recall", label: "Search", icon: Search },
   { href: "/trash", label: "Trash", icon: Trash2 },
 ];

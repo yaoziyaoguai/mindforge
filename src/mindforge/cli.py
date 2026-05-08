@@ -109,6 +109,7 @@ from .telemetry_cli import telemetry_app
 from .trash_cli import trash_app
 from .vault_cli import vault_app
 from .web_cli import web
+from .wiki_cli import wiki_app
 from .watch_cli import watch_app
 from .workspace_cli import workspace_app
 
@@ -544,6 +545,7 @@ app.add_typer(vault_app, name="vault")
 app.add_typer(cubox_app, name="cubox")
 app.add_typer(workspace_app, name="workspace")
 app.add_typer(trash_app, name="trash")
+app.add_typer(wiki_app, name="wiki")
 app.add_typer(watch_app, name="watch")
 
 

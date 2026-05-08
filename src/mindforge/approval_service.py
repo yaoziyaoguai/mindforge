@@ -128,6 +128,7 @@ class ApprovalExecutionResult:
     effect: ApprovalEffect | None = None
     source_archive: SourceArchiveEffect | None = None
     error: ApprovalServiceError | None = None
+    wiki_rebuild_error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -330,7 +331,19 @@ def approve_explicit_card(
             if effect.kind == "approved"
             else None
         )
-        return ApprovalExecutionResult(effect=effect, source_archive=archive_effect)
+        # Wiki rebuild on approve —— 失败不回滚 approve
+        wiki_error = None
+        if effect.kind == "approved":
+            try:
+                from .wiki_service import rebuild_main_wiki
+                rebuild_main_wiki(cfg)
+            except Exception as e:
+                wiki_error = str(e)
+        return ApprovalExecutionResult(
+            effect=effect,
+            source_archive=archive_effect,
+            wiki_rebuild_error=wiki_error,
+        )
     except ApprovalError as exc:
         return ApprovalExecutionResult(
             error=ApprovalServiceError(
