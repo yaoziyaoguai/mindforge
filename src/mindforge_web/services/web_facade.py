@@ -498,11 +498,12 @@ class WebFacade:
 
     def _resolve_library_card_path(self, card_ref: str) -> Path:
         """根据 card_ref 解析 approved 卡片路径。"""
-        from mindforge.library_service import show_library_card, LibraryLookupError
-        detail = show_library_card(self.cfg, card_ref, show_content=False)
-        if isinstance(detail, LibraryLookupError):
-            raise FileNotFoundError(f"card {card_ref} not found")
-        return self.cfg.vault.cards_path / detail.card.summary.rel_path
+        from mindforge.cards import iter_cards
+        scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        for c in scan.cards:
+            if c.id == card_ref or card_ref in str(c.rel_path) or c.rel_path.endswith(card_ref):
+                return self.cfg.vault.root / c.rel_path
+        raise FileNotFoundError(f"card {card_ref} not found")
 
     def _card_status_counts(self) -> dict[str, int]:
         scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
