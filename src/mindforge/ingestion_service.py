@@ -129,7 +129,7 @@ def watch_add_source(
     """
 
     if not target.exists():
-        raise SourcePathError(f"File not found: {target}. Please use an absolute path to an existing file or folder.")
+        raise SourcePathError(f"File or folder not found: {target}. Please verify the path exists.")
     selected_strategy = strategy or resolve_strategy_selection(cfg)
     registry_path = registry_path_for_vault(cfg.vault.root)
     registry_result = add_watch_source(
@@ -331,7 +331,7 @@ def _ingest_targets_summary(
 ) -> IngestionSummary:
     target_exists = all(path.exists() for path in target) if isinstance(target, list) else target.exists()
     if not target_exists:
-        raise SourcePathError(f"File not found: {target}. Please use an absolute path to an existing file or folder.")
+        raise SourcePathError(f"File or folder not found: {target}. Please verify the path exists.")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     mux = SourceMux()
     results: list = []

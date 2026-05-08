@@ -53,6 +53,9 @@ scratch/
 local/
 *.local.*
 
+# Local Claude Code / agent environment file. Never commit.
+claude-code-agent-env
+
 # Secrets：本地 .env（含 API key、base_url 等）严禁入库
 # 例外：.env.example 仅含变量名 + 中文注释，可入库
 .env

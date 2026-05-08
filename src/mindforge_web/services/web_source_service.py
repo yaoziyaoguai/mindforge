@@ -269,7 +269,20 @@ class WebSourceService:
         )
 
     def import_source(self, path: Path) -> IngestionActionResponse:
-        summary = import_sources(self.cfg, path)
+        # 中文学习型说明：Web import_source 必须和 watch_add 一样在 Web 边界校验路径。
+        # 相对路径、不存在路径都必须在进入 ingestion pipeline 之前被拒绝，返回 400。
+        if not path.is_absolute():
+            raise SourcePathError(
+                f"Please use an absolute path, such as /Users/you/Documents/note.md. "
+                f"Received relative path: {path}"
+            )
+        resolved = path.expanduser().resolve()
+        if not resolved.exists():
+            raise SourcePathError(
+                f"File or folder not found: {resolved}. "
+                f"Please choose or paste an existing path."
+            )
+        summary = import_sources(self.cfg, resolved)
         return IngestionActionResponse(
             ok=True,
             mode=summary.mode,

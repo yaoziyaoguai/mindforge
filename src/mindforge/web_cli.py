@@ -34,10 +34,28 @@ def web(
         "-c",
         help="mindforge.yaml 路径。",
     ),
+    workspace: Path | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help=(
+            "工作区根路径。自动推导 --config 为 <workspace>/configs/mindforge.yaml、"
+            "--vault 为 <workspace>/vault。explicit --config / --vault 优先覆盖。"
+        ),
+    ),
 ) -> None:
     """启动 MindForge Local Console。"""
 
     should_open = open_browser and not no_open
+
+    # --workspace 推导 config / vault（explicit --config / --vault 优先）
+    if workspace is not None:
+        ws = workspace.expanduser().resolve()
+        if config == Path("configs/mindforge.yaml"):  # 默认值，未显式设置
+            config = ws / "configs" / "mindforge.yaml"
+        if vault is None:  # 未显式设置
+            vault = ws / "vault"
+
     effective_vault = vault or global_vault_override()
     if host not in {"127.0.0.1", "localhost"}:
         console.print(

@@ -174,13 +174,34 @@ MindForge 的**工作区根**（workspace root / project root）是 config、vau
 
 ### Web Add Source 路径规则
 
+**推荐粘贴绝对路径。** 浏览器环境无法可靠解析相对路径，请始终使用绝对路径。
+
 | 规则 | 行为 |
 |------|------|
 | **必须绝对路径** | 浏览器环境无法可靠解析相对路径，传入相对路径返回 400 |
 | **路径必须存在** | 不允许注册或处理不存在的 source，返回 400 |
-| **~ 自动展开** | 如 `/Users/you/Documents/note.md` |
+| **~ 自动展开** | 波浪号 `~` 自动展开为当前用户 home 目录 |
 
-**macOS 提示：** 在 Finder 中右键文件/文件夹，按住 Option (⌥) 键，选择 **"Copy ... as Pathname"**（⌥⌘C），然后粘贴到 Web 路径输入框。
+**~ 展开示例：**
+
+```
+~/Documents/note.md
+```
+展开为：
+```
+/Users/<your-name>/Documents/note.md
+```
+
+**Web 端不要输入相对路径：**
+- `note.md` — 不推荐，Web 端会返回 400
+- `./Documents/note.md` — 不推荐，相对路径无法可靠解析
+- 请使用 `/Users/<your-name>/.../note.md` 或 `~/Documents/note.md`
+
+**macOS Finder 路径复制提示：**
+1. 在 Finder 中选中文件或文件夹
+2. 按住 Option (⌥) 键
+3. 右键选择 **"Copy ... as Pathname"**（或按 ⌥⌘C）
+4. 粘贴到 Web 路径输入框
 
 ### CLI Source Path 规则
 

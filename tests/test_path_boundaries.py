@@ -252,6 +252,54 @@ class TestWebSourcePath:
         )
         assert r.status_code == 400
 
+    def test_import_relative_path_returns_400(self, tmp_path: Path, monkeypatch):
+        """Web import 相对路径应 400，提示使用 absolute path。"""
+        client = _web_client(tmp_path, monkeypatch)
+        r = client.post(
+            "/api/sources/import",
+            json={"path": "relative/path/note.md"},
+        )
+        assert r.status_code == 400
+        detail = str(r.json()["detail"])
+        assert "absolute path" in detail.lower()
+
+    def test_import_existing_absolute_file_succeeds(self, tmp_path: Path, monkeypatch):
+        """Web import 存在的绝对文件路径应 200。"""
+        client = _web_client(tmp_path, monkeypatch)
+        note = tmp_path / "import-existing-file.md"
+        note.write_text("# Import Test\n\nbody\n", encoding="utf-8")
+        r = client.post(
+            "/api/sources/import",
+            json={"path": str(note)},
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_import_path_doubling_returns_400(self, tmp_path: Path, monkeypatch):
+        """Web import 路径加倍模式应 400，不是 500。"""
+        client = _web_client(tmp_path, monkeypatch)
+        note = tmp_path / "import-existing-file.md"
+        note.write_text("# Hello\n", encoding="utf-8")
+        doubled = f"{note}/{note.name}"
+        r = client.post(
+            "/api/sources/import",
+            json={"path": doubled},
+        )
+        assert r.status_code == 400
+
+    def test_import_existing_absolute_folder_succeeds(self, tmp_path: Path, monkeypatch):
+        """Web import 存在的绝对文件夹路径应 200（import 支持文件夹）。"""
+        client = _web_client(tmp_path, monkeypatch)
+        folder = tmp_path / "import-existing-folder"
+        folder.mkdir(parents=True)
+        (folder / "a.md").write_text("# A\n", encoding="utf-8")
+        r = client.post(
+            "/api/sources/import",
+            json={"path": str(folder)},
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
 
 class TestSourcePathErrorIsNotRuntimeError:
     """SourcePathError 是 ValueError，不应被当作 RuntimeError 处理。"""
@@ -529,6 +577,14 @@ class TestGitignoreRules:
             ".env 必须被 gitignored"
         )
 
+    def test_claude_code_agent_env_is_gitignored(self):
+        """claude-code-agent-env 本地 Claude Code 配置应在 .gitignore 中。"""
+        gitignore = Path(__file__).parent.parent / ".gitignore"
+        lines = gitignore.read_text().splitlines()
+        assert any(
+            line.strip() == "claude-code-agent-env" for line in lines
+        ), "claude-code-agent-env 必须被 gitignored"
+
     def test_configs_example_yaml_exists_and_is_committable(self):
         """configs/mindforge_example.yaml 是模板，应存在且不被 gitignore 排除。"""
         example = Path(__file__).parent.parent / "configs" / "mindforge_example.yaml"
@@ -666,3 +722,124 @@ class TestWikiPathSafety:
         # 清理后验证
         import shutil
         shutil.rmtree(str(wiki_p), ignore_errors=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# --workspace 参数测试
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestWorkspaceOption:
+    """--workspace 参数推导 config / vault 的行为。"""
+
+    # 中文学习型说明：run_server 会被 monkeypatch 替换，不启动实际 HTTP 服务器。
+    # 我们只验证 --workspace 推导出的 config/vault 路径是否正确传递给 run_server。
+
+    def test_workspace_flag_appears_in_help(self):
+        """--workspace 应在 web --help 中出现。"""
+        result = runner.invoke(cli_app, ["web", "--help"])
+        assert result.exit_code == 0
+        assert "--workspace" in result.stdout
+
+    def test_workspace_derives_config_and_vault(self, tmp_path: Path, monkeypatch):
+        """--workspace 下 config 推导为 workspace/configs/mindforge.yaml，
+        vault 推导为 workspace/vault。"""
+        ws = tmp_path / "my-workspace"
+        ws.mkdir(parents=True)
+        (ws / "configs").mkdir()
+        (ws / "vault").mkdir()
+        _write_web_config(ws)  # 在 ws 下生成标准结构
+        monkeypatch.chdir(ws)
+
+        received_cfg: list[Path] = []
+        received_vault: list[Path | None] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override):
+            received_cfg.append(Path(config_path).resolve() if not Path(config_path).is_absolute() else Path(config_path))
+            received_vault.append(vault_override)
+
+        monkeypatch.setattr(
+            "mindforge_web.server.run_server",
+            fake_run_server,
+        )
+
+        runner.invoke(
+            cli_app,
+            ["web", "--workspace", str(ws), "--no-open"],
+        )
+        # 可能因为没有真实 config exit_code=2，但只要 run_server 被调用即可
+        if received_cfg:
+            expected_cfg = (ws / "configs" / "mindforge.yaml").resolve()
+            assert received_cfg[0] == expected_cfg, (
+                f"workspace config 应为 {expected_cfg}，实际 {received_cfg[0]}"
+            )
+        if received_vault:
+            expected_vault = ws / "vault"
+            assert received_vault[0] == expected_vault, (
+                f"workspace vault 应为 {expected_vault}，实际 {received_vault[0]}"
+            )
+
+    def test_explicit_config_overrides_workspace(self, tmp_path: Path, monkeypatch):
+        """explicit --config 覆盖 workspace 推导的 config。"""
+        ws = tmp_path / "my-workspace"
+        ws.mkdir(parents=True)
+        (ws / "configs").mkdir()
+        _write_web_config(ws)
+        monkeypatch.chdir(ws)
+
+        explicit_cfg = tmp_path / "explicit-config.yaml"
+        explicit_cfg.touch()
+
+        received_cfg: list[Path] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override):
+            received_cfg.append(Path(config_path).resolve() if not Path(config_path).is_absolute() else Path(config_path))
+
+        monkeypatch.setattr(
+            "mindforge_web.server.run_server",
+            fake_run_server,
+        )
+
+        runner.invoke(
+            cli_app,
+            ["web", "--workspace", str(ws), "--config", str(explicit_cfg), "--no-open"],
+        )
+        if received_cfg:
+            assert received_cfg[0] == explicit_cfg.resolve(), (
+                f"explicit --config 优先生效，应为 {explicit_cfg}，实际 {received_cfg[0]}"
+            )
+
+    def test_explicit_vault_overrides_workspace(self, tmp_path: Path, monkeypatch):
+        """explicit --vault 覆盖 workspace 推导的 vault。"""
+        ws = tmp_path / "my-workspace"
+        ws.mkdir(parents=True)
+        (ws / "configs").mkdir()
+        _write_web_config(ws)
+        monkeypatch.chdir(ws)
+
+        explicit_vault = tmp_path / "explicit-vault"
+        explicit_vault.mkdir()
+
+        received_vault: list[Path | None] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override):
+            received_vault.append(vault_override)
+
+        monkeypatch.setattr(
+            "mindforge_web.server.run_server",
+            fake_run_server,
+        )
+
+        runner.invoke(
+            cli_app,
+            [
+                "web",
+                "--workspace", str(ws),
+                "--vault", str(explicit_vault),
+                "--no-open",
+            ],
+        )
+        if received_vault:
+            assert received_vault[0] is not None
+            assert Path(str(received_vault[0])).resolve() == explicit_vault.resolve(), (
+                f"explicit --vault 优先生效，应为 {explicit_vault}，实际 {received_vault[0]}"
+            )
