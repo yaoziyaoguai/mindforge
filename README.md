@@ -98,7 +98,7 @@ mindforge demo
 2. 点击 **\+ Add model**
 3. 填写：
    - **Model id**: 模型别名，如 `main`、`claude`
-   - **Type**: `anthropic` / `anthropic_compatible` / `openai_compatible`
+   - **Type**: `anthropic` / `anthropic_compatible` / `openai` / `openai_compatible`
    - **Base URL**: 模型 endpoint
    - **Model**: 模型名，如 `claude-3-5-haiku-latest`
    - **API key**: 输入你的 API key
@@ -115,9 +115,10 @@ API key 会存入本地 **secret store**（`.mindforge/secrets.json`，已 gitig
 
 | Type | 适用场景 |
 |------|---------|
+| `openai` | OpenAI 官方原生 API（默认 base_url: https://api.openai.com/v1） |
+| `openai_compatible` | 兼容 OpenAI 协议的 endpoint（Ollama、vLLM、DeepSeek、API 中转等） |
 | `anthropic` | 原生 Anthropic API |
 | `anthropic_compatible` | 兼容 Anthropic 协议的 endpoint（DashScope、OpenRouter 等） |
-| `openai_compatible` | 兼容 OpenAI 协议的 endpoint（Ollama、vLLM、DeepSeek 等） |
 
 Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_optional: true` 配置。
 

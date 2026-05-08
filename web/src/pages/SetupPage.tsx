@@ -5,7 +5,7 @@ import { ConfigChecklist } from "../components/ConfigChecklist";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 
-const supportedTypes = ["openai_compatible", "anthropic", "anthropic_compatible"] as const;
+const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
 /** 前端模型表单 —— api_key 仅用于用户输入，永不从后端回填 raw value。 */
 type ModelForm = {
@@ -38,7 +38,7 @@ type EditingModel = {
 
 function emptyModelForm(): ModelForm {
   return {
-    type: "openai_compatible",
+    type: "openai",
     base_url: "",
     model: "",
     api_key_env: "",

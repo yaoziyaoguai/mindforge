@@ -50,12 +50,14 @@ class OpenAICompatibleProvider(LLMProvider):
 
     @classmethod
     def from_model_config(cls, mc: Any) -> OpenAICompatibleProvider:
-        # base_url：优先 env，再回落 yaml；与 anthropic provider 对齐
+        # base_url：优先 env，再回落 yaml；type=openai 默认使用 OpenAI 官方 API
         base_url = ""
         if getattr(mc, "base_url_env", None):
             base_url = os.environ.get(mc.base_url_env, "") or ""
         if not base_url:
             base_url = mc.base_url or ""
+        if not base_url and getattr(mc, "type", "") == "openai":
+            base_url = "https://api.openai.com/v1"
         if not base_url:
             raise ProviderError(
                 f"模型 {mc.alias} 未提供 base_url：请设置环境变量 "

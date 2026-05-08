@@ -1099,13 +1099,13 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
     if "type" not in mraw:
         raise ConfigError(
             f"llm.models.{model_id}.type 缺失；必须显式配置为 "
-            "anthropic, anthropic_compatible 或 openai_compatible，不能从 base_url/model 自动猜协议"
+            "anthropic, anthropic_compatible, openai 或 openai_compatible，不能从 base_url/model 自动猜协议"
         )
     model_type = _require(mraw, "type", str, ctx=f"llm.models.{model_id}")
-    if model_type not in {"anthropic", "anthropic_compatible", "openai_compatible", "fake"}:
+    if model_type not in {"anthropic", "anthropic_compatible", "openai", "openai_compatible", "fake"}:
         raise ConfigError(
             f"llm.models.{model_id}.type={model_type!r} 不支持；"
-            "支持：anthropic, anthropic_compatible, openai_compatible"
+            "支持：anthropic, anthropic_compatible, openai, openai_compatible"
         )
 
     base_url_env = mraw.get("base_url_env")

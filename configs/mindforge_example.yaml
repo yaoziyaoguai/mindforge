@@ -20,7 +20,7 @@ vault:
 
 # -----------------------------------------------------------------------------
 # LLM 模型配置
-# type 支持：anthropic, anthropic_compatible, openai_compatible
+# type 支持：anthropic, anthropic_compatible, openai, openai_compatible
 # -----------------------------------------------------------------------------
 llm:
   default_model: main

@@ -20,7 +20,7 @@ vault:
 # ---------------------------------------------------------------------------
 # LLM 模型配置
 # 首次安装后没有预置模型。在 Web Setup 中 Add model 来配置。
-# type: anthropic / anthropic_compatible / openai_compatible
+# type: anthropic / anthropic_compatible / openai / openai_compatible
 # ---------------------------------------------------------------------------
 llm:
   default_model: null
