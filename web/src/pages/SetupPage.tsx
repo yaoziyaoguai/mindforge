@@ -669,7 +669,7 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
   return {
     vault_root: form.vault_root,
     create_vault: form.create_vault,
-    default_model: modelIds.length ? form.default_model : undefined,
+    default_model: modelIds.length && form.default_model ? form.default_model : undefined,
     models: modelIds.length ? models : undefined,
     routing: form.routing_is_explicit ? compactRouting(form.routing, form.default_model) : undefined,
     wiki_mode: form.wiki_mode || undefined,

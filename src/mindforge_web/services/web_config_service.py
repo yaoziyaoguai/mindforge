@@ -228,7 +228,7 @@ class WebConfigService:
                 f"Change default_model before deleting."
             )
 
-        if patch.default_model is not None and patch.default_model not in after_models:
+        if patch.default_model and patch.default_model not in after_models:
             errors.append(
                 f"Default model {patch.default_model!r} is not in configured models: {sorted(after_models)}"
             )
@@ -765,7 +765,7 @@ class WebConfigService:
         llm = raw.setdefault("llm", {})
         if not isinstance(llm, dict):
             raise ConfigUpdateError(["llm must be a YAML object"])
-        if patch.default_model is not None:
+        if patch.default_model:
             llm["default_model"] = patch.default_model
         if patch.models:
             # 检测被删除的 model_id，清理对应的 secret store 条目

@@ -2301,3 +2301,402 @@ def test_watch_add_frequency_alias(tmp_path: Path) -> None:
         cwd="/Users/jinkun.wang/work_space/mindforge",
     )
     assert "--frequency" in result.stdout
+
+
+# ============================================================================
+# clean clone first-run + Web Setup save 回归测试
+# ============================================================================
+
+
+def _write_clean_clone_config(tmp_path: Path) -> tuple[Path, Path]:
+    """模拟 clean clone first_run_config 生成的新格式配置（无模型、无 legacy）"""
+    vault = tmp_path / "vault"
+    (vault / "00-Inbox").mkdir(parents=True, exist_ok=True)
+    (vault / "20-Knowledge-Cards").mkdir(parents=True, exist_ok=True)
+    (vault / "30-Projects").mkdir(parents=True, exist_ok=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {
+                    "root": "vault",
+                    "inbox_root": "00-Inbox",
+                    "cards_dir": "20-Knowledge-Cards",
+                    "archive_dir": "90-Archive/Skipped",
+                    "projects_dir": "30-Projects",
+                },
+                "llm": {
+                    "default_model": None,
+                    "models": {},
+                    "routing": {},
+                },
+                "wiki": {
+                    "mode": "deterministic",
+                    "model": None,
+                    "auto_rebuild_on_approve": False,
+                },
+                "telemetry": {"enabled": True, "local_only": True},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return cfg_path, vault
+
+
+def test_clean_clone_editable_config_200(tmp_path: Path, monkeypatch) -> None:
+    """clean clone first_run_config → GET /api/config/editable 返回 200。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.get("/api/config/editable")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["llm"]["default_model"] is None
+    assert data["llm"]["configured_models"] == {}
+    assert data["llm"]["routing"] == {}
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+
+
+def test_clean_clone_save_first_model_default_model_none(tmp_path: Path, monkeypatch) -> None:
+    """clean clone 添加第一个模型、default_model=None → PATCH 200。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": None,
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key": "sk-test-1234",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    # 模型写入了 YAML
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert "main" in data["llm"]["models"]
+    # API key 不写 YAML
+    assert "sk-test" not in yaml_text
+    assert "1234" not in yaml_text
+
+
+def test_clean_clone_save_empty_string_default_model_now_200(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：clean clone 前端空字符串 default_model="" → 不再 400（已修复）。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 模拟前端 patchFromForm 发送 default_model="" 的行为
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o-mini",
+                    "api_key": "sk-openai-test",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.json()}"
+
+    # 模型被保存
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert "main" in data["llm"]["models"]
+    # default_model 保持 null（因为空字符串被当作未设置）
+    assert data["llm"]["default_model"] is None
+    # API key 不写 YAML
+    assert "sk-openai" not in yaml_text
+
+
+def test_clean_clone_save_with_default_model_writes_routing(tmp_path: Path, monkeypatch) -> None:
+    """clean clone 设置 default_model → 写 routing 五个 stage。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["default_model"] == "main"
+    routing = data.get("llm", {}).get("routing", {})
+    from mindforge.config import REQUIRED_STAGES
+    for stage in REQUIRED_STAGES:
+        assert routing.get(stage) == "main", f"routing.{stage} missing"
+
+
+def test_clean_clone_save_api_key_in_secret_store_not_yaml(tmp_path: Path, monkeypatch) -> None:
+    """API key 写 .mindforge/secrets.json，不写 YAML。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o",
+                    "api_key": "sk-sensitive-9999",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    assert "sk-sensitive" not in yaml_text
+
+    # secret store 存在
+    from mindforge.secret_store import SecretStore
+    store = SecretStore(vault.parent / ".mindforge" / "secrets.json")
+    assert store.present("main")
+    assert store.get("main") == "sk-sensitive-9999"
+
+
+def test_clean_clone_wiki_deterministic_null_model_ok(tmp_path: Path, monkeypatch) -> None:
+    """wiki.mode=deterministic + wiki.model=null 不阻塞保存。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "wiki_mode": "deterministic",
+            "wiki_model": None,
+            "wiki_auto_rebuild_on_approve": False,
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+            "default_model": "main",
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+
+
+def test_clean_clone_wiki_llm_mode_with_model_saves(tmp_path: Path, monkeypatch) -> None:
+    """wiki.mode=llm + wiki.model 存在 → 保存成功。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 需要先有模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "wiki_mode": "llm",
+            "wiki_model": "main",
+            "wiki_auto_rebuild_on_approve": True,
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["wiki"]["mode"] == "llm"
+    assert data["wiki"]["model"] == "main"
+
+
+def test_clean_clone_api_key_missing_does_not_block_save(tmp_path: Path, monkeypatch) -> None:
+    """API key missing 不阻塞保存模型 metadata。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["main"]["type"] == "openai_compatible"
+
+
+@pytest.mark.parametrize("model_type", [
+    "anthropic",
+    "anthropic_compatible",
+    "openai",
+    "openai_compatible",
+])
+def test_clean_clone_all_model_types_save(tmp_path: Path, monkeypatch, model_type: str) -> None:
+    """四种 model type 均可保存。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "demo",
+            "models": {
+                "demo": {
+                    "type": model_type,
+                    "base_url": "https://example.com/api",
+                    "model": "demo-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"type={model_type}: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["demo"]["type"] == model_type
+
+
+def test_clean_clone_save_does_not_write_legacy_fields(tmp_path: Path, monkeypatch) -> None:
+    """保存后不写 active_profile/profiles/fake/env 字段。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o-mini",
+                    "api_key": "sk-legacy-test",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    llm = data.get("llm", {})
+    for legacy_key in ("active_profile", "profiles", "active", "providers"):
+        assert legacy_key not in llm, f"legacy field {legacy_key} found in YAML"
+    # 模型下不应有 env 字段
+    for mid, mconf in llm.get("models", {}).items():
+        for env_key in ("api_key_env", "base_url_env", "model_env"):
+            assert env_key not in mconf, f"env field {env_key} found in model {mid}"
+
+
+def test_clean_clone_refresh_after_save_keeps_model(tmp_path: Path, monkeypatch) -> None:
+    """保存后刷新 Setup → 模型仍存在，key 只显示 masked。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 保存模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key": "sk-sensitive-key-8888",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 刷新（重新 GET）
+    resp = client.get("/api/config/editable")
+    assert resp.status_code == 200
+    data = resp.json()
+    models = data["llm"]["configured_models"]
+    assert "main" in models
+    model = models["main"]
+    assert model["type"] == "anthropic_compatible"
+    assert model["model"] == "test-model"
+    assert model["api_key_source"] == "local_secret"
+    assert model["api_key_secret_present"] is True
+    # masked 值显示脱敏前缀+后4位，不包含完整 raw key
+    masked = str(model.get("api_key_masked_value", ""))
+    assert "sk-sensitive" not in masked
+    assert masked != "sk-sensitive-key-8888"  # 不是完整 raw key
