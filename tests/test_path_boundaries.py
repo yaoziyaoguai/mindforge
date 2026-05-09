@@ -20,6 +20,7 @@ from mindforge.app_context import (
     find_project_root,
 )
 from mindforge.cli import app as cli_app
+from mindforge.first_run_config import maybe_bootstrap_local_config
 from mindforge.ingestion_service import SourcePathError
 from mindforge.trash_service import _resolve_restore_target
 from mindforge.wiki_service import _wiki_path
@@ -596,6 +597,41 @@ class TestGitignoreRules:
             "mindforge_example" in line and not line.strip().startswith("#")
             for line in lines
         ), "mindforge_example.yaml 不应被 gitignored"
+
+
+class TestFirstRunConfigBootstrapBoundaries:
+    """clean clone 首次启动只允许在明确 workspace root 下创建本地 config。"""
+
+    def test_wrong_directory_does_not_create_runtime_config(self, tmp_path: Path):
+        """没有 MindForge workspace 标记时不能在 cwd 乱建 configs/mindforge.yaml。"""
+        result = maybe_bootstrap_local_config(Path("configs/mindforge.yaml"), cwd=tmp_path)
+
+        assert result.created is False
+        assert result.config_path is None
+        assert not (tmp_path / "configs" / "mindforge.yaml").exists()
+        assert "Run from a MindForge workspace" in (result.message or "")
+
+    def test_workspace_web_cli_bootstraps_before_server_start(self, tmp_path: Path, monkeypatch):
+        """`mindforge web --workspace` 应先创建本地 config，再把路径传给 server。"""
+        ws = tmp_path / "mindforge"
+        (ws / "configs").mkdir(parents=True)
+        (ws / "configs" / "mindforge_example.yaml").write_text("version: 0.7\n", encoding="utf-8")
+        (ws / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+        (ws / "src" / "mindforge").mkdir(parents=True)
+
+        received_cfg: list[Path] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override):
+            received_cfg.append(Path(config_path))
+
+        monkeypatch.setattr("mindforge_web.server.run_server", fake_run_server)
+
+        result = runner.invoke(cli_app, ["web", "--workspace", str(ws), "--no-open"])
+
+        assert result.exit_code == 0, result.output
+        assert "Created local config at" in result.output
+        assert (ws / "configs" / "mindforge.yaml").is_file()
+        assert received_cfg == [ws / "configs" / "mindforge.yaml"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -246,6 +246,20 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     assert developer  # legacy/dev notes may still exist after the developer boundary.
 
 
+def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
+    """README 必须说明 clean clone 后 `mindforge web` 会创建本地 runtime config。"""
+
+    text = Path("README.md").read_text(encoding="utf-8")
+    quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
+
+    assert "mindforge web" in quickstart
+    assert "首次运行" in quickstart
+    assert "configs/mindforge.yaml" in quickstart
+    assert "configs/mindforge_example.yaml" in text
+    assert "local secret store" in text
+    assert "API key 不写 YAML" in text
+
+
 def _source_doc() -> SourceDocument:
     raw = "A normal synthetic document about production/test path alignment."
     return SourceDocument(

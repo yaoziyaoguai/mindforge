@@ -58,6 +58,8 @@ mindforge web
 
 浏览器打开 `http://127.0.0.1:8765`。
 
+首次运行时，MindForge 会在本地创建 `configs/mindforge.yaml`。这是本机 runtime config，已被 gitignore，不要提交；提交用模板是 `configs/mindforge_example.yaml`。API key 不写 YAML，后续通过 Web Setup 写入本地 `local secret store`（`.mindforge/secrets.json`）。
+
 **配置真实模型（必须）：**
 
 1. 打开 **Setup** 页面 → **Add model**

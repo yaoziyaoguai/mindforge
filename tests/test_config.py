@@ -22,6 +22,7 @@ from mindforge.config import (
     load_mindforge_config,
 )
 from mindforge.init_cmd import build_plan, execute_plan
+from mindforge.first_run_config import maybe_bootstrap_local_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
@@ -177,6 +178,85 @@ def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:
 
     assert parsed["vault"]["root"] == "vault"
     assert load_mindforge_config(generated).vault.root == vault.resolve()
+
+
+def test_clean_clone_web_bootstrap_creates_safe_local_runtime_config(tmp_path: Path) -> None:
+    """clean clone 只有 example 时，Web 首次启动应创建安全本地 runtime config。
+
+    中文学习型说明：`configs/mindforge.yaml` 是本地运行时文件，不能提交到 Git；
+    因此 GitHub clone 后的 `mindforge web` 必须能自己生成无 secret、无模型的
+    初始配置，让用户进入 Web Setup 再添加真实模型。
+    """
+
+    workspace = tmp_path / "mindforge"
+    (workspace / "configs").mkdir(parents=True)
+    (workspace / "configs" / "mindforge_example.yaml").write_text(
+        (REPO_ROOT / "configs" / "mindforge_example.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+
+    result = maybe_bootstrap_local_config(Path("configs/mindforge.yaml"), cwd=workspace)
+    generated = workspace / "configs" / "mindforge.yaml"
+    raw_text = generated.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(raw_text)
+
+    assert result.created is True
+    assert result.config_path == generated
+    assert parsed["vault"]["root"] == "vault"
+    assert parsed["llm"]["default_model"] is None
+    assert parsed["llm"]["models"] == {}
+    assert parsed["llm"]["routing"] == {}
+    assert parsed["wiki"] == {
+        "mode": "deterministic",
+        "model": None,
+        "auto_rebuild_on_approve": False,
+    }
+    assert load_mindforge_config(generated).llm.models == {}
+
+    forbidden = (
+        "api_key",
+        "active_profile",
+        "profiles",
+        "fake",
+        "fake_fast",
+        "fake_strong",
+        "api_key_env",
+        "base_url_env",
+        "model_env",
+    )
+    for token in forbidden:
+        assert token not in raw_text
+
+
+def test_clean_clone_web_bootstrap_does_not_overwrite_existing_config(tmp_path: Path) -> None:
+    workspace = tmp_path / "mindforge"
+    config_dir = workspace / "configs"
+    config_dir.mkdir(parents=True)
+    (config_dir / "mindforge_example.yaml").write_text("version: 0.7\n", encoding="utf-8")
+    existing = config_dir / "mindforge.yaml"
+    existing.write_text("version: 0.7\nvault:\n  root: custom-vault\n", encoding="utf-8")
+
+    result = maybe_bootstrap_local_config(workspace / "configs" / "mindforge.yaml", cwd=workspace)
+
+    assert result.created is False
+    assert existing.read_text(encoding="utf-8") == "version: 0.7\nvault:\n  root: custom-vault\n"
+
+
+def test_clean_clone_web_bootstrap_does_not_modify_example_template(tmp_path: Path) -> None:
+    workspace = tmp_path / "mindforge"
+    config_dir = workspace / "configs"
+    config_dir.mkdir(parents=True)
+    example = config_dir / "mindforge_example.yaml"
+    original = "version: 0.7\n# example stays immutable\n"
+    example.write_text(original, encoding="utf-8")
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+
+    maybe_bootstrap_local_config(Path("configs/mindforge.yaml"), cwd=workspace)
+
+    assert example.read_text(encoding="utf-8") == original
 
 
 def test_minimal_user_override_merges_with_internal_defaults(tmp_path: Path) -> None:

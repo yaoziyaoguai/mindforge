@@ -1325,6 +1325,29 @@ def test_setup_add_model_writes_new_llm_models_entry(tmp_path: Path, monkeypatch
     assert secrets["main"] == "sk-test-key-1234"
 
 
+def test_clean_clone_setup_api_bootstraps_no_model_config(tmp_path: Path, monkeypatch) -> None:
+    """Web app 在 clean clone 缺本地 config 时应进入 No model configured 状态。"""
+
+    workspace = tmp_path / "mindforge"
+    (workspace / "configs").mkdir(parents=True)
+    (workspace / "configs" / "mindforge_example.yaml").write_text("version: 0.7\n", encoding="utf-8")
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+    monkeypatch.chdir(workspace)
+
+    cfg_path = workspace / "configs" / "mindforge.yaml"
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/config/editable")
+
+    assert response.status_code == 200
+    assert cfg_path.is_file()
+    llm = response.json()["llm"]
+    assert llm["configured_model_ids"] == []
+    assert llm["configured_models"] == {}
+    assert llm["default_model"] is None
+    assert llm["validation_errors"] == []
+
+
 def test_setup_edit_model_preserves_secret_when_empty_key(tmp_path: Path, monkeypatch) -> None:
     """Edit model 时 api_key 为空 → 保留已有 secret。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)

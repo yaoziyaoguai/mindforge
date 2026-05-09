@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from mindforge.first_run_config import maybe_bootstrap_local_config
 from mindforge_web.routers import approval, config, drafts, health, home, library, prompts, recall, sources, trash, wiki
 from mindforge_web.services.web_facade import WebFacade
 
@@ -25,6 +26,10 @@ def create_app(
     中文学习型说明：app factory 只装配 router/static/facade，不读取 secret，
     不启动 provider，不写 vault。这样 TestClient 可以直接覆盖 facade。
     """
+
+    bootstrap = maybe_bootstrap_local_config(config_path)
+    if bootstrap.config_path is not None:
+        config_path = bootstrap.config_path
 
     app = FastAPI(title="MindForge Local Console", version="0.1.0")
     app.state.config_path = config_path

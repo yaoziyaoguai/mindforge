@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import console, global_vault_override
+from .first_run_config import DEFAULT_CONFIG_PATH, maybe_bootstrap_local_config
 
 
 def web(
@@ -57,6 +58,20 @@ def web(
             vault = ws / "vault"
 
     effective_vault = vault or global_vault_override()
+    bootstrap = maybe_bootstrap_local_config(config)
+    if bootstrap.config_path is None and not config.expanduser().exists():
+        console.print(
+            "[red]Run from a MindForge workspace, or pass --workspace /path/to/mindforge.[/red]"
+        )
+        console.print(
+            "[dim]No local configs/mindforge.yaml was created because no workspace root was found.[/dim]"
+        )
+        raise typer.Exit(code=2)
+    if bootstrap.config_path is not None and config == DEFAULT_CONFIG_PATH:
+        config = bootstrap.config_path
+    if bootstrap.created and bootstrap.message:
+        console.print(f"[green]{bootstrap.message}[/green]")
+
     if host not in {"127.0.0.1", "localhost"}:
         console.print(
             "[yellow]Warning: MindForge Web is designed as a single-user local console.[/yellow]"
