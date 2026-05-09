@@ -154,7 +154,7 @@ def test_readme_dogfood_quickstart_command_resolves():
 
     readme = Path("README.md").read_text(encoding="utf-8")
     # 找出 Quick Start 块里第一条以 mindforge 开头的命令
-    quickstart = readme.split("## Quick Start", 1)[1].split("\n## ", 1)[0]
+    quickstart = readme.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
     first_cmd = re.search(r"mindforge\s+([a-z][a-z\-]*)", quickstart)
     assert first_cmd, "Quick Start 必须给出至少一条 mindforge 命令"
     cmd_name = first_cmd.group(1)
@@ -162,7 +162,10 @@ def test_readme_dogfood_quickstart_command_resolves():
         f"README Quick Start 第一条命令 'mindforge {cmd_name}' 必须真的存在"
     )
 
-    result = runner.invoke(app, [cmd_name])
+    # 中文学习型说明：Quick Start 的第一条命令现在是 `mindforge web`，
+    # 这是长运行本地服务；测试只验证命令可解析，避免在 CI/sandbox 中绑定端口。
+    args = [cmd_name, "--help"] if cmd_name == "web" else [cmd_name]
+    result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
 
 

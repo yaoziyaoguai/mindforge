@@ -27,6 +27,11 @@ llm:
     link_suggestion: main
     review_questions: main
     action_extraction: main
+
+wiki:
+  mode: deterministic
+  model: main
+  auto_rebuild_on_approve: false
 ```
 
 ### 语义
@@ -37,6 +42,8 @@ llm:
 | `llm.default_model` | 所有 workflow step 默认使用的模型 |
 | `llm.routing` | 可选，workflow step → model id。省略时全部使用 default_model |
 | routing 部分缺失 | 缺失 step fallback 到 default_model |
+| `wiki.model` | Wiki LLM synthesis 使用的 model id；必须引用 `llm.models` |
+| `wiki.auto_rebuild_on_approve` | 默认 false；开启后也只运行 deterministic rebuild，不自动运行 LLM synthesis |
 
 ---
 
@@ -57,6 +64,7 @@ llm:
 Web Setup 还支持：
 - **Default model** 选择
 - **Processing Workflow** 中每个 step 的模型分配
+- **Wiki generation mode / Wiki model** 配置；LLM synthesis 需要用户手动触发
 
 ---
 
@@ -82,6 +90,7 @@ Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_op
 - 路径：`.mindforge/secrets.json`
 - 已被 `.gitignore` 中 `.mindforge/` 规则覆盖
 - API key **不写入 YAML config**
+- `configs/mindforge.yaml` 是本地 runtime config，已 gitignore，不应提交
 - Web API **只返回 masked 值**（如 `sk-****abcd`）
 - Provider runtime 优先从 secret store 取 key，其次从环境变量 fallback
 

@@ -1,26 +1,28 @@
 # MindForge 示例配置 —— 新用户参考模板（git-tracked）。
 #
-# 此文件仅作为参考；不要直接修改此文件。实际配置请复制到 configs/mindforge.yaml。
-# configs/mindforge.yaml 是本地运行时配置（已 gitignore），由 Web Setup 写入。
+# 此文件仅作为参考模板，不要直接修改。
+# 实际配置：
+#   - Web Setup 写入到 configs/mindforge.yaml（本地运行时配置，已 gitignore）
+#   - API key 通过 Web Setup 的 Add model 输入，保存在 .mindforge/secrets.json（已 gitignore）
 #
 # 推荐路径：
-#   启动 Web Setup（mindforge web → Setup）后直接在界面中配置模型。
-#   API key 通过 Add model 输入，保存在本地 secret store (.mindforge/secrets.json)。
+#   启动 mindforge web → Setup → Add model，在界面中配置模型。
+#   不需要手动编辑 YAML 或设置环境变量。
 #
 # 安全性：
-#   - API key 不写在这个 YAML 里
+#   - API key 不写 YAML
 #   - .mindforge/secrets.json 被 .gitignore 排除，不要提交
-#   - wiki.model 只能引用 llm.models 中已有的 model id
-#   - routing 的值只能引用 llm.models 中已有的 model id
+#   - configs/mindforge.yaml 被 .gitignore 排除，不要提交
+#   - wiki.model 和 routing 的值只能引用 llm.models 中已有的 model id
 
-version: 0.1
+version: 0.7
 
 vault:
-  root: "/path/to/your/mindforge-vault"
+  root: "vault"
 
 # -----------------------------------------------------------------------------
 # LLM 模型配置
-# type 支持：anthropic, anthropic_compatible, openai, openai_compatible
+# type 是 API 协议类型，支持：anthropic, anthropic_compatible, openai, openai_compatible
 # -----------------------------------------------------------------------------
 llm:
   default_model: main
@@ -28,7 +30,7 @@ llm:
   models:
     main:
       type: anthropic_compatible
-      base_url: "https://your-provider.example.com/anthropic"
+      base_url: "https://your-provider.example.com"
       model: "your-model-name"
       timeout_seconds: 240
       max_retries: 2
@@ -42,14 +44,15 @@ llm:
 
 # -----------------------------------------------------------------------------
 # Wiki 配置（可选）
+# mode: deterministic（无需 LLM，按模板拼接）或 llm（LLM 综合归纳）
 # -----------------------------------------------------------------------------
 wiki:
-  mode: deterministic          # deterministic | llm
-  model: main                  # 引用 llm.models 中的 model id
+  mode: deterministic
+  model: main
   auto_rebuild_on_approve: false
 
 # -----------------------------------------------------------------------------
-# 遥测（不上传，纯本地）
+# 遥测（不上传，纯本地统计）
 # -----------------------------------------------------------------------------
 telemetry:
   enabled: true

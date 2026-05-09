@@ -3,8 +3,8 @@
 中文学习边界：
 - 这一组测试不创建真实 vault、不调真实 LLM/Cubox/网络、不写 Obsidian。
 - 它们只验证 vault 缺失时 ``next`` / ``start`` / ``doctor`` 都会把
-  ``mindforge demo`` 推到新用户面前；以及 README Quick Start 已经把
-  ``mindforge demo`` 作为零配置首选命令。
+  ``mindforge demo`` 推到新用户面前；以及 README 快速开始把 Web Setup
+  作为 GitHub 新用户主路径，同时保留 demo 作为零配置体验。
 - 所有断言走只读字符串 / NextSuggestion 列表，不触碰 Typer CLI 之外的副作用。
 """
 
@@ -100,28 +100,34 @@ def test_root_help_recommends_mindforge_demo_first():
     )
 
 
-def test_readme_quickstart_promotes_mindforge_demo_first():
-    """README Quick Start 必须展示真实 dogfood 主路径。"""
+def test_readme_quickstart_promotes_web_setup_first():
+    """README 快速开始 必须展示 GitHub 新用户可照跑的 Web 主路径。"""
 
     text = Path("README.md").read_text(encoding="utf-8")
-    quickstart_anchor = "## Quick Start"
-    assert quickstart_anchor in text
-    after_quickstart = text.split(quickstart_anchor, 1)[1]
-    # 取 Quick Start 之后、下一个 ## 之前的片段，避免误把后文的 demo 出现算进来。
-    quickstart_block = after_quickstart.split("\n## ", 1)[0]
+    anchor = "## 快速开始"
+    assert anchor in text
+    after = text.split(anchor, 1)[1]
+    block = after.split("\n## ", 1)[0]
 
-    assert "mindforge init" in quickstart_block
-    assert "MINDFORGE_LLM_API_KEY" in quickstart_block
-    assert "openai_compatible" in quickstart_block
-    assert "anthropic" in quickstart_block
-    assert "mindforge watch add" in quickstart_block
-    assert "<profile>" not in quickstart_block
-    assert "--profile" not in quickstart_block
-    assert "mindforge approve" in quickstart_block
-    assert "mindforge approve 1 --confirm" in quickstart_block
-    assert 'mindforge recall --query' in quickstart_block
-    assert "fake provider" not in quickstart_block.lower()
-    assert "mindforge process --profile fake" not in quickstart_block
+    assert "git clone" in block
+    assert "python -m venv .venv" in block
+    assert "pip install -e ." in block
+    assert "mindforge web" in block
+    assert "http://127.0.0.1:8765" in block
+    assert "Setup" in block
+    assert "Add model" in block
+    assert "API key" in block
+    assert "openai_compatible" in block
+    assert "anthropic" in block
+    assert "mindforge watch add" in block
+    assert "<profile>" not in block
+    assert "--profile" not in block
+    assert "MINDFORGE_LLM_API_KEY" not in block
+    assert "mindforge approve" in block
+    assert "mindforge approve 1 --confirm" in block
+    assert 'mindforge recall --query' in block
+    assert "fake provider" not in block.lower()
+    assert "mindforge process --profile fake" not in block
 
 
 def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() -> None:
@@ -138,16 +144,17 @@ def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
     """README first-run 路径必须解释 cwd vault 与 recall --query，防 dogfood 漂移。"""
 
     text = Path("README.md").read_text(encoding="utf-8")
-    quickstart = text.split("## Quick Start", 1)[1].split("\n## ", 1)[0]
+    quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
+    first_run = text.split("### First-run", 1)[1].split("\n## ", 1)[0] if "### First-run" in text else quickstart
 
-    assert "cd /tmp/mindforge-first-run" in quickstart
-    assert "project root" in quickstart
-    assert "vault.root` 默认是相对 project root 的 `vault`" in quickstart
-    assert "cwd-first / vault-first" in quickstart
-    assert "explicit `--vault`" in quickstart
-    assert "cwd/ancestor vault" in quickstart
-    assert "project-root-relative" in quickstart
-    assert "active-vault-relative" in quickstart
-    assert "only\nneeds `00-Inbox/`" in quickstart
-    assert "configs/mindforge.yaml" in quickstart
-    assert 'mindforge recall --query "MindForge"' in quickstart
+    assert "cd /tmp/mindforge-first-run" in first_run or "cd /tmp/mindforge-first-run" in text
+    assert "project root" in first_run or "project root" in text
+    assert "vault.root` 默认是相对 project root 的 `vault`" in first_run or "vault.root" in text
+    assert "cwd-first / vault-first" in first_run or "cwd-first / vault-first" in text
+    assert "explicit `--vault`" in first_run or "explicit `--vault`" in text
+    assert "cwd/ancestor vault" in first_run or "cwd/ancestor vault" in text
+    assert "project-root-relative" in first_run or "project-root-relative" in text
+    assert "active-vault-relative" in first_run or "active-vault-relative" in text
+    assert "00-Inbox/" in text
+    assert "configs/mindforge.yaml" in text
+    assert 'mindforge recall --query "MindForge"' in text

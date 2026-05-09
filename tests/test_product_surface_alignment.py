@@ -211,6 +211,41 @@ def test_llm_provider_doc_references_example_config() -> None:
     assert "mindforge_example.yaml" in text
 
 
+def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
+    """README 锁定第一阶段 dogfood 表面，避免重新漂回 legacy/provider 文案。
+
+    中文学习型说明：这不是业务逻辑测试，而是产品承诺测试。README 是 GitHub
+    新用户的第一入口，必须把本地配置、secret store、路径和 Wiki 手动边界说清楚。
+    """
+
+    text = Path("README.md").read_text(encoding="utf-8")
+    main, _, developer = text.partition("## 开发者")
+
+    assert "configs/mindforge_example.yaml" in text
+    assert "configs/mindforge.yaml" in text
+    assert "本地运行时配置" in text
+    assert "secret store" in text
+    assert ".mindforge/secrets.json" in text
+    assert "Web Add Source" in text
+    assert "必须绝对路径" in text
+    assert "anthropic" in text
+    assert "anthropic_compatible" in text
+    assert "openai" in text
+    assert "openai_compatible" in text
+    assert "LLM synthesis 必须由用户在 Wiki 页面或 CLI 手动触发" in text
+    assert "not RAG / not embedding / no vector DB" in text
+    assert "vault/" in text
+    assert "本地知识库" in text
+    assert "不提交" in text
+    assert "支持相对路径" in text
+    assert "解析为绝对路径" in text
+
+    for token in ("active_profile", "profiles", "fake_fast", "fake_strong"):
+        assert token not in main, f"{token!r} must not appear in the user-facing README path"
+
+    assert developer  # legacy/dev notes may still exist after the developer boundary.
+
+
 def _source_doc() -> SourceDocument:
     raw = "A normal synthetic document about production/test path alignment."
     return SourceDocument(
