@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mindforge.config import REQUIRED_STAGES
+
 from .anthropic_compatible import AnthropicCompatibleProvider
 from .base import LLMProvider, ProviderError
 from .fake import FakeProvider
@@ -19,15 +21,19 @@ _BUILDERS = {
 
 
 def build_providers(llm_config: Any) -> dict[str, LLMProvider]:
-    """构建当前 ``active_profile`` 实际会用到的 alias 对应的 Provider。
+    """构建当前 processing routing 实际会用到的 alias 对应的 Provider。
 
-    设计要点：**lazy by profile**。声明在 ``llm.models`` 但当前 profile 不引用的
-    alias 不会被实例化，避免逼迫用户为未使用的备选 provider 准备 env / api_key。
-    profile 切换后下一次构建会自然包含新 alias。
+    设计要点：**lazy by resolved stage routing**。声明在 ``llm.models`` 但五段
+    processing 不引用的 alias 不会被实例化，避免逼迫用户为未使用的备选
+    provider 准备 env / api_key。新 llm.routing 缺省时由 ``resolve_stage_alias``
+    回退到 default_model；旧 profiles 仅作为兼容来源。
     """
     active = llm_config.active_profile
-    profile = llm_config.profiles.get(active, {})
-    needed_aliases = set(profile.values())
+    if hasattr(llm_config, "resolve_stage_alias"):
+        needed_aliases = {llm_config.resolve_stage_alias(stage) for stage in REQUIRED_STAGES}
+    else:
+        profile = llm_config.profiles.get(active, {})
+        needed_aliases = set(profile.values())
 
     providers: dict[str, LLMProvider] = {}
     for alias in needed_aliases:

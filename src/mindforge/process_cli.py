@@ -110,6 +110,9 @@ def _build_process_runtime_parts(*, cfg, runtime, strategy: str) -> ProcessRunti
         # 诊断，不 fallback fake，也不打印 env value / prompt / source 正文。
         print_provider_failure(console, provider_failure_detail(cfg, str(exc)))
         raise typer.Exit(code=2) from None
+    except ValueError as exc:
+        console.print(str(exc), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2) from None
 
 
 def _run_process_loop(*, cfg, parts: ProcessRuntimeParts, file, limit, dry_run) -> None:

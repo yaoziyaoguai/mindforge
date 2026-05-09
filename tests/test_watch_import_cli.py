@@ -16,7 +16,7 @@ from mindforge.approval_service import approve_explicit_card
 from mindforge.cards import read_card_frontmatter
 from mindforge.cli import app
 from mindforge.config import load_mindforge_config
-from mindforge.watch_registry import WatchRegistry
+from mindforge.watch_registry import WatchRegistry, add_watch_source, registry_path_for_vault
 
 runner = CliRunner()
 
@@ -921,6 +921,67 @@ def test_import_invalid_active_provider_fails_with_available_providers(
     assert "openai_compatible" in result.output
     assert "anthropic" in result.output
     assert "fake" in result.output
+
+
+def test_import_without_model_config_reports_setup_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    source = tmp_path / "import-no-model.md"
+    source.write_text("# Import No Model\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(vault)
+
+    result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 2, result.output
+    assert "No model configured for stage 'triage'" in result.output
+    assert "Add a model in Web Setup" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_process_without_model_config_reports_setup_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(vault)
+
+    result = runner.invoke(app, ["process", "--config", str(cfg), "--limit", "1"])
+
+    assert result.exit_code == 2, result.output
+    assert "No model configured for stage 'triage'" in result.output
+    assert "Add a model in Web Setup" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_watch_scan_without_model_config_reports_setup_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    source = tmp_path / "watch-scan-no-model.md"
+    source.write_text("# Watch Scan No Model\n\nbody\n", encoding="utf-8")
+    registry_path = registry_path_for_vault(vault)
+    add_watch_source(vault, registry_path, source, frequency="manual")
+    watch_id = WatchRegistry.load(registry_path).sources[0].id
+    monkeypatch.chdir(vault)
+
+    result = runner.invoke(app, ["watch", "scan", watch_id, "--config", str(cfg)])
+
+    assert result.exit_code == 2, result.output
+    assert "No model configured for stage 'triage'" in result.output
+    assert "Add a model in Web Setup" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_process_missing_real_provider_key_reports_selected_provider(

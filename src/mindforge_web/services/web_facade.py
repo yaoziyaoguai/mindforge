@@ -253,7 +253,12 @@ class WebFacade:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
-        return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
+        try:
+            return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)

@@ -40,7 +40,10 @@ class LLMClient:
 
     def resolve_model_for_stage(self, stage: str) -> ResolvedModel:
         mc = self._cfg.resolve_stage(stage)
-        alias = self._cfg.profiles[self._cfg.active_profile][stage]
+        # 中文学习型说明：stage alias 必须来自 LLMConfig 的统一解析结果。
+        # 新 llm.routing 可以缺省并回退到 default_model；如果这里再读取旧
+        # profile[stage]，clean clone dogfood 会在 triage 复现 KeyError。
+        alias = mc.alias
         # model_env：允许从环境变量覆盖模型名（同 endpoint 切换 fast / strong / deep）
         actual_model = mc.model
         model_env = getattr(mc, "model_env", None)

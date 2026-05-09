@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mindforge.app_context import AppContextError
+from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
 
@@ -805,7 +806,13 @@ def test_setup_save_writes_new_llm_format_without_legacy_profiles(
     assert response.status_code == 200
     assert raw["llm"]["default_model"] == "main"
     assert sorted(raw["llm"]["models"]) == ["main", "strong"]
-    assert raw["llm"]["routing"] == {"distill": "strong"}
+    assert raw["llm"]["routing"] == {
+        "triage": "main",
+        "distill": "strong",
+        "link_suggestion": "main",
+        "review_questions": "main",
+        "action_extraction": "main",
+    }
     assert "active_profile" not in raw["llm"]
     assert "profiles" not in raw["llm"]
     assert "providers" not in raw["llm"]
@@ -1129,6 +1136,97 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     assert "advanced" in after["ingestion"]["advanced_note"].lower()
 
 
+def test_web_process_uses_default_model_when_routing_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Process now 兼容只有 default_model 的新格式配置。
+
+    中文学习型说明：Setup 主路径会补齐 routing，但 runtime 仍要接受旧 dogfood
+    clone 中可能已有的“default_model + models、无 routing”配置，不能退回旧
+    profile[stage] 导致 KeyError。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "provider": "fake",
+                "type": "fake",
+                "base_url": "fake://",
+                "model": "fake",
+                "timeout_seconds": 5,
+                "max_retries": 0,
+                "api_key_optional": True,
+            }
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "default-model-only.md"
+    source.write_text("# Default Model Only\n\nbody\n", encoding="utf-8")
+
+    response = client.post("/api/sources/watch", json={"path": str(source)})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"]["processed"] == 1
+    assert len(list(cards.rglob("*.md"))) == 1
+
+
+def test_web_process_without_model_returns_friendly_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+    source = tmp_path / "no-model.md"
+    source.write_text("# No Model\n\nbody\n", encoding="utf-8")
+
+    response = client.post("/api/sources/watch", json={"path": str(source)})
+
+    assert response.status_code == 400
+    assert "No model configured for stage 'triage'" in response.json()["detail"]
+    assert "Add a model in Web Setup" in response.json()["detail"]
+    assert "Traceback" not in response.text
+
+
+def test_web_watch_scan_without_model_returns_friendly_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+    source = tmp_path / "scan-no-model.md"
+    source.write_text("# Scan No Model\n\nbody\n", encoding="utf-8")
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "process_now": False},
+    ).json()
+
+    response = client.post(f"/api/sources/watch/scan?ref={registered['watch_id']}")
+
+    assert response.status_code == 400
+    assert "No model configured for stage 'triage'" in response.json()["detail"]
+    assert "Traceback" not in response.text
+
+
 def test_sources_api_returns_recursive_folder_watch_diagnostics(
     tmp_path: Path,
     monkeypatch,
@@ -1313,6 +1411,7 @@ def test_setup_add_model_writes_new_llm_models_entry(tmp_path: Path, monkeypatch
     assert raw["llm"]["default_model"] == "main"
     assert "main" in raw["llm"]["models"]
     assert raw["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert raw["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
     # YAML 里不应有 API key
     assert "api_key" not in raw["llm"]["models"]["main"]
     assert "sk-test" not in str(raw)
@@ -1663,7 +1762,7 @@ def test_setup_routing_dropdown_only_configured_models(tmp_path: Path, monkeypat
 
 
 def test_setup_routing_omitted_uses_default_model(tmp_path: Path, monkeypatch) -> None:
-    """routing 省略时所有 workflow step 使用 default_model。"""
+    """Setup 保存时补齐 routing；runtime 仍保留 default_model fallback。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)
     monkeypatch.chdir(tmp_path)
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
@@ -1679,9 +1778,10 @@ def test_setup_routing_omitted_uses_default_model(tmp_path: Path, monkeypatch) -
     )
 
     editable = client.get("/api/config/editable").json()
-    assert editable["llm"]["routing_is_explicit"] is False
-    for _stage, model_id in editable["llm"]["routing"].items():
-        assert model_id == "main"
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert editable["llm"]["routing_is_explicit"] is True
+    assert editable["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
+    assert raw["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
 
 
 def test_setup_type_must_be_explicit_no_guessing(tmp_path: Path, monkeypatch) -> None:

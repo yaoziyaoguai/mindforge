@@ -3,9 +3,11 @@
 设计原则
 ========
 
-1. **fail-fast**
-   - 配置错误（active_profile 找不到、source_type 不在 enum、stage 缺失）
-     必须在启动时立即报错，不允许进入处理循环后再炸。
+1. **fail-fast + runtime-friendly**
+   - 旧 profile 配置错误（active_profile 找不到、source_type 不在 enum）
+     必须在启动时立即报错。
+   - 新 ``llm.models/default_model/routing`` 允许 clean clone 初始无模型；
+     需要 LLM 的运行边界再给出可操作错误，不能抛 ``KeyError``。
 
 2. **配置层面开放、执行层面克制**
    - 允许用户列任意多个 profile / model；
@@ -177,11 +179,40 @@ class LLMConfig:
     routing: dict[str, str] = field(default_factory=dict)
     legacy_config_detected: bool = False
 
+    def resolve_stage_alias(self, stage: str) -> str:
+        """解析 processing stage 使用的 model id，统一新旧配置边界。
+
+        中文学习型说明：新格式主路径是 ``llm.routing``，缺省时回退到
+        ``llm.default_model``；旧 ``profiles`` 只作为兼容来源。所有路径都在
+        这里收敛成 ConfigError，避免 pipeline/runtime 再出现 ``KeyError``。
+        """
+
+        if stage not in REQUIRED_STAGES:
+            raise ConfigError(
+                f"Unknown processing stage {stage!r}. Known stages: {list(REQUIRED_STAGES)}"
+            )
+        profile = self.profiles.get(self.active_profile, {})
+        # 新格式以 llm.routing 为主；legacy 配置可能被 CLI --provider 临时切换
+        # active_profile，因此必须先看当前 profile，不能让加载时的 routing 快照
+        # 抢走用户显式选择。
+        if self.legacy_config_detected:
+            alias = profile.get(stage) or self.routing.get(stage)
+        else:
+            alias = self.routing.get(stage) or profile.get(stage)
+        if alias is None:
+            alias = self.default_model
+        if not alias:
+            raise ConfigError(
+                f"No model configured for stage {stage!r}. Add a model in Web Setup."
+            )
+        if alias not in self.models:
+            raise ConfigError(
+                f"Model {alias!r} referenced by stage {stage!r} is not configured."
+            )
+        return alias
+
     def resolve_stage(self, stage: str) -> ModelConfig:
-        """按当前 active_profile 把 stage 解析为 ModelConfig。"""
-        profile = self.profiles[self.active_profile]
-        alias = profile[stage]
-        return self.models[alias]
+        return self.models[self.resolve_stage_alias(stage)]
 
 
 def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
@@ -189,9 +220,17 @@ def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
 
     中文学习型说明：用户默认配置和 package defaults 不再暴露 fake/profile 语义；
     但老的 smoke、preview 和 ``--profile fake`` 仍需要 deterministic 本地替身。
-    这里在内存中派生 fake profile，不写回 YAML，也不污染 Setup 主 UI。
+    这里在内存中派生 fake profile，并同步 runtime routing，不写回 YAML，也
+    不污染 Setup 主 UI。
     """
 
+    fake_routing = {
+        "triage": "fake_fast",
+        "distill": "fake_strong",
+        "link_suggestion": "fake_fast",
+        "review_questions": "fake_strong",
+        "action_extraction": "fake_strong",
+    }
     fake_models = {
         "fake_fast": ModelConfig(
             alias="fake_fast",
@@ -216,17 +255,11 @@ def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
         active_profile="fake",
         profiles={
             **llm.profiles,
-            "fake": {
-                "triage": "fake_fast",
-                "distill": "fake_strong",
-                "link_suggestion": "fake_fast",
-                "review_questions": "fake_strong",
-                "action_extraction": "fake_strong",
-            },
+            "fake": fake_routing,
         },
         models={**llm.models, **fake_models},
         default_model=llm.default_model,
-        routing=dict(llm.routing),
+        routing=dict(fake_routing),
         legacy_config_detected=llm.legacy_config_detected,
     )
 

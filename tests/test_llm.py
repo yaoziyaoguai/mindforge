@@ -50,6 +50,19 @@ class _FakeLLMConfig:
         return self.models[self.profiles[self.active_profile][stage]]
 
 
+class _FallbackLLMConfig(_FakeLLMConfig):
+    """模拟新 routing/default_model 解析层，不暴露 profile[stage]。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.default_model = "a"
+        self.routing = {}
+        self.profiles = {"default": {}}
+
+    def resolve_stage(self, stage: str):
+        return self.models[self.default_model]
+
+
 def test_fake_provider_returns_schema_for_each_stage() -> None:
     fp = FakeProvider()
     for stage in [
@@ -102,6 +115,23 @@ def test_client_resolve_for_each_stage() -> None:
     assert r.model_alias == "a"
     assert r.actual_model == "fake-model-a"
     assert r.type == "fake"
+
+
+def test_client_resolve_uses_resolved_model_alias_without_profile_lookup() -> None:
+    """LLMClient 不应在 resolve_stage 后再次读取 profile[stage]。
+
+    中文学习型说明：新格式允许 stage routing 缺省并 fallback 到 default_model。
+    如果 client 又走旧 profile 字典取 alias，就会在 dogfood processing 中复现
+    KeyError('triage')。
+    """
+
+    cfg = _FallbackLLMConfig()
+    client = LLMClient(llm_config=cfg, providers=build_providers(cfg))
+
+    resolved = client.resolve_model_for_stage("triage")
+
+    assert resolved.model_alias == "a"
+    assert resolved.actual_model == "fake-model-a"
 
 
 def test_client_generate_returns_result_and_routes_correctly() -> None:

@@ -17,6 +17,8 @@ import yaml
 from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.config import (
     ConfigError,
+    LLMConfig,
+    ModelConfig,
     REQUIRED_STAGES,
     load_learning_tracks,
     load_mindforge_config,
@@ -510,6 +512,93 @@ def test_partial_llm_routing_falls_back_to_default_model(tmp_path: Path) -> None
     assert cfg.llm.routing["distill"] == "strong"
     assert cfg.llm.routing["review_questions"] == "strong"
     assert cfg.llm.routing["action_extraction"] == "strong"
+
+
+def _model_config(alias: str) -> ModelConfig:
+    return ModelConfig(
+        alias=alias,
+        provider="test",
+        type="fake",
+        base_url="fake://",
+        model=f"{alias}-model",
+        timeout_seconds=5,
+        max_retries=0,
+    )
+
+
+def test_resolve_stage_falls_back_to_default_model_when_routing_is_missing() -> None:
+    """执行边界也要做 default_model fallback，不能依赖 YAML parse 已经补齐。
+
+    中文学习型说明：clean clone 后 Web Setup 可能产生只有 default_model 的新格式
+    配置；pipeline runtime 必须在最后一道解析边界兜住缺失 stage，避免旧
+    profile[stage] 语义重新抛出 KeyError。
+    """
+
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={"main": _model_config("main")},
+        default_model="main",
+        routing={},
+    )
+
+    assert llm.resolve_stage("triage").alias == "main"
+
+
+def test_resolve_stage_without_routing_or_default_model_fails_clearly() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={},
+        default_model=None,
+        routing={},
+    )
+
+    with pytest.raises(ConfigError, match="No model configured for stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_resolve_stage_bad_model_reference_fails_clearly() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {"triage": "ghost"}},
+        models={"main": _model_config("main")},
+        default_model=None,
+        routing={"triage": "ghost"},
+    )
+
+    with pytest.raises(ConfigError, match="Model 'ghost' referenced by stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_legacy_profile_missing_stage_does_not_raise_key_error() -> None:
+    """旧 profiles 兼容路径也必须收敛成 ConfigError，而不是 KeyError。"""
+
+    llm = LLMConfig(
+        active_profile="legacy",
+        profiles={"legacy": {"distill": "main"}},
+        models={"main": _model_config("main")},
+        default_model=None,
+        routing={"distill": "main"},
+        legacy_config_detected=True,
+    )
+
+    with pytest.raises(ConfigError, match="No model configured for stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_resolve_all_required_stages_use_default_without_key_error() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={"main": _model_config("main")},
+        default_model="main",
+        routing={},
+    )
+
+    assert {stage: llm.resolve_stage(stage).alias for stage in REQUIRED_STAGES} == {
+        stage: "main" for stage in REQUIRED_STAGES
+    }
 
 
 def test_llm_routing_missing_model_fails_clearly(tmp_path: Path) -> None:

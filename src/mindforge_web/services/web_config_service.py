@@ -14,7 +14,7 @@ from typing import Any
 
 import yaml
 
-from mindforge.config import MindForgeConfig
+from mindforge.config import REQUIRED_STAGES, MindForgeConfig
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from mindforge.provider_readiness import build_readiness_report
 from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
@@ -793,7 +793,20 @@ class WebConfigService:
                 item.pop(env_key, None)
             # 处理 API key：写入/清除/保留 secret store
             self._apply_api_key_patch(model_id, model_patch)
+        routing_raw = llm.get("routing")
+        existing_routing = routing_raw if isinstance(routing_raw, dict) else {}
+        explicit_routing = dict(existing_routing)
         if patch.routing:
+            explicit_routing.update(patch.routing)
+        default_model = _str_or_none(llm.get("default_model"))
+        if default_model:
+            # 中文学习型说明：Setup 保存时把五段 routing 写完整，便于用户审计
+            # YAML；runtime 仍会 fallback 到 default_model，以兼容旧 dogfood 配置。
+            llm["routing"] = {
+                stage: str(explicit_routing.get(stage) or default_model)
+                for stage in REQUIRED_STAGES
+            }
+        elif patch.routing:
             llm["routing"] = dict(patch.routing)
         elif "routing" in llm:
             llm.pop("routing", None)
