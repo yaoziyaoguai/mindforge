@@ -74,7 +74,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     setSavedForm(next);
   }
 
-  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(savedForm), [form, savedForm]);
+  const draftForm = useMemo(() => formWithEditing(form, editing), [form, editing]);
+  const dirty = useMemo(() => JSON.stringify(draftForm) !== JSON.stringify(savedForm), [draftForm, savedForm]);
   const modelIds = Object.keys(form?.models ?? {});
   const hasConfiguredModels = modelIds.length > 0;
   const onlyDemoModel = editable
@@ -144,7 +145,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   function saveModelEdit() {
     if (!form || !editing) return;
     const { modelId: originalId, isNew, form: editForm } = editing;
-    const newId = (isNew ? (document.getElementById("model-id-input") as HTMLInputElement)?.value?.trim() : originalId) || originalId;
+    const newId = (isNew ? originalId.trim() : originalId) || originalId;
 
     if (!newId) {
       setMessage("Model id is required.");
@@ -210,10 +211,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   }
 
   async function validate() {
-    if (!form) return;
+    const current = draftForm;
+    if (!current) return;
     setBusy(true);
     try {
-      const response = await validateSetupConfig(patchFromForm(form));
+      const response = await validateSetupConfig(patchFromForm(current));
       setMessage(response.ok ? "Validation passed" : response.errors.join(" "));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Validation failed");
@@ -223,10 +225,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   }
 
   async function save() {
-    if (!form) return;
+    const current = draftForm;
+    if (!current) return;
     setBusy(true);
     try {
-      const response = await saveSetupConfig(patchFromForm(form));
+      const response = await saveSetupConfig(patchFromForm(current));
       const next = formFromEditable(response.editable);
       setEditable(response.editable);
       setForm(next);
@@ -326,7 +329,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-ink">Model id {editing.isNew ? "*" : "(read-only)"}</span>
-                    <input id="model-id-input" className="w-full rounded-md border border-line bg-white px-3 py-2" defaultValue={editing.modelId} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
+                    <input id="model-id-input" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.modelId} onChange={(event) => setEditing({ ...editing, modelId: event.target.value })} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
                   </label>
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-ink">Type *</span>
@@ -649,6 +652,22 @@ function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
     wiki_mode: editable.wiki?.mode ?? "deterministic",
     wiki_model: editable.wiki?.model ?? "",
     wiki_auto_rebuild: editable.wiki?.auto_rebuild_on_approve ?? false,
+  };
+}
+
+function formWithEditing(form: SetupForm | null, editing: EditingModel | null): SetupForm | null {
+  if (!form || !editing) return form;
+  const modelId = editing.modelId.trim();
+  if (!modelId) return form;
+  const models = { ...form.models };
+  if (!editing.isNew && modelId !== editing.modelId) {
+    delete models[editing.modelId];
+  }
+  models[modelId] = { ...editing.form };
+  return {
+    ...form,
+    models,
+    ...(editing.isNew && !form.default_model ? { default_model: modelId } : {}),
   };
 }
 

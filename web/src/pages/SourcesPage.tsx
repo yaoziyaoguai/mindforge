@@ -49,10 +49,10 @@ export function SourcesPage({
 
   async function scanWatch(ref?: string, allSources = false) {
     setBusy(true);
-    setResult("Processing...");
+    setResult("Starting background processing...");
     try {
       const response = await scanWatchedSources(ref, allSources);
-      setResult(formatRunSummary(response.message, response.counts));
+      setResult(formatRunSummary(response.message, response.counts, response.run_id));
       await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Process failed");
@@ -128,9 +128,16 @@ export function SourcesPage({
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <SummaryItem label="Status" value={source.status_label || (source.status === "active" ? "Watching" : source.status)} />
+                    <SummaryItem label="Run status" value={runStatusLabel(source.processing_status, source.active_run_id)} />
                     <SummaryItem label="Last scan" value={source.last_scan_at ?? source.last_processed_at ?? source.last_seen_at ?? "-"} />
                     <SummaryItem label="Next scan / Due" value={`${source.next_scan_at ?? "-"} · ${source.due_status}`} />
                   </div>
+                  {source.last_message ? (
+                    <div className={source.processing_status === "failed" || source.processing_status === "partial_failed" ? "rounded-md border border-red-200 bg-red-50 p-3 text-sm text-danger" : "rounded-md border border-line bg-stone-50 p-3 text-sm text-ink"}>
+                      {source.last_message}
+                      {source.last_error ? <div className="mt-1 text-xs text-danger">{source.last_error}</div> : null}
+                    </div>
+                  ) : null}
                   <div>
                     <div className="text-xs font-medium uppercase text-muted">Frequency</div>
                     <div className="mt-1 text-sm text-ink">{source.frequency}</div>
@@ -161,7 +168,7 @@ export function SourcesPage({
                       <SummaryMetric label="Changed" value={source.diff_counts.changed ?? 0} />
                       <SummaryMetric label="Missing" value={source.diff_counts.deleted ?? 0} />
                       <SummaryMetric label="Skipped" value={source.skipped_count} />
-                      <SummaryMetric label="Drafts created" value={source.generated_card_count} />
+                      <SummaryMetric label="Drafts created" value={source.last_run_summary?.drafts ?? source.generated_draft_count ?? source.generated_card_count} />
                       <SummaryMetric label="Errors" value={source.failed_count} />
                     </div>
                   </div>
@@ -223,12 +230,21 @@ function SummaryMetric({ label, value }: { label: string; value: string | number
   );
 }
 
-function formatRunSummary(message: string, counts: Record<string, number>) {
+function formatRunSummary(message: string, counts: Record<string, number>, runId?: string | null) {
+  if (message.toLowerCase().includes("background")) {
+    return `${message}${runId ? ` Run: ${runId}` : ""}`;
+  }
   const filesScanned = counts.scanned ?? counts.seen ?? counts.processed ?? 0;
   const skipped = counts.skipped ?? 0;
   const draftsCreated = counts.processed ?? 0;
   const errors = counts.failed ?? 0;
   return `${message}; files scanned=${filesScanned}, skipped=${skipped}, drafts created=${draftsCreated}, errors=${errors}`;
+}
+
+function runStatusLabel(status?: string | null, runId?: string | null) {
+  if (!status) return "-";
+  const label = status.replace("_", " ");
+  return runId ? `${label} · ${runId}` : label;
 }
 
 function sourceLabel(source: SourcesResponse["watched_sources"][number]) {

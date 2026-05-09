@@ -8,6 +8,7 @@ API 可以读取真实本地状态，但不能泄露 secret；approve 必须二�
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import yaml
 import pytest
@@ -314,6 +315,30 @@ def _client(tmp_path: Path, monkeypatch) -> tuple[TestClient, Path]:
     return TestClient(app), cards
 
 
+def _wait_for_processing_run(
+    client: TestClient,
+    run_id: str,
+    *,
+    timeout: float = 5.0,
+) -> dict:
+    """轮询后台 processing run，避免测试重新把 HTTP 请求变成同步等待。
+
+    中文学习型说明：Web 请求只负责启动后台任务；测试通过独立 status API
+    观察最终结果，锁定“启动边界”和“完成反馈边界”是两条不同链路。
+    """
+
+    deadline = time.monotonic() + timeout
+    latest: dict | None = None
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/processing/runs/{run_id}")
+        assert response.status_code == 200
+        latest = response.json()
+        if latest["status"] not in {"queued", "running"}:
+            return latest
+        time.sleep(0.05)
+    raise AssertionError(f"processing run {run_id} did not finish; latest={latest}")
+
+
 def test_web_workflow_library_and_source_visibility_return_card_content_not_source_raw(
     tmp_path: Path,
     monkeypatch,
@@ -367,6 +392,7 @@ def test_sources_api_exposes_frequency_due_and_baseline_counts(tmp_path: Path, m
     source.write_text("# Watched\n\nbody\n", encoding="utf-8")
 
     added = client.post("/api/sources/watch", json={"path": str(source), "frequency": "daily"})
+    _wait_for_processing_run(client, added.json()["run_id"])
     sources = client.get("/api/sources").json()
 
     assert added.status_code == 200
@@ -376,6 +402,181 @@ def test_sources_api_exposes_frequency_due_and_baseline_counts(tmp_path: Path, m
     assert watched["next_scan_at"]
     assert watched["due_status"] in {"Due", "Not due", "Manual"}
     assert "added" in watched["diff_counts"]
+
+
+def test_add_and_process_now_starts_background_run_and_draft_becomes_reviewable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Add and process now 只启动后台 run；draft 完成后才出现在 Review。"""
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "watched.md"
+    source.write_text("# Background Source\n\nbody worth keeping\n", encoding="utf-8")
+
+    response = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    )
+
+    assert response.status_code == 200
+    started = response.json()
+    assert started["run_id"]
+    assert started["processing_status"] in {"queued", "running"}
+    assert "background" in started["message"].lower()
+    assert "processed as ai_draft" not in started["message"]
+    assert all(action.get("href") != "/drafts" for action in started["next_actions"])
+
+    finished = _wait_for_processing_run(client, started["run_id"])
+    assert finished["status"] == "succeeded"
+    assert finished["summary"]["drafts"] == 1
+    assert finished["draft_ids"]
+    assert any(action.get("href") == "/drafts" for action in finished["next_actions"])
+
+    drafts = client.get("/api/drafts").json()
+    assert len(drafts["drafts"]) == 1
+    assert drafts["drafts"][0]["status"] == "ai_draft"
+    library = client.get("/api/library/cards").json()
+    assert library["stats"]["by_status"].get("human_approved", 0) == 0
+    assert not (tmp_path / "dogfood-vault" / "40-Wiki" / "Main-Wiki.md").exists()
+
+
+def test_process_now_starts_background_run_and_sources_expose_last_run_summary(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Sources 页 Process now 返回 run_id，刷新后能看到 last run summary。"""
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "watched.md"
+    source.write_text("# Existing Watch\n\nbody worth keeping\n", encoding="utf-8")
+    added = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+
+    response = client.post("/api/sources/watch/scan", params={"ref": added["watch_id"]})
+
+    assert response.status_code == 200
+    started = response.json()
+    assert started["run_id"]
+    assert started["processing_status"] in {"queued", "running"}
+    assert "background" in started["message"].lower()
+
+    finished = _wait_for_processing_run(client, started["run_id"])
+    assert finished["status"] == "succeeded"
+
+    sources = client.get("/api/sources").json()
+    watched = [item for item in sources["watched_sources"] if item["id"] == added["watch_id"]][0]
+    assert watched["last_run_summary"]["drafts"] == 1
+    assert watched["last_message"] == "Generated 1 AI draft."
+    assert watched["generated_draft_count"] == 1
+    assert watched["processing_status"] == "succeeded"
+
+
+def test_processing_run_reports_triage_skip_reason_without_review_next_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Triage skipped 时必须告诉用户原因，不能指向空 Review。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["triage"]["value_score_threshold"] = 9
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "low-value.md"
+    source.write_text("# Low Value\n\nshort note\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    assert finished["summary"]["skipped"] == 1
+    assert "value_score=7" in finished["message"]
+    assert "threshold=9" in finished["message"]
+    assert finished["skip_reasons"]
+    assert all(action.get("href") != "/drafts" for action in finished["next_actions"])
+    assert client.get("/api/drafts").json()["drafts"] == []
+
+
+def test_processing_run_failure_is_persisted_and_secret_safe(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Provider/config error 进入 failed run，不泄露 API key，也不无限 loading。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"]["models"]["fake_alias"]["type"] = "openai_compatible"
+    raw["llm"]["models"]["fake_alias"]["provider"] = "openai_compatible"
+    raw["llm"]["models"]["fake_alias"]["api_key_env"] = "MINDFORGE_FAKE_SECRET"
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    (tmp_path / ".env").write_text("MINDFORGE_FAKE_SECRET=secret-must-not-leak\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MINDFORGE_FAKE_SECRET", raising=False)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "provider-error.md"
+    source.write_text("# Provider Error\n\nbody\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+    sources = client.get("/api/sources").json()
+    combined = f"{started} {finished} {sources}"
+
+    assert finished["status"] == "failed"
+    assert finished["summary"]["errors"] >= 1
+    assert finished["error_message"]
+    assert "secret-must-not-leak" not in combined
+    assert "processed as ai_draft" not in combined
+    assert all(action.get("href") != "/drafts" for action in finished["next_actions"])
+
+
+def test_processing_run_json_parse_failure_finishes_as_failed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """LLM JSON parse failure 必须结束为 failed run，不能让 UI 一直 loading。"""
+
+    from mindforge.llm.base import LLMResult
+    from mindforge.llm.fake import FakeProvider
+
+    original_generate = FakeProvider.generate
+
+    def invalid_distill_json(self, request):
+        if request.stage == "distill":
+            return LLMResult(
+                text="{not valid json",
+                tokens_in=1,
+                tokens_out=1,
+                latency_ms=0,
+                raw={"fake": True},
+            )
+        return original_generate(self, request)
+
+    monkeypatch.setattr(FakeProvider, "generate", invalid_distill_json)
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "bad-json.md"
+    source.write_text("# Bad JSON\n\nbody worth processing\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+
+    assert finished["status"] == "failed"
+    assert finished["summary"]["errors"] == 1
+    assert finished["error_message"] or finished["message"]
+    assert "processed as ai_draft" not in f"{finished}"
 
 
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:
@@ -1087,11 +1288,15 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
 
     assert added_file["ok"] is True
     assert added_file["mode"] == "watch_add"
-    assert added_file["counts"]["processed"] == 1
+    assert added_file["run_id"]
+    assert added_file["counts"]["processed"] == 0
     assert added_file["added_to_registry"] is True
-    assert added_folder["counts"]["processed"] == 1
+    assert added_folder["run_id"]
+    assert added_folder["counts"]["processed"] == 0
     assert registered_only["added_to_registry"] is True
     assert registered_only["counts"]["processed"] == 0
+    _wait_for_processing_run(client, added_file["run_id"])
+    _wait_for_processing_run(client, added_folder["run_id"])
 
     frequency_update = client.patch(
         f"/api/sources/watch/{registered_only['watch_id']}/frequency",
@@ -1131,7 +1336,7 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     combined = f"{listed} {added_file} {imported} {after}"
     assert "WATCH_BODY_MUST_NOT_LEAK" not in combined
     assert "IMPORT_BODY_MUST_NOT_LEAK" not in combined
-    assert "human_approved 必须显式确认" in combined
+    assert "自动化只生成 ai_draft" in combined
     assert after["ingestion"]["primary_entry"] == "watch/import"
     assert "advanced" in after["ingestion"]["advanced_note"].lower()
 
@@ -1172,7 +1377,8 @@ def test_web_process_uses_default_model_when_routing_is_missing(
     response = client.post("/api/sources/watch", json={"path": str(source)})
 
     assert response.status_code == 200, response.text
-    assert response.json()["counts"]["processed"] == 1
+    finished = _wait_for_processing_run(client, response.json()["run_id"])
+    assert finished["summary"]["drafts"] == 1
     assert len(list(cards.rglob("*.md"))) == 1
 
 
@@ -1250,6 +1456,7 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
         path.write_text(body, encoding="utf-8")
 
     added = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
+    _wait_for_processing_run(client, added["run_id"])
     response = client.get("/api/sources").json()
     watched = next(item for item in response["watched_sources"] if item["path"] == str(watch_folder.resolve()))
     combined = f"{added} {response}"
@@ -1263,7 +1470,7 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
     assert watched["skipped_reason_summary"]["unsupported_extension"] == 1
     assert watched["skipped_reason_summary"]["temp_file"] == 1
     assert watched["skipped_reason_summary"]["hidden_file"] == 1
-    assert watched["status_label"] in {"Watching", "Processed"}
+    assert watched["status_label"] in {"Watching", "Processed", "Succeeded"}
     assert len(list(cards.rglob("*.md"))) == 1
     assert watched["status_label"] != "ready"
     assert watched["status"] != "ready"

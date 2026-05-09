@@ -26,10 +26,10 @@ export function SourceAddPanel({ onRefresh, hasModels }: { onRefresh?: () => Pro
   async function addSource(processNow: boolean) {
     if (!path.trim()) return;
     setBusy(true);
-    setResult(processNow ? "Processing..." : "Adding source...");
+    setResult(processNow ? "Starting background processing..." : "Adding source...");
     try {
       const response = await addWatchedSource(path.trim(), frequency, true, processNow);
-      setResult(formatRunSummary(response.message, response.counts));
+      setResult(formatRunSummary(response.message, response.counts, response.run_id));
       await onRefresh?.();
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Request failed");
@@ -115,7 +115,10 @@ export const frequencyOptions = [
   { value: "every 24h", label: "Every 24h" },
 ];
 
-function formatRunSummary(message: string, counts: Record<string, number>) {
+function formatRunSummary(message: string, counts: Record<string, number>, runId?: string | null) {
+  if (message.toLowerCase().includes("background")) {
+    return `${message}${runId ? ` Run: ${runId}` : ""}${counts.seen ? `; queued files=${counts.seen}` : ""}`;
+  }
   const filesScanned = counts.scanned ?? counts.seen ?? counts.processed ?? 0;
   const skipped = counts.skipped ?? 0;
   const draftsCreated = counts.processed ?? 0;

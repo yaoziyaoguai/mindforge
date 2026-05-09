@@ -277,6 +277,24 @@ export interface SourceStatus {
   next_action?: NextAction | null;
 }
 
+export interface ProcessingRunResponse {
+  run_id: string;
+  source_ref: string;
+  source_path?: string | null;
+  mode: string;
+  status: "queued" | "running" | "succeeded" | "skipped" | "failed" | "partial_failed";
+  started_at: string;
+  finished_at?: string | null;
+  current_step: string;
+  summary: Record<string, number>;
+  draft_ids: string[];
+  message: string;
+  skip_reasons: string[];
+  error_type?: string | null;
+  error_message?: string | null;
+  next_actions: NextAction[];
+}
+
 export interface WatchedSourceResponse {
   id: string;
   path: string;
@@ -305,6 +323,12 @@ export interface WatchedSourceResponse {
   generated_card_count: number;
   generated_card_paths: string[];
   status_label: string;
+  active_run_id?: string | null;
+  processing_status?: ProcessingRunResponse["status"] | null;
+  last_run_summary?: Record<string, number> | null;
+  last_message?: string | null;
+  last_error?: string | null;
+  generated_draft_count: number;
 }
 
 export interface WatchSourcesResponse {
@@ -326,6 +350,10 @@ export interface IngestionActionResponse {
   source_deleted: boolean;
   cards_deleted: boolean;
   next_actions: NextAction[];
+  run_id?: string | null;
+  processing_status?: ProcessingRunResponse["status"] | null;
+  skip_reasons: string[];
+  error_message?: string | null;
 }
 
 export interface SourcesResponse {

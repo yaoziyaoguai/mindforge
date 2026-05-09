@@ -2,6 +2,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 import type {
   IngestionActionResponse,
   PathActionResponse,
+  ProcessingRunResponse,
   SourcesResponse,
   UnavailableResponse,
   WatchSourcesResponse,
@@ -37,6 +38,10 @@ export function scanWatchedSources(ref?: string, allSources = false) {
   if (allSources) params.set("all_sources", "true");
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return apiPost<IngestionActionResponse>(`/api/sources/watch/scan${suffix}`, {});
+}
+
+export function getProcessingRun(runId: string) {
+  return apiGet<ProcessingRunResponse>(`/api/processing/runs/${encodeURIComponent(runId)}`);
 }
 
 export function importLocalUnavailable() {

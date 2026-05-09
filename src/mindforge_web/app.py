@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from mindforge.first_run_config import maybe_bootstrap_local_config
-from mindforge_web.routers import approval, config, drafts, health, home, library, prompts, recall, sources, trash, wiki
+from mindforge_web.routers import approval, config, drafts, health, home, library, processing, prompts, recall, sources, trash, wiki
 from mindforge_web.services.web_facade import WebFacade
 
 
@@ -51,6 +51,7 @@ def create_app(
     app.include_router(home.router)
     app.include_router(config.router)
     app.include_router(sources.router)
+    app.include_router(processing.router)
     app.include_router(drafts.router)
     app.include_router(approval.router)
     app.include_router(library.router)

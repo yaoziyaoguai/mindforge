@@ -98,6 +98,42 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "api_key_value" not in setup
 
 
+def test_setup_save_and_validate_use_current_ui_draft() -> None:
+    """Save/Validate 必须包含正在编辑的 model 草稿，而不是旧 config 快照。"""
+
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "const draftForm = useMemo(() => formWithEditing(form, editing)" in setup
+    assert "JSON.stringify(draftForm) !== JSON.stringify(savedForm)" in setup
+    assert "validateSetupConfig(patchFromForm(current))" in setup
+    assert "saveSetupConfig(patchFromForm(current))" in setup
+    assert "api_key_action: \"clear\"" in setup
+    assert "api_key_action: event.target.value ? \"update\" : \"keep\"" in setup
+
+
+def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
+    setup = _read("pages/SetupPage.tsx")
+    main_ui = setup.split("Advanced / Technical details", 1)[0]
+
+    for forbidden in (
+        "Environment variable overrides",
+        "API key env",
+        "Base URL env",
+        "Model env",
+        "Technical internal route",
+        "Provider readiness",
+        "active_profile",
+        "profiles",
+    ):
+        assert forbidden not in main_ui
+
+    assert "Configured models" in main_ui
+    assert "Default model" in main_ui
+    assert "Processing workflow" in main_ui
+    assert "Wiki generation" in main_ui
+    assert "View prompt" in main_ui
+
+
 def test_setup_page_uses_effective_env_config_language() -> None:
     setup = _read("pages/SetupPage.tsx")
     checklist = _read("components/ConfigChecklist.tsx")

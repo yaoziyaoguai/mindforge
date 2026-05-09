@@ -70,6 +70,7 @@ class IngestionSummary:
     target: Path
     counts: dict[str, int]
     skipped: tuple[SkippedDocumentDetail, ...] = ()
+    errors: tuple[str, ...] = ()
     provider_failure: ProviderFailureDetail | None = None
     registry_result: AddWatchResult | None = None
     registry_path: Path | None = None
@@ -85,6 +86,9 @@ class WatchScanSummary:
     counts: dict[str, int]
     diff_counts: dict[str, int]
     source_ids: tuple[str, ...]
+    skipped: tuple[SkippedDocumentDetail, ...] = ()
+    errors: tuple[str, ...] = ()
+    provider_failure: ProviderFailureDetail | None = None
 
 
 def import_sources(
@@ -206,7 +210,7 @@ def watch_scan_sources(
     registry_path = registry_path_for_vault(cfg.vault.root)
     if ref:
         source = find_watch_source(cfg.vault.root, registry_path, ref)
-        candidates = [source] if source is not None and not source.is_default else []
+        candidates = [source] if source is not None else []
     else:
         candidates = [
             source
@@ -219,6 +223,9 @@ def watch_scan_sources(
     not_due = 0
     missing = 0
     scanned_ids: list[str] = []
+    skipped_details: list[SkippedDocumentDetail] = []
+    error_details: list[str] = []
+    provider_failure: ProviderFailureDetail | None = None
 
     for source in candidates:
         if source is None:
@@ -271,6 +278,7 @@ def watch_scan_sources(
         baseline, source_diff = _build_source_baseline(cfg, source)
         _merge_counts(diff_totals, source_diff)
         changed_targets = _changed_targets_from_baseline(baseline, source_diff)
+        source_failed = False
         if changed_targets:
             effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
             summary = _ingest_targets_summary(
@@ -281,6 +289,11 @@ def watch_scan_sources(
                 strategy=effective_strategy,
             )
             _merge_counts(totals, summary.counts)
+            skipped_details.extend(summary.skipped)
+            error_details.extend(summary.errors)
+            if summary.provider_failure is not None:
+                provider_failure = summary.provider_failure
+            source_failed = bool(summary.counts.get("failed"))
         update_watch_source(
             cfg.vault.root,
             registry_path,
@@ -289,8 +302,8 @@ def watch_scan_sources(
             last_processed_at=_now() if changed_targets else source.last_processed_at,
             last_scan_at=_now(),
             next_scan_at=next_scan_after(_now(), source.frequency),
-            status="active",
-            error=None,
+            status="error" if source_failed else "active",
+            error="one or more sources failed" if source_failed else None,
             baseline=baseline,
             diff_counts=source_diff,
         )
@@ -302,6 +315,9 @@ def watch_scan_sources(
         counts=totals,
         diff_counts=diff_totals,
         source_ids=tuple(scanned_ids),
+        skipped=tuple(skipped_details),
+        errors=tuple(error_details),
+        provider_failure=provider_failure,
     )
 
 
@@ -370,9 +386,11 @@ def _ingest_targets_summary(
             strategy=strategy.strategy_id,
         )
     except ProviderError as exc:
+        error_details = []
         for result in results:
             counts["seen"] += 1
             counts["failed"] += 1
+            error_details.append(str(exc))
         skipped_details = []
         for _result, doc in duplicate_skips:
             counts["seen"] += 1
@@ -387,6 +405,7 @@ def _ingest_targets_summary(
             target=target,
             counts=counts,
             skipped=tuple(skipped_details),
+            errors=tuple(error_details),
             provider_failure=provider_failure_detail(cfg, str(exc)),
             strategy=strategy,
         )
@@ -398,6 +417,7 @@ def _ingest_targets_summary(
     processed_sources = _build_processed_source_index(parts.checkpoint)
     processed_content_hashes = _build_processed_content_hash_index(parts.checkpoint)
     skipped_details: list[SkippedDocumentDetail] = []
+    error_details: list[str] = []
     with RunLogger(cfg.state.runs_path, command=command) as logger:
         parts.pipeline.logger = logger
         for result, doc in duplicate_skips:
@@ -418,6 +438,8 @@ def _ingest_targets_summary(
             counts["seen"] += 1
             if not result.ok:
                 emit_source_error(result=result, logger=logger, counts=counts)
+                if result.error:
+                    error_details.append(result.error)
                 continue
             doc = result.document
             assert doc is not None
@@ -488,6 +510,8 @@ def _ingest_targets_summary(
                         reason=message or "pipeline_skipped",
                         matched_record=None,
                     ))
+                elif status == "failed" and message:
+                    error_details.append(message)
             except ProviderError as exc:
                 friendly = friendly_missing_key_error(str(exc))
                 if friendly:
@@ -505,6 +529,7 @@ def _ingest_targets_summary(
         target=target,
         counts=counts,
         skipped=tuple(skipped_details),
+        errors=tuple(error_details),
         strategy=strategy,
     )
 

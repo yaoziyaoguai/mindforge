@@ -351,6 +351,12 @@ class WatchedSourceResponse(BaseModel):
     generated_card_count: int = 0
     generated_card_paths: list[str] = Field(default_factory=list)
     status_label: str = "Watching"
+    active_run_id: str | None = None
+    processing_status: str | None = None
+    last_run_summary: dict[str, int] | None = None
+    last_message: str | None = None
+    last_error: str | None = None
+    generated_draft_count: int = 0
 
 
 class WatchSourcesResponse(BaseModel):
@@ -382,6 +388,28 @@ class IngestionActionResponse(BaseModel):
     watch_id: str | None = None
     source_deleted: bool = False
     cards_deleted: bool = False
+    next_actions: list[NextAction] = Field(default_factory=list)
+    run_id: str | None = None
+    processing_status: str | None = None
+    skip_reasons: list[str] = Field(default_factory=list)
+    error_message: str | None = None
+
+
+class ProcessingRunResponse(BaseModel):
+    run_id: str
+    source_ref: str
+    source_path: str | None = None
+    mode: str
+    status: Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
+    started_at: str
+    finished_at: str | None = None
+    current_step: str
+    summary: dict[str, int] = Field(default_factory=dict)
+    draft_ids: list[str] = Field(default_factory=list)
+    message: str
+    skip_reasons: list[str] = Field(default_factory=list)
+    error_type: str | None = None
+    error_message: str | None = None
     next_actions: list[NextAction] = Field(default_factory=list)
 
 

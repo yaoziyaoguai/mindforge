@@ -12,10 +12,11 @@ from pathlib import Path
 
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
+from mindforge.config import ConfigError
+from mindforge.config import REQUIRED_STAGES
 from mindforge.ingestion_service import (
     SourcePathError,
     import_sources,
-    watch_add_source,
     watch_scan_sources,
     watch_sources_for_display,
 )
@@ -39,6 +40,13 @@ from mindforge_web.schemas import (
     StatusItem,
     WatchedSourceResponse,
     WatchSourcesResponse,
+)
+from mindforge_web.services.processing_run_service import (
+    latest_run_for_source,
+    next_actions_for_record,
+    processing_run_response,
+    start_processing_run,
+    started_response_message,
 )
 
 
@@ -108,14 +116,9 @@ class WebSourceService:
                 NextAction(
                     label="Add watched source",
                     description=(
-                        "注册 file/folder 并立即处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
+                        "注册 file/folder 并在后台处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
                     ),
-                ),
-                NextAction(
-                    label="Review drafts",
-                    description="自动化不会 approve；human_approved 必须显式确认。",
-                    href="/drafts",
-                ),
+                )
             ],
         )
 
@@ -169,47 +172,79 @@ class WebSourceService:
                 added_to_registry=registry_result.added,
                 registry_path=str(registry_path),
                 watch_id=registry_result.source.id,
-                next_actions=_ingestion_next_actions(),
+                next_actions=_ingestion_next_actions({"processed": 0}),
             )
-        summary = watch_add_source(
-            self.cfg,
+        _ensure_processing_model_configured(self.cfg)
+        registry_path = registry_path_for_vault(self.cfg.vault.root)
+        from mindforge.strategy_selection import resolve_strategy_selection
+
+        selected_strategy = resolve_strategy_selection(self.cfg)
+        registry_result = add_watch_source(
+            self.cfg.vault.root,
+            registry_path,
             resolved,
+            strategy_id=selected_strategy.strategy_id,
             frequency=frequency or "manual",
             recursive=recursive,
         )
-        registry_result = summary.registry_result
-        assert registry_result is not None
+        run = start_processing_run(
+            self.cfg,
+            source_ref=registry_result.source.id,
+            source_path=str(registry_result.source.path),
+            mode="watch_add",
+            work=lambda: watch_scan_sources(
+                self.cfg,
+                ref=registry_result.source.id,
+                all_sources=True,
+            ),
+        )
         return IngestionActionResponse(
             ok=True,
-            mode=summary.mode,
-            target=str(summary.target),
-            counts=summary.counts,
-            message=(
-                "watch source registered and current content processed as ai_draft"
-                if registry_result.added
-                else "watch source already registered; current content checked"
-            ),
+            mode="watch_add",
+            target=str(registry_result.source.path),
+            counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
+            message=started_response_message(),
             added_to_registry=registry_result.added,
-            registry_path=str(summary.registry_path) if summary.registry_path else None,
+            registry_path=str(registry_path),
             watch_id=registry_result.source.id,
-            next_actions=_ingestion_next_actions(),
+            next_actions=next_actions_for_record(run),
+            run_id=run.run_id,
+            processing_status=run.status,
         )
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
-        summary = watch_scan_sources(self.cfg, ref=ref, all_sources=all_sources)
+        _ensure_processing_model_configured(self.cfg)
+        source_ref = ref or ("all" if all_sources else "due")
+        source_path = None
+        if ref:
+            source = find_watch_source(self.cfg.vault.root, registry_path_for_vault(self.cfg.vault.root), ref)
+            if source is not None:
+                source_path = str(source.path)
+        run = start_processing_run(
+            self.cfg,
+            source_ref=source_ref,
+            source_path=source_path,
+            mode="watch_scan",
+            work=lambda: watch_scan_sources(self.cfg, ref=ref, all_sources=all_sources),
+        )
         return IngestionActionResponse(
             ok=True,
             mode="watch_scan",
             target=ref or ("all watched sources" if all_sources else "due watched sources"),
             counts={
-                **summary.counts,
-                "scanned": summary.scanned,
-                "not_due": summary.not_due,
-                "missing": summary.missing,
+                "processed": 0,
+                "skipped": 0,
+                "failed": 0,
+                "seen": 0,
+                "scanned": 0,
+                "not_due": 0,
+                "missing": 0,
             },
-            message="watch scan completed; source deletion never deletes approved knowledge",
+            message=started_response_message(),
             added_to_registry=False,
-            next_actions=_ingestion_next_actions(),
+            next_actions=next_actions_for_record(run),
+            run_id=run.run_id,
+            processing_status=run.status,
         )
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
@@ -265,7 +300,7 @@ class WebSourceService:
             added_to_registry=False,
             registry_path=str(registry_path),
             watch_id=updated.id,
-            next_actions=_ingestion_next_actions(),
+            next_actions=_ingestion_next_actions({"processed": 0}),
         )
 
     def import_source(self, path: Path) -> IngestionActionResponse:
@@ -290,7 +325,7 @@ class WebSourceService:
             counts=summary.counts,
             message="source imported once as ai_draft; not added to watched sources",
             added_to_registry=False,
-            next_actions=_ingestion_next_actions(),
+            next_actions=_ingestion_next_actions({"processed": 0}),
         )
 
     def ingestion_status(self) -> IngestionSummaryStatus:
@@ -386,11 +421,26 @@ class WebSourceService:
             if _card_matches_watch_source(self.cfg, source.path, card.source_path)
         ]
         generated_status = "Has generated knowledge" if card_paths else "No generated knowledge"
+        latest_run = latest_run_for_source(
+            self.cfg,
+            source_ref=source.id,
+            source_path=str(source.path),
+        )
+        run_response = processing_run_response(latest_run) if latest_run is not None else None
+        active_run_id = (
+            run_response.run_id if run_response is not None and run_response.status in {"queued", "running"} else None
+        )
         status_label = _watch_status_label(
             raw_status=source.status,
             failed_count=failed_count,
             generated_card_count=len(card_paths),
             supported_count=supported_count,
+            processing_status=run_response.status if run_response is not None else None,
+        )
+        last_error = (
+            run_response.error_message
+            if run_response is not None and run_response.status in {"failed", "partial_failed"}
+            else source.error
         )
         return WatchedSourceResponse(
             id=source.id,
@@ -420,6 +470,12 @@ class WebSourceService:
             generated_card_count=len(card_paths),
             generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
             status_label=status_label,
+            active_run_id=active_run_id,
+            processing_status=run_response.status if run_response is not None else None,
+            last_run_summary=run_response.summary if run_response is not None else None,
+            last_message=run_response.message if run_response is not None else None,
+            last_error=last_error,
+            generated_draft_count=len(card_paths),
         )
 
     def _generated_cards_by_source_subdir(self) -> dict[str, list[Path]]:
@@ -514,7 +570,12 @@ def _watch_status_label(
     failed_count: int,
     generated_card_count: int,
     supported_count: int,
+    processing_status: str | None = None,
 ) -> str:
+    if processing_status in {"queued", "running"}:
+        return "Processing"
+    if processing_status in {"skipped", "failed", "partial_failed", "succeeded"}:
+        return processing_status.replace("_", " ").title()
     if raw_status == "missing":
         return "Missing"
     if raw_status == "error" or failed_count:
@@ -532,16 +593,30 @@ def _due_status(source) -> str:
     return "Due" if is_due(source) else "Not due"
 
 
-def _ingestion_next_actions() -> list[NextAction]:
-    return [
+def _ensure_processing_model_configured(cfg: MindForgeConfig) -> None:
+    try:
+        for stage in REQUIRED_STAGES:
+            cfg.llm.resolve_stage_alias(stage)
+    except ConfigError as exc:
+        raise SourcePathError(str(exc)) from exc
+
+
+def _ingestion_next_actions(counts: dict[str, int] | None = None) -> list[NextAction]:
+    counts = counts or {}
+    actions = [
         NextAction(
-            label="Review drafts",
-            description="新生成内容仍是 ai_draft；human_approved 必须显式 approve。",
-            href="/drafts",
-        ),
-        NextAction(
-            label="Open library",
-            description="查看 cards metadata 和 source provenance。",
-            href="/library",
-        ),
+            label="View source status",
+            description="查看 source processing 状态、skipped reason 或错误。",
+            href="/sources",
+        )
     ]
+    if counts.get("processed", 0) > 0:
+        actions.insert(
+            0,
+            NextAction(
+                label="Review drafts",
+                description="新生成内容仍是 ai_draft；human_approved 必须显式 approve。",
+                href="/drafts",
+            ),
+        )
+    return actions

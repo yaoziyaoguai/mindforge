@@ -48,6 +48,7 @@ from mindforge_web.schemas import (
     SetupEditableConfigResponse,
     SetupValidationResponse,
     PathActionResponse,
+    ProcessingRunResponse,
     SourcesResponse,
     StatusItem,
     VaultStatus,
@@ -56,6 +57,7 @@ from mindforge_web.schemas import (
     WorkflowSummaryResponse,
 )
 from mindforge_web.services.web_config_service import ConfigUpdateError, WebConfigService
+from mindforge_web.services.processing_run_service import get_processing_run, processing_run_response
 from mindforge_web.services.web_path_action_service import WebPathActionService
 from mindforge_web.services.web_review_service import WebReviewService
 from mindforge_web.services.web_source_service import WebSourceService
@@ -259,6 +261,12 @@ class WebFacade:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    def processing_run(self, run_id: str) -> ProcessingRunResponse | None:
+        record = get_processing_run(self.cfg, run_id)
+        if record is None:
+            return None
+        return processing_run_response(record)
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)
