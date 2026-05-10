@@ -49,7 +49,8 @@ def test_demo_vault_onboarding_smoke(tmp_path: Path, monkeypatch) -> None:
         (["next", "--config", str(cfg)], "MindForge next"),
         (["doctor", "--config", str(cfg)], "MindForge doctor"),
         (["scan", "--config", str(cfg)], "扫描完成"),
-        (["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"], "active_profile"),
+        # 旧 fixture 仍可覆盖内部兼容路径，但 smoke 输出不再把 profile 当成产品语义。
+        (["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"], "model setup"),
         (["approve", "list", "--config", str(cfg)], "ai_draft"),
         (["index", "rebuild", "--config", str(cfg)], "索引已写入"),
         (["recall", "--config", str(cfg), "--query", "checkpoint runtime"], "agent-runtime-checkpoint"),

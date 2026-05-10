@@ -374,7 +374,9 @@ def _new_run_id() -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    # 中文学习型说明：Sources 以 started_at 判断同一 source 的最新 run。
+    # Process Now 可能被快速重复点击，秒级时间戳会让并发 run 的排序变得不稳定。
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="microseconds")
 
 
 def _safe_error_message(message: str) -> str:

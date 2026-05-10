@@ -51,10 +51,8 @@ def _load_cfg_with_dotenv(config: Path):
 
 provider_app = typer.Typer(
     add_completion=False,
-    help=(
-        "Provider readiness & synthetic smoke (fake-default, real-opt-in). "
-        "无 secret 打印; 默认绝不触发真实 LLM。"
-    ),
+    add_help_option=False,
+    help="Internal model diagnostics; use Web Setup for product configuration.",
 )
 
 

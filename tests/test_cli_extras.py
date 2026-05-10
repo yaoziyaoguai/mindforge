@@ -139,7 +139,7 @@ def test_process_profile_override_unknown_fails(tmp_path: Path) -> None:
 
 def test_process_profile_override_works(tmp_path: Path) -> None:
     cfg_path, _ = _build_minimal_cfg(tmp_path)
-    # fake 默认；显式切回 fake 应当也能工作
+    # 兼容旧 fixture 输入，但用户可见输出必须落在真实模型配置语义上。
     r = runner.invoke(
         app,
         [
@@ -151,7 +151,8 @@ def test_process_profile_override_works(tmp_path: Path) -> None:
         ],
     )
     assert r.exit_code == 0, r.output
-    assert "active_profile = fake" in r.output
+    assert "model setup =" in r.output
+    assert "active_profile" not in r.output
 
 
 # ---------------------------------------------------------------------------

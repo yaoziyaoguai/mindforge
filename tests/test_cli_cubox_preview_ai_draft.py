@@ -60,10 +60,10 @@ def runs_sentinel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def test_preview_subcommand_appears_in_cubox_help() -> None:
+def test_preview_subcommand_is_not_advertised_by_direct_help() -> None:
     res = runner.invoke(app, ["cubox", "--help"])
-    assert res.exit_code == 0
-    assert "preview-ai-draft" in res.stdout
+    assert res.exit_code != 0
+    assert "preview-ai-draft" not in res.stdout
 
 
 def test_preview_requires_export_arg() -> None:

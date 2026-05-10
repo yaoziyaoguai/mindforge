@@ -48,10 +48,10 @@ def test_cubox_group_is_hidden_from_root_help() -> None:
     assert "cubox" not in res.stdout.lower()
 
 
-def test_cubox_dry_run_appears_in_cubox_help() -> None:
+def test_cubox_direct_help_is_retired() -> None:
     res = runner.invoke(app, ["cubox", "--help"])
-    assert res.exit_code == 0
-    assert "dry-run" in res.stdout.lower()
+    assert res.exit_code != 0
+    assert "dry-run" not in res.stdout.lower()
 
 
 def test_cubox_dry_run_requires_export_arg() -> None:

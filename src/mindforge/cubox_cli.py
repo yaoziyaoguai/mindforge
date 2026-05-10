@@ -60,7 +60,8 @@ console = Console()
 
 cubox_app = typer.Typer(
     add_completion=False,
-    help="Cubox 本地 export 预检（不联网、不调 API、不写 vault）",
+    add_help_option=False,
+    help="Internal fixture tooling; not part of the user product path.",
 )
 
 

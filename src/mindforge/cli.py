@@ -1,7 +1,7 @@
 """MindForge root Typer entrypoint.
 
 中文学习型说明：root ``cli.py`` 只负责全局参数、少量基础命令与命令族注册。
-历史上 4500+ 行的 approve/process/review/recall/project/dogfood 等命令族已
+历史上 4500+ 行的 approve/process/review/recall/project 等命令族已
 拆入各自 ``*_cli.py`` adapter；service / presenter / policy / source / strategy
 边界不再反向依赖 root CLI。
 """
@@ -229,7 +229,11 @@ def _global_options(
         os.environ.pop("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE", None)
 
 
-@app.command(hidden=True)
+@app.command(
+    hidden=True,
+    add_help_option=False,
+    help="Internal fixture compatibility entry; use `mindforge web` for the product path.",
+)
 def demo(
     json_output: bool = typer.Option(
         False,
@@ -237,24 +241,10 @@ def demo(
         help="输出机器可读 JSON (供 tests / CI 消费); 默认输出新用户可读文本。",
     ),
 ) -> None:
-    """60 秒新用户 demo tour — 零 secret、零网络、零真实 vault 写入。
+    """Internal fixture compatibility entry.
 
-    中文学习型说明: 这是 MindForge 的 "1 分钟看到效果" 入口。它编排
-    已有命令的 service 层 (CuboxApiAdapter / dogfood policy / vault
-    probe), 把 SourceDocument → 路径分类 → vault 健康检查 → review
-    packet 这条主链路跑给新用户看一眼。
-
-    安全契约:
-    - 不读取 ``.env`` 内容;
-    - 不调用真实 Cubox HTTP API (使用仓库自带 fixture);
-    - 不调用真实 LLM (走 fake-default 路径);
-    - 不写任何 Obsidian vault (包括 ``.obsidian/``);
-    - 不产生 ``human_approved`` 记录 (artifact_type=review_packet);
-    - 不启用 RAG / embedding / semantic merge;
-    - 不创建 tag, 不 release, 不 push。
-
-    实现委托给 ``demo_tour.run_demo_tour``; CLI 只做 thin adapter
-    (调用 + 渲染), 不持有业务规则。
+    中文学习型说明：该入口只保留给旧测试 fixture。普通用户产品路径是
+    Web Setup → Add Source → background processing → Review / Approve。
     """
     from .demo_tour import render_demo_tour, run_demo_tour
 
@@ -284,7 +274,7 @@ def demo(
         raise typer.Exit(code=1)
 
 
-@app.command(hidden=True)
+@app.command(hidden=True, add_help_option=False)
 def scan(
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"),
@@ -385,7 +375,7 @@ def scan(
             cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
             console.print(f"已写入 state.json → {cfg.state.state_path}", soft_wrap=True)  # type: ignore[attr-defined]
             console.print(
-                f"Next: mindforge process --profile fake --limit 1 --vault {cfg.vault.root}",
+                f"Next: mindforge web  # open Sources to process {cfg.vault.root}",
                 markup=False,
                 soft_wrap=True,
             )
@@ -516,11 +506,11 @@ def _legacy_status(
 # Root command registration. We bind moved command callbacks directly so
 # tests, shell completion, and external introspection see stable command names
 # instead of Typer's anonymous flattened sub-app placeholders.
-app.command(hidden=True)(process)
+app.command(hidden=True, add_help_option=False)(process)
 app.command("import")(import_cmd)
 app.command()(recall)
 app.command()(init)
-app.command("setup", hidden=True)(setup_cmd)
+app.command("setup", hidden=True, add_help_option=False)(setup_cmd)
 app.command()(doctor)
 app.command()(version)
 app.command()(web)

@@ -23,7 +23,11 @@ from .presenters.doctor import doctor_icon as _doctor_icon
 from .services.doctor import config_doctor_rows as _svc_config_doctor_rows
 
 init_config_app = typer.Typer(add_completion=False)
-config_app = typer.Typer(add_completion=False, help="本地配置 / setup 诊断（safe-by-default）")
+config_app = typer.Typer(
+    add_completion=False,
+    add_help_option=False,
+    help="Internal setup diagnostics; use Web Setup for product configuration.",
+)
 
 
 def _bundled_repo_root() -> Path:

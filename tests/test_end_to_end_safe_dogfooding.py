@@ -54,13 +54,13 @@ def test_root_help_recommended_commands_actually_exist():
         assert required in cmds, f"{required} 命令必须存在于 CLI registry"
 
 
-def test_dogfood_subcommands_cover_readiness_path():
-    """dogfood 命令族必须包含 readiness，承接 demo → quickstart 的安全检查点。"""
+def test_dogfood_direct_help_is_retired():
+    """旧 fixture 命令不能继续通过 direct help 成为用户产品路径。"""
 
     result = runner.invoke(app, ["dogfood", "--help"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code != 0
     for command in ("plan", "preflight", "readiness", "quickstart"):
-        assert command in result.output
+        assert command not in result.output
 
 
 def test_demo_output_lists_all_safety_guarantees():

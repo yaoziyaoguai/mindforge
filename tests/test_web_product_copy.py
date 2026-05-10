@@ -313,3 +313,18 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Has generated knowledge" not in sources
     assert "\"ready\"" not in source_list
     assert "Approved" not in source_list
+
+
+def test_web_client_parses_string_and_object_error_detail() -> None:
+    """前端必须同时兼容 FastAPI string detail 与 object detail。
+
+    中文学习型说明：Add Source / Process Now 是用户主链路。后端历史上既有
+    ``detail: "message"``，也有 ``detail: {message}``；前端必须提取可行动
+    文案，不能退化成浏览器的 ``Bad Request``。
+    """
+
+    client = _read("api/client.ts")
+
+    assert 'typeof payload?.detail === "string"' in client
+    assert "payload?.detail?.message" in client
+    assert "response.statusText" in client

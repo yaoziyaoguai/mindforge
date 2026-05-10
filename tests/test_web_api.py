@@ -18,7 +18,7 @@ from mindforge.app_context import AppContextError
 from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
-from mindforge_web.services.processing_run_service import _safe_error_message
+from mindforge_web.services.processing_run_service import _now, _safe_error_message
 
 
 def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -541,6 +541,11 @@ def test_processing_run_failure_is_persisted_and_secret_safe(
     assert finished["status"] == "failed"
     assert finished["summary"]["errors"] >= 1
     assert finished["error_message"]
+    watched = next(item for item in sources["watched_sources"] if item["path"] == str(source.resolve()))
+    assert watched["processing_status"] == "failed"
+    assert watched["last_run_summary"]["errors"] >= 1
+    assert watched["last_message"]
+    assert watched["last_error"]
     assert "secret-must-not-leak" not in combined
     assert "secret-must-not-leak" not in run_record
     assert "processed as ai_draft" not in combined
@@ -600,6 +605,20 @@ def test_processing_run_provider_html_error_is_user_friendly() -> None:
     assert "Provider returned an HTML error page (HTTP 503)." in cleaned
     assert "<html" not in cleaned.lower()
     assert "<!DOCTYPE" not in cleaned
+
+
+def test_processing_run_started_at_uses_subsecond_precision() -> None:
+    """重复点击 Process Now 时，run 排序需要亚秒级 started_at。
+
+    中文学习型说明：当前不引入队列/锁等大架构，只先守住状态归属边界：
+    同一 source 的多个后台 run 至少要有可排序的高精度 started_at，避免
+    Sources last run summary 在同一秒内随机指向旧 run。
+    """
+
+    timestamp = _now()
+
+    assert "." in timestamp
+    assert len(timestamp.split(".", 1)[1].split("+", 1)[0]) == 6
 
 
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:
@@ -2496,8 +2515,8 @@ def test_dogfood_command_hidden_from_main_help() -> None:
     assert "dogfood" not in result.stdout
 
 
-def test_setup_cli_shows_deprecation_warning() -> None:
-    """CLI setup 命令显示废弃警告。"""
+def test_setup_cli_direct_help_is_retired() -> None:
+    """旧 setup help 不再作为第二套配置入口暴露。"""
     import subprocess
     result = subprocess.run(
         ["python", "-m", "mindforge", "setup", "--help"],
@@ -2505,11 +2524,12 @@ def test_setup_cli_shows_deprecation_warning() -> None:
         text=True,
         cwd="/Users/jinkun.wang/work_space/mindforge",
     )
-    assert "DEPRECATED" in result.stdout
+    assert result.returncode != 0
+    assert result.stdout == ""
 
 
-def test_scan_help_marks_advanced() -> None:
-    """scan 命令 help 标注 [Advanced]。"""
+def test_scan_direct_help_is_retired() -> None:
+    """旧 scan help 不再作为第二套 source 入口暴露。"""
     import subprocess
     result = subprocess.run(
         ["python", "-m", "mindforge", "scan", "--help"],
@@ -2517,7 +2537,8 @@ def test_scan_help_marks_advanced() -> None:
         text=True,
         cwd="/Users/jinkun.wang/work_space/mindforge",
     )
-    assert "[Advanced]" in result.stdout
+    assert result.returncode != 0
+    assert result.stdout == ""
 
 
 def test_watch_add_frequency_alias(tmp_path: Path) -> None:

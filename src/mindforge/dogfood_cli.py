@@ -13,7 +13,11 @@ from .app_context import load_app_config
 from .cli_runtime import console
 
 
-dogfood_app = typer.Typer(add_completion=False, help="非敏感本地 dogfooding 计划与 checklist")
+dogfood_app = typer.Typer(
+    add_completion=False,
+    add_help_option=False,
+    help="Internal fixture runbooks; not part of the user product path.",
+)
 
 
 @dogfood_app.command("init-demo")

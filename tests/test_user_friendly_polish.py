@@ -3,7 +3,7 @@
 中文学习边界：
 - 这一组测试不创建真实 vault、不调真实 LLM/Cubox/网络、不写 Obsidian。
 - 它们只验证 vault 缺失时 ``next`` / ``start`` / ``doctor`` 都会把
-  ``mindforge demo`` 推到新用户面前；以及 README 快速开始把 Web Setup
+  Web Setup 推到新用户面前；以及 README 快速开始把 Web Setup
   作为 GitHub 新用户主路径，同时保留 demo 作为零配置体验。
 - 所有断言走只读字符串 / NextSuggestion 列表，不触碰 Typer CLI 之外的副作用。
 """
@@ -35,23 +35,23 @@ def _config_with_missing_vault(tmp_path: Path) -> MindForgeConfig:
     return replace(cfg, vault=new_vault)
 
 
-def test_next_suggestions_recommend_demo_before_init_when_vault_missing(tmp_path):
-    """vault 缺失时，新用户首先看到的应该是零配置 ``mindforge demo``。"""
+def test_next_suggestions_recommend_web_setup_before_init_when_vault_missing(tmp_path):
+    """vault 缺失时，新用户首先看到的应该是真实 Web Setup 主路径。"""
 
     cfg = _config_with_missing_vault(tmp_path)
     suggestions = _next_suggestions(cfg)
 
     assert suggestions, "vault 缺失时必须给出至少一条建议"
     commands = [s.command for s in suggestions]
-    assert "mindforge demo" in commands
+    assert "mindforge web" in commands
     assert any(c.startswith("mindforge init") for c in commands)
-    assert commands.index("mindforge demo") < next(
+    assert commands.index("mindforge web") < next(
         i for i, c in enumerate(commands) if c.startswith("mindforge init")
-    ), "demo 必须排在 init 之前，让新用户先看到零配置路径"
+    ), "Web Setup 必须排在 init 之前，让新用户先看到真实配置主路径"
 
-    demo_item: NextSuggestion = next(s for s in suggestions if s.command == "mindforge demo")
-    assert demo_item.priority == "recommended"
-    assert "API key" in demo_item.reason or "联网" in demo_item.reason
+    web_item: NextSuggestion = next(s for s in suggestions if s.command == "mindforge web")
+    assert web_item.priority == "recommended"
+    assert "真实模型" in web_item.reason
 
 
 def test_doctor_recovery_actions_include_init_hint_when_cards_missing(tmp_path):

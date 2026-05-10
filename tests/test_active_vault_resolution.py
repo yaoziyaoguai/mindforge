@@ -123,7 +123,8 @@ def test_scan_from_vault_root_uses_cwd_vault_and_consistent_next_command(
     assert "old.md" not in result.output
     assert f"active vault: {active}" in result.output
     assert f"state path  : {active / '.mindforge' / 'state.json'}" in result.output
-    assert f"Next: mindforge process --profile fake --limit 1 --vault {active}" in result.output
+    assert f"Next: mindforge web  # open Sources to process {active}" in result.output
+    assert "--profile fake" not in result.output
     assert (active / ".mindforge" / "state.json").exists()
     assert not (configured / ".mindforge" / "state.json").exists()
 
@@ -139,7 +140,8 @@ def test_scan_from_vault_child_detects_ancestor_vault(tmp_path: Path, monkeypatc
 
     assert result.exit_code == 0, result.output
     assert f"active vault: {active}" in result.output
-    assert f"Next: mindforge process --profile fake --limit 1 --vault {active}" in result.output
+    assert f"Next: mindforge web  # open Sources to process {active}" in result.output
+    assert "--profile fake" not in result.output
     assert (active / ".mindforge" / "state.json").exists()
 
 
@@ -175,7 +177,8 @@ def test_scan_from_fresh_inbox_only_vault_uses_cwd_vault(
     assert "old.md" not in result.output
     assert f"active vault: {fresh}" in result.output
     assert f"state path  : {fresh / '.mindforge' / 'state.json'}" in result.output
-    assert f"Next: mindforge process --profile fake --limit 1 --vault {fresh}" in result.output
+    assert f"Next: mindforge web  # open Sources to process {fresh}" in result.output
+    assert "--profile fake" not in result.output
 
 
 def test_scan_from_fresh_inbox_child_detects_ancestor_vault(
@@ -192,7 +195,8 @@ def test_scan_from_fresh_inbox_child_detects_ancestor_vault(
     assert result.exit_code == 0, result.output
     assert "external-smoke-note.md" in result.output
     assert f"active vault: {fresh}" in result.output
-    assert f"Next: mindforge process --profile fake --limit 1 --vault {fresh}" in result.output
+    assert f"Next: mindforge web  # open Sources to process {fresh}" in result.output
+    assert "--profile fake" not in result.output
 
 
 def test_repo_runtime_mindforge_is_not_mistaken_for_user_vault(

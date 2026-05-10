@@ -313,6 +313,44 @@ def test_cli_commands_map_hides_internal_demo_cubox_env_profile_surfaces() -> No
     assert "mindforge approve list" in out
 
 
+def test_cli_direct_help_does_not_expose_retired_mode_surfaces() -> None:
+    """隐藏入口的 help 也不能成为第二套产品说明书。
+
+    中文学习型说明：Typer 的 ``hidden=True`` 只会从 root help 移除命令，
+    但用户仍可能直达 ``command --help``。第一阶段产品语义必须统一到
+    real model setup / local secret store / source import-watch / background
+    processing / review-approve，不能通过隐藏 help 继续教授旧模式。
+    """
+
+    checks = [
+        ["demo", "--help"],
+        ["cubox", "--help"],
+        ["dogfood", "--help"],
+        ["provider", "--help"],
+        ["llm", "--help"],
+        ["process", "--help"],
+        ["watch", "add", "--help"],
+        ["import", "--help"],
+    ]
+
+    for args in checks:
+        result = runner.invoke(app, args)
+        out = result.output
+        for token in (
+            "fake-default",
+            "fake provider",
+            "dogfooding",
+            "Cubox 本地",
+            "Cubox JSON",
+            "active_profile",
+            "legacy profiles",
+            "provider/profile",
+            ".env",
+            "env presence",
+        ):
+            assert token not in out, f"{token!r} leaked from {' '.join(args)}"
+
+
 def test_cli_status_presenter_hides_legacy_provider_env_and_source_labels() -> None:
     """status 输出是普通用户入口，只展示模型设置和通用 source 类别。
 

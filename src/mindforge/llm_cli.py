@@ -11,7 +11,11 @@ from rich.table import Table
 
 from .cli_runtime import apply_provider_selection, console, load_cfg
 
-llm_app = typer.Typer(add_completion=False, help="LLM provider 工具子命令（不触发业务 pipeline）")
+llm_app = typer.Typer(
+    add_completion=False,
+    add_help_option=False,
+    help="Internal model diagnostics; use Web Setup for product configuration.",
+)
 
 # ---------------------------------------------------------------------------
 # llm ping — 只校验 active_profile 涉及的 env，不发 HTTP

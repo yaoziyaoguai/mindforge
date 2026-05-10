@@ -110,14 +110,14 @@ def render_weekly_next_actions(has_weekly_work: bool) -> list[str]:
     """review 空状态的下一步建议；只返回静态命令字符串列表。
 
     迁移自 ``cli.py::_review_next_actions``。**不**触发任何写操作，
-    **不**调用 LLM，**不**读 ``.env``。
+    **不**调用 LLM，也不触碰任何本地 secret 文件。
     """
 
     if has_weekly_work:
         return ["运行 `mindforge review due` 聚焦今天到期项。"]
     return [
         "运行 `mindforge approve list` 查看是否有 ai_draft 待人工批准。",
-        "运行 `mindforge watch add <file-or-folder>` 或 `mindforge import <file-or-folder>` 生成新的 ai_draft；advanced/troubleshooting 可用 `mindforge process --profile fake --limit 1`。",
+        "运行 `mindforge watch add <file-or-folder>` 或 `mindforge import <file-or-folder>` 添加本地 source，然后在 Web Sources 中后台处理。",
         "运行 `mindforge recall --query <keyword>` 从已批准卡片里找学习主题。",
     ]
 

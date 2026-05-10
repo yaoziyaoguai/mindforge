@@ -98,12 +98,12 @@ def next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
 
 
 def _missing_vault_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
-    """vault 缺失时给 demo + init，两条建议必须保持原顺序。"""
+    """vault 缺失时只指向真实初始化路径，不再推荐 demo/fake 体验。"""
 
     return [
         NextSuggestion(
-            "mindforge demo",
-            "60 秒零配置 tour（不需要 API key、不联网、不写 vault）",
+            "mindforge web",
+            "打开 Web Setup 配置真实模型与本地知识库",
             "recommended",
         ),
         NextSuggestion(
@@ -138,7 +138,7 @@ def _inbox_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSugge
         return []
     return [
         NextSuggestion(
-            f"# 把 markdown 放到 {cfg.vault.inbox_path}/ManualNotes/ 或 Cubox/ 等子目录",
+            f"# 把本地 markdown/txt 文件放到 {cfg.vault.inbox_path}/ManualNotes/ 等 source 目录",
             "inbox 当前为空，没有可加工的原料",
             "info",
         )

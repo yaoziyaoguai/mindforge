@@ -43,12 +43,14 @@ def watch_add(
         None,
         "--profile",
         "-p",
-        help="Legacy alias for --provider；临时覆盖 provider，不修改 YAML。",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     provider: str | None = typer.Option(
         None,
         "--provider",
-        help="[Advanced/Legacy] 临时覆盖 provider/profile（不修改 YAML）。当前已使用 llm.models/routing 模型路由；此 flag 仅对 legacy profiles 生效。",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     strategy: str | None = typer.Option(
         None,
@@ -88,7 +90,7 @@ def watch_add(
         raise typer.Exit(code=2) from exc
     source_path = resolve_source_path_for_cli(cfg, target)
     if cfg.llm.active_profile != FAKE_PROFILE and selected_strategy.metadata.provider_mode != "deterministic":
-        # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
+        # CLI adapter 是读取本地 secret fallback 的边界；service 只编排 ingestion，不持有 IO 副作用。
         load_dotenv_silently(Path.cwd())
     try:
         summary = watch_add_source(
