@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
 from mindforge.assets_runtime import asset_root
@@ -21,6 +22,9 @@ from mindforge.llm import LLMResult, ResolvedModel, StageCallResult
 from mindforge.process_service import ProcessAssets, ProcessRuntime, ProviderSelection
 from mindforge.processors.pipeline import _build_card_payload
 from mindforge.process_executor import build_pipeline
+from mindforge.presenters.local_status import render_local_status
+from mindforge.services.doctor import compute_doctor_hints, config_doctor_rows
+from mindforge.services.local_status import LocalStatusSnapshot
 from mindforge.sources.base import SourceDocument, compute_content_hash
 from mindforge.strategies import DEFAULT_STRATEGY_NAME, get_strategy_metadata
 from mindforge.strategy_selection import (
@@ -172,6 +176,8 @@ def test_readme_main_path_does_not_recommend_fake_or_internal_strategies() -> No
     text = Path("README.md").read_text(encoding="utf-8")
     main, _, developer = text.partition("## 开发者")
 
+    for token in ("mindforge demo", "fake", "Cubox", "cubox", "dogfood", "active_profile", "profiles"):
+        assert token not in main, f"{token!r} must not appear in the user-facing README path"
     assert "--provider fake" not in main
     assert "default_knowledge_card" not in main
     assert "concept_extraction" not in main
@@ -211,6 +217,25 @@ def test_llm_provider_doc_references_example_config() -> None:
     assert "mindforge_example.yaml" in text
 
 
+def test_llm_provider_doc_hides_legacy_and_internal_paths() -> None:
+    """LLM 配置文档也必须以 Web Setup + real model 为主路径。"""
+
+    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    for token in (
+        "fake",
+        "dogfood",
+        "Cubox",
+        "cubox",
+        "active_profile",
+        "profiles",
+        "api_key_env",
+        "base_url_env",
+        "model_env",
+        ".env",
+    ):
+        assert token not in text, f"{token!r} leaked into LLM provider docs"
+
+
 def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     """README 锁定第一阶段 dogfood 表面，避免重新漂回 legacy/provider 文案。
 
@@ -240,10 +265,118 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     assert "支持相对路径" in text
     assert "解析为绝对路径" in text
 
-    for token in ("active_profile", "profiles", "fake_fast", "fake_strong"):
+    for token in ("active_profile", "profiles", "fake_fast", "fake_strong", "mindforge demo", "Cubox", "dogfood"):
         assert token not in main, f"{token!r} must not appear in the user-facing README path"
 
     assert developer  # legacy/dev notes may still exist after the developer boundary.
+
+
+def test_cli_primary_help_hides_internal_demo_cubox_env_profile_surfaces() -> None:
+    """普通用户 CLI 主 help 只能展示第一阶段真实主路径。
+
+    中文学习型说明：fake/demo/Cubox/env/profile 可以继续作为测试或开发内部实现
+    存在，但不能再出现在 root help 里作为普通用户入口。
+    """
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    out = result.output
+    for token in (
+        "demo",
+        "dogfood",
+        "cubox",
+        "Cubox",
+        "fake",
+        "profile",
+        "active_profile",
+        "profiles",
+        ".env",
+        "env",
+        "provider readiness",
+        "profile_only",
+    ):
+        assert token not in out, f"{token!r} leaked into root help"
+    for token in ("web", "status", "doctor", "watch", "import", "approve", "library", "trash", "wiki", "prompts", "recall"):
+        assert token in out
+
+
+def test_cli_commands_map_hides_internal_demo_cubox_env_profile_surfaces() -> None:
+    """``mindforge commands`` 是普通用户命令地图，不列开发/测试 fixture。"""
+    result = runner.invoke(app, ["commands"])
+
+    assert result.exit_code == 0, result.output
+    out = result.output
+    for token in ("demo", "dogfood", "cubox", "Cubox", "fake", "profile", "active_profile", "profiles", ".env", "env"):
+        assert token not in out, f"{token!r} leaked into commands map"
+    assert "mindforge web" in out
+    assert "mindforge watch add" in out
+    assert "mindforge approve list" in out
+
+
+def test_cli_status_presenter_hides_legacy_provider_env_and_source_labels() -> None:
+    """status 输出是普通用户入口，只展示模型设置和通用 source 类别。
+
+    中文学习型说明：service 层为了兼容历史状态仍可能携带 profile/env/Cubox
+    元数据；presenter 必须在用户主路径把它们翻译成第一阶段产品语义。
+    """
+
+    snapshot = LocalStatusSnapshot(
+        config_path="/tmp/mindforge/configs/mindforge.yaml",
+        vault={
+            "path": "/tmp/mindforge/vault",
+            "exists": True,
+            "readable": True,
+            "looks_like_mindforge": True,
+            "is_real_environment": False,
+        },
+        workspace={
+            "state_item_count": 1,
+            "runs_path": "/tmp/mindforge/.mindforge/runs",
+            "state_counts": {"ai_draft": 1},
+            "source_counts": {"cubox_markdown": 1},
+        },
+        provider={
+            "active_profile": "legacy",
+            "opt_in_state": "profile_only",
+            "network_called": False,
+        },
+        cubox={"token_present": True},
+        env_keys=[{"name": "SECRET_TOKEN", "configured": True, "sources": ["process"]}],
+        sources=[],
+        cards={"total": 1, "by_status": {"ai_draft": 1}, "scan_error_count": 0},
+        recall={"mode": "local lexical recall", "index_exists": False, "approved_card_count": 0},
+        safety={
+            "vault_path": "/tmp/mindforge/vault",
+            "provider_state": "profile_only",
+            "write_mode": "explicit_approval_required",
+            "pending_drafts": 1,
+        },
+        next_actions=["mindforge approve list"],
+        warnings=["Model setup may need review; status checks still do not call LLM."],
+    )
+
+    console = Console(record=True, width=120)
+    render_local_status(console, snapshot)
+    out = console.export_text()
+
+    assert "model setup=needs setup" in out
+    assert "imported_file" in out
+    for token in ("active_profile", "profile_only", "Cubox", "cubox_markdown", ".env", "SECRET_TOKEN"):
+        assert token not in out
+
+
+def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
+    """doctor 的建议必须指向真实 Setup，而不是历史 demo/profile 路径。"""
+
+    cfg = _bundled_config()
+    out = "\n".join(
+        [" ".join(row) for row in config_doctor_rows(cfg)]
+        + [f"{priority} {message}" for priority, message in compute_doctor_hints(cfg, [])]
+    )
+
+    assert "model setup" in out
+    for token in ("mindforge demo", "demo vault", "active_profile", ".env", "dogfood", "fake"):
+        assert token not in out
 
 
 def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:

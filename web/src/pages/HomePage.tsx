@@ -16,7 +16,7 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
       </div>
       <section className="grid gap-4 md:grid-cols-2">
         <StatusCard label="Search approved knowledge" value={data.recall.index_exists ? "Ready" : "Needs index"} status={data.recall.index_exists ? "ok" : "warn"} detail="Search only looks at approved knowledge." nextAction={data.recall.next_action} href="/recall" onNavigate={onNavigate} />
-        <StatusCard label="Check setup" value={data.provider.opt_in_state === "env_only" ? "Ready" : "Review"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="Review local vault and model provider readiness." href="/setup" onNavigate={onNavigate} />
+        <StatusCard label="Check setup" value={data.provider.opt_in_state === "env_only" ? "Ready" : "Review"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="Review local vault and model setup." href="/setup" onNavigate={onNavigate} />
       </section>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-ink">Next actions</h2>

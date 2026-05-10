@@ -47,7 +47,7 @@ def render_local_status(console: Console, snapshot: LocalStatusSnapshot) -> None
     console.print(
         "Safety: local-only · "
         f"vault={safety['vault_path']} · "
-        f"provider={safety['provider_state']} · "
+        f"model setup={_model_setup_label(data['provider'])} · "
         f"write mode={safety['write_mode']} · "
         f"pending ai_draft={safety['pending_drafts']}",
         markup=False,
@@ -58,8 +58,6 @@ def render_local_status(console: Console, snapshot: LocalStatusSnapshot) -> None
     )
     console.print("")
     _render_vault(console, vault)
-    _render_provider(console, data["provider"])
-    _render_env(console, data["env_keys"])
     console.print(f"items 总数：{data['workspace']['state_item_count']}", markup=False)
     console.print(f"runs dir : {data['workspace']['runs_path']}", markup=False)
     latest = summarize_latest_run(Path(str(data["workspace"]["runs_path"])))
@@ -103,17 +101,8 @@ def render_workspace_status(console: Console, snapshot: LocalStatusSnapshot) -> 
 def render_config_status(console: Console, snapshot: LocalStatusSnapshot) -> None:
     data = snapshot.to_dict()
     console.print("[bold]Config status[/bold]")
-    console.print(f"config        : {data['config_path']}", markup=False)
     console.print(f"vault.root    : {data['vault']['path']}", markup=False)
-    console.print(f"active_profile: {data['provider']['active_profile']}", markup=False)
-    _render_provider(console, data["provider"])
-    _render_env(console, data["env_keys"])
-    cubox = data["cubox"]
-    console.print("[bold]Cubox[/bold]")
-    console.print(f"  token_env_var  : {cubox['token_env_var']}", markup=False)
-    console.print(f"  token_present  : {cubox['token_present']} (presence only)", markup=False)
-    console.print(f"  opt_in_state   : {cubox['opt_in_state']}", markup=False)
-    console.print(f"  network_called : {cubox['network_called']}", markup=False)
+    console.print(f"model setup   : {_model_setup_label(data['provider'])}", markup=False)
     _render_warnings_and_next(console, data)
 
 
@@ -141,27 +130,23 @@ def _render_vault(console: Console, vault: dict[str, Any]) -> None:
         )
 
 
-def _render_provider(console: Console, provider: dict[str, Any]) -> None:
-    console.print("[bold]Provider[/bold]")
-    console.print(f"  active_profile : {provider['active_profile']}", markup=False)
-    console.print(f"  opt_in_state   : {provider['opt_in_state']}", markup=False)
-    console.print(f"  network_called : {provider['network_called']}", markup=False)
+def _model_setup_label(provider: dict[str, Any]) -> str:
+    """把 legacy readiness 压缩成普通用户能理解的模型配置状态。
+
+    中文学习型说明：status/config 是用户主路径，不应把 env/profile/fake 等
+    开发兼容细节重新暴露为产品概念。service 层仍保留历史字段给内部调用者，
+    presenter 只渲染“已配置 / 需要 Setup”这样的用户语义。
+    """
+
+    return "ready" if provider.get("opt_in_state") == "env_only" else "needs setup"
 
 
-def _render_env(console: Console, env_keys: list[dict[str, Any]]) -> None:
-    console.print("[bold].env / process env presence[/bold]")
-    table = Table(show_header=True)
-    table.add_column("key")
-    table.add_column("configured")
-    table.add_column("sources")
-    for item in env_keys:
-        table.add_row(
-            str(item["name"]),
-            str(item["configured"]),
-            ", ".join(item["sources"]) if item["sources"] else "-",
-        )
-    console.print(table)
-    console.print("[dim]secret values are never printed; only key names and presence are shown[/dim]")
+def _source_type_label(source_type: str) -> str:
+    """把历史 adapter 名称转换为普通用户可理解的 source 类别。"""
+
+    if source_type in {"cubox_markdown", "webclip", "chat_export"}:
+        return "imported_file"
+    return source_type
 
 
 def _render_cards(console: Console, cards: dict[str, Any], recall: dict[str, Any]) -> None:
@@ -184,7 +169,7 @@ def _render_state_counts(console: Console, workspace: dict[str, Any]) -> None:
     for status, count in sorted(workspace["state_counts"].items()):
         console.print(f"  {status:<14}: {count}", markup=False)
     for source_type, count in sorted(workspace["source_counts"].items()):
-        console.print(f"  {source_type:<14}: {count}", markup=False)
+        console.print(f"  {_source_type_label(source_type):<14}: {count}", markup=False)
 
 
 def data_count_hint(cards: dict[str, Any]) -> int:

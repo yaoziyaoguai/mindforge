@@ -42,10 +42,10 @@ def _write_export(tmp_path: Path, items: list[dict[str, Any]]) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def test_cubox_group_appears_in_help() -> None:
+def test_cubox_group_is_hidden_from_root_help() -> None:
     res = runner.invoke(app, ["--help"])
     assert res.exit_code == 0
-    assert "cubox" in res.stdout.lower()
+    assert "cubox" not in res.stdout.lower()
 
 
 def test_cubox_dry_run_appears_in_cubox_help() -> None:

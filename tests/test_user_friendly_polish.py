@@ -54,13 +54,8 @@ def test_next_suggestions_recommend_demo_before_init_when_vault_missing(tmp_path
     assert "API key" in demo_item.reason or "联网" in demo_item.reason
 
 
-def test_doctor_recovery_actions_include_demo_hint_when_cards_missing(tmp_path):
-    """doctor 在 cards 目录缺失时把零配置 demo 放在新用户最先看到的位置。
-
-    UX completion: demo 现在用 ``try_first`` 优先级排序，确保新用户在
-    ``Action items`` 列表里第一眼就看到 ``mindforge demo``，而不是被多条
-    ``critical`` ``init`` 提示淹没。原 init critical 提示保留作为后续动作。
-    """
+def test_doctor_recovery_actions_include_init_hint_when_cards_missing(tmp_path):
+    """doctor 在 cards 目录缺失时指向真实初始化，不再推荐 demo 主路径。"""
 
     cfg = _config_with_missing_vault(tmp_path)
     payload = _doctor_recovery_checks(cfg)
@@ -68,35 +63,25 @@ def test_doctor_recovery_actions_include_demo_hint_when_cards_missing(tmp_path):
     actions = payload["actions"]
     messages = [msg for _prio, msg in actions]
     joined = "\n".join(messages)
-    assert "mindforge demo" in joined, (
-        "cards 目录缺失时 doctor 必须同时提示 mindforge demo 作为零配置入口"
-    )
     assert any("init" in msg for msg in messages), (
         "原有 init 提示不能被覆盖（init 仍是 vault 真正落地的必经一步）"
     )
-    demo_action = next((p, m) for p, m in actions if "mindforge demo" in m)
-    assert demo_action[0] == "try_first", (
-        "demo 必须用 try_first 优先级，使其在 doctor Action items 中排在最前"
-    )
+    assert "mindforge demo" not in joined
 
 
-def test_root_help_recommends_mindforge_demo_first():
-    """root ``--help`` 必须把 mindforge demo 写成新用户的第一条命令。
-
-    UX completion: ``app.help`` 是新用户运行 ``mindforge --help`` 时第一眼
-    看到的文本；以前它列了 scan/process 等中间命令，没有指向零配置入口。
-    现在必须把 ``mindforge demo`` 显式写成 “第一条命令”。
-    """
+def test_root_help_recommends_web_setup_first():
+    """root ``--help`` 必须把 Web Setup 写成新用户第一条真实主路径。"""
 
     from mindforge.cli import app
 
     help_text = app.info.help or ""
-    assert "mindforge demo" in help_text or "demo" in help_text.split("\n")[2:6][0]
-    # 进一步：demo 推荐句必须在常用命令列表的前两行内出现
+    assert "mindforge web" in help_text
+    assert "demo" not in help_text.lower()
+    # 进一步：web 推荐句必须在常用命令列表的前两行内出现
     common_block = help_text.split("常用命令", 1)[-1]
     head_lines = common_block.splitlines()[:3]
-    assert any("demo" in line for line in head_lines), (
-        "root --help '常用命令' 头两三行必须出现 demo，作为新用户首选入口"
+    assert any("mindforge web" in line for line in head_lines), (
+        "root --help '常用命令' 头两三行必须出现 mindforge web，作为新用户首选入口"
     )
 
 

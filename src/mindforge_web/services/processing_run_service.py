@@ -195,7 +195,7 @@ def started_response_message() -> str:
     # 用户可以继续操作，最终结果以 run status / Sources summary 为准。
     return (
         "Processing started in the background. You can keep using MindForge. "
-        "Results will appear in Review when ready."
+        "Sources will show the final status, and Review will show any generated drafts."
     )
 
 
@@ -378,6 +378,19 @@ def _now() -> str:
 
 
 def _safe_error_message(message: str) -> str:
+    # 中文学习型说明：用户主路径只需要可行动的 provider 错误。代理或网关常返回
+    # HTML 错误页，直接塞进 run record 会让 Sources 变成不可读的内部噪音。
+    lowered = message.lower()
+    if "<!doctype html" in lowered or "<html" in lowered:
+        status_hint = ""
+        for code in ("400", "401", "403", "404", "408", "429", "500", "502", "503", "504"):
+            if f"HTTP {code}" in message or f"HTTP {code}:" in message:
+                status_hint = f" (HTTP {code})"
+                break
+        return (
+            f"Provider returned an HTML error page{status_hint}. "
+            "Check the model base URL, proxy, or provider availability."
+        )
     # 保留 env var name / provider type 等诊断信息，但避免异常里夹带 token 形态值。
     redacted_words = []
     for word in message.split():

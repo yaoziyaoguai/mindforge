@@ -36,6 +36,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
 async function errorText(response: Response): Promise<string> {
   try {
     const payload = await response.json();
+    if (typeof payload?.detail === "string") return payload.detail;
     return payload?.detail?.message ?? payload?.message ?? response.statusText;
   } catch {
     return response.statusText;

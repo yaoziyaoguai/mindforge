@@ -8,8 +8,8 @@
     * 统计 ``ai_draft`` / ``human_approved`` 卡片数与 overdue / due 7d；
     * 把 ``next_suggestions`` 与本地 recovery 检查合并成 doctor hints。
 - 安全边界：
-    * 不读取 ``.env`` 内容；
-    * 不调用 LLM / Cubox / Upstage / 任何网络；
+    * 不读取 secret 内容；
+    * 不调用 LLM / 外部服务 / 任何网络；
     * 不产生 ``human_approved`` 记录（只 *读* 该字段做统计）；
     * 不写 vault；
     * 不依赖 ``mindforge.cli`` / ``typer`` / ``rich`` / ``console``。
@@ -48,7 +48,7 @@ def dir_state(p: Path) -> str:
 def config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
     """配置诊断行；只做路径和 package asset 可读性检查。
 
-    这些检查不会创建目录，不会读取 ``.env``，也不会调用 provider。路径可
+    这些检查不会创建目录，不会读取 secret，也不会调用外部服务。路径可
     写性用父目录检查表示"setup 是否可恢复"，避免为了诊断而写探针文件。
     """
 
@@ -72,12 +72,11 @@ def config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
             str(path),
             "mindforge init --interactive" if not parent.exists() else "",
         ))
-    profile_ok = cfg.llm.active_profile in cfg.llm.profiles
     rows.append((
-        "ok" if profile_ok else "error",
-        "active_profile",
-        cfg.llm.active_profile,
-        "edit mindforge.yaml llm.active_profile" if not profile_ok else "",
+        "ok" if cfg.llm.default_model and cfg.llm.models else "warn",
+        "model setup",
+        "configured" if cfg.llm.default_model and cfg.llm.models else "missing",
+        "open Web Setup to add a model" if not cfg.llm.models else "",
     ))
     try:
         from ..assets_runtime import bundled_text
@@ -87,11 +86,10 @@ def config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
         rows.append(("ok", "package assets", "configs/templates readable", ""))
     except Exception as e:  # noqa: BLE001
         rows.append(("error", "package assets", f"{type(e).__name__}: {e}", "reinstall MindForge"))
-    rows.append(("ok", "env policy", "config UX does not read .env", ""))
     rows.append((
         "ok",
         "llm policy",
-        "real dogfood uses env keys; init/config checks do not call LLM",
+        "setup checks do not call LLM",
         "",
     ))
     return rows
@@ -101,7 +99,7 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
     """doctor plus 的本地恢复检查。
 
     中文学习型说明：这些检查只读路径存在性、JSON/YAML 可读性和 package
-    asset 可访问性；不会读取 ``.env``，不会调用 LLM，也不会写 vault 或
+    asset 可访问性；不会读取 secret，不会调用 LLM，也不会写 vault 或
     Obsidian notes。``actions`` 列表的优先级语义在 next_suggestions /
     cli sort 中共用：``try_first`` < ``critical`` < ``recommended`` <
     ``info``。
@@ -134,14 +132,6 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
     rows.append(("ok" if cards_dir.is_dir() else "error", "cards dir", str(cards_dir)))
     if not cards_dir.is_dir():
         actions.append(("critical", "Knowledge Cards 目录缺失 → 运行: mindforge init --interactive"))
-        # 用户友好性 polish：在要求 init 之前先告诉新用户有零配置 demo 可选；
-        # 这是 ``mindforge demo`` 60 秒 tour 的入口提示，不替换 init 的 critical 性。
-        # UX completion: 用 try_first 优先级保证 demo 在 doctor Action items 列表
-        # 第一行出现，让新用户在被多条 critical 提示劝退之前先看到安全演示路径。
-        actions.append((
-            "try_first",
-            "想先跑零配置 tour（无需 vault / API key / 网络）→ 运行: mindforge demo",
-        ))
 
     index_path = cfg.state.workdir / "index" / "bm25.json"
     rows.append((
@@ -165,17 +155,6 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
         rows.append(("error", "package assets", f"unreadable · {type(e).__name__}: {e}"))
         actions.append(("critical", "package assets 不可读 → 检查安装包或重新安装 MindForge"))
 
-    try:
-        from ..demo_assets import demo_vault_path
-
-        demo = demo_vault_path()
-        rows.append(("ok", "demo vault", f"packaged asset · {demo}"))
-    except Exception as e:  # noqa: BLE001
-        rows.append(("warn", "demo vault", f"packaged asset unavailable · {type(e).__name__}: {e}"))
-        actions.append((
-            "recommended",
-            "demo vault 不可用 → 重新安装 MindForge 或检查 package data",
-        ))
     try:
         from ..cards import filter_cards, iter_cards
 
@@ -252,15 +231,10 @@ def compute_doctor_hints(
     cards_dir = cfg.vault.cards_path
     if not cards_dir.exists():
         hints.append(("critical", "vault 目录缺失 → 运行: mindforge init --interactive"))
-    if cfg.llm.active_profile not in cfg.llm.profiles:
+    if not cfg.llm.default_model or not cfg.llm.models:
         hints.append((
             "critical",
-            f"active_profile={cfg.llm.active_profile!r} 未在 llm.profiles 中定义 → 检查 mindforge.yaml",
-        ))
-    elif cfg.llm.active_profile != "fake":
-        hints.append((
-            "critical",
-            "active_profile 非 fake：真实跑 process 前请先 `mindforge llm ping` 校验环境变量",
+            "未配置模型 → 打开 Web Setup 添加真实模型和 API key",
         ))
     if cards_dir.exists():
         try:

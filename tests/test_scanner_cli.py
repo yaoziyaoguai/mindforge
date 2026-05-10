@@ -159,7 +159,7 @@ def test_cli_scan_then_status(tmp_path: Path) -> None:
     assert r3.exit_code == 0, r3.output
     assert "items 总数：2" in r3.output
     assert "raw" in r3.output
-    assert "cubox_markdown" in r3.output
+    assert "imported_file" in r3.output
     assert "plain_markdown" in r3.output
     # M1.5 新增：runs dir 与最近一次 run 摘要必须出现
     assert "runs dir" in r3.output

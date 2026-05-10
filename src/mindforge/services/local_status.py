@@ -295,7 +295,7 @@ def _warnings(
     if vault["is_real_environment"]:
         warnings.append("Real-looking vault is active; writes require explicit user action.")
     if provider_report["opt_in"]["opt_in_state"] not in {"fake_default", "env_only"}:
-        warnings.append("Real provider profile may be active; status checks still do not call LLM.")
+        warnings.append("Model setup may need review; status checks still do not call LLM.")
     if safety["pending_drafts"]:
         warnings.append("ai_draft cards are pending review; approval requires explicit confirmation.")
     return warnings

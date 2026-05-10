@@ -74,9 +74,9 @@ def test_setup_copy_uses_model_and_secret_safe_language() -> None:
     safety = _read("components/SafetyBar.tsx")
     combined = "\n".join([setup, checklist, safety])
 
-    assert "Model provider" in combined
+    assert "Model setup" in combined
     assert "API key" in combined
-    assert "present/missing" in combined
+    assert "configured, missing, or hidden" in combined
     assert "Provider status only reports" not in combined
     assert "Provider:" not in combined
 
@@ -146,10 +146,11 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
 
 
 def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
-    """Advanced diagnostics 可保留内部状态，但必须与普通用户主路径分开。
+    """Advanced diagnostics 也不能重新暴露测试/legacy/internal 主路径。
 
-    中文学习型说明：Setup 主 UI 是普通用户配置模型和来源的地方；env mapping、
-    raw config path、provider readiness 等只用于排障，必须折叠并标记 read-only。
+    中文学习型说明：Setup 主 UI 是普通用户配置真实模型和来源的地方；
+    Diagnostics 只能保留用户能理解的只读状态，不能把 env/Cubox/profile/raw
+    config 这些开发和历史兼容语义重新变成产品配置入口。
     """
 
     setup = _read("pages/SetupPage.tsx")
@@ -160,14 +161,28 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
     assert "Default base URL" not in setup
     assert "Diagnostics for advanced users" in setup
     assert "read-only diagnostics" in advanced
-    assert "Environment variable overrides" in advanced
-    assert "Provider readiness" in advanced
-    assert "Raw config path" in advanced
-    assert "Token status" in advanced
-    assert "Configuration checklist" in advanced
+    for forbidden in (
+        "Environment variable overrides",
+        "Provider readiness",
+        "Raw config path",
+        "Token status",
+        "Configuration checklist",
+        "Environment variable presence",
+        "Process environment diagnostics",
+        "Technical internal route",
+        "Cubox",
+        "cubox",
+        "api_key_env",
+        "base_url_env",
+        "model_env",
+        "active_profile",
+        "profiles",
+        "__model_routing__",
+    ):
+        assert forbidden not in advanced
     assert "Create missing vault directories on save" not in setup
-    assert "Environment variable presence" in checklist
-    assert "Process environment diagnostics" in checklist
+    assert "Environment variable presence" not in combined
+    assert "Process environment diagnostics" not in combined
     # Effective base URL / model 仅在 Advanced diagnostics 展示，不在主 UI
     assert "Copy base URL" not in setup
     assert "Copy model" not in setup
@@ -178,7 +193,7 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
     assert "Add a model to generate AI drafts." in setup
     assert "You can still add and monitor sources" in setup
     assert "fake-fast" not in setup
-    assert "Built-in demo" in setup
+    assert "Built-in demo" not in setup
     assert "fake://" not in setup
     assert "fake_default" not in setup
     assert "Env keys" not in checklist

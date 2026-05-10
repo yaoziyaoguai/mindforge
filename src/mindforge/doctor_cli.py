@@ -1,7 +1,7 @@
 """Doctor CLI adapter.
 
 Doctor 是只读诊断入口：展示 runtime/config/path/safety/recovery 信号，
-不读取 .env 内容、不调用网络、不打印 secret。
+不读取 secret、不调用网络、不打印 secret。
 """
 from __future__ import annotations
 
@@ -75,8 +75,8 @@ def _print_vault_section(cfg) -> None:
         ("state workdir", Path(cfg.state.workdir)),
     ):
         console.print(f"  {_doctor_icon(_dir_state(path))} {label:<17}: {path}  ({_ok_dir(path)})")
-    profile_state = "ok" if cfg.llm.active_profile in cfg.llm.profiles else "error"
-    console.print(f"  {_doctor_icon(profile_state)} active_profile    : {cfg.llm.active_profile}")
+    model_state = "ok" if cfg.llm.default_model and cfg.llm.models else "warn"
+    console.print(f"  {_doctor_icon(model_state)} model setup       : {_model_setup_text(cfg)}")
     console.print(
         f"  {_doctor_icon('ok' if cfg.telemetry.local_only else 'warn')} telemetry.enabled : "
         f"{cfg.telemetry.enabled} (local_only={cfg.telemetry.local_only})"
@@ -96,18 +96,12 @@ def _print_optional_installs_section() -> None:
     console.print(f"  {_doctor_icon('ok' if docx_ok else 'info')} python-docx : {docx_msg}")
 
 
-def _env_gitignore_state(cwd: Path) -> tuple[bool, bool]:
-    env_file = cwd / ".env"
-    gitignore = cwd / ".gitignore"
-    if not env_file.exists():
-        return False, False
-    ignored = False
-    if gitignore.exists():
-        try:
-            ignored = ".env" in gitignore.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            ignored = False
-    return True, ignored
+def _model_setup_text(cfg) -> str:
+    """用第一阶段产品语言描述模型配置，不泄露 profile/env 等历史字段。"""
+
+    if cfg.llm.default_model and cfg.llm.models:
+        return "configured"
+    return "open Web Setup to add a model"
 
 
 def _print_git_runtime_risk(cwd: Path) -> None:
@@ -126,7 +120,7 @@ def _print_git_runtime_risk(cwd: Path) -> None:
         risky = [
             line
             for line in out.splitlines()
-            if any(k in line for k in (".mindforge", "telemetry.jsonl", "runs/", "state.json", ".env"))
+            if any(k in line for k in (".mindforge", "telemetry.jsonl", "runs/", "state.json"))
         ]
         if risky:
             console.print(
@@ -142,18 +136,9 @@ def _print_git_runtime_risk(cwd: Path) -> None:
 
 def _print_safety_section() -> None:
     cwd = Path.cwd()
-    env_present, env_ignored = _env_gitignore_state(cwd)
     _divider()
     console.print("[bold]Safety[/bold]")
-    if not env_present:
-        console.print(f"  {_doctor_icon('info')} .env             : not present")
-    elif env_ignored:
-        console.print(f"  {_doctor_icon('ok')} .env             : present, gitignored (内容未被读取)")
-    else:
-        console.print(
-            f"  {_doctor_icon('error')} .env             : present BUT not in .gitignore；"
-            "立即把 .env 加入 .gitignore，避免误提交。"
-        )
+    console.print(f"  {_doctor_icon('ok')} secret values    : never printed")
     _print_git_runtime_risk(cwd)
 
 
@@ -196,7 +181,7 @@ def doctor(
     ),
     paths: bool = typer.Option(False, "--paths", help="展示本地会读/会写/不会写的目录边界"),
 ) -> None:
-    """打印环境 + 配置 + 可选依赖 + .gitignore 风险快照。"""
+    """打印本地配置、路径、可选依赖和运行时产物风险快照。"""
     if not _print_runtime_section(config):
         return
 
@@ -207,7 +192,7 @@ def doctor(
     recovery_hints = _print_recovery_section(cfg, paths=paths)
     _print_action_hints(cfg, recovery_hints)
     console.print(
-        "[dim]说明：本命令不读 .env 内容、不发 HTTP、不打印 api_key / token。[/dim]"
+        "[dim]说明：本命令不读 secret、不发 HTTP、不打印 api_key / token。[/dim]"
     )
 
 

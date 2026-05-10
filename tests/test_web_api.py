@@ -18,6 +18,7 @@ from mindforge.app_context import AppContextError
 from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
+from mindforge_web.services.processing_run_service import _safe_error_message
 
 
 def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -583,6 +584,22 @@ def test_processing_run_json_parse_failure_finishes_as_failed(
     assert finished["summary"]["errors"] == 1
     assert finished["error_message"] or finished["message"]
     assert "processed as ai_draft" not in f"{finished}"
+
+
+def test_processing_run_provider_html_error_is_user_friendly() -> None:
+    """Provider HTML 错误页不能原样进入 run record / Sources 文案。
+
+    中文学习型说明：真实模型配置仍是用户主路径，但代理、网关、base_url
+    配错时常返回 HTML。用户需要可行动的错误，不需要看到整页 HTML。
+    """
+
+    message = "LLM 调用失败：HTTP 503: <!DOCTYPE html><html><title>ERROR</title>"
+
+    cleaned = _safe_error_message(message)
+
+    assert "Provider returned an HTML error page (HTTP 503)." in cleaned
+    assert "<html" not in cleaned.lower()
+    assert "<!DOCTYPE" not in cleaned
 
 
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:
@@ -1407,8 +1424,9 @@ def test_web_process_without_model_returns_friendly_error(
     response = client.post("/api/sources/watch", json={"path": str(source)})
 
     assert response.status_code == 400
-    assert "No model configured for stage 'triage'" in response.json()["detail"]
-    assert "Add a model in Web Setup" in response.json()["detail"]
+    detail = response.json()["detail"]["message"]
+    assert "No model configured for stage 'triage'" in detail
+    assert "Add a model in Web Setup" in detail
     assert "Traceback" not in response.text
 
 
@@ -1435,7 +1453,7 @@ def test_web_watch_scan_without_model_returns_friendly_error(
     response = client.post(f"/api/sources/watch/scan?ref={registered['watch_id']}")
 
     assert response.status_code == 400
-    assert "No model configured for stage 'triage'" in response.json()["detail"]
+    assert "No model configured for stage 'triage'" in response.json()["detail"]["message"]
     assert "Traceback" not in response.text
 
 
@@ -1903,8 +1921,8 @@ def test_setup_api_key_never_returned_raw(tmp_path: Path, monkeypatch) -> None:
     assert "very-secret" not in combined
 
 
-def test_setup_demo_model_labeled_correctly(tmp_path: Path, monkeypatch) -> None:
-    """type=fake 的模型标记为 is_demo_model，api_key_source=demo。"""
+def test_setup_hides_fake_model_from_user_config_surface(tmp_path: Path, monkeypatch) -> None:
+    """type=fake 只能作为内部测试替身，不能进入普通用户 Setup 列表。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)
 
     # 写入只有 fake 模型的 config
@@ -1925,9 +1943,7 @@ def test_setup_demo_model_labeled_correctly(tmp_path: Path, monkeypatch) -> None
 
     editable = client.get("/api/config/editable").json()
     model = editable["llm"]["configured_models"].get("demo")
-    assert model is not None, "demo model should appear when it is the only model"
-    assert model["is_demo_model"] is True
-    assert model["api_key_source"] == "demo"
+    assert model is None
 
 
 def test_setup_default_model_dropdown_only_configured_models(tmp_path: Path, monkeypatch) -> None:
@@ -2731,6 +2747,26 @@ def test_clean_clone_save_first_model_creates_missing_vault(tmp_path: Path, monk
     from mindforge.secret_store import SecretStore
 
     assert SecretStore(tmp_path / ".mindforge" / "secrets.json").present("main")
+
+
+def test_web_source_path_error_returns_frontend_readable_detail(tmp_path: Path, monkeypatch) -> None:
+    """Source 400 必须给前端可读 message，不能让 UI 退化成 ``Bad Request``。
+
+    中文学习型说明：用户主路径是 Add Source / Add and process now。后端可以
+    拒绝相对路径或缺模型，但 response body 必须是稳定的 `{detail:{message}}`
+    形状，前端才能显示真正原因。
+    """
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"), raise_server_exceptions=False)
+
+    resp = client.post(
+        "/api/sources/watch",
+        json={"path": "relative.md", "frequency": "manual", "recursive": True, "process_now": False},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["message"].startswith("Please use an absolute path")
 
 
 def test_setup_save_reports_friendly_error_when_vault_auto_create_fails(

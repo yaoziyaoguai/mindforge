@@ -95,21 +95,17 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "第一次开始",
         [
-            ("mindforge start", "第一天入口：看状态、安全边界和下一条命令"),
-            ("mindforge setup --dry-run", "预览本地 safe-by-default setup"),
-            ("mindforge config show", "查看当前 config / vault / state 路径"),
-            ("mindforge init --vault PATH", "创建 vault 骨架与默认 configs"),
-            ("mindforge doctor --paths", "健康检查 + 本地读写边界"),
+            ("mindforge web", "打开本地 Web 控制台，配置真实模型和 API key"),
+            ("mindforge status", "查看本地 workspace / draft / library 状态"),
+            ("mindforge doctor", "健康检查 + 本地读写边界"),
         ],
     ),
     (
         "导入 / 处理资料",
         [
-            ("mindforge watch list", "查看 default 00-Inbox 与用户添加的 watched sources"),
-            ("mindforge watch add <file-or-folder>", "注册 watched source，并立即生成 ai_draft"),
+            ("mindforge watch list", "查看本地文件/文件夹 sources"),
+            ("mindforge watch add <file-or-folder>", "注册 watched source，并处理当前内容"),
             ("mindforge import <file-or-folder>", "一次性导入当前内容，不加入 watch registry"),
-            ("mindforge scan / process --limit N", "[Advanced] 底层 troubleshooting pipeline；主路径用 watch add / import"),
-            ("mindforge status", "查看 state.json 中的处理进度"),
         ],
     ),
     (
@@ -152,38 +148,18 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "Obsidian dry-run",
-        [
-            ("mindforge obsidian next --vault PATH", "查看 dogfooding 状态、staged export 和下一步"),
-            ("mindforge obsidian doctor --vault PATH", "检查只读 Obsidian 绑定边界"),
-            ("mindforge obsidian scan --vault PATH", "只读扫描 Markdown note 安全摘要"),
-            ("mindforge obsidian links --vault PATH", "只读解析 [[wikilinks]]"),
-            ("mindforge obsidian stage --source NOTE --dry-run", "预览 staging 候选，不写正式 notes"),
-            (
-                "mindforge obsidian stage --source NOTE --staged-export --diff --write --confirm",
-                "写 staged export + manifest，不写正式 notes",
-            ),
-            ("mindforge obsidian preflight --manifest PATH", "校验 future write-gate 证据链"),
-        ],
-    ),
-    (
         "Backup / Doctor",
         [
-            ("mindforge backup export", "导出本地安全备份（不含 .env / source 原文）"),
             ("mindforge doctor --paths", "检查恢复状态和本地读写边界"),
-            ("mindforge vault index", "维护 _index.md 导航文件"),
-            ("mindforge vault links", "维护 _link_candidates.md 双链建议"),
         ],
     ),
     (
         "Debug / Safety",
         [
             ("mindforge commands", "按目标查看命令导航"),
-            ("mindforge config doctor", "诊断配置、package assets 和安全默认值"),
             ("mindforge next", "根据当前状态推荐下一步"),
             ("mindforge today", "每日待办 / review / index 状态"),
             ("mindforge version", "版本与运行配置摘要（不含 secret）"),
-            ("mindforge telemetry status", "查看本地 telemetry 开关与文件路径"),
         ],
     ),
 ]
@@ -210,7 +186,7 @@ def commands_cmd() -> None:
         console.print("")
     console.print(
         "[dim]说明：完整使用入口见 README.md。"
-        "本命令不读 .env、不发 HTTP、不调用 LLM。[/dim]"
+        "本命令不发 HTTP、不调用 LLM。[/dim]"
     )
 
 

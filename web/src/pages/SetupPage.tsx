@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/config";
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
-import { ConfigChecklist } from "../components/ConfigChecklist";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 
@@ -72,9 +71,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const dirty = useMemo(() => JSON.stringify(draftForm) !== JSON.stringify(savedForm), [draftForm, savedForm]);
   const modelIds = Object.keys(form?.models ?? {});
   const hasConfiguredModels = modelIds.length > 0;
-  const onlyDemoModel = editable
-    ? modelIds.length === 1 && editable.llm.configured_models[modelIds[0]]?.is_demo_model
-    : false;
 
   function updateModelField(modelId: string, field: keyof ModelForm, value: string | boolean) {
     if (!form) return;
@@ -306,13 +302,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : null}
 
-            {onlyDemoModel ? (
-              <div className="rounded-md border border-info bg-blue-50 p-3 text-sm">
-                <div className="font-medium text-ink">Built-in demo model</div>
-                <div className="mt-1 text-muted">You are using the built-in demo model. Add a real model to generate useful draft knowledge cards.</div>
-              </div>
-            ) : null}
-
             {/* ---- Add/Edit form (inline) ---- */}
             {editing ? (
               <div className="rounded-md border border-line bg-stone-50 p-4">
@@ -367,24 +356,20 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 {modelIds.map((modelId) => {
                   const item = form.models[modelId];
                   const status = editable.llm.configured_models[modelId];
-                  const isDemo = status?.is_demo_model ?? false;
                   const keySource = status?.api_key_source ?? "missing";
                   const apiKeyLabel = keySource === "local_secret"
                     ? `configured · ${status?.api_key_masked_value ?? "****"}`
                     : keySource === "env"
-                    ? `env (${status?.api_key_status_label ?? ""})`
-                    : keySource === "demo"
-                    ? "demo (not real)"
+                    ? `configured outside Web · ${status?.api_key_status_label ?? ""}`
                     : "missing";
                   return (
                     <article key={modelId} className="rounded-md border border-line p-3">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="font-semibold text-ink">{modelId}</div>
-                          {isDemo ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Built-in demo</span> : null}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`rounded-md px-2 py-0.5 text-xs ${keySource === "local_secret" || keySource === "env" ? "bg-green-100 text-green-700" : keySource === "demo" ? "bg-blue-100 text-blue-700" : "bg-stone-100 text-muted"}`}>
+                          <span className={`rounded-md px-2 py-0.5 text-xs ${keySource === "local_secret" || keySource === "env" ? "bg-green-100 text-green-700" : "bg-stone-100 text-muted"}`}>
                             API key: {apiKeyLabel}
                           </span>
                           <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">Edit</button>
@@ -421,8 +406,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.default_model} onChange={(event) => setForm({ ...form, default_model: event.target.value })}>
               {!hasConfiguredModels ? <option value="">No model configured</option> : null}
               {modelIds.map((modelId) => {
-                const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
-                return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
+                return <option key={modelId} value={modelId}>{modelId}</option>;
               })}
             </select>
           </section>
@@ -474,8 +458,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                       <label className="text-xs text-muted">Model</label>
                       <select className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
                         {modelIds.map((modelId) => {
-                          const isDemo = editable.llm.configured_models[modelId]?.is_demo_model;
-                          return <option key={modelId} value={modelId}>{modelId}{isDemo ? " (demo)" : ""}</option>;
+                          return <option key={modelId} value={modelId}>{modelId}</option>;
                         })}
                       </select>
                       {!isCustomModel ? <span className="text-xs text-muted">(uses default)</span> : null}
@@ -565,46 +548,16 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Diagnostics for advanced users</summary>
             <div className="mt-3 space-y-4">
-              <p className="text-xs text-muted">These are read-only diagnostics for advanced users and troubleshooting. Use the main UI above to configure models, workflow routing, Wiki behavior, and sources.</p>
-
-              {modelIds.map((modelId) => {
-                const status = editable.llm.configured_models[modelId];
-                const hasEnv = status?.api_key_env || status?.base_url_env || status?.model_env;
-                return (
-                  <div key={modelId} className="rounded-md border border-line p-3">
-                    <div className="mb-2 text-xs font-medium text-ink">Environment variable overrides: {modelId}</div>
-                    {hasEnv ? (
-                      <dl className="grid gap-x-4 gap-y-1 text-sm md:grid-cols-3">
-                        <div><dt className="text-xs text-muted">API key env</dt><dd className="text-ink">{status?.api_key_env || "—"}</dd></div>
-                        <div><dt className="text-xs text-muted">Base URL env</dt><dd className="text-ink">{status?.base_url_env || "—"}</dd></div>
-                        <div><dt className="text-xs text-muted">Model env</dt><dd className="text-ink">{status?.model_env || "—"}</dd></div>
-                      </dl>
-                    ) : (
-                      <p className="text-xs text-muted">No env var overrides configured.</p>
-                    )}
-                    <div className="mt-2 text-xs text-muted">
-                      {status?.effective_base_url ? <span>Effective base URL: {status.effective_base_url} ({status.base_url_source})</span> : null}
-                      {status?.effective_model ? <span className="ml-4">Effective model: {status.effective_model} ({status.model_source})</span> : null}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {!hasConfiguredModels ? (
-                <div className="rounded-md border border-line p-3 text-sm text-muted">No models configured. Add a model above to see env var options.</div>
-              ) : null}
-
+              <p className="text-xs text-muted">These are read-only diagnostics for advanced users and troubleshooting. They summarize the same user-facing setup state without exposing legacy runtime internals.</p>
+              {/* 中文学习型说明：Diagnostics 不是第二套配置入口。这里只展示用户能
+              理解的只读状态，避免把测试替身、历史路由或内部配置字段重新暴露为
+              普通用户需要操作的产品概念。 */}
               <dl className="space-y-2 text-sm text-muted">
-                <div><dt className="font-medium text-ink">Provider readiness</dt><dd>{editable.llm.readiness.opt_in_state}</dd></div>
-                <div><dt className="font-medium text-ink">Technical internal route</dt><dd>{editable.llm.active_provider}</dd></div>
-                <div><dt className="font-medium text-ink">Raw config path</dt><dd>{editable.config_path}</dd></div>
-                <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
+                <div><dt className="font-medium text-ink">Knowledge vault</dt><dd className="break-all">{editable.vault.root}</dd></div>
+                <div><dt className="font-medium text-ink">Model configured</dt><dd>{hasConfiguredModels ? "Yes" : "No"}</dd></div>
+                <div><dt className="font-medium text-ink">Secret configured</dt><dd>{modelIds.some((modelId) => editable.llm.configured_models[modelId]?.api_key_secret_present) ? "Yes" : "No"}</dd></div>
+                <div><dt className="font-medium text-ink">Last validation result</dt><dd>{editable.llm.validation_errors.length ? editable.llm.validation_errors.join(" ") : "Ready"}</dd></div>
               </dl>
-
-              {/* 中文学习型说明：ConfigChecklist 是环境与配置排障视图，不是普通用户
-              完成 Setup 的必填步骤；因此只放在折叠 diagnostics 中。 */}
-              <div className="text-sm font-medium text-ink">Configuration checklist</div>
-              <ConfigChecklist items={data.checklist} keys={[...data.configured_keys, ...data.missing_keys]} />
             </div>
           </details>
 

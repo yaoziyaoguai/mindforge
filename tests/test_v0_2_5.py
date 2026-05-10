@@ -384,9 +384,10 @@ def test_doctor_runs_without_secrets(tmp_path: Path) -> None:
     finally:
         os.chdir(cwd)
     assert res.exit_code == 0, res.output
-    # 严禁泄漏 .env value
+    # 严禁泄漏 secret value，也不把 .env 作为普通用户主路径展示
     assert "sk-shouldnotleak" not in res.output
-    assert "gitignored" in res.output
+    assert ".env" not in res.output
+    assert "secret values" in res.output
     assert "MindForge doctor" in res.output
 
 
@@ -403,7 +404,9 @@ def test_doctor_warns_when_env_not_in_gitignore(tmp_path: Path) -> None:
     finally:
         os.chdir(cwd)
     assert res.exit_code == 0
-    assert "not in .gitignore" in res.output
+    assert "X=1" not in res.output
+    assert ".env" not in res.output
+    assert "secret values" in res.output
 
 
 def test_doctor_handles_missing_config(tmp_path: Path) -> None:

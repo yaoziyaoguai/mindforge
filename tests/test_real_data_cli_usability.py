@@ -157,7 +157,7 @@ def test_cli_status_is_real_data_safe_and_secret_free(tmp_path: Path, monkeypatc
     assert "pending ai_draft=1" in result.output.replace("\n", "")
     assert "human_approved" in result.output
     assert "local lexical recall" in result.output
-    assert "MINDFORGE_FAKE_SECRET" in result.output
+    assert "MINDFORGE_FAKE_SECRET" not in result.output
     assert "SECRET_VALUE_MUST_NOT_LEAK" not in result.output
     assert "CUBOX_SECRET_MUST_NOT_LEAK" not in result.output
     assert "DRAFT_PRIVATE_SENTINEL" not in result.output

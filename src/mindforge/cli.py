@@ -168,19 +168,20 @@ app = typer.Typer(
     add_completion=True,
     help=(
         "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
-        "新用户先跑这条命令（零 secret / 零网络 / 零 vault 写入）：\n"
-        "  mindforge demo               — 60 秒 fake/safe tour，零配置即可看到端到端效果\n\n"
+        "第一阶段主路径：真实模型配置 → 本地文件/文件夹 Source → 后台 Process → "
+        "AI Draft → Human Review → Explicit Approve → Library / Wiki。\n\n"
         "常用命令：\n"
-        "  mindforge demo               — 60 秒新用户 tour，无需 API key / 网络 / vault\n"
-        "  watch add <path>             — 注册 watched source，并立即生成 ai_draft\n"
+        "  mindforge web                — 打开本地 Web 控制台并配置真实模型\n"
+        "  mindforge status             — 查看本地 workspace / draft / library 状态\n"
+        "  mindforge doctor             — 做本地安装与路径健康检查\n"
+        "  watch add <path>             — 注册 watched source，并处理当前内容\n"
         "  import <path>                — 一次性导入文件/文件夹，不加入 watch registry\n"
-        "  scan / process / status      — advanced/troubleshooting 底层 pipeline 命令\n"
-        "  approve list / approve 1    — 查看并显式确认 ai_draft，晋升为 human_approved\n"
-        "  recall / review due          — 检索与复习已审核卡片\n"
-        "  project context <name> [...] — 拼装可粘贴给编程助手的项目上下文包\n"
-        "  project update-evidence <n>  — 幂等写入 30-Projects/<n>.md 受控区块\n"
-        "  telemetry status / summary   — 查看本地命令使用统计（不上传）\n"
-        "  llm ping                     — 校验 LLM provider env（不发 HTTP）\n"
+        "  approve list / approve 1     — 查看并显式确认 AI Draft\n"
+        "  library list / show          — 浏览已审批知识\n"
+        "  trash list / move / restore  — 管理回收站\n"
+        "  wiki status / rebuild / show — 管理从 approved cards 派生的 Wiki\n"
+        "  prompts list / show          — 只读查看内置 prompt\n"
+        "  recall --query <text>        — 搜索已审批知识\n"
         "  version                      — 打印版本与运行配置摘要（不含 secret）\n"
     ),
     pretty_exceptions_enable=False,
@@ -228,7 +229,7 @@ def _global_options(
         os.environ.pop("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE", None)
 
 
-@app.command()
+@app.command(hidden=True)
 def demo(
     json_output: bool = typer.Option(
         False,
@@ -283,7 +284,7 @@ def demo(
         raise typer.Exit(code=1)
 
 
-@app.command()
+@app.command(hidden=True)
 def scan(
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"),
@@ -515,11 +516,11 @@ def _legacy_status(
 # Root command registration. We bind moved command callbacks directly so
 # tests, shell completion, and external introspection see stable command names
 # instead of Typer's anonymous flattened sub-app placeholders.
-app.command()(process)
+app.command(hidden=True)(process)
 app.command("import")(import_cmd)
 app.command()(recall)
 app.command()(init)
-app.command("setup")(setup_cmd)
+app.command("setup", hidden=True)(setup_cmd)
 app.command()(doctor)
 app.command()(version)
 app.command()(web)
@@ -527,23 +528,23 @@ app.command("commands")(commands_cmd)
 app.command("start")(start_cmd)
 app.command("today")(today_cmd)
 app.command("next")(next_cmd)
-app.add_typer(llm_app, name="llm")
+app.add_typer(llm_app, name="llm", hidden=True)
 app.add_typer(library_app, name="library")
-app.add_typer(backup_app, name="backup")
-app.add_typer(config_app, name="config")
+app.add_typer(backup_app, name="backup", hidden=True)
+app.add_typer(config_app, name="config", hidden=True)
 app.add_typer(dogfood_app, name="dogfood", hidden=True)
-app.add_typer(obsidian_app, name="obsidian")
-app.add_typer(provider_app, name="provider")
+app.add_typer(obsidian_app, name="obsidian", hidden=True)
+app.add_typer(provider_app, name="provider", hidden=True)
 app.add_typer(approve_app, name="approve")
 app.add_typer(review_app, name="review")
-app.add_typer(project_app, name="project")
-app.add_typer(strategies_app, name="strategies")
+app.add_typer(project_app, name="project", hidden=True)
+app.add_typer(strategies_app, name="strategies", hidden=True)
 app.add_typer(prompts_app, name="prompts")
 app.add_typer(index_app, name="index")
-app.add_typer(telemetry_app, name="telemetry")
-app.add_typer(vault_app, name="vault")
-app.add_typer(cubox_app, name="cubox")
-app.add_typer(workspace_app, name="workspace")
+app.add_typer(telemetry_app, name="telemetry", hidden=True)
+app.add_typer(vault_app, name="vault", hidden=True)
+app.add_typer(cubox_app, name="cubox", hidden=True)
+app.add_typer(workspace_app, name="workspace", hidden=True)
 app.add_typer(trash_app, name="trash")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(watch_app, name="watch")

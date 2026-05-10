@@ -381,9 +381,9 @@ class WebConfigService:
     def _configured_model_ids(self, raw: dict[str, Any]) -> list[str]:
         """返回 Setup UI 可展示的模型 id 列表。
 
-        如果有真实模型（非 fake/demo），只展示真实模型，不污染下拉选项。
-        如果只有 demo/fake 模型，也展示它们并标注 is_demo_model，让用户知道
-        当前用的是内置 demo，需要添加真实模型。
+        中文学习型说明：普通用户主路径必须配置真实模型。fake/demo/test 模型
+        只属于自动化测试或开发内部 fixture，即使 YAML 中存在，也不能作为
+        Setup 的产品能力展示出来。
         """
         llm = raw.get("llm")
         if not isinstance(llm, dict) or "default_model" not in llm:
@@ -396,8 +396,7 @@ class WebConfigService:
             for model_id, model_raw in models.items()
             if isinstance(model_raw, dict)
         )
-        product_ids = [mid for mid in all_ids if _is_product_model(models.get(mid))]
-        return sorted(product_ids) if product_ids else all_ids
+        return [mid for mid in all_ids if _is_product_model(models.get(mid))]
 
     def _editable_models(self, raw: dict[str, Any]) -> dict[str, EditableModelConfig]:
         llm = raw.get("llm")
@@ -961,9 +960,8 @@ def _is_product_provider(name: str, provider_type: Any) -> bool:
 def _is_product_model(model: Any) -> bool:
     """模型是否应作为产品模型出现在主 UI（非 fake/test/demo/default 内部模型）。
 
-    当模型 type 为 "fake" 且 provider 包含 blocked token 时，视为内部替身，
-    不应污染 Setup 主 UI 的下拉选项。只有当没有真实模型时，才让 fake/demo 模型
-    出现在列表中（由 _configured_model_ids 控制）。
+    fake/mock/demo 模型仍可被测试直接构造，但不能作为普通用户 Web Setup
+    下拉和卡片暴露出来。
     """
     if not isinstance(model, dict):
         return False

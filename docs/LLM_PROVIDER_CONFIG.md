@@ -92,33 +92,15 @@ Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_op
 - API key **不写入 YAML config**
 - `configs/mindforge.yaml` 是本地 runtime config，已 gitignore，不应提交
 - Web API **只返回 masked 值**（如 `sk-****abcd`）
-- Provider runtime 优先从 secret store 取 key，其次从环境变量 fallback
+- Provider runtime 优先从 secret store 取 key；部署场景可通过外部进程注入 key
 
-### 环境变量模式（Advanced / Legacy Compatible）
+### Advanced deployment fallback
 
-如果必须使用环境变量：
+普通用户不需要配置此路径。自动化部署或 CI 如需把 key 注入运行进程，应
+保持 API key 不进入 YAML、不进入 Git，并以 Web Setup / local secret store
+作为本地使用的默认路径。
 
-```bash
-export MINDFORGE_LLM_API_KEY="<your-key>"
-```
-
-并在 YAML 中声明：
-
-```yaml
-models:
-  main:
-    type: anthropic_compatible
-    base_url: https://example.com/anthropic
-    model: your-model
-    api_key_env: MINDFORGE_LLM_API_KEY   # env var name
-```
-
-**环境变量模式是 advanced/deployment 路径，不是普通用户推荐路径。**
-Web Setup 普通保存不会写出 `api_key_env`、`base_url_env`、`model_env` 字段。
-
-### 优先级
-
-Provider runtime 解析 API key 的优先级：**env var > local secret store > missing**
+Web Setup 普通保存不会写出 legacy key/base URL/model indirection 字段。
 
 ---
 
@@ -128,7 +110,6 @@ MindForge 在 `src/mindforge/llm/` 下维护 provider：
 
 | type 字段 | 模块 | 协议 | 适用场景 |
 |---|---|---|---|
-| `fake` | `llm/fake.py` | 本地确定性 JSON | 仅测试、CI、开发替身 |
 | `openai` | `llm/openai_compatible.py` | `POST /chat/completions` | OpenAI 官方 API |
 | `openai_compatible` | `llm/openai_compatible.py` | `POST /chat/completions` | Ollama、vLLM、聚合网关 |
 | `anthropic` | `llm/anthropic_compatible.py` | `POST /v1/messages` | Anthropic 官方 API |
@@ -148,7 +129,7 @@ MindForge 在 `src/mindforge/llm/` 下维护 provider：
 - routing key 必须是合法 workflow step（triage / distill / link_suggestion / review_questions / action_extraction）
 - routing value 必须是 `llm.models` 中已配置的 model id
 - 缺失的 step fallback 到 `llm.default_model`
-- routing 不叫 `stage_models`，不使用旧 `active_profile` / `profiles` 概念
+- routing 是第一阶段唯一用户可见的模型分配方式
 
 ---
 
@@ -173,7 +154,7 @@ MindForge 在 `src/mindforge/llm/` 下维护 provider：
 | 原则 | 实现 |
 |------|------|
 | API key 不进 YAML | Web 保存不写 api_key 字段；raw key 只在 secret store |
-| API key 不进 Git | `.env` + `.mindforge/` 均 gitignore |
+| API key 不进 Git | `.mindforge/` 已 gitignore；不要提交任何本地 secret 文件 |
 | API key 不进前端 | API response 只返回 masked key |
 | Provider 不打印 key | 错误消息不包含 raw key |
 | 首次启动不调真实 LLM | `llm.default_model: null` / `llm.models: {}` 可启动 Web Setup |
@@ -201,36 +182,12 @@ tokens_in / tokens_out / latency_ms
 
 ## Legacy 配置兼容
 
-### 旧格式：active_profile / profiles
-
-```yaml
-llm:
-  active_profile: my_profile
-  profiles:
-    my_profile:
-      triage: alias_a
-      distill: alias_a
-```
-
-此格式仍可**读取加载**，但新配置和新卡片使用 `llm.models` / `llm.default_model` / `llm.routing`。
-
-### 迁移建议
+旧配置仍尽量只读兼容，但普通用户不需要学习旧字段。推荐迁移路径：
 
 1. 备份旧 `configs/mindforge.yaml`
-2. 通过 Web Setup 保存一次配置 → 自动迁移为新格式
-3. 或手动将 `profiles` + `models` 改为 `llm.models` + `llm.default_model` + 可选 `llm.routing`
-4. 移除 `active_profile` 和 `profiles` 字段
-
-### 旧字段对照
-
-| 旧字段 | 新语义 |
-|--------|--------|
-| `llm.active_profile` | `llm.default_model`（default model id） |
-| `llm.profiles` | 不再需要；改为 `llm.default_model` + `llm.routing` |
-| `api_key_env` | 改为 local secret store |
-| `base_url_env` | 改为直接在 model 中配置 `base_url` |
-| `model_env` | 改为直接在 model 中配置 `model` |
-| `stage_models` | replaced by `model_routing` in card provenance |
+2. 启动 Web Setup
+3. 按当前 UI 保存一次模型、default model、routing 和 wiki 设置
+4. 确认 API key 只进入 local secret store
 
 ---
 
@@ -248,7 +205,6 @@ llm:
 ## Anti-Patterns
 
 - ❌ 把 API key 写进 YAML config、commit message、issue 或聊天记录
-- ❌ 把 API key 写进 `.env.example`
 - ❌ 在业务代码中 `if provider_type == ...` 分支 —— 协议差异必须收敛在 provider 层
-- ❌ 把 `fake` / `active_profile` / `profiles` 重新写成普通用户主路径
+- ❌ 把测试替身或历史配置兼容字段重新写成普通用户主路径
 - ❌ 把 prompt 全文或 LLM 返回文本作为 `error_message`

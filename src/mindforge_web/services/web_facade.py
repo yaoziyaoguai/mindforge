@@ -250,17 +250,17 @@ class WebFacade:
                 process_now=process_now,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise _http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise _http_error(500, str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
         try:
             return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise _http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise _http_error(500, str(exc)) from exc
 
     def processing_run(self, run_id: str) -> ProcessingRunResponse | None:
         record = get_processing_run(self.cfg, run_id)
@@ -278,9 +278,9 @@ class WebFacade:
         try:
             return self.source_service.import_source(path)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise _http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise _http_error(500, str(exc)) from exc
 
     def copy_path(self, path: Path) -> PathActionResponse:
         return self.path_action_service.copy_path(path)
@@ -598,6 +598,17 @@ def _library_stats_response(stats) -> LibraryStatsResponse:
         index_exists=stats.index_exists,
         next_action=stats.next_action,
     )
+
+
+def _http_error(status_code: int, message: str) -> HTTPException:
+    """把用户主路径错误保持为前端可读的 `{detail:{message}}`。
+
+    中文学习型说明：Add Source / Process Now 是普通用户第一阶段主链路。
+    后端拒绝相对路径、缺模型或其它用户可修复错误时，不能只返回字符串
+    detail，否则 Web fetch helper 会退化成浏览器的 `Bad Request` 文案。
+    """
+
+    return HTTPException(status_code=status_code, detail={"message": message})
 
 
 def _library_card_response(card) -> LibraryCardResponse:

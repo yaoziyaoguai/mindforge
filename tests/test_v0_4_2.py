@@ -116,22 +116,19 @@ def test_commands_lists_key_groups() -> None:
         "审批 ai_draft",
         "Recall",
         "Review",
-        "Obsidian dry-run",
         "Backup / Doctor",
         "Debug / Safety",
     ]:
         assert kw in out, f"commands 输出缺少 group: {kw}"
-    # 至少包含 init / scan / approve / index / recall / review / project
-    for cmd in ["mindforge start", "mindforge init", "mindforge scan", "mindforge approve",
+    # 第一阶段命令地图不再展示 legacy scan/project/Obsidian 主路径
+    for cmd in ["mindforge web", "mindforge watch add", "mindforge approve",
                 "mindforge index", "mindforge recall", "mindforge review"]:
         assert cmd in out
-    assert "[[wikilinks]]" in out
-    assert "mindforge obsidian next --vault PATH" in out
+    assert "mindforge scan" not in out
+    assert "mindforge obsidian" not in out
     assert "mindforge wiki" in out
-    assert "mindforge obsidian preflight --manifest PATH" in out
-    assert "--staged-export" in out
-    assert "--write" in out
-    assert "--confirm" in out
+    assert "--staged-export" not in out
+    assert "--write" not in out
 
 
 def test_commands_does_not_leak_secrets() -> None:
@@ -686,7 +683,7 @@ def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
     doctor = runner.invoke(app, ["config", "doctor", "--config", str(cfg)])
     assert doctor.exit_code == 0, doctor.output
     assert "package assets" in doctor.output
-    assert "env policy" in doctor.output
+    assert "llm policy" in doctor.output
     assert "config looks safe" in doctor.output
 
 

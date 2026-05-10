@@ -18,7 +18,6 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
         <span className={safety.provider_state === "env_only" ? "text-safe" : "text-warn"}>
           Model setup: {safety.provider_state === "env_only" ? "ready" : "check"}
         </span>
-        <span className="text-muted">.env: {safety.env_status}</span>
         <span className="inline-flex items-center gap-1 text-warn">
           <Lock className="h-4 w-4" aria-hidden="true" />
           {safety.write_mode === "explicit_approval_required" ? "Explicit approval required" : "Read-only"}

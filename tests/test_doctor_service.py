@@ -67,18 +67,16 @@ def test_doctor_recovery_checks_returns_rows_and_actions(tmp_path: Path) -> None
         assert priority in {"try_first", "critical", "recommended", "info"}, priority
 
 
-def test_doctor_recovery_actions_include_try_first_demo_hint_when_cards_missing(
+def test_doctor_recovery_actions_include_init_hint_when_cards_missing(
     tmp_path: Path,
 ) -> None:
-    """vault 缺失时 doctor 必须把 demo 作为 try_first 第一推荐。
-
-    这条边界由 UX completion pack 引入，搬到 services 后必须保持。
-    """
+    """vault 缺失时 doctor 必须指向真实初始化路径，不推荐 demo。"""
 
     cfg = _make_cfg(tmp_path)
     payload = doctor_recovery_checks(cfg)
     actions = payload["actions"]
-    assert any(p == "try_first" and "mindforge demo" in m for p, m in actions), actions
+    assert any("mindforge init" in m for _p, m in actions), actions
+    assert all("mindforge demo" not in m for _p, m in actions), actions
 
 
 def test_compute_doctor_hints_handles_empty_vault(tmp_path: Path) -> None:
@@ -136,5 +134,5 @@ def test_doctor_command_still_renders_known_sections(tmp_path: Path) -> None:
     # CLI thin adapter 仍必须输出这些 section（来自 presenter）
     for marker in ("MindForge doctor", "Runtime", "Vault", "Recovery checks"):
         assert marker in out, f"doctor 输出缺少 section: {marker}\n---\n{out}"
-    # 安全 footer：reaffirm doctor 不读 .env / 不发 HTTP
-    assert ".env" in out and "HTTP" in out
+    # 安全 footer：reaffirm doctor 不读 secret / 不发 HTTP
+    assert "secret" in out and "HTTP" in out
