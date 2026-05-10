@@ -113,7 +113,7 @@ def test_setup_save_and_validate_use_current_ui_draft() -> None:
 
 def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
-    main_ui = setup.split("Advanced / Technical details", 1)[0]
+    main_ui = setup.split("Diagnostics for advanced users", 1)[0]
 
     for forbidden in (
         "Environment variable overrides",
@@ -122,6 +122,12 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
         "Model env",
         "Technical internal route",
         "Provider readiness",
+        "Raw config path",
+        "Config file",
+        "Token status",
+        "Process environment diagnostics",
+        "Environment variable presence",
+        "data.config_path",
         "active_profile",
         "profiles",
     ):
@@ -134,16 +140,29 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
     assert "View prompt" in main_ui
 
 
-def test_setup_page_uses_effective_env_config_language() -> None:
+def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
+    """Advanced diagnostics 可保留内部状态，但必须与普通用户主路径分开。
+
+    中文学习型说明：Setup 主 UI 是普通用户配置模型和来源的地方；env mapping、
+    raw config path、provider readiness 等只用于排障，必须折叠并标记 read-only。
+    """
+
     setup = _read("pages/SetupPage.tsx")
     checklist = _read("components/ConfigChecklist.tsx")
     combined = "\n".join([setup, checklist])
+    advanced = setup.split("Diagnostics for advanced users", 1)[1]
 
-    assert "source = config" in setup
-    assert "source = env" in setup
-    assert "source = missing" in setup
     assert "Default base URL" not in setup
-    # Effective base URL / model 仅在 Advanced section 展示，不在主 UI
+    assert "Diagnostics for advanced users" in setup
+    assert "read-only diagnostics" in advanced
+    assert "Environment variable overrides" in advanced
+    assert "Provider readiness" in advanced
+    assert "Raw config path" in advanced
+    assert "Token status" in advanced
+    assert "Configuration checklist" in advanced
+    assert "Environment variable presence" in checklist
+    assert "Process environment diagnostics" in checklist
+    # Effective base URL / model 仅在 Advanced diagnostics 展示，不在主 UI
     assert "Copy base URL" not in setup
     assert "Copy model" not in setup
     assert "Copy API key env name" not in setup  # 主 UI 不再展示 env var name copy；移至 Advanced
@@ -156,9 +175,6 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Built-in demo" in setup
     assert "fake://" not in setup
     assert "fake_default" not in setup
-    assert "Environment variable overrides" in setup  # Advanced section 只读诊断
-    assert "Environment variable presence" in checklist
-    assert "Process environment diagnostics" in checklist
     assert "Env keys" not in checklist
     assert "0 configured" not in combined
 
@@ -245,7 +261,10 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Process now" in sources
     assert "Edit frequency" in sources
     assert "Processing..." in sources
+    assert "You can keep using MindForge." in combined
     assert "Last run summary" in sources
+    assert "source.last_run_summary?.skipped ?? source.skipped_count" in sources
+    assert "source.last_run_summary?.errors ?? source.failed_count" in sources
     assert "SummaryMetric" in sources
     assert "Diagnostics" in sources
     assert "Source details" in sources

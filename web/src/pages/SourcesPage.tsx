@@ -49,7 +49,7 @@ export function SourcesPage({
 
   async function scanWatch(ref?: string, allSources = false) {
     setBusy(true);
-    setResult("Starting background processing...");
+    setResult("Starting background processing. You can keep using MindForge.");
     try {
       const response = await scanWatchedSources(ref, allSources);
       setResult(formatRunSummary(response.message, response.counts, response.run_id));
@@ -167,9 +167,12 @@ export function SourcesPage({
                       <SummaryMetric label="New" value={source.diff_counts.added ?? 0} />
                       <SummaryMetric label="Changed" value={source.diff_counts.changed ?? 0} />
                       <SummaryMetric label="Missing" value={source.diff_counts.deleted ?? 0} />
-                      <SummaryMetric label="Skipped" value={source.skipped_count} />
+                      {/* 中文学习型说明：用户看到的是最近一次 processing run 的结果，
+                      因此 skipped/errors 优先使用 last_run_summary；source-level
+                      discovery counts 只作为没有 run record 时的 fallback。 */}
+                      <SummaryMetric label="Skipped" value={source.last_run_summary?.skipped ?? source.skipped_count} />
                       <SummaryMetric label="Drafts created" value={source.last_run_summary?.drafts ?? source.generated_draft_count ?? source.generated_card_count} />
-                      <SummaryMetric label="Errors" value={source.failed_count} />
+                      <SummaryMetric label="Errors" value={source.last_run_summary?.errors ?? source.failed_count} />
                     </div>
                   </div>
                   <div>

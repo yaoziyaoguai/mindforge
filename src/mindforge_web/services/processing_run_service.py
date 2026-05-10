@@ -47,7 +47,7 @@ class ProcessingRunRecord:
         "errors": 0,
     })
     draft_ids: list[str] = field(default_factory=list)
-    message: str = "Processing started in the background."
+    message: str = "Processing started in the background. You can keep using MindForge."
     skip_reasons: list[str] = field(default_factory=list)
     error_type: str | None = None
     error_message: str | None = None
@@ -77,7 +77,7 @@ def start_processing_run(
         status="queued",
         started_at=_now(),
         summary=_empty_summary(),
-        message="Processing started in the background. Results will appear in Review when ready.",
+        message=started_response_message(),
     )
     _save_record(cfg, record)
     thread = threading.Thread(
@@ -191,7 +191,12 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
 
 
 def started_response_message() -> str:
-    return "Processing started in the background. Results will appear in Review when ready."
+    # 中文学习型说明：启动响应不能暗示已经生成 draft；它只说明后台任务已登记，
+    # 用户可以继续操作，最终结果以 run status / Sources summary 为准。
+    return (
+        "Processing started in the background. You can keep using MindForge. "
+        "Results will appear in Review when ready."
+    )
 
 
 def _run_worker(

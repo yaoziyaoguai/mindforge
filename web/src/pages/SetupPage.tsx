@@ -12,10 +12,7 @@ type ModelForm = {
   type: string;
   base_url: string;
   model: string;
-  api_key_env: string;
   api_key_optional: boolean;
-  base_url_env: string;
-  model_env: string;
   api_key: string;
   api_key_action: "keep" | "clear" | "update";
 };
@@ -44,10 +41,7 @@ function emptyModelForm(): ModelForm {
     type: "openai",
     base_url: "",
     model: "",
-    api_key_env: "",
     api_key_optional: false,
-    base_url_env: "",
-    model_env: "",
     api_key: "",
     api_key_action: "keep",
   };
@@ -260,7 +254,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       <div className="grid gap-4 md:grid-cols-3">
         <StatusCard label="Local vault" value={data.vault.exists ? "Ready" : "Missing"} status={data.vault.exists ? "ok" : "warn"} detail={data.vault.path} />
         <StatusCard label="Model config" value={data.provider.opt_in_state === "env_only" ? "Configured" : "Check setup"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
-        <StatusCard label="Config file" value="Loaded" status="ok" detail={data.config_path} />
       </div>
 
       {form && editable ? (
@@ -569,12 +562,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <SourceAddPanel onRefresh={onRefresh} hasModels={hasConfiguredModels} />
 
           {/* ================================================================ */}
-          {/* Advanced / Technical details (env var mode, diagnostics) */}
+          {/* Diagnostics for advanced users */}
           {/* ================================================================ */}
           <details className="rounded-md border border-line p-3">
-            <summary className="cursor-pointer text-sm font-medium text-ink">Advanced / Technical details</summary>
+            <summary className="cursor-pointer text-sm font-medium text-ink">Diagnostics for advanced users</summary>
             <div className="mt-3 space-y-4">
-              <p className="text-xs text-muted">Env var mode is read-only diagnostics for advanced users and deployment scenarios. Use the main UI above to configure models instead.</p>
+              <p className="text-xs text-muted">These are read-only diagnostics for advanced users and troubleshooting. Use the main UI above to configure models, workflow routing, Wiki behavior, and sources.</p>
 
               {modelIds.map((modelId) => {
                 const status = editable.llm.configured_models[modelId];
@@ -609,21 +602,19 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 <div><dt className="font-medium text-ink">Raw config path</dt><dd>{editable.config_path}</dd></div>
                 <div><dt className="font-medium text-ink">Token status</dt><dd>{editable.cubox.token_status}</dd></div>
               </dl>
+
+              {/* 中文学习型说明：ConfigChecklist 是环境与配置排障视图，不是普通用户
+              完成 Setup 的必填步骤；因此只放在折叠 diagnostics 中。 */}
+              <div className="text-sm font-medium text-ink">Configuration checklist</div>
+              <ConfigChecklist items={data.checklist} keys={[...data.configured_keys, ...data.missing_keys]} />
             </div>
           </details>
 
           {message ? <p className="text-sm text-primary">{message}</p> : null}
         </section>
       ) : null}
-      <ConfigChecklist items={data.checklist} keys={[...data.configured_keys, ...data.missing_keys]} />
     </div>
   );
-}
-
-function sourceText(source: "env" | "config_default" | "missing") {
-  if (source === "env") return "source = env";
-  if (source === "config_default") return "source = config";
-  return "source = missing";
 }
 
 function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
@@ -638,10 +629,7 @@ function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
           type: model.type,
           base_url: model.base_url ?? "",
           model: model.model ?? "",
-          api_key_env: model.api_key_env ?? "",
           api_key_optional: model.api_key_optional,
-          base_url_env: model.base_url_env ?? "",
-          model_env: model.model_env ?? "",
           api_key: "",
           api_key_action: "keep" as const,
         },

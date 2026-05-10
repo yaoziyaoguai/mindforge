@@ -424,6 +424,7 @@ def test_add_and_process_now_starts_background_run_and_draft_becomes_reviewable(
     assert started["run_id"]
     assert started["processing_status"] in {"queued", "running"}
     assert "background" in started["message"].lower()
+    assert "You can keep using MindForge." in started["message"]
     assert "processed as ai_draft" not in started["message"]
     assert all(action.get("href") != "/drafts" for action in started["next_actions"])
 
@@ -462,6 +463,7 @@ def test_process_now_starts_background_run_and_sources_expose_last_run_summary(
     assert started["run_id"]
     assert started["processing_status"] in {"queued", "running"}
     assert "background" in started["message"].lower()
+    assert "You can keep using MindForge." in started["message"]
 
     finished = _wait_for_processing_run(client, started["run_id"])
     assert finished["status"] == "succeeded"
@@ -530,12 +532,16 @@ def test_processing_run_failure_is_persisted_and_secret_safe(
     ).json()
     finished = _wait_for_processing_run(client, started["run_id"])
     sources = client.get("/api/sources").json()
+    run_record = (
+        tmp_path / ".mindforge" / "processing_runs" / f"{started['run_id']}.json"
+    ).read_text(encoding="utf-8")
     combined = f"{started} {finished} {sources}"
 
     assert finished["status"] == "failed"
     assert finished["summary"]["errors"] >= 1
     assert finished["error_message"]
     assert "secret-must-not-leak" not in combined
+    assert "secret-must-not-leak" not in run_record
     assert "processed as ai_draft" not in combined
     assert all(action.get("href") != "/drafts" for action in finished["next_actions"])
 

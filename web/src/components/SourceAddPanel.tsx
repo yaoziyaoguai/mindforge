@@ -26,7 +26,7 @@ export function SourceAddPanel({ onRefresh, hasModels }: { onRefresh?: () => Pro
   async function addSource(processNow: boolean) {
     if (!path.trim()) return;
     setBusy(true);
-    setResult(processNow ? "Starting background processing..." : "Adding source...");
+    setResult(processNow ? "Starting background processing. You can keep using MindForge." : "Adding source...");
     try {
       const response = await addWatchedSource(path.trim(), frequency, true, processNow);
       setResult(formatRunSummary(response.message, response.counts, response.run_id));
