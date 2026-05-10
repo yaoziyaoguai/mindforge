@@ -672,7 +672,7 @@ def test_setup_editor_validates_paths_and_never_writes_api_key_values(
     refused = client.patch(
         "/api/config/editable",
         json={
-            "vault_root": str(tmp_path / "missing-vault"),
+            "vault_root": "/",
             "create_vault": False,
             "providers": {"fake": {"api_key_value": "must-not-be-written"}},
         },
@@ -2521,12 +2521,17 @@ def test_watch_add_frequency_alias(tmp_path: Path) -> None:
 # ============================================================================
 
 
-def _write_clean_clone_config(tmp_path: Path) -> tuple[Path, Path]:
-    """模拟 clean clone first_run_config 生成的新格式配置（无模型、无 legacy）"""
+def _write_clean_clone_config(
+    tmp_path: Path,
+    *,
+    create_vault: bool = True,
+) -> tuple[Path, Path]:
+    """模拟 clean clone first_run_config 生成的新格式配置（无模型、无 legacy）。"""
     vault = tmp_path / "vault"
-    (vault / "00-Inbox").mkdir(parents=True, exist_ok=True)
-    (vault / "20-Knowledge-Cards").mkdir(parents=True, exist_ok=True)
-    (vault / "30-Projects").mkdir(parents=True, exist_ok=True)
+    if create_vault:
+        (vault / "00-Inbox").mkdir(parents=True, exist_ok=True)
+        (vault / "20-Knowledge-Cards").mkdir(parents=True, exist_ok=True)
+        (vault / "30-Projects").mkdir(parents=True, exist_ok=True)
     cfg_path = tmp_path / "mindforge.yaml"
     cfg_path.write_text(
         yaml.safe_dump(
@@ -2670,6 +2675,100 @@ def test_clean_clone_save_with_default_model_writes_routing(tmp_path: Path, monk
     from mindforge.config import REQUIRED_STAGES
     for stage in REQUIRED_STAGES:
         assert routing.get(stage) == "main", f"routing.{stage} missing"
+
+
+def test_clean_clone_save_first_model_creates_missing_vault(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：first-run vault 目录不存在时，保存模型不能被内部目录状态阻塞。
+
+    中文学习型说明：Setup 的主任务是保存模型配置。first-run 生成的 vault path
+    是用户可见的工作区位置；如果目录尚不存在，Web save 应自动创建，而不是要求
+    普通用户理解 ``create_vault`` 这种内部开关。
+    """
+    cfg_path, vault = _write_clean_clone_config(tmp_path, create_vault=False)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    payload = {
+        "vault_root": str(vault),
+        "create_vault": False,
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://example.com/api",
+                "model": "test-model",
+                "api_key": "sk-clean-clone-test",
+                "api_key_action": "update",
+            },
+        },
+        "routing": {},
+        "wiki_mode": "deterministic",
+        "wiki_model": None,
+        "wiki_auto_rebuild_on_approve": False,
+    }
+
+    validate = client.post("/api/config/validate", json=payload)
+    assert validate.status_code == 200
+    assert validate.json()["ok"] is True
+
+    resp = client.patch("/api/config/editable", json=payload)
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert data["llm"]["default_model"] == "main"
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+    for stage in REQUIRED_STAGES:
+        assert data["llm"]["routing"][stage] == "main"
+    assert vault.is_dir()
+    assert (vault / "00-Inbox").is_dir()
+    assert (vault / "20-Knowledge-Cards").is_dir()
+    assert (vault / "30-Projects").is_dir()
+    assert "sk-clean-clone-test" not in yaml_text
+
+    from mindforge.secret_store import SecretStore
+
+    assert SecretStore(tmp_path / ".mindforge" / "secrets.json").present("main")
+
+
+def test_setup_save_reports_friendly_error_when_vault_auto_create_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """自动创建 vault 失败时返回可理解错误，不退回内部 traceback。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path, create_vault=False)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    original_mkdir = Path.mkdir
+
+    def fail_vault_mkdir(self: Path, *args, **kwargs) -> None:
+        if self == vault:
+            raise OSError("permission denied")
+        original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", fail_vault_mkdir)
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "vault_root": str(vault),
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["errors"] == [f"Cannot create vault directory: {vault}"]
 
 
 def test_clean_clone_save_api_key_in_secret_store_not_yaml(tmp_path: Path, monkeypatch) -> None:

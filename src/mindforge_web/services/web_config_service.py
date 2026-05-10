@@ -206,10 +206,8 @@ class WebConfigService:
             else:
                 if _is_dangerous_vault_path(resolved):
                     errors.append(f"Vault path is dangerous and cannot be used: {resolved}")
-                elif not resolved.exists() and not patch.create_vault:
-                    errors.append(
-                        "Vault path does not exist. Create it first or enable create_vault."
-                    )
+                elif not resolved.exists():
+                    warnings.append("Vault directory will be created automatically on save.")
                 elif resolved.exists() and not resolved.is_dir():
                     errors.append("Vault path must be a directory.")
 
@@ -281,8 +279,10 @@ class WebConfigService:
         raw = self._read_config_raw()
         if patch.vault_root is not None:
             resolved = Path(patch.vault_root).expanduser().resolve(strict=False)
-            if patch.create_vault:
-                self._create_vault_dirs(resolved)
+            # 中文学习型说明：Vault 目录是 first-run 工作区的一部分，不是用户在
+            # Setup 主路径里需要理解的内部开关。保存模型时如果目录还不存在，
+            # Web 自动创建标准子目录；只有创建失败才返回 friendly error。
+            self._create_vault_dirs(resolved)
             vault = raw.setdefault("vault", {})
             if not isinstance(vault, dict):
                 raise ConfigUpdateError(["vault must be a YAML object"])
@@ -877,10 +877,13 @@ class WebConfigService:
         return existing - new
 
     def _create_vault_dirs(self, root: Path) -> None:
-        root.mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.inbox_root).mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.cards_dir).mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.projects_dir).mkdir(parents=True, exist_ok=True)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.inbox_root).mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.cards_dir).mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.projects_dir).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ConfigUpdateError([f"Cannot create vault directory: {root}"]) from exc
 
     def _read_dotenv_presence(self) -> DotenvPresence:
         path = self._find_dotenv(self.cwd)

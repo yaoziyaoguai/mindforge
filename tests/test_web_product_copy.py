@@ -88,7 +88,7 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "Validate" in setup
     assert "Revert" in setup
     assert "Unsaved changes" in setup
-    assert "Vault path" in setup
+    assert "Knowledge vault" in setup
     assert "Configured models" in setup
     assert "Default model" in setup
     assert "Processing workflow" in setup
@@ -130,9 +130,14 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
         "data.config_path",
         "active_profile",
         "profiles",
+        "Create missing vault directories on save",
+        "missing directories",
+        "internal directory state",
     ):
         assert forbidden not in main_ui
 
+    assert "Knowledge vault" in main_ui
+    assert "Created automatically" in main_ui
     assert "Configured models" in main_ui
     assert "Default model" in main_ui
     assert "Processing workflow" in main_ui
@@ -160,6 +165,7 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
     assert "Raw config path" in advanced
     assert "Token status" in advanced
     assert "Configuration checklist" in advanced
+    assert "Create missing vault directories on save" not in setup
     assert "Environment variable presence" in checklist
     assert "Process environment diagnostics" in checklist
     # Effective base URL / model 仅在 Advanced diagnostics 展示，不在主 UI

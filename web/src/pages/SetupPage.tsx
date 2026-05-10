@@ -252,7 +252,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard label="Local vault" value={data.vault.exists ? "Ready" : "Missing"} status={data.vault.exists ? "ok" : "warn"} detail={data.vault.path} />
+        <StatusCard label="Knowledge vault" value={data.vault.exists ? "Ready" : "Created automatically"} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} />
         <StatusCard label="Model config" value={data.provider.opt_in_state === "env_only" ? "Configured" : "Check setup"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
       </div>
 
@@ -271,15 +271,13 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-ink">Vault path</span>
-              <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.vault_root} onChange={(event) => setForm({ ...form, vault_root: event.target.value })} />
-            </label>
-            <label className="flex items-end gap-2 text-sm text-ink">
-              <input checked={form.create_vault} onChange={(event) => setForm({ ...form, create_vault: event.target.checked })} type="checkbox" />
-              Create missing vault directories on save
-            </label>
+          {/* 中文学习型说明：Vault 是 MindForge 的本地知识库根目录。普通用户只需要
+          知道 approved cards、wiki、trash 会保存在这里；目录创建属于系统责任，
+          不把底层目录创建开关暴露在主 UI。 */}
+          <div className="rounded-md border border-line bg-stone-50 p-4">
+            <div className="text-sm font-semibold text-ink">Knowledge vault</div>
+            <div className="mt-2 break-all rounded-md border border-line bg-white px-3 py-2 text-sm text-ink">{form.vault_root}</div>
+            <p className="mt-2 text-xs text-muted">MindForge stores approved cards, wiki, and trash here. Created automatically when needed.</p>
           </div>
 
           {/* ================================================================ */}
