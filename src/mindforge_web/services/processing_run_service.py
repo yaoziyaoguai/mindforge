@@ -15,7 +15,7 @@ import tempfile
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -27,6 +27,8 @@ from mindforge_web.schemas import NextAction, ProcessingRunResponse
 
 
 RunStatus = Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
+ACTIVE_RUN_STATUSES = {"queued", "running"}
+ABANDONED_RUN_AFTER = timedelta(minutes=30)
 
 
 @dataclass
@@ -69,6 +71,18 @@ def start_processing_run(
     或失败的 summary 可在刷新后读取。
     """
 
+    existing = latest_run_for_source(cfg, source_ref=source_ref, source_path=source_path)
+    if existing is not None and existing.status in ACTIVE_RUN_STATUSES:
+        # 中文学习型说明：当前实现是 request-spawn，不是 queue。同一 source 已有
+        # active run 时复用原 run_id，避免重复点击生成多个并发 pipeline，造成 draft
+        # attribution 和 Sources 状态互相覆盖。
+        existing.message = (
+            "Processing is already running in the background. You can keep using MindForge. "
+            "Sources will show the final status, and Review will show any generated drafts."
+        )
+        _save_record(cfg, existing)
+        return existing
+
     record = ProcessingRunRecord(
         run_id=_new_run_id(),
         source_ref=source_ref,
@@ -94,19 +108,19 @@ def get_processing_run(cfg: MindForgeConfig, run_id: str) -> ProcessingRunRecord
     path = _run_path(cfg, run_id)
     if not path.exists():
         return None
-    return _load_record(path)
+    return _normalize_abandoned_run(cfg, _load_record(path))
 
 
 def latest_run_for_source(
     cfg: MindForgeConfig,
     *,
     source_ref: str,
-    source_path: str,
+    source_path: str | None,
 ) -> ProcessingRunRecord | None:
     runs = [
         record
         for record in list_processing_runs(cfg)
-        if record.source_ref == source_ref or record.source_path == source_path
+        if record.source_ref == source_ref or (source_path is not None and record.source_path == source_path)
     ]
     if not runs:
         return None
@@ -120,7 +134,7 @@ def list_processing_runs(cfg: MindForgeConfig) -> list[ProcessingRunRecord]:
     records: list[ProcessingRunRecord] = []
     for path in root.glob("*.json"):
         try:
-            records.append(_load_record(path))
+            records.append(_normalize_abandoned_run(cfg, _load_record(path)))
         except Exception:
             continue
     return sorted(records, key=lambda item: item.started_at, reverse=True)
@@ -177,7 +191,7 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
             ),
             NextAction(
                 label="Retry processing",
-                description="Run Process now again after fixing the error.",
+                description="Try Process now again after fixing the issue.",
                 href="/sources",
             ),
         ]
@@ -206,6 +220,8 @@ def _run_worker(
 ) -> None:
     record = get_processing_run(cfg, run_id)
     if record is None:
+        return
+    if record.status not in ACTIVE_RUN_STATUSES:
         return
     record.status = "running"
     record.current_step = "processing source"
@@ -366,6 +382,52 @@ def _load_record(path: Path) -> ProcessingRunRecord:
         error_type=raw.get("error_type"),
         error_message=raw.get("error_message"),
     )
+
+
+def _normalize_abandoned_run(
+    cfg: MindForgeConfig,
+    record: ProcessingRunRecord,
+) -> ProcessingRunRecord:
+    """把服务重启后不可恢复的 active run 收敛成用户可见失败。
+
+    中文学习型说明：第一阶段后台执行只靠当前进程的 daemon thread。进程重启后
+    queued/running JSON 不会自动恢复执行；继续展示 running 会误导用户。这里
+    不引入队列，只把超过阈值的 active run 标记为 abandoned failed，并保留
+    retry/reprocess 的可行动入口。
+    """
+
+    if record.status not in ACTIVE_RUN_STATUSES:
+        return record
+    started_at = _parse_datetime(record.started_at)
+    if started_at is None:
+        return record
+    now = datetime.now(timezone.utc).astimezone()
+    if now - started_at <= ABANDONED_RUN_AFTER:
+        return record
+
+    record.status = "failed"
+    record.current_step = "abandoned"
+    record.finished_at = _now()
+    record.summary = {**_empty_summary(), **dict(record.summary)}
+    record.summary["errors"] = max(int(record.summary.get("errors", 0)), 1)
+    record.error_type = "AbandonedProcessingRun"
+    record.error_message = (
+        "Processing did not finish after MindForge was closed or restarted. "
+        "Run Process now again to retry."
+    )
+    record.message = f"Processing did not finish. Reason: {record.error_message}"
+    _save_record(cfg, record)
+    return record
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc).astimezone()
+    return parsed.astimezone()
 
 
 def _new_run_id() -> str:

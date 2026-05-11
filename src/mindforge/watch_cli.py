@@ -116,6 +116,7 @@ def watch_add(
     console.print(f"strategy_id: {registry_result.source.strategy_id or '-'}", markup=False)
     console.print(f"frequency: {registry_result.source.frequency}", markup=False)
     console.print(f"registry: {summary.registry_path}", markup=False, soft_wrap=True)
+    _print_cli_lifecycle_hint()
 
 
 @watch_app.command("delete")
@@ -193,6 +194,7 @@ def watch_scan(
     if summary.missing:
         console.print("Missing watched source paths were kept; knowledge cards were not deleted.", markup=False)
     console.print("Boundary: source deletion never deletes approved knowledge.", markup=False)
+    _print_cli_lifecycle_hint()
 
 
 @watch_app.command("status")
@@ -269,6 +271,19 @@ def _print_summary(*, title: str, target: Path, counts: dict[str, int]) -> None:
     )
     console.print("Next: mindforge approve list", markup=False)
     console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
+
+
+def _print_cli_lifecycle_hint() -> None:
+    """CLI 同步处理的用户提示，不冒充 Web 后台 run。
+
+    中文学习型说明：Web Sources 的 processing run 是后台 lifecycle；CLI watch
+    add/scan 当前仍在命令内完成。这里明确边界，避免用户误以为 CLI 已把任务放到
+    后台，同时给出 Review 和 retry 路径。
+    """
+
+    console.print("Processing completed in this command.", markup=False)
+    console.print("Check drafts with: mindforge approve list", markup=False)
+    console.print("If processing failed, fix the error above and retry this command.", markup=False)
 
 
 __all__ = ["watch_app"]

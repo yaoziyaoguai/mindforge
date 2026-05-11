@@ -130,12 +130,20 @@ export function SourcesPage({
                     <SummaryItem label="Status" value={source.status_label || (source.status === "active" ? "Watching" : source.status)} />
                     <SummaryItem label="Run status" value={runStatusLabel(source.processing_status, source.active_run_id)} />
                     <SummaryItem label="Last scan" value={source.last_scan_at ?? source.last_processed_at ?? source.last_seen_at ?? "-"} />
+                    <SummaryItem label="Last updated" value={source.last_run_finished_at ?? source.last_run_started_at ?? "-"} />
                     <SummaryItem label="Next scan / Due" value={`${source.next_scan_at ?? "-"} · ${source.due_status}`} />
                   </div>
+                  {source.processing_status === "queued" || source.processing_status === "running" ? (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-primary">
+                      Processing in the background. You can keep using MindForge.
+                    </div>
+                  ) : null}
                   {source.last_message ? (
                     <div className={source.processing_status === "failed" || source.processing_status === "partial_failed" ? "rounded-md border border-red-200 bg-red-50 p-3 text-sm text-danger" : "rounded-md border border-line bg-stone-50 p-3 text-sm text-ink"}>
                       {source.last_message}
                       {source.last_error ? <div className="mt-1 text-xs text-danger">{source.last_error}</div> : null}
+                      {source.processing_status === "failed" || source.processing_status === "partial_failed" ? <div className="mt-1 text-xs text-danger">Try Process now again after fixing the issue.</div> : null}
+                      {source.processing_status === "skipped" && (source.last_run_summary?.drafts ?? 0) === 0 ? <div className="mt-1 text-xs text-muted">No draft was generated. Sources shows the reason.</div> : null}
                     </div>
                   ) : null}
                   <div>

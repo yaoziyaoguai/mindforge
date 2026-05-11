@@ -284,6 +284,10 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Processing..." in sources
     assert "You can keep using MindForge." in combined
     assert "Last run summary" in sources
+    assert "Last updated" in sources
+    assert "Processing in the background. You can keep using MindForge." in sources
+    assert "Try Process now again after fixing the issue." in sources
+    assert "No draft was generated. Sources shows the reason." in sources
     assert "source.last_run_summary?.skipped ?? source.skipped_count" in sources
     assert "source.last_run_summary?.errors ?? source.failed_count" in sources
     assert "SummaryMetric" in sources

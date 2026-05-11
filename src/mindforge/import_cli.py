@@ -94,5 +94,14 @@ def import_cmd(
     console.print("Registry: not added to watched sources.", markup=False)
     console.print("Next: mindforge approve list", markup=False)
     console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
+    _print_cli_lifecycle_hint()
+
+
+def _print_cli_lifecycle_hint() -> None:
+    """CLI import 是同步一次性处理；Web Sources 才是后台 processing lifecycle。"""
+
+    console.print("Processing completed in this command.", markup=False)
+    console.print("Check drafts with: mindforge approve list", markup=False)
+    console.print("If processing failed, fix the error above and retry this command.", markup=False)
 
 __all__ = ["import_cmd"]

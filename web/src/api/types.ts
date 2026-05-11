@@ -324,6 +324,9 @@ export interface WatchedSourceResponse {
   generated_card_paths: string[];
   status_label: string;
   active_run_id?: string | null;
+  last_run_id?: string | null;
+  last_run_started_at?: string | null;
+  last_run_finished_at?: string | null;
   processing_status?: ProcessingRunResponse["status"] | null;
   last_run_summary?: Record<string, number> | null;
   last_message?: string | null;

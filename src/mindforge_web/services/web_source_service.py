@@ -46,7 +46,6 @@ from mindforge_web.services.processing_run_service import (
     next_actions_for_record,
     processing_run_response,
     start_processing_run,
-    started_response_message,
 )
 
 
@@ -203,7 +202,7 @@ class WebSourceService:
             mode="watch_add",
             target=str(registry_result.source.path),
             counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
-            message=started_response_message(),
+            message=run.message,
             added_to_registry=registry_result.added,
             registry_path=str(registry_path),
             watch_id=registry_result.source.id,
@@ -240,7 +239,7 @@ class WebSourceService:
                 "not_due": 0,
                 "missing": 0,
             },
-            message=started_response_message(),
+            message=run.message,
             added_to_registry=False,
             next_actions=next_actions_for_record(run),
             run_id=run.run_id,
@@ -471,6 +470,9 @@ class WebSourceService:
             generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
             status_label=status_label,
             active_run_id=active_run_id,
+            last_run_id=run_response.run_id if run_response is not None else None,
+            last_run_started_at=run_response.started_at if run_response is not None else None,
+            last_run_finished_at=run_response.finished_at if run_response is not None else None,
             processing_status=run_response.status if run_response is not None else None,
             last_run_summary=run_response.summary if run_response is not None else None,
             last_message=run_response.message if run_response is not None else None,

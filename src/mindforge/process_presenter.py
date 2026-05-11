@@ -69,16 +69,28 @@ def format_next_hint(counts: Mapping[str, int], *, vault_root: Path | None = Non
 
     processed = counts.get("processed", 0)
     skipped = counts.get("skipped", 0)
+    failed = counts.get("failed", 0)
     vault_suffix = f" --vault {vault_root}" if vault_root is not None else ""
     if processed > 0:
         return [
             f"Next: mindforge approve list{vault_suffix}",
             "Boundary: generated cards remain ai_draft until explicit human approval.",
+            "Processing completed in this command.",
+            "Check drafts with: mindforge approve list",
+            "If processing failed, fix the error above and retry this command.",
         ]
     if skipped > 0:
         return [
             "Next: "
-            f"mindforge scan{vault_suffix} or mindforge approve list{vault_suffix}"
+            f"mindforge scan{vault_suffix} or mindforge approve list{vault_suffix}",
+            "Processing completed in this command.",
+            "Check drafts with: mindforge approve list",
+            "If processing failed, fix the error above and retry this command.",
+        ]
+    if failed > 0:
+        return [
+            "Processing completed in this command.",
+            "If processing failed, fix the error above and retry this command.",
         ]
     return []
 

@@ -352,6 +352,9 @@ class WatchedSourceResponse(BaseModel):
     generated_card_paths: list[str] = Field(default_factory=list)
     status_label: str = "Watching"
     active_run_id: str | None = None
+    last_run_id: str | None = None
+    last_run_started_at: str | None = None
+    last_run_finished_at: str | None = None
     processing_status: str | None = None
     last_run_summary: dict[str, int] | None = None
     last_message: str | None = None

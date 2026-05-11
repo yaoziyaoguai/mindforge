@@ -190,6 +190,48 @@ def test_watch_add_file_registers_and_generates_ai_draft_once(tmp_path: Path, mo
     assert source.exists()
 
 
+def test_watch_add_output_explains_sync_lifecycle_review_and_retry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """CLI 不是后台 run，也必须给用户完整 lifecycle 提示。
+
+    中文学习型说明：Web processing 是后台 task；CLI watch/add/import 当前是同步
+    命令。测试锁定两者的产品边界：CLI 不能假装后台运行，但要说明处理已结束、
+    去哪里 review，以及失败时如何 retry。
+    """
+
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    source = tmp_path / "cli-lifecycle.md"
+    source.write_text("# CLI Lifecycle\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["watch", "add", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "Processing completed in this command." in result.output
+    assert "Check drafts with: mindforge approve list" in result.output
+    assert "If processing failed, fix the error above and retry this command." in result.output
+    assert "background processing active" not in result.output
+
+
+def test_import_output_explains_sync_lifecycle_review_and_retry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path)
+    monkeypatch.chdir(vault)
+    source = tmp_path / "import-lifecycle.md"
+    source.write_text("# Import Lifecycle\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "Processing completed in this command." in result.output
+    assert "Check drafts with: mindforge approve list" in result.output
+    assert "If processing failed, fix the error above and retry this command." in result.output
+
+
 def test_watch_add_openai_compatible_missing_key_fails_without_fake_fallback(
     tmp_path: Path,
     monkeypatch,
@@ -531,6 +573,23 @@ def test_process_still_respects_low_value_triage(
     assert "seen=1 processed=0 skipped=1 failed=0" in result.output
     assert "triage value_score=7 threshold=10 should_process=True" in result.output
     assert _card_paths(vault) == []
+
+
+def test_process_output_explains_sync_lifecycle_review_and_retry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg, vault = _write_config(tmp_path, active_provider="fake")
+    monkeypatch.chdir(vault)
+    source = vault / "00-Inbox" / "ManualNotes" / "process-lifecycle.md"
+    source.write_text("# Process Lifecycle\n\nbody\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["process", "--config", str(cfg), "--limit", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert "Processing completed in this command." in result.output
+    assert "Check drafts with: mindforge approve list" in result.output
+    assert "If processing failed, fix the error above and retry this command." in result.output
 
 
 def test_active_anthropic_missing_key_fails_not_skips(
