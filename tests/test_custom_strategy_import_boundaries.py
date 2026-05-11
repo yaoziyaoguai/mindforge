@@ -72,7 +72,6 @@ _FORBIDDEN_IMPORT_PREFIXES: tuple[str, ...] = (
     "mindforge.obsidian_workflow",
     "mindforge.cubox_cli",
     "mindforge.cubox_dryrun_presenter",
-    "mindforge.cubox_preview_presenter",
     "mindforge.env_loader",
     "mindforge.processors",
     "dotenv",

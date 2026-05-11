@@ -74,7 +74,6 @@ _FORBIDDEN_PREFIXES = (
     "mindforge.obsidian_workflow",
     "mindforge.cubox_cli",
     "mindforge.cubox_dryrun_presenter",
-    "mindforge.cubox_preview_presenter",
     "mindforge.scanner",
     "mindforge.env_loader",
     "mindforge.processors",

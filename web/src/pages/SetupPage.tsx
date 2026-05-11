@@ -356,11 +356,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 {modelIds.map((modelId) => {
                   const item = form.models[modelId];
                   const status = editable.llm.configured_models[modelId];
+                  {/* keySource 值来自后端 api_key_source 枚举；前端仅映射为用户友好标签，不直接展示 "env"/"demo" 原始值 */}
                   const keySource = status?.api_key_source ?? "missing";
                   const apiKeyLabel = keySource === "local_secret"
                     ? `configured · ${status?.api_key_masked_value ?? "****"}`
                     : keySource === "env"
                     ? `configured outside Web · ${status?.api_key_status_label ?? ""}`
+                    : keySource === "demo"
+                    ? "missing"
                     : "missing";
                   return (
                     <article key={modelId} className="rounded-md border border-line p-3">

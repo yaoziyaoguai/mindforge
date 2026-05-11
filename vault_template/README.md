@@ -9,12 +9,12 @@
 ```
 ObsidianVault/
 ├── 00-Inbox/                  ← MindForge 只读，所有源都进这里
-│   ├── Cubox/                 ← Cubox 官方 Obsidian 插件同步
-│   ├── PDFs/                  ← 手动放入 PDF（v0.1 仅 stub）
-│   ├── Docs/                  ← docx 等（v0.1 仅 stub）
-│   ├── WebClips/              ← Web Clipper / MarkDownload（v0.1 仅 stub）
-│   ├── ChatExports/           ← ChatGPT / Claude 对话导出（v0.1 仅 stub）
-│   └── ManualNotes/           ← 自己写的临时笔记（plain_markdown）
+│   ├── ManualNotes/           ← 自己写的临时笔记（plain_markdown）—— 推荐入口
+│   ├── PDFs/                  ← 手动放入 PDF
+│   ├── Docs/                  ← docx 等文档
+│   ├── WebClips/              ← Web Clipper / MarkDownload
+│   ├── ChatExports/           ← ChatGPT / Claude 对话导出
+│   └── Cubox/                 ← （可选）Cubox Obsidian 插件同步，非默认 first-run 目录
 ├── 20-Knowledge-Cards/        ← MindForge Writer 唯一写入区
 │   ├── agent-runtime/
 │   ├── harness-engineering/
@@ -41,11 +41,11 @@ ObsidianVault/
 
 | 子目录 | source_type | adapter | v0.1 状态 |
 |---|---|---|---|
-| `Cubox/` | `cubox_markdown` | `CuboxMarkdownAdapter` | ✅ 实现 |
 | `ManualNotes/` | `plain_markdown` | `PlainMarkdownAdapter` | ✅ 实现 |
 | `WebClips/` | `webclip_markdown` | `WebClipMarkdownAdapter` | 🟡 stub |
 | `PDFs/` | `pdf` | `PdfAdapter` | 🟡 stub |
 | `Docs/` | `docx` | `DocxAdapter` | 🟡 stub |
 | `ChatExports/` | `chat_export` | `ChatExportAdapter` | 🟡 stub |
+| `Cubox/`（可选） | `cubox_markdown` | `CuboxMarkdownAdapter` | ✅ 实现（optional adapter） |
 
 详细数据契约见 `docs/MINDFORGE_PROTOCOL.md`。

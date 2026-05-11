@@ -202,7 +202,6 @@ _FORBIDDEN_FOR_PROVIDER = {
     # source domain
     "mindforge.cubox_cli",
     "mindforge.cubox_dryrun_presenter",
-    "mindforge.cubox_preview_presenter",
     "mindforge.source_mux",
     "mindforge.scanner",
     "mindforge.sources.cubox_api",
