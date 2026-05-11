@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -136,3 +137,68 @@ def test_doctor_command_still_renders_known_sections(tmp_path: Path) -> None:
         assert marker in out, f"doctor 输出缺少 section: {marker}\n---\n{out}"
     # 安全 footer：reaffirm doctor 不读 secret / 不发 HTTP
     assert "secret" in out and "HTTP" in out
+
+
+def test_doctor_model_setup_matches_status_without_secret(tmp_path: Path) -> None:
+    """doctor/status 复用同一 readiness 语义：只有 YAML model 不等于可处理。
+
+    中文学习型说明：first-run 的默认 YAML 可以有 model metadata，但没有
+    local secret store key 时仍是 model setup incomplete。这里不读取 secret
+    value，只验证 CLI 用户看到的状态一致。
+    """
+
+    project = tmp_path / "project"
+    vault = project / "vault"
+    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+        (vault / subdir).mkdir(parents=True, exist_ok=True)
+    cfg = project / "configs" / "mindforge.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        """
+version: 0.7
+vault:
+  root: "vault"
+llm:
+  default_model: main
+  models:
+    main:
+      type: openai_compatible
+      base_url: "https://provider.example.com/v1"
+      model: "model-name"
+  routing:
+    triage: main
+    distill: main
+    link_suggestion: main
+    review_questions: main
+    action_extraction: main
+telemetry:
+  enabled: true
+  local_only: true
+""",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    doctor = runner.invoke(app, ["doctor", "--config", str(cfg)])
+    status = runner.invoke(app, ["status", "--config", str(cfg), "--json"])
+
+    assert doctor.exit_code == 0, doctor.output
+    assert status.exit_code == 0, status.output
+    status_payload = json.loads(status.output)
+    assert "model setup       : needs setup" in doctor.output
+    assert status_payload["provider"]["model_setup_status"] == "needs_setup"
+    assert status_payload["provider"]["model_setup_label"] == "needs setup"
+    assert "model setup       : configured" not in doctor.output
+
+
+def test_doctor_first_run_actions_do_not_recommend_scan_process_sync_path(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+        (vault / subdir).mkdir(parents=True, exist_ok=True)
+
+    res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])
+
+    assert res.exit_code == 0, res.output
+    assert "mindforge watch add" in res.output or "mindforge import" in res.output
+    assert "mindforge scan && mindforge process" not in res.output
+    assert "state.json 缺失 → 运行: mindforge scan" not in res.output

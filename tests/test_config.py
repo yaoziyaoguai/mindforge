@@ -13,8 +13,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
 from mindforge.assets_runtime import bundled_asset_path_for_process
+from mindforge.cli import app
 from mindforge.config import (
     ConfigError,
     LLMConfig,
@@ -28,6 +30,7 @@ from mindforge.first_run_config import maybe_bootstrap_local_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
+runner = CliRunner()
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +164,38 @@ def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
         assert marker in text
     assert "sk-" not in text
     assert "MINDFORGE_LLM_API_KEY" not in text
+
+
+def test_init_default_skeleton_uses_local_sources_not_cubox(tmp_path: Path) -> None:
+    """first-run 默认骨架只能表达本地文件/文件夹 source 主路径。
+
+    中文学习型说明：Cubox 仍可作为 adapter/test fixture 存在，但不能在
+    ``mindforge init`` 的新用户默认目录里出现，避免把第一阶段误解成
+    Cubox-first workflow。
+    """
+
+    project_root = tmp_path / "project"
+    vault = project_root / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    assert (vault / "00-Inbox" / "ManualNotes").is_dir()
+    assert not (vault / "00-Inbox" / "Cubox").exists()
+
+
+def test_init_help_uses_model_setup_language_not_legacy_env_modes() -> None:
+    """init help 是 first-run surface，不能继续把 env/fake/demo/profile 当主路径。"""
+
+    res = runner.invoke(app, ["init", "--help"])
+
+    assert res.exit_code == 0, res.output
+    assert "configs/" in res.output
+    for token in (".env", "environment variable", "fake", "demo", "profile fake", "Cubox"):
+        assert token not in res.output
 
 
 def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:

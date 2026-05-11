@@ -138,7 +138,7 @@ def _model_setup_label(provider: dict[str, Any]) -> str:
     presenter 只渲染“已配置 / 需要 Setup”这样的用户语义。
     """
 
-    return "ready" if provider.get("opt_in_state") == "env_only" else "needs setup"
+    return str(provider.get("model_setup_label") or "needs setup")
 
 
 def _source_type_label(source_type: str) -> str:

@@ -14,6 +14,7 @@ from .cli_runtime import console, load_cfg
 from .app_context import resolve_config_path
 from .presenters.doctor import doctor_icon as _pres_doctor_icon
 from .presenters.doctor import ok_dir as _pres_ok_dir
+from .model_setup_readiness import model_setup_readiness
 from .services.doctor import compute_doctor_hints as _svc_compute_doctor_hints
 from .services.doctor import dir_state as _svc_dir_state
 from .services.doctor import doctor_paths as _svc_doctor_paths
@@ -75,8 +76,9 @@ def _print_vault_section(cfg) -> None:
         ("state workdir", Path(cfg.state.workdir)),
     ):
         console.print(f"  {_doctor_icon(_dir_state(path))} {label:<17}: {path}  ({_ok_dir(path)})")
-    model_state = "ok" if cfg.llm.default_model and cfg.llm.models else "warn"
-    console.print(f"  {_doctor_icon(model_state)} model setup       : {_model_setup_text(cfg)}")
+    readiness = model_setup_readiness(cfg)
+    model_state = "ok" if readiness.ready else "warn"
+    console.print(f"  {_doctor_icon(model_state)} model setup       : {readiness.label}")
     console.print(
         f"  {_doctor_icon('ok' if cfg.telemetry.local_only else 'warn')} telemetry.enabled : "
         f"{cfg.telemetry.enabled} (local_only={cfg.telemetry.local_only})"
@@ -99,9 +101,7 @@ def _print_optional_installs_section() -> None:
 def _model_setup_text(cfg) -> str:
     """用第一阶段产品语言描述模型配置，不泄露 profile/env 等历史字段。"""
 
-    if cfg.llm.default_model and cfg.llm.models:
-        return "configured"
-    return "open Web Setup to add a model"
+    return model_setup_readiness(cfg).label
 
 
 def _print_git_runtime_risk(cwd: Path) -> None:

@@ -403,6 +403,52 @@ def test_cli_status_presenter_hides_legacy_provider_env_and_source_labels() -> N
         assert token not in out
 
 
+def test_status_empty_state_does_not_recommend_approve_show_without_drafts() -> None:
+    """没有 ai_draft 时，status 不能引导用户去空的 approve show。"""
+
+    snapshot = LocalStatusSnapshot(
+        config_path="/tmp/mindforge/configs/mindforge.yaml",
+        vault={
+            "path": "/tmp/mindforge/vault",
+            "exists": True,
+            "readable": True,
+            "looks_like_mindforge": True,
+            "is_real_environment": False,
+        },
+        workspace={
+            "state_item_count": 0,
+            "runs_path": "/tmp/mindforge/.mindforge/runs",
+            "state_counts": {},
+            "source_counts": {},
+        },
+        provider={
+            "active_profile": "__model_routing__",
+            "opt_in_state": "needs_setup",
+            "network_called": False,
+        },
+        cubox={},
+        env_keys=[],
+        sources=[],
+        cards={"total": 0, "by_status": {}, "scan_error_count": 0},
+        recall={"mode": "local lexical recall", "index_exists": False, "approved_card_count": 0},
+        safety={
+            "vault_path": "/tmp/mindforge/vault",
+            "provider_state": "needs_setup",
+            "write_mode": "explicit_approval_required",
+            "pending_drafts": 0,
+        },
+        next_actions=["mindforge watch add <file-or-folder>", "complete model setup in Web Setup"],
+        warnings=[],
+    )
+
+    console = Console(record=True, width=120)
+    render_local_status(console, snapshot)
+    out = console.export_text()
+
+    assert "approve show" not in out
+    assert "mindforge watch add" in out
+
+
 def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
     """doctor 的建议必须指向真实 Setup，而不是历史 demo/profile 路径。"""
 

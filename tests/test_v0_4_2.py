@@ -254,7 +254,11 @@ def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None
 
 
 def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
-    """v0.6.1: start 是第一天入口，只读展示状态和安全边界。"""
+    """v0.6.1: start 是第一天入口，只读展示状态和安全边界。
+
+    中文学习型说明：first-run 主路径只解释“本地状态检查”和“model setup”，
+    不再把 .env/fake/demo/profile 作为普通用户需要理解的产品语义。
+    """
     cfg = _make_vault(tmp_path)
     cards = tmp_path / "vault" / "20-Knowledge-Cards"
     _write_card(cards, "approved", {
@@ -267,7 +271,9 @@ def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
     assert "Onboarding status" in res.output
     assert "human_approved" in res.output
     assert "Next actions" in res.output
-    assert "不读 .env" in res.output
+    assert "只做本地状态检查" in res.output
+    for legacy_term in (".env", "fake", "demo", "profile"):
+        assert legacy_term not in res.output
 
 
 def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
@@ -344,6 +350,19 @@ def test_start_does_not_read_env_or_network_or_write_obsidian(
     assert res.exit_code == 0, res.output
     assert "must-not-leak" not in res.output
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
+
+
+def test_start_first_run_copy_uses_model_setup_language_not_legacy_modes(tmp_path: Path) -> None:
+    """start 是 first-run read path，不应把 fake/env/profile 讲成产品语义。"""
+
+    cfg = _make_vault(tmp_path)
+
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "model setup" in res.output.lower()
+    for token in ("fake provider", ".env", " env", "demo", "profile fake"):
+        assert token not in res.output.lower()
 
 
 def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:

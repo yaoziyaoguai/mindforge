@@ -106,9 +106,9 @@ def format_next_steps(steps: Iterable[str]) -> list[str]:
 
 
 def format_safety_footer() -> str:
-    """init 安全 footer：不创建 .env、不读 .env、不调 LLM、不动原始资料。"""
+    """init 安全 footer：只讲用户主路径，不暴露 env/fake 等内部兼容语义。"""
 
-    return "[dim]说明：init 不创建真实 .env、不读取 .env、不调用 LLM、不修改原始资料。[/dim]"
+    return "[dim]说明：init 只创建本地目录与配置；模型调用需要先完成 Web Setup。[/dim]"
 
 
 __all__ = [

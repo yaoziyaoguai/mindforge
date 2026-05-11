@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from ..config import MindForgeConfig
+from ..model_setup_readiness import model_setup_readiness
 
 __all__ = [
     "config_doctor_rows",
@@ -72,11 +73,12 @@ def config_doctor_rows(cfg: MindForgeConfig) -> list[tuple[str, str, str, str]]:
             str(path),
             "mindforge init --interactive" if not parent.exists() else "",
         ))
+    readiness = model_setup_readiness(cfg)
     rows.append((
-        "ok" if cfg.llm.default_model and cfg.llm.models else "warn",
+        "ok" if readiness.ready else "warn",
         "model setup",
-        "configured" if cfg.llm.default_model and cfg.llm.models else "missing",
-        "open Web Setup to add a model" if not cfg.llm.models else "",
+        readiness.label,
+        "" if readiness.ready else "open Web Setup to add a model and provider key",
     ))
     try:
         from ..assets_runtime import bundled_text
@@ -125,7 +127,7 @@ def doctor_recovery_checks(cfg: MindForgeConfig) -> dict[str, list[tuple[str, st
         rows.append(("warn", "state.json", f"missing · {state_path}"))
         actions.append((
             "recommended",
-            f"state.json 缺失 → 运行: mindforge scan --vault {cfg.vault.root}",
+            "state.json 缺失 → 运行: mindforge watch add <file-or-folder> 或 mindforge import <file-or-folder>",
         ))
 
     cards_dir = cfg.vault.cards_path
@@ -231,10 +233,10 @@ def compute_doctor_hints(
     cards_dir = cfg.vault.cards_path
     if not cards_dir.exists():
         hints.append(("critical", "vault 目录缺失 → 运行: mindforge init --interactive"))
-    if not cfg.llm.default_model or not cfg.llm.models:
+    if not model_setup_readiness(cfg).ready:
         hints.append((
             "critical",
-            "未配置模型 → 打开 Web Setup 添加真实模型和 API key",
+            "model setup incomplete → 打开 Web Setup 添加真实模型和 provider key",
         ))
     if cards_dir.exists():
         try:
@@ -247,7 +249,7 @@ def compute_doctor_hints(
             if not res.cards:
                 hints.append((
                     "recommended",
-                    "尚无 Knowledge Cards → 运行: mindforge scan && mindforge process",
+                    "尚无 Knowledge Cards → 运行: mindforge watch add <file-or-folder> 或 mindforge import <file-or-folder>",
                 ))
             elif n_drafts > 0:
                 hints.append((

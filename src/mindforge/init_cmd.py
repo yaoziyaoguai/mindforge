@@ -22,7 +22,6 @@ from typing import Literal
 # ── vault 必备子目录（与 vault_template/ 对齐）─────────────────────────────
 VAULT_DIRS: tuple[str, ...] = (
     "00-Inbox",
-    "00-Inbox/Cubox",
     "00-Inbox/WebClips",
     "00-Inbox/ChatExports",
     "00-Inbox/PDFs",
@@ -249,15 +248,12 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 选择 real provider：configs/mindforge.yaml 里设置 llm.active=openai_compatible 或 anthropic",
-        "2) 设置对应 env：MINDFORGE_OPENAI_* 或 MINDFORGE_ANTHROPIC_*（不要写进 YAML）",
-        "3) mindforge llm ping  # 按 llm.active 检查 env presence，不发 HTTP",
-        "4) mindforge watch list    # 查看 default 00-Inbox watched source",
-        "5) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md",
-        "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
-        "7) mindforge approve list  # 看看产出哪些 ai_draft",
-        "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
-        "9) mindforge recall --query <keyword>",
-        "10) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
-        "11) mindforge doctor       # 任何时刻自检",
+        "1) mindforge web  # 打开 Web Setup，添加真实模型和 provider key",
+        "2) 将本地 Markdown/TXT 文件放到 vault/00-Inbox/ManualNotes/",
+        "3) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md",
+        "4) mindforge runs list  # 查看后台 processing 状态",
+        "5) mindforge approve list  # 后台成功生成 ai_draft 后再审核",
+        "6) mindforge approve 1 --confirm  # 显式人工 approve",
+        "7) mindforge recall --query <keyword>",
+        "8) mindforge doctor  # 任何时刻自检",
     ]

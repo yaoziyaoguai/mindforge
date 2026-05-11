@@ -21,6 +21,7 @@ from ..checkpoint import Checkpoint, CheckpointError
 from ..config import MindForgeConfig
 from ..cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from ..lexical_index import default_index_path
+from ..model_setup_readiness import model_setup_readiness
 from ..provider_readiness import build_readiness_report
 
 
@@ -90,6 +91,7 @@ def build_local_status_snapshot(
         card_counts[card.status] = card_counts.get(card.status, 0) + 1
     env_keys = _env_key_statuses(cfg, cwd=cwd)
     provider_report = build_readiness_report(cfg.llm)
+    model_readiness = model_setup_readiness(cfg)
     cubox_report = inspect_cubox_config()
     cubox_classification = classify_cubox_real_opt_in(cubox_report, allow_real=False)
     vault = _vault_status(cfg)
@@ -106,7 +108,7 @@ def build_local_status_snapshot(
         config_path=str(config_path),
         vault=vault,
         workspace=workspace,
-        provider=_provider_status(provider_report),
+        provider=_provider_status(provider_report, model_readiness=model_readiness),
         cubox={
             "token_env_var": cubox_report.get("token_env_var"),
             "token_present": bool(cubox_report.get("token_present", False)),
@@ -209,12 +211,14 @@ def _workspace_status(context: AppContext) -> dict[str, Any]:
     }
 
 
-def _provider_status(report: dict[str, Any]) -> dict[str, Any]:
+def _provider_status(report: dict[str, Any], *, model_readiness) -> dict[str, Any]:
     provider = report["provider"]
     opt_in = report["opt_in"]
     return {
         "active_profile": provider["active_profile"],
         "opt_in_state": opt_in["opt_in_state"],
+        "model_setup_status": model_readiness.status,
+        "model_setup_label": model_readiness.label,
         "can_run_real_smoke": opt_in["can_run_real_smoke"],
         "blockers": list(opt_in["blockers"]),
         "aliases": [
@@ -312,8 +316,9 @@ def _next_actions(
         actions.append("mindforge init --interactive")
     if card_counts.get("ai_draft", 0):
         actions.append("mindforge approve list")
-    if recall["approved_card_count"] == 0:
-        actions.append("mindforge approve show --card <draft> --show-content")
+    if not card_counts.get("ai_draft", 0) and not card_counts.get("human_approved", 0):
+        actions.append("mindforge watch add <file-or-folder> or mindforge import <file-or-folder>")
+        actions.append("complete model setup in Web Setup if processing fails")
     if not actions:
         actions.append("mindforge recall --query <keyword>")
     return actions

@@ -166,7 +166,7 @@ def init(
     project_root: Path = typer.Option(
         Path("."),
         "--project-root",
-        help="MindForge 工作目录（configs/ 与 .env.example 落在这里；默认当前目录）",
+        help="MindForge 工作目录（configs/ 与本地工作文件落在这里；默认当前目录）",
     ),
     force: bool = typer.Option(
         False,

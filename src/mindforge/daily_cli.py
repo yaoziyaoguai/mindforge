@@ -16,6 +16,7 @@ from .checkpoint import Checkpoint
 from .cli_runtime import console, global_vault_override, load_cfg
 from .config import MindForgeConfig
 from .models import ItemState
+from .model_setup_readiness import model_setup_readiness
 from .next_suggestions import NextSuggestion, compact_next_suggestions, next_suggestions
 
 daily_app = typer.Typer(add_completion=False)
@@ -212,6 +213,7 @@ class DailySnapshot:
     review_due_week: int
     index_exists: bool
     latest_run: str | None
+    model_setup: str
 
 
 def _daily_snapshot(cfg: MindForgeConfig) -> DailySnapshot:
@@ -278,6 +280,7 @@ def _daily_snapshot(cfg: MindForgeConfig) -> DailySnapshot:
         review_due_week=review_due_week,
         index_exists=(cfg.state.workdir / "index" / "bm25.json").exists(),
         latest_run=latest_run,
+        model_setup=model_setup_readiness(cfg).label,
     )
 
 
@@ -362,6 +365,7 @@ def _print_start_guidance(snapshot: DailySnapshot, suggestions: list[NextSuggest
     console.print(f"  sources in inbox    : {snapshot.inbox_files}")
     console.print(f"  ai_draft cards      : {snapshot.card_counts.get('ai_draft', 0)}")
     console.print(f"  human_approved      : {snapshot.card_counts.get('human_approved', 0)}")
+    console.print(f"  model setup         : {snapshot.model_setup}")
     console.print(f"  bm25 index          : {'ready' if snapshot.index_exists else 'missing'}")
     console.print(
         f"  review schedule     : overdue={snapshot.review_overdue} · "
@@ -369,8 +373,9 @@ def _print_start_guidance(snapshot: DailySnapshot, suggestions: list[NextSuggest
     )
     _print_next_actions(suggestions[:3])
     console.print(
-        "\n[dim]安全默认：fake provider；start 不读 .env、不调 LLM、不发 HTTP、"
-        "不写正式 Obsidian notes。[/dim]"
+        "\n[dim]安全默认：start 只做本地状态检查；不会调用模型、不会发起网络请求、"
+        "不会写入 approved knowledge。AI draft 生成需要完成 model setup，并通过 "
+        "background processing 产生。[/dim]"
     )
 
 
@@ -415,7 +420,7 @@ def start_cmd(
             console.print("[bold]MindForge start[/bold]\n")
             console.print("[yellow]尚未找到配置。[/yellow]")
             console.print("  下一步：mindforge init --interactive", markup=False)
-            console.print("[dim]安全默认：初始化不会调用真实 LLM；后续 process 默认 fake。[/dim]")
+            console.print("[dim]安全默认：初始化不会调用模型；完成 Web Setup 后再处理 source。[/dim]")
         return
 
     cfg = load_cfg(config, read_env=False)
@@ -446,7 +451,7 @@ def start_cmd(
 
 def _start_safety_dict() -> dict[str, bool]:
     return {
-        "default_fake_provider": True,
+        "model_calls": False,
         "reads_env": False,
         "calls_real_llm": False,
         "writes_formal_obsidian_notes": False,
