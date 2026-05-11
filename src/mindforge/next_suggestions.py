@@ -138,7 +138,7 @@ def _inbox_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSugge
         return []
     return [
         NextSuggestion(
-            f"# 把本地 markdown/txt 文件放到 {cfg.vault.inbox_path}/ManualNotes/ 等 source 目录",
+            f"# 把本地 markdown/txt 文件放到 {cfg.vault.inbox_path}/ 等 source 目录",
             "inbox 当前为空，没有可加工的原料",
             "info",
         )

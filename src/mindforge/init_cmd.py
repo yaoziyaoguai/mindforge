@@ -215,7 +215,7 @@ def next_steps_hint() -> list[str]:
         "1) mindforge start  # 查看 first-run checklist",
         "2) mindforge status  # 只读查看 workspace/model/source/draft 状态",
         "3) mindforge web  # 打开 Web Setup，添加模型和 provider key",
-        "4) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md  # 注册 source 并启动后台 processing",
+        "4) mindforge watch add vault/00-Inbox/<file>  # 注册 source 并启动后台 processing",
         "5) mindforge import <file-or-folder>  # 或一次性导入 source",
         "6) mindforge runs list  # 查看后台 processing runs",
         "7) mindforge approve list  # 有 ai_draft 后再审核",

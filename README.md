@@ -487,7 +487,7 @@ python -m pytest
 cd web && npm run build
 ```
 
-First Status Commands（新用户首选检查命令）：`mindforge status`, `mindforge doctor`。
+First Status Commands（新用户首选检查命令）：`mindforge status`。
 
 ### Service 层入口
 

@@ -135,7 +135,7 @@ def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
             "在配置未确认前继续执行容易误读或误写错误 workspace。"
         ),
         how_to_fix="检查 --config 路径，或用安全模板生成一份本地配置。",
-        safe_next_command="mindforge config init --output configs/mindforge.yaml --vault <vault>",
+        safe_next_command="mindforge init --interactive",
     )
 
 
@@ -310,7 +310,10 @@ def _next_actions(
     if card_counts.get("ai_draft", 0):
         actions.append("mindforge approve list")
     if not card_counts.get("ai_draft", 0) and not card_counts.get("human_approved", 0):
-        actions.append("mindforge runs list")
+        if processing.get("count", 0) > 0:
+            actions.append("mindforge runs list")
+        else:
+            actions.append("mindforge watch add <file-or-folder> or mindforge import <file-or-folder>")
     if not actions:
         actions.append("mindforge recall --query <keyword>")
     return list(dict.fromkeys(actions))

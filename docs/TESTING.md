@@ -44,7 +44,7 @@ Use only the fictional fixture vault:
 ```bash
 mindforge --vault examples/fixture-vault doctor
 mindforge --vault examples/fixture-vault next
-mindforge watch add examples/fixture-vault/00-Inbox/ManualNotes --config configs/mindforge.yaml
+mindforge watch add examples/fixture-vault/00-Inbox --config configs/mindforge.yaml
 mindforge runs list --config configs/mindforge.yaml
 mindforge --vault examples/fixture-vault index rebuild
 mindforge --vault examples/fixture-vault recall --query "checkpoint runtime" --ranking hybrid
