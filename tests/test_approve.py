@@ -271,10 +271,14 @@ def test_approve_archives_source_without_losing_evidence(
     src_bytes = src.read_bytes()
     r = runner.invoke(app, ["approve", "--card", str(card), "--config", str(cfg_path), "--confirm"])
     assert r.exit_code == 0
-    archived = vault / "00-Inbox" / "_processed" / "ManualNotes" / src.name
+    # v0.7.21 起归档路径扁平化：不再使用 ManualNotes bucket，直接归档到 _processed/
+    archived = vault / "00-Inbox" / "_processed" / src.name
     assert not src.exists()
     assert archived.read_bytes() == src_bytes
     assert "source_archive_path:" in card.read_text(encoding="utf-8")
+    assert "ManualNotes" not in str(
+        archived.relative_to(vault)
+    ), "归档路径不应包含 ManualNotes"
 
 
 # ---------------------------------------------------------------------------
@@ -594,3 +598,107 @@ def test_approve_show_is_preview_only_no_auto_approve(
 
     # 卡片状态不应改变 — 检查 frontmatter 中的 status 字段
     assert "status: ai_draft" in card.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# (8) 过期数字 ref 友好错误提示
+# ---------------------------------------------------------------------------
+
+
+def test_approve_show_stale_number_ref_shows_friendly_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve show --card 1 在 pending list 为空时给出友好错误。
+
+    中文学习型说明：数字 ref 只适用于 approve list 中的待审批 ai_draft。
+    用户已 approve 后再用旧数字 ref，错误提示必须说明：
+    - 数字编号只适用于当前 approve list
+    - 可能已 approve
+    - 建议 library list / approve list
+    """
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    # 先 approve 掉唯一的 pending card
+    r_approve = runner.invoke(
+        app, ["approve", "1", "--config", str(cfg_path), "--confirm"]
+    )
+    assert r_approve.exit_code == 0, r_approve.output
+
+    # 再用过期数字 ref 查 show — 应给出友好错误
+    r = runner.invoke(
+        app, ["approve", "show", "--config", str(cfg_path), "--card", "1"]
+    )
+    assert r.exit_code != 0, f"预期非零退出码，实际 {r.exit_code}: {r.output}"
+    # 不应出现误导性的 "card path could not be resolved"
+    assert "card path could not be resolved" not in r.output
+    # 应说明数字编号适用范围
+    assert "approve list" in r.output
+    # 应提示可能已 approve
+    assert "已 approve" in r.output or "已批准" in r.output
+    # 应建议 library list
+    assert "library list" in r.output
+
+
+def test_approve_stale_number_ref_shows_friendly_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve 1 --confirm 在 pending list 为空时给出友好错误。
+
+    与 approve show --card 1 的错误风格一致：说明数字 ref 适用范围，
+    建议 library list / approve list。
+    """
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    # 先 approve 掉
+    r_approve = runner.invoke(
+        app, ["approve", "1", "--config", str(cfg_path), "--confirm"]
+    )
+    assert r_approve.exit_code == 0, r_approve.output
+
+    # 再用过期数字 ref 执行 approve
+    r = runner.invoke(
+        app, ["approve", "1", "--config", str(cfg_path), "--confirm"]
+    )
+    assert r.exit_code != 0, f"预期非零退出码，实际 {r.exit_code}: {r.output}"
+    assert "approve list" in r.output
+    assert ("已 approve" in r.output or "已批准" in r.output)
+
+
+def test_approve_show_pending_number_ref_still_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """pending draft 存在时，approve show --card 1 仍可用（不回归）。"""
+    cfg_path, _vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(
+        app, ["approve", "show", "--config", str(cfg_path), "--card", "1"]
+    )
+    assert r.exit_code == 0, r.output
+    assert "Approve preview" in r.output
+
+
+def test_approve_pending_number_ref_still_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """pending draft 存在时，approve 1 --confirm 仍可用（不回归）。"""
+    cfg_path, _vault, _src, card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(
+        app, ["approve", "1", "--config", str(cfg_path), "--confirm"]
+    )
+    assert r.exit_code == 0, r.output
+    assert "approved" in r.output
+    assert _read_fm(card)["status"] == "human_approved"
+
+
+def test_approve_confirm_still_required_for_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """approve <ref> 缺 --confirm 时仍拒绝（不回归）。"""
+    cfg_path, _vault, _src, _card = _setup_vault_with_one_card(tmp_path, monkeypatch)
+
+    r = runner.invoke(
+        app, ["approve", "1", "--config", str(cfg_path)]
+    )
+    assert r.exit_code != 0, r.output
+    assert "--confirm" in r.output.lower()

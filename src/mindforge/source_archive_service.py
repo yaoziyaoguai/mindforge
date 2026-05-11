@@ -2,7 +2,10 @@
 
 中文学习型说明：Source 是原始证据，Card 是加工结果。本服务只在显式 approve
 成功后运行，把仍位于待处理 Inbox 的 source 移入
-``00-Inbox/_processed/<adapter-subdir>/`` 并写回 card provenance。
+``00-Inbox/_processed/<filename>`` 并写回 card provenance。
+
+v0.7.21 起归档路径扁平化：不再使用 adapter inbox_subdir（如 ManualNotes）
+作为归档子目录，直接归档到 ``_processed/`` 下，文件名冲突时追加 hash。
 
 边界：
 - process / ai_draft 阶段不调用这里；
@@ -46,7 +49,6 @@ def archive_source_for_approved_card(
     fm_text, body = _split_frontmatter(raw)
     data = _load_frontmatter(fm_text)
     source_raw = _str_or_empty(data.get("source_path"))
-    source_type = _str_or_empty(data.get("source_type"))
     if not source_raw:
         data["source_missing"] = True
         _write_frontmatter(card_path, data, body)
@@ -75,11 +77,9 @@ def archive_source_for_approved_card(
         _write_frontmatter(card_path, data, body)
         return SourceArchiveEffect("already_archived", source_path, source_path, "source 已在 _processed")
 
-    bucket = _archive_bucket(cfg, source_type, rel_to_inbox)
-    suffix_inside_bucket = (
-        Path(*rel_to_inbox.parts[1:]) if len(rel_to_inbox.parts) > 1 else Path(source_path.name)
-    )
-    target = cfg.vault.inbox_path / "_processed" / bucket / suffix_inside_bucket
+    # v0.7.21：归档路径扁平化，不再使用 adapter inbox_subdir 作为 bucket。
+    # 直接归档到 _processed/<filename>，文件名冲突时追加 hash。
+    target = cfg.vault.inbox_path / "_processed" / source_path.name
     target = _conflict_safe_target(target, source_path=source_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     os.replace(source_path, target)
@@ -89,15 +89,6 @@ def archive_source_for_approved_card(
     data["source_archive_path"] = target.relative_to(cfg.vault.root).as_posix()
     _write_frontmatter(card_path, data, body)
     return SourceArchiveEffect("archived", source_path, target, "source 已移动到 _processed")
-
-
-def _archive_bucket(cfg: MindForgeConfig, source_type: str, rel_to_inbox: Path) -> str:
-    entry = cfg.sources.registry.get(source_type)
-    if entry is not None and entry.inbox_subdir:
-        return entry.inbox_subdir
-    if rel_to_inbox.parts:
-        return rel_to_inbox.parts[0]
-    return source_type or "Unknown"
 
 
 def _resolve_source_path(cfg: MindForgeConfig, raw: str) -> Path:

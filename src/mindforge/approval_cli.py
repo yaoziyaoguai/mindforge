@@ -446,6 +446,7 @@ def approve_show(
     from .approve_presenter import (
         render_approval_show,
         render_approval_show_error,
+        render_ref_lookup_error,
     )
 
     cfg = load_cfg(config, read_env=False)
@@ -458,6 +459,12 @@ def approve_show(
     if ref_lookup.ok and ref_lookup.match is not None:
         resolved_card: Path = ref_lookup.card_path  # type: ignore[assignment]
         short_ref = str(ref_lookup.match.number)
+    elif raw_ref.isdigit() and ref_lookup.error is not None:
+        # 数字 ref 无法解析时直接展示友好错误，不回退到 path 解析。
+        # 数字 ref 仅适用于 approve list 中的待审批项；回退 path 解析
+        # 只会得到 "card path could not be resolved: 1" 这种误导性错误。
+        render_ref_lookup_error(console, ref_lookup)
+        raise typer.Exit(code=ref_lookup.error.exit_code)
     else:
         resolved_card = card
 

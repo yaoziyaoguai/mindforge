@@ -510,3 +510,71 @@ def test_cli_approve_list_smoke_runs_without_crash():
     # 只确认 approve_app 仍然挂载
     cmds = {cmd.name for cmd in app.registered_groups}
     assert "approve" in cmds
+
+
+# ---------------------------------------------------------------------------
+# 18. render_ref_lookup_error — number_not_found 友好提示
+# ---------------------------------------------------------------------------
+
+
+def test_render_ref_lookup_error_number_not_found_includes_library_list_hint():
+    """数字 ref 不存在时，错误渲染必须提示 library list 和适用范围。
+
+    中文学习型说明：v0.7.21 起 render_ref_lookup_error 对 number_not_found
+    错误给出更友好的 Next 建议，包括 library list（已批准卡片）提示。
+    """
+    from io import StringIO
+
+    from rich.console import Console
+
+    from mindforge.approval_refs import ApprovalRefLookupResult
+    from mindforge.approval_service import ApprovalServiceError
+    from mindforge.approve_presenter import render_ref_lookup_error
+
+    console = Console(file=StringIO(), force_terminal=False)
+    error = ApprovalServiceError(
+        "number_not_found",
+        "编号 99 不在当前 approve list 中（可能已 approve）\n"
+        "数字编号仅适用于 `mindforge approve list` 列出的待审批 ai_draft。\n"
+        "查看已批准卡片：mindforge library list\n"
+        "重新获取待审批列表：mindforge approve list",
+        exit_code=2,
+    )
+    lookup = ApprovalRefLookupResult(
+        card_path=None,
+        error=error,
+        matches=(),
+    )
+    render_ref_lookup_error(console, lookup)
+    output = console.file.getvalue()  # type: ignore[union-attr]
+    assert "编号 99" in output
+    assert "library list" in output
+    assert "approve list" in output
+    assert "已 approve" in output
+
+
+def test_render_ref_lookup_error_other_kind_still_shows_next():
+    """非 number_not_found 错误仍展示通用 Next 提示（不回归）。"""
+    from io import StringIO
+
+    from rich.console import Console
+
+    from mindforge.approval_refs import ApprovalRefLookupResult
+    from mindforge.approval_service import ApprovalServiceError
+    from mindforge.approve_presenter import render_ref_lookup_error
+
+    console = Console(file=StringIO(), force_terminal=False)
+    error = ApprovalServiceError(
+        "ambiguous_ref",
+        "approve ref ambiguous: alpha",
+        exit_code=2,
+    )
+    lookup = ApprovalRefLookupResult(
+        card_path=None,
+        error=error,
+        matches=(),
+    )
+    render_ref_lookup_error(console, lookup)
+    output = console.file.getvalue()  # type: ignore[union-attr]
+    assert "ambiguous" in output
+    assert "Next: mindforge approve list" in output

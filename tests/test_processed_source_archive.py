@@ -2,7 +2,9 @@
 
 产品语义：Source 是原始证据，Card 是加工结果。process/ai_draft 阶段不能移动
 source；只有显式 approve 成功后，才把 vault inbox 内的原始 source 移到
-``00-Inbox/_processed/<adapter>/``，并在 card frontmatter 保留 provenance。
+``00-Inbox/_processed/<filename>``，并在 card frontmatter 保留 provenance。
+
+v0.7.21 起归档路径扁平化：不再使用 adapter inbox_subdir 作为归档子目录。
 """
 
 from __future__ import annotations
@@ -155,7 +157,8 @@ def test_approve_moves_pending_source_to_processed_archive_and_updates_card(tmp_
     result = approve_explicit_card(cfg, card)
 
     assert result.error is None
-    archived = vault / "00-Inbox" / "_processed" / "ManualNotes" / "first-note.md"
+    # v0.7.21 起归档路径扁平化：不再使用 ManualNotes bucket
+    archived = vault / "00-Inbox" / "_processed" / "first-note.md"
     assert archived.exists()
     assert archived.read_text(encoding="utf-8") == "original evidence"
     assert not source.exists()
@@ -163,7 +166,7 @@ def test_approve_moves_pending_source_to_processed_archive_and_updates_card(tmp_
     assert "status: human_approved" in card_text
     # 中文学习型说明：approve 只完成 ai_draft -> human_approved 的人工闸门
     # 和 source archive 回写，不能丢掉生成 provenance；这些字段是未来
-    # Web/CLI 展示“这张卡如何生成”的依据。
+    # Web/CLI 展示"这张卡如何生成"的依据。
     assert "strategy_id: five_stage" in card_text
     assert "source_content_hash: sha256:test-source-hash" in card_text
     assert "prompt_versions:" in card_text
@@ -171,7 +174,7 @@ def test_approve_moves_pending_source_to_processed_archive_and_updates_card(tmp_
     assert "stage_models:" in card_text
     assert "run_id: run-test" in card_text
     assert f'source_path: "{source}"' in card_text or f"source_path: {source}" in card_text
-    assert "source_archive_path: 00-Inbox/_processed/ManualNotes/first-note.md" in card_text
+    assert "source_archive_path: 00-Inbox/_processed/first-note.md" in card_text
     assert "source_missing: false" in card_text
 
 
@@ -179,7 +182,8 @@ def test_scanner_skips_processed_archive_sources(tmp_path: Path) -> None:
     cfg_path, vault, _cards = _write_config(tmp_path)
     cfg = load_mindforge_config(cfg_path)
     pending = vault / "00-Inbox" / "ManualNotes" / "pending.md"
-    processed = vault / "00-Inbox" / "_processed" / "ManualNotes" / "done.md"
+    # v0.7.21：归档路径扁平化到 _processed/ 下
+    processed = vault / "00-Inbox" / "_processed" / "done.md"
     pending.write_text("# pending\n", encoding="utf-8")
     processed.parent.mkdir(parents=True)
     processed.write_text("# processed\n", encoding="utf-8")
@@ -194,7 +198,8 @@ def test_archive_uses_conflict_safe_name_without_overwriting(tmp_path: Path) -> 
     cfg = load_mindforge_config(cfg_path)
     source = vault / "00-Inbox" / "ManualNotes" / "first-note.md"
     source.write_text("new evidence", encoding="utf-8")
-    existing = vault / "00-Inbox" / "_processed" / "ManualNotes" / "first-note.md"
+    # v0.7.21：归档路径扁平化
+    existing = vault / "00-Inbox" / "_processed" / "first-note.md"
     existing.parent.mkdir(parents=True)
     existing.write_text("old evidence", encoding="utf-8")
     card = _write_card(cards, source)

@@ -425,7 +425,11 @@ def render_routing_hint(console: Console) -> None:
 
 
 def render_ref_lookup_error(console: Console, lookup: ApprovalRefLookupResult) -> None:
-    """渲染短 ref 解析失败；模糊时列出候选，绝不默认选择。"""
+    """渲染短 ref 解析失败；模糊时列出候选，绝不默认选择。
+
+    v0.7.21 起针对 number_not_found 给出更友好的下一步建议，
+    包括 library list（已批准卡片）和 approve list（重新获取待审批列表）。
+    """
     assert lookup.error is not None
     console.print(f"[red]✗ {lookup.error.message}[/red]")
     if lookup.matches:
@@ -436,10 +440,17 @@ def render_ref_lookup_error(console: Console, lookup: ApprovalRefLookupResult) -
                 f"short_ref={match.short_ref} · path={match.rel_path}",
                 markup=False,
             )
-    console.print(
-        "Next: mindforge approve list; then run `mindforge approve <ref> --confirm`",
-        markup=False,
-    )
+    if lookup.error.kind == "number_not_found":
+        console.print(
+            "数字编号仅适用于当前 pending approve list 中的 ai_draft 卡片。\n"
+            "如果该卡片已 approve，请使用 `mindforge library list` 查看已批准卡片。",
+            markup=False,
+        )
+    else:
+        console.print(
+            "Next: mindforge approve list; then run `mindforge approve <ref> --confirm`",
+            markup=False,
+        )
 
 
 # ---------------------------------------------------------------------------
