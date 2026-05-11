@@ -1,7 +1,7 @@
 """Simple watch CLI.
 
-watch 是用户级 ingestion 入口：注册一个 file/folder，并立即处理当前内容。
-本阶段不启动 daemon、不做 filesystem hook，也不提供 run/start/stop。
+watch 是用户级 ingestion 入口：注册一个 file/folder，并启动后台 processing。
+ai_draft 只有后台 run 成功后才会出现在 approve list。
 """
 
 from __future__ import annotations
@@ -18,11 +18,12 @@ from .cli_runtime import (
     resolve_source_path_for_cli,
 )
 from .env_loader import load_dotenv_silently
-from .ingestion_diagnostics import print_ingestion_diagnostics
-from .ingestion_service import watch_add_source, watch_scan_sources, watch_sources_for_display
+from .ingestion_service import watch_scan_sources, watch_sources_for_display
+from .cli_processing_runtime import config_path_from_cfg, start_cli_processing_run
 from .process_service import FAKE_PROFILE
 from .strategy_selection import StrategySelectionError, resolve_strategy_selection
 from .watch_registry import (
+    add_watch_source,
     delete_watch_source,
     normalize_frequency,
     registry_path_for_vault,
@@ -31,7 +32,7 @@ from .watch_registry import (
 
 watch_app = typer.Typer(
     add_completion=False,
-    help="管理 watched sources；第一版 watch add 只注册并立即处理当前内容。",
+    help="管理 watched sources；watch add 注册 source 并启动后台 processing。",
 )
 
 
@@ -69,7 +70,7 @@ def watch_add(
         help="folder watched source 默认递归；file source 忽略此选项。",
     ),
 ) -> None:
-    """注册 watched source，并立即生成 ai_draft 候选。"""
+    """注册 watched source，并启动后台 processing。"""
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
@@ -89,34 +90,41 @@ def watch_add(
         console.print(str(exc), markup=False)
         raise typer.Exit(code=2) from exc
     source_path = resolve_source_path_for_cli(cfg, target)
-    if cfg.llm.active_profile != FAKE_PROFILE and selected_strategy.metadata.provider_mode != "deterministic":
-        # CLI adapter 是读取本地 secret fallback 的边界；service 只编排 ingestion，不持有 IO 副作用。
-        load_dotenv_silently(Path.cwd())
     try:
-        summary = watch_add_source(
-            cfg,
+        registry_result = add_watch_source(
+            cfg.vault.root,
+            registry_path_for_vault(cfg.vault.root),
             source_path,
-            strategy=selected_strategy,
+            strategy_id=selected_strategy.strategy_id,
             frequency=frequency,
             recursive=recursive if source_path.is_dir() else False,
         )
     except (ValueError, RuntimeError) as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
-    registry_result = summary.registry_result
-    assert registry_result is not None
     action = "registered" if registry_result.added else "already registered"
-    _print_summary(
-        title=f"watch add: {action}",
-        target=summary.target,
-        counts=summary.counts,
+    run = start_cli_processing_run(
+        cfg,
+        config_path=config_path_from_cfg(cfg, config),
+        source_ref=registry_result.source.id,
+        source_path=registry_result.source.path,
+        mode="watch_scan",
+        worker_args=[
+            "--mode",
+            "watch_scan",
+            "--ref",
+            registry_result.source.id,
+            *(["--provider", provider] if provider else []),
+            *(["--profile", profile] if profile else []),
+            *([] if selected_strategy.strategy_id is None else ["--strategy", selected_strategy.strategy_id]),
+        ],
     )
-    print_ingestion_diagnostics(console, summary)
+    _print_registered_source(action=action, target=registry_result.source.path)
     console.print(f"watch id: {registry_result.source.id}", markup=False)
     console.print(f"strategy_id: {registry_result.source.strategy_id or '-'}", markup=False)
     console.print(f"frequency: {registry_result.source.frequency}", markup=False)
-    console.print(f"registry: {summary.registry_path}", markup=False, soft_wrap=True)
-    _print_cli_lifecycle_hint()
+    console.print(f"registry: {registry_path_for_vault(cfg.vault.root)}", markup=False, soft_wrap=True)
+    _print_background_run_hint(run.record.run_id, reused_existing=run.reused_existing)
 
 
 @watch_app.command("delete")
@@ -155,7 +163,7 @@ def watch_scan(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
     provider: str | None = typer.Option(None, "--provider", help="临时覆盖 provider，不修改 YAML。"),
 ) -> None:
-    """扫描 due watched sources；--all 或指定 source 会手动触发。"""
+    """扫描 due watched sources；当前是 Advanced 同步 troubleshooting 入口。"""
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=None)
@@ -194,7 +202,7 @@ def watch_scan(
     if summary.missing:
         console.print("Missing watched source paths were kept; knowledge cards were not deleted.", markup=False)
     console.print("Boundary: source deletion never deletes approved knowledge.", markup=False)
-    _print_cli_lifecycle_hint()
+    _print_advanced_sync_scan_hint()
 
 
 @watch_app.command("status")
@@ -232,6 +240,16 @@ def watch_list(
     render_active_vault_resolution_notice(cfg)
     console.print("[bold]Watched Sources[/bold]")
     for source in watch_sources_for_display(cfg):
+        from mindforge_web.services.processing_run_service import latest_run_for_source
+
+        latest_run = latest_run_for_source(
+            cfg,
+            source_ref=source.id,
+            source_path=str(source.path),
+        )
+        run_status = latest_run.status if latest_run is not None else "-"
+        run_id = latest_run.run_id if latest_run is not None else "-"
+        run_message = latest_run.message if latest_run is not None else "-"
         kind = "default" if source.is_default else "user-added"
         console.print(
             f"- {source.id} · {source.path_type} · {kind} · status={source.status} · "
@@ -239,11 +257,14 @@ def watch_list(
             f"last_processed={source.last_processed_at or '-'} · "
             f"frequency={source.frequency} · last_scan={source.last_scan_at or '-'} · "
             f"next_scan={source.next_scan_at or '-'} · "
+            f"processing_status={run_status} · run_id={run_id} · "
             f"diff={source.diff_counts or {}} · "
             f"strategy_id={source.strategy_id or '-'} · fingerprint={source.fingerprint or '-'}",
             markup=False,
             soft_wrap=True,
         )
+        if latest_run is not None:
+            console.print(f"  processing_message={run_message}", markup=False, soft_wrap=True)
 
 
 def _set_status(ref: str, config: Path, status: str) -> None:
@@ -257,33 +278,46 @@ def _set_status(ref: str, config: Path, status: str) -> None:
     console.print("source and cards were not deleted.", markup=False)
 
 
-def _print_summary(*, title: str, target: Path, counts: dict[str, int]) -> None:
-    console.print(f"[bold]{title}[/bold]")
+def _print_registered_source(*, action: str, target: Path) -> None:
+    console.print(f"[bold]Source {action}[/bold]")
     console.print(f"target: {target}", markup=False, soft_wrap=True)
-    console.print(
-        "processed={processed} skipped={skipped} failed={failed} seen={seen}".format(
-            processed=counts.get("processed", 0),
-            skipped=counts.get("skipped", 0),
-            failed=counts.get("failed", 0),
-            seen=counts.get("seen", 0),
-        ),
-        markup=False,
-    )
-    console.print("Next: mindforge approve list", markup=False)
-    console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
 
 
-def _print_cli_lifecycle_hint() -> None:
-    """CLI 同步处理的用户提示，不冒充 Web 后台 run。
+def _print_background_run_hint(run_id: str, *, reused_existing: bool = False) -> None:
+    """CLI watch 主路径的异步 processing 提示。
 
-    中文学习型说明：Web Sources 的 processing run 是后台 lifecycle；CLI watch
-    add/scan 当前仍在命令内完成。这里明确边界，避免用户误以为 CLI 已把任务放到
-    后台，同时给出 Review 和 retry 路径。
+    中文学习型说明：用户主路径只承诺 source 已登记、processing run 已创建；
+    draft 是否生成由后台 run 决定。没有模型 key 也应表现为 run failed /
+    needs_model_setup，而不是 watch add 命令同步失败。
     """
 
-    console.print("Processing completed in this command.", markup=False)
-    console.print("Check drafts with: mindforge approve list", markup=False)
-    console.print("If processing failed, fix the error above and retry this command.", markup=False)
+    if reused_existing:
+        console.print("Background processing is already active.", markup=False)
+    else:
+        console.print("Background processing started.", markup=False)
+    console.print(f"run_id: {run_id}", markup=False)
+    console.print("You can continue using MindForge.", markup=False)
+    console.print(f"Check progress: mindforge runs show {run_id}", markup=False)
+    console.print("Or: mindforge watch status", markup=False)
+    console.print("Drafts appear in: mindforge approve list after processing succeeds.", markup=False)
+    console.print(
+        "If model setup is incomplete, this run will fail with next actions; retry after setup is fixed.",
+        markup=False,
+        soft_wrap=True,
+    )
+
+
+def _print_advanced_sync_scan_hint() -> None:
+    """同步 scan 只保留为排障入口，不能塑造成用户主路径。
+
+    中文学习型说明：watch add / import 是产品主路径，会创建 durable run 并让
+    用户通过 runs/watch status 观察后台处理；watch scan 当前仍同步执行，只用于
+    Advanced troubleshooting，避免验收用户误以为本地知识处理必须阻塞 CLI。
+    """
+
+    console.print("Advanced troubleshooting scan completed in this command.", markup=False)
+    console.print("Product path: mindforge watch add <file-or-folder>", markup=False)
+    console.print("Background processing status: mindforge runs list", markup=False)
 
 
 __all__ = ["watch_app"]

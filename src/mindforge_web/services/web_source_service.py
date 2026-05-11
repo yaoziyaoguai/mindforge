@@ -363,8 +363,8 @@ class WebSourceService:
                 status="ok",
                 value="available",
                 detail=(
-                    "注册 watched source，并立即处理当前内容生成 ai_draft；folder 默认递归扫描。"
-                    "不会自动 approve。"
+                    "注册 watched source，并启动后台 processing；folder 默认递归扫描。"
+                    "ai_draft 只会在后台处理成功后出现，且不会自动 approve。"
                 ),
                 next_action=NextAction(
                     label="Add watch",
@@ -377,8 +377,8 @@ class WebSourceService:
                 status="ok",
                 value="available",
                 detail=(
-                    "一次性处理当前内容生成 ai_draft；folder 使用同一套递归扫描策略，"
-                    "不会加入 watched sources。"
+                    "一次性登记当前内容并启动后台 processing；folder 使用同一套递归扫描策略，"
+                    "ai_draft 只会在处理成功后出现，不会加入 watched sources。"
                 ),
                 next_action=NextAction(
                     label="Import once",

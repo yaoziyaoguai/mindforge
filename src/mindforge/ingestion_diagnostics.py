@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from rich.console import Console
@@ -38,18 +37,10 @@ class SkippedDocumentDetail:
     hint: str | None = None
 
 
-REAL_PROVIDER_KEY_ERRORS = {
-    "MINDFORGE_OPENAI_API_KEY": (
-        "real provider openai_compatible requires MINDFORGE_OPENAI_API_KEY. "
-        "Set it via shell export or local .env. Do not put secrets in YAML. "
-        "MindForge will not fallback to any test provider."
-    ),
-    "MINDFORGE_ANTHROPIC_API_KEY": (
-        "real provider anthropic requires MINDFORGE_ANTHROPIC_API_KEY. "
-        "Set it via shell export or local .env. Do not put secrets in YAML. "
-        "MindForge will not fallback to any test provider."
-    ),
-}
+MODEL_SETUP_INCOMPLETE_MESSAGE = (
+    "Model setup is incomplete. Add a provider API key in Web Setup or the "
+    "local secret store, then retry processing."
+)
 
 
 def provider_failure_detail(cfg: MindForgeConfig, message: str) -> ProviderFailureDetail:
@@ -73,8 +64,8 @@ def provider_failure_detail(cfg: MindForgeConfig, message: str) -> ProviderFailu
         config_path=config_path,
         active_vault=str(cfg.vault.root),
         missing_env_var=missing_env,
-        base_url_source=env_or_default(getattr(model, "base_url_env", None) if model else None),
-        model_source=env_or_default(getattr(model, "model_env", None) if model else None),
+        base_url_source=config_or_default(getattr(model, "base_url", None) if model else None),
+        model_source=config_or_default(getattr(model, "model", None) if model else None),
         message=friendly_missing_key_error(message) or message,
     )
 
@@ -104,8 +95,6 @@ def print_provider_failure(console: Console, provider: ProviderFailureDetail) ->
     console.print(f"selection source: {provider.selection_source}", markup=False)
     console.print(f"config path: {provider.config_path}", markup=False, soft_wrap=True)
     console.print(f"active vault: {provider.active_vault}", markup=False, soft_wrap=True)
-    if provider.missing_env_var:
-        console.print(f"missing env var: {provider.missing_env_var}", markup=False)
     console.print(f"base_url source: {provider.base_url_source}", markup=False)
     console.print(f"model source: {provider.model_source}", markup=False)
     console.print(provider.message, markup=False, soft_wrap=True)
@@ -123,23 +112,17 @@ def display_provider_type(provider_type: str) -> str:
     return "anthropic" if provider_type == "anthropic_compatible" else provider_type
 
 
-def env_or_default(env_name: str | None) -> str:
-    if not env_name:
-        return "default"
-    return "env" if os.environ.get(env_name) else "default"
+def config_or_default(value: str | None) -> str:
+    return "configured" if value else "default"
 
 
 def missing_env_from_message(message: str) -> str | None:
-    for env_name in REAL_PROVIDER_KEY_ERRORS:
-        if env_name in message:
-            return env_name
     return None
 
 
 def friendly_missing_key_error(message: str) -> str | None:
-    for env_name, friendly in REAL_PROVIDER_KEY_ERRORS.items():
-        if env_name in message and looks_like_missing_key(message):
-            return friendly
+    if looks_like_missing_key(message):
+        return MODEL_SETUP_INCOMPLETE_MESSAGE
     return None
 
 

@@ -70,8 +70,8 @@ class OpenAICompatibleProvider(LLMProvider):
         api_key = _resolve_api_key(mc.alias, getattr(mc, "api_key_env", None))
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
-                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
-                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
+                "Model setup is incomplete. Add a provider API key in Web Setup "
+                "or the local secret store, then retry processing."
             )
         return cls(
             name=mc.provider,

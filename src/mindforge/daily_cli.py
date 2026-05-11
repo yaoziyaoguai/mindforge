@@ -98,14 +98,16 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("mindforge web", "打开本地 Web 控制台，配置真实模型和 API key"),
             ("mindforge status", "查看本地 workspace / draft / library 状态"),
             ("mindforge doctor", "健康检查 + 本地读写边界"),
+            ("mindforge runs list", "查看后台 processing runs"),
         ],
     ),
     (
         "导入 / 处理资料",
         [
             ("mindforge watch list", "查看本地文件/文件夹 sources"),
-            ("mindforge watch add <file-or-folder>", "注册 watched source，并处理当前内容"),
-            ("mindforge import <file-or-folder>", "一次性导入当前内容，不加入 watch registry"),
+            ("mindforge watch add <file-or-folder>", "注册 watched source，并启动后台 processing"),
+            ("mindforge import <file-or-folder>", "一次性导入并启动后台 processing"),
+            ("mindforge runs show <run_id>", "查看单个后台 processing run 结果"),
         ],
     ),
     (

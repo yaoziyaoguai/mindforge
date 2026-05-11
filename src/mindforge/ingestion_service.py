@@ -126,10 +126,11 @@ def watch_add_source(
     frequency: str = "manual",
     recursive: bool | None = None,
 ) -> IngestionSummary:
-    """注册 watched source，并立即处理当前内容。
+    """注册 watched source，并同步处理当前内容的底层服务。
 
-    第一版 watch add 不是后台监听：它只登记来源 + 做一次当前内容 ingestion。
-    未来 polling/hook 可以复用 registry 中的 fingerprint/last_seen 字段。
+    中文学习型说明：CLI/Web 用户主路径不直接调用这个函数作为产品体验，
+    而是先创建 durable processing run，再由后台 worker 复用这段同步逻辑。
+    这样 source registration 与 processing lifecycle 可以分开表达。
     """
 
     if not target.exists():

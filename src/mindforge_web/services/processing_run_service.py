@@ -21,6 +21,7 @@ from typing import Literal
 
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
+from mindforge.ingestion_diagnostics import friendly_missing_key_error
 from mindforge.ingestion_service import IngestionSummary, WatchScanSummary
 
 from mindforge_web.schemas import NextAction, ProcessingRunResponse
@@ -510,6 +511,9 @@ def _now() -> str:
 def _safe_error_message(message: str) -> str:
     # 中文学习型说明：用户主路径只需要可行动的 provider 错误。代理或网关常返回
     # HTML 错误页，直接塞进 run record 会让 Sources 变成不可读的内部噪音。
+    setup_message = friendly_missing_key_error(message)
+    if setup_message:
+        return setup_message
     lowered = message.lower()
     if "<!doctype html" in lowered or "<html" in lowered:
         status_hint = ""

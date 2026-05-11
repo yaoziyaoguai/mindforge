@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import yaml
 from typer.testing import CliRunner
@@ -19,9 +20,11 @@ from typer.testing import CliRunner
 from mindforge.approval_service import approve_explicit_card
 from mindforge.cards import read_card_frontmatter
 from mindforge.cli import app
+from mindforge.cli_runtime import load_cfg
 from mindforge.config import load_mindforge_config
 from mindforge.watch_registry import WatchRegistry
 from mindforge.watch_registry import registry_path_for_vault, update_watch_source
+from mindforge_web.services.processing_run_service import get_processing_run
 
 runner = CliRunner()
 
@@ -90,6 +93,33 @@ def _registry(vault: Path) -> WatchRegistry:
     return WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
 
 
+def _run_id_from_output(output: str) -> str:
+    for line in output.splitlines():
+        if line.startswith("run_id: "):
+            return line.split("run_id: ", 1)[1].strip()
+    raise AssertionError(f"missing run_id in output:\n{output}")
+
+
+def _wait_for_watch_add_run(cfg_path: Path, output: str, *, timeout: float = 5.0) -> None:
+    """watch add 已是后台 processing；baseline 测试需等待初始 run 落盘。
+
+    中文学习型说明：这些测试关注 schedule/baseline diff，不应把 watch add
+    拉回同步主路径。等待 durable run 完成等价于用户稍后查看 run/status。
+    """
+
+    run_id = _run_id_from_output(output)
+    cfg = load_cfg(cfg_path, read_env=False)
+    deadline = time.monotonic() + timeout
+    latest = None
+    while time.monotonic() < deadline:
+        latest = get_processing_run(cfg, run_id)
+        if latest is not None and latest.status not in {"queued", "running"}:
+            assert latest.status in {"succeeded", "partial_failed", "skipped"}, latest
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"watch add run did not finish: {run_id}, latest={latest}")
+
+
 def test_watch_add_file_and_folder_store_frequency_on_top_level_source_only(
     tmp_path: Path,
     monkeypatch,
@@ -139,8 +169,12 @@ def test_watch_scan_default_scans_due_sources_but_skips_not_due(
     not_due = tmp_path / "not-due.md"
     due.write_text("# Due\n\nbody\n", encoding="utf-8")
     not_due.write_text("# Not Due\n\nbody\n", encoding="utf-8")
-    runner.invoke(app, ["watch", "add", str(due), "--every", "hourly", "--config", str(cfg)])
-    runner.invoke(app, ["watch", "add", str(not_due), "--every", "weekly", "--config", str(cfg)])
+    due_added = runner.invoke(app, ["watch", "add", str(due), "--every", "hourly", "--config", str(cfg)])
+    not_due_added = runner.invoke(app, ["watch", "add", str(not_due), "--every", "weekly", "--config", str(cfg)])
+    assert due_added.exit_code == 0, due_added.output
+    assert not_due_added.exit_code == 0, not_due_added.output
+    _wait_for_watch_add_run(cfg, due_added.output)
+    _wait_for_watch_add_run(cfg, not_due_added.output)
     assert len(_cards(vault)) == 2
     due_source = _registry(vault).sources[0]
     update_watch_source(
@@ -170,8 +204,12 @@ def test_watch_scan_all_and_specific_source_can_override_due_state(
     second = tmp_path / "second.md"
     first.write_text("# First\n\nbody\n", encoding="utf-8")
     second.write_text("# Second\n\nbody\n", encoding="utf-8")
-    runner.invoke(app, ["watch", "add", str(first), "--every", "weekly", "--config", str(cfg)])
-    runner.invoke(app, ["watch", "add", str(second), "--every", "weekly", "--config", str(cfg)])
+    first_added = runner.invoke(app, ["watch", "add", str(first), "--every", "weekly", "--config", str(cfg)])
+    second_added = runner.invoke(app, ["watch", "add", str(second), "--every", "weekly", "--config", str(cfg)])
+    assert first_added.exit_code == 0, first_added.output
+    assert second_added.exit_code == 0, second_added.output
+    _wait_for_watch_add_run(cfg, first_added.output)
+    _wait_for_watch_add_run(cfg, second_added.output)
     first.write_text("# First\n\nchanged body\n", encoding="utf-8")
     second.write_text("# Second\n\nchanged body\n", encoding="utf-8")
 
@@ -204,6 +242,7 @@ def test_baseline_diff_tracks_added_changed_unchanged_and_deleted_without_deleti
         path.write_text(f"# {path.stem}\n\nbody\n", encoding="utf-8")
     added = runner.invoke(app, ["watch", "add", str(folder), "--every", "manual", "--config", str(cfg)])
     assert added.exit_code == 0, added.output
+    _wait_for_watch_add_run(cfg, added.output)
     assert len(_cards(vault)) == 3
 
     approve_explicit_card(load_mindforge_config(cfg), _cards(vault)[0])
@@ -235,7 +274,9 @@ def test_deleted_watched_folder_is_marked_missing_and_keeps_knowledge(
     source = folder / "note.md"
     source.parent.mkdir(parents=True)
     source.write_text("# Note\n\nbody\n", encoding="utf-8")
-    runner.invoke(app, ["watch", "add", str(folder), "--every", "manual", "--config", str(cfg)])
+    added = runner.invoke(app, ["watch", "add", str(folder), "--every", "manual", "--config", str(cfg)])
+    assert added.exit_code == 0, added.output
+    _wait_for_watch_add_run(cfg, added.output)
     assert len(_cards(vault)) == 1
     source.unlink()
     folder.rmdir()
@@ -254,7 +295,9 @@ def test_watch_pause_resume_remove_commands_preserve_cards(tmp_path: Path, monke
     monkeypatch.chdir(vault)
     source = tmp_path / "source.md"
     source.write_text("# Source\n\nbody\n", encoding="utf-8")
-    runner.invoke(app, ["watch", "add", str(source), "--every", "hourly", "--config", str(cfg)])
+    added = runner.invoke(app, ["watch", "add", str(source), "--every", "hourly", "--config", str(cfg)])
+    assert added.exit_code == 0, added.output
+    _wait_for_watch_add_run(cfg, added.output)
     source_id = _registry(vault).sources[0].id
 
     paused = runner.invoke(app, ["watch", "pause", source_id, "--config", str(cfg)])

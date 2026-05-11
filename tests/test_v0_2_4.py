@@ -201,7 +201,7 @@ def test_help_works() -> None:
     assert "MindForge" in res.output
     for sub in ("web", "status", "doctor", "watch", "import", "approve", "library", "wiki", "version"):
         assert sub in res.output
-    for hidden in ("scan", "process", "telemetry"):
+    for hidden in ("scan", " process ", "telemetry"):
         assert hidden not in res.output
 
 

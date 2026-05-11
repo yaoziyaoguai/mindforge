@@ -353,7 +353,10 @@ def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
     approve = runner.invoke(app, ["approve", "list", "--config", str(cfg)])
     assert approve.exit_code == 0, approve.output
     assert "没有待 approve" in approve.output
-    assert "profile fake" in approve.output
+    assert "mindforge watch add" in approve.output
+    assert "mindforge runs list" in approve.output
+    assert "profile fake" not in approve.output
+    assert "demo/testing" not in approve.output
 
     recall = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "missing"])
     assert recall.exit_code == 0, recall.output

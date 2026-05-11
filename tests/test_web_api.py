@@ -993,6 +993,18 @@ def test_processing_run_provider_html_error_is_user_friendly() -> None:
     assert "<!DOCTYPE" not in cleaned
 
 
+def test_processing_run_missing_model_key_error_uses_product_language() -> None:
+    """Web Sources 也不能把 env/api_key_env/fake/demo/profile 泄漏给普通用户。"""
+
+    message = "模型 main 没有可用的 API key。请在 Web Setup 中添加 key，或设置环境变量 TEST_KEY。"
+
+    cleaned = _safe_error_message(message)
+
+    assert "Model setup is incomplete" in cleaned
+    for token in ("env", "environment variable", "api_key_env", "TEST_KEY", "fake", "demo", "profile"):
+        assert token.lower() not in cleaned.lower()
+
+
 def test_processing_run_started_at_uses_subsecond_precision() -> None:
     """重复点击 Process Now 时，run 排序需要亚秒级 started_at。
 

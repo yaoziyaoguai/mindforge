@@ -99,6 +99,7 @@ from .run_logger import (
     RunLogger,
     summarize_latest_run,
 )
+from .runs_cli import runs_app
 from .scanner import Scanner
 from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
@@ -160,6 +161,7 @@ __all__ = [
 
 app = typer.Typer(
     add_completion=True,
+    invoke_without_command=True,
     help=(
         "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
         "第一阶段主路径：真实模型配置 → 本地文件/文件夹 Source → 后台 Process → "
@@ -168,8 +170,9 @@ app = typer.Typer(
         "  mindforge web                — 打开本地 Web 控制台并配置真实模型\n"
         "  mindforge status             — 查看本地 workspace / draft / library 状态\n"
         "  mindforge doctor             — 做本地安装与路径健康检查\n"
-        "  watch add <path>             — 注册 watched source，并处理当前内容\n"
-        "  import <path>                — 一次性导入文件/文件夹，不加入 watch registry\n"
+        "  watch add <path>             — 注册 watched source，并启动后台 Process\n"
+        "  import <path>                — 一次性导入文件/文件夹，并启动后台 Process\n"
+        "  runs show <run_id>           — 查看后台 processing 进度或失败原因\n"
         "  approve list / approve 1     — 查看并显式确认 AI Draft\n"
         "  library list / show          — 浏览已审批知识\n"
         "  trash list / move / restore  — 管理回收站\n"
@@ -203,10 +206,21 @@ def _global_options(
         "--obsidian-vault",
         help="临时覆盖 obsidian.vault_path（仅 obsidian 子命令使用，不修改 yaml）。",
     ),
+    version_flag: bool = typer.Option(
+        False,
+        "--version",
+        help="打印 MindForge 版本并退出。",
+        is_eager=True,
+    ),
 ) -> None:
     """全局选项通过 env 透传，避免子命令与 Typer Context 紧耦合。"""
     import os
 
+    if version_flag:
+        from . import __version__
+
+        console.print(f"MindForge v{__version__}", markup=False)
+        raise typer.Exit()
     if debug:
         os.environ["MINDFORGE_DEBUG"] = "1"
     else:
@@ -373,18 +387,9 @@ def status(
     if as_json:
         render_status_json(snapshot)
         return
-    with RunLogger(Path(str(snapshot.workspace["runs_path"])), command="status") as logger:
-        logger.emit(
-            EVENT_STATUS_REPORTED,
-            path=snapshot.workspace["state_path"],
-            items_count=snapshot.workspace["state_item_count"],
-            counts={
-                "by_status": dict(snapshot.workspace["state_counts"]),
-                "by_source_type": dict(snapshot.workspace["source_counts"]),
-                "cards_by_status": dict(snapshot.cards["by_status"]),
-            },
-            active_profile=snapshot.provider["active_profile"],
-        )
+    # 中文学习型说明：status 是 read/query path，不能创建 RunLogger，也不能让
+    # “最近一次 processing/run”被查询命令污染。运行事件只能由 scan/process/
+    # background worker 这类 command path 写入。
     render_local_status(console, snapshot)
 
 
@@ -483,6 +488,7 @@ app.add_typer(workspace_app, name="workspace", hidden=True)
 app.add_typer(trash_app, name="trash")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(watch_app, name="watch")
+app.add_typer(runs_app, name="runs")
 
 
 def main() -> None:

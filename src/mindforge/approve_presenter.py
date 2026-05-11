@@ -164,8 +164,10 @@ def render_approval_list(
         console.print("[yellow]没有待 approve 的卡片。[/yellow]")
         console.print(
             "[dim]下一步：如果有新资料，运行 `mindforge watch add <file-or-folder>` "
-            "或 `mindforge import <file-or-folder>` 生成 ai_draft；"
-            "缺真实 provider key 时可显式加 `--profile fake` 跑离线 demo/testing；"
+            "或 `mindforge import <file-or-folder>` 启动后台 processing；"
+            "如果暂无草稿，请用 `mindforge watch status` 或 `mindforge runs list` "
+            "检查 processing 状态。模型设置未完成时，请先在 Web Setup 或本地 "
+            "secret store 添加 provider key 后重试；"
             "MindForge 不会自动 approve。[/dim]",
             soft_wrap=True,
         )
