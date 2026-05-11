@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app, _obsidian_dogfood_command_snippets
+from mindforge.cli import app, _obsidian_workflow_command_snippets
 from mindforge.config import load_mindforge_config
 from mindforge.obsidian import ObsidianScanOptions, load_obsidian_documents
 from mindforge.scanner import Scanner
@@ -758,15 +758,15 @@ def test_obsidian_preflight_from_non_repo_cwd(tmp_path: Path, monkeypatch) -> No
     assert "PASS" in res.output
 
 
-def test_obsidian_next_outputs_dogfooding_flow(tmp_path: Path) -> None:
-    """v0.7.5: Obsidian 专用 next 只输出人工 dogfooding 路径，不执行写入。"""
+def test_obsidian_next_outputs_staged_workflow(tmp_path: Path) -> None:
+    """v0.7.5: Obsidian 专用 next 只输出人工 staged workflow，不执行写入。"""
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     before = note.read_text(encoding="utf-8")
 
     res = runner.invoke(app, ["obsidian", "next", "--config", str(cfg), "--vault", str(vault)])
 
     assert res.exit_code == 0, res.output
-    assert "MindForge Obsidian dogfooding flow" in res.output
+    assert "MindForge Obsidian staged workflow" in res.output
     assert "obsidian doctor" in res.output
     assert "obsidian scan" in res.output
     assert "obsidian links" in res.output
@@ -815,7 +815,7 @@ def test_obsidian_next_reports_staged_manifest_status(tmp_path: Path) -> None:
     assert "recommended next: mindforge obsidian preflight" in res.output
 
 
-def test_obsidian_dogfood_snippets_match_next_output(tmp_path: Path) -> None:
+def test_obsidian_workflow_snippets_match_next_output(tmp_path: Path) -> None:
     """CLI 输出和 helper 共享 snippets，避免文档化命令逐步漂移。"""
     vault, _note, cfg = _make_obsidian_vault(tmp_path)
     source_hint = "02-Knowledge/Agent Runtime.md"
@@ -823,17 +823,17 @@ def test_obsidian_dogfood_snippets_match_next_output(tmp_path: Path) -> None:
     res = runner.invoke(app, ["obsidian", "next", "--config", str(cfg), "--vault", str(vault)])
 
     assert res.exit_code == 0, res.output
-    for command, _note_text in _obsidian_dogfood_command_snippets(vault.resolve(), source_hint, output_dir):
+    for command, _note_text in _obsidian_workflow_command_snippets(vault.resolve(), source_hint, output_dir):
         assert command in res.output
 
 
-def test_obsidian_dogfooding_checklist_exists_and_sets_boundaries() -> None:
+def test_obsidian_staged_workflow_checklist_exists_and_sets_boundaries() -> None:
     checklist = Path("README.md")
     text = checklist.read_text(encoding="utf-8")
 
     assert checklist.exists()
-    assert "disposable, non-sensitive vault copy" in text
-    assert "No `.env`" in text
+    assert "non-sensitive" in text
+    assert "local secret store" in text
     assert "real LLM" in text
     assert "formal Obsidian notes" in text
     assert "staged workflow" in text
@@ -844,7 +844,7 @@ def test_obsidian_dogfooding_checklist_exists_and_sets_boundaries() -> None:
     assert "No Obsidian plugin" in text
 
 
-def test_obsidian_dogfooding_docs_do_not_claim_forbidden_capabilities() -> None:
+def test_obsidian_staged_workflow_docs_do_not_claim_forbidden_capabilities() -> None:
     """v0.7.5 docs 可以说 non-goals，但不能把 plugin/RAG/real LLM 写成已实现。"""
     combined = Path("README.md").read_text(encoding="utf-8").lower()
 
@@ -862,7 +862,7 @@ def test_obsidian_dogfooding_docs_do_not_claim_forbidden_capabilities() -> None:
     assert "no formal obsidian notes are written" in combined
 
 
-def test_obsidian_dogfooding_flow_demo_vault_hash_unchanged(tmp_path: Path) -> None:
+def test_obsidian_staged_workflow_fixture_vault_hash_unchanged(tmp_path: Path) -> None:
     """真实 CLI 行为：dry-run -> staged export -> preflight 后，正式 note hash 不变。"""
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     before = note.read_text(encoding="utf-8")
@@ -886,8 +886,8 @@ def test_obsidian_dogfooding_flow_demo_vault_hash_unchanged(tmp_path: Path) -> N
     assert not (vault / "02-Knowledge" / "Agent-Runtime.md").exists()
 
 
-def test_obsidian_dogfooding_flow_from_tmp_disposable_vault(tmp_path: Path, monkeypatch) -> None:
-    """从 /tmp 类 cwd 走完整 Obsidian dogfooding 主路径，证明不依赖 repo cwd。"""
+def test_obsidian_staged_workflow_from_tmp_disposable_vault(tmp_path: Path, monkeypatch) -> None:
+    """从 /tmp 类 cwd 走完整 Obsidian staged workflow，证明不依赖 repo cwd。"""
     vault, note, cfg = _make_obsidian_vault(tmp_path)
     run_dir = tmp_path / "tmp-run"
     run_dir.mkdir()
@@ -959,7 +959,7 @@ def test_v0_7_7_friction_doc_keeps_no_write_boundaries() -> None:
 
     assert doc.exists()
     assert "No formal Obsidian notes are written" in text
-    assert "No `.env`, real LLM" in text
+    assert "No secret file or real model call is used without explicit opt-in" in text
     for claim in ["rag is implemented", "plugin is implemented", "real llm is enabled"]:
         assert claim not in lowered
 

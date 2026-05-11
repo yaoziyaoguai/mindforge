@@ -21,9 +21,9 @@ def test_privacy_contract_exists():
     "token",
     [
         "fixtures for CI",
-        "real-opt-in",
+        "real provider opt-in",
         "human_approved",
-        "active_profile",
+        "local secret store",
         "secret",
         "Cubox",
         "Obsidian",

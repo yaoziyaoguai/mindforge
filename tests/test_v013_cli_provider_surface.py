@@ -1,12 +1,12 @@
-"""v0.13 Stage 1 — ``mindforge provider`` CLI smoke + AST import-boundary.
+"""v0.13 Stage 1 — provider readiness service + AST import-boundary.
 
-CLI 表面:
-- ``mindforge provider readiness --config <path>`` 可在不调网络的情况
-  exit 0 并打印 readiness 报告; fake-default 状态被识别;
-- ``mindforge provider smoke --config <path>`` 不传 ``--allow-real``
-  时拒绝运行, exit 0, 输出含 blocker。
+产品语义迁移:
+- ``mindforge provider`` 已不再是用户 CLI 主路径；
+- readiness/smoke 仍作为 service contract 保留，供 Web Setup / tests
+  做 presence-only 诊断；
+- 测试不能为了方便重新注册 legacy command group。
 
-AST 边界: provider_readiness.py / real_smoke.py / provider_cli.py 不
+AST 边界: provider_readiness.py / real_smoke.py / input_safety.py 不
 反向 import CLI / approval / writer / cards / obsidian* / cubox* /
 scanner / dotenv / requests / httpx / subprocess。
 """
@@ -17,53 +17,45 @@ import ast
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from mindforge.cli import app
-
-runner = CliRunner()
-
-
-def test_cli_provider_readiness_exits_clean():
-    result = runner.invoke(
-        app, ["provider", "readiness", "--config", "configs/mindforge.yaml"]
-    )
-    assert result.exit_code == 0, result.output
-    assert "fake-default" in result.output
-    assert "readiness report" in result.output.lower()
+from mindforge.assets_runtime import bundled_asset_path_for_process
+from mindforge.app_context import load_app_config
+from mindforge.provider_readiness import build_readiness_report, render_readiness_report
+from mindforge.real_smoke import run_synthetic_real_smoke
 
 
-def test_cli_provider_smoke_refuses_without_allow_real():
-    result = runner.invoke(
-        app, ["provider", "smoke", "--config", "configs/mindforge.yaml"]
-    )
-    assert result.exit_code == 0, result.output
-    assert "ran                   : False" in result.output
-    assert "human_approved        : False" in result.output
-    assert "blocker" in result.output.lower()
+def test_provider_readiness_service_renders_without_network():
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    text = render_readiness_report(build_readiness_report(cfg.llm))
+    assert "fake-default" in text
+    assert "readiness report" in text.lower()
 
 
-def test_cli_provider_smoke_does_not_print_secret(monkeypatch):
-    # 即使 env 中存在 api_key, 默认 fake profile + 不传 allow-real 也不应触发
+def test_provider_smoke_service_refuses_without_allow_real():
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    result = run_synthetic_real_smoke(cfg.llm, allow_real=False)
+    assert result["ran"] is False
+    assert result["human_approved"] is False
+    assert "allow-real" in result["blocker"]
+
+
+def test_provider_smoke_service_does_not_return_secret(monkeypatch):
+    # 即使 env 中存在 api_key, 不传 allow_real 也不应触发或返回 secret。
     monkeypatch.setenv("MF_FAKE_TEST_KEY_CLI_LEAK", "leaked-secret-1234567890")
-    result = runner.invoke(
-        app, ["provider", "smoke", "--config", "configs/mindforge.yaml"]
-    )
-    assert "leaked-secret-1234567890" not in result.output
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    result = run_synthetic_real_smoke(cfg.llm, allow_real=False)
+    assert "leaked-secret-1234567890" not in repr(result)
 
 
 _GUARDED = (
     Path("src/mindforge/provider_readiness.py"),
     Path("src/mindforge/real_smoke.py"),
-    Path("src/mindforge/provider_cli.py"),
-    Path("src/mindforge/dogfood_safety.py"),
+    Path("src/mindforge/input_safety.py"),
     Path("src/mindforge/cubox_readiness.py"),
-    Path("src/mindforge/demo_tour.py"),
 )
 
-# real_smoke 允许 import mindforge.llm.factory; provider_cli 允许 import
-# mindforge.app_context + provider_readiness/real_smoke。
-# 但都禁止 import 下列副作用模块。
+# real_smoke 允许 import mindforge.llm.factory。所有 readiness/safety service
+# 都禁止 import 下列副作用模块。
 _FORBIDDEN_PREFIXES = (
     "mindforge.cli",
     "mindforge.approval_service",
@@ -112,11 +104,7 @@ def _collect_imports(path: Path) -> list[str]:
     return out
 
 
-# provider_cli 显式允许 env_loader (与 cli.py 的 .env 注入语义一致);
-# real_smoke / provider_readiness 仍然禁止。
-_PER_FILE_ALLOWLIST = {
-    Path("src/mindforge/provider_cli.py"): {"mindforge.env_loader"},
-}
+_PER_FILE_ALLOWLIST: dict[Path, set[str]] = {}
 
 
 @pytest.mark.parametrize("path", _GUARDED, ids=lambda p: p.name)

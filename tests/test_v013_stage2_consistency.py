@@ -4,30 +4,33 @@
 
 - 守住 bundled user config 使用新的 ``llm.models/default_model`` 语义;
 - 守住 canonical roadmap / usage 的 excluded 列表不漂移;
-- 守住 ``mindforge llm ping`` 与 ``mindforge provider readiness`` 在
-  fake-default 下给出语义一致的判定;
+- 守住 legacy ``provider`` / ``llm`` CLI 不再作为产品 surface 暴露;
 - 守住 provider readiness JSON 输出 schema 稳定 (含 invariants)。
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from mindforge.cli import app
+from mindforge.provider_readiness import build_readiness_report
+from mindforge.real_smoke import run_synthetic_real_smoke
 
 runner = CliRunner()
 
 
 @pytest.fixture
 def clean_env(monkeypatch):
-    """中和 .env 自动加载并清掉所有 alias 声明的 api_key/base_url env;
-    保证 readiness/ping 测试不被开发者本地 shell 状态污染。"""
+    """中和 .env 自动加载并清掉所有 alias 声明的 api_key/base_url env。
+
+    中文学习型说明：provider readiness 仍是内部 service contract，但
+    ``mindforge provider`` / ``mindforge llm`` 已迁移出用户 CLI 主路径；
+    测试直接调用 service，避免为了测试把 legacy command group 加回来。
+    """
     monkeypatch.setattr("mindforge.cli.load_dotenv_silently", lambda *_a, **_k: None)
-    monkeypatch.setattr("mindforge.provider_cli.load_dotenv_silently", lambda *_a, **_k: None)
     from mindforge.assets_runtime import bundled_asset_path_for_process
     from mindforge.app_context import load_app_config
     cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
@@ -60,19 +63,11 @@ def test_bundled_config_active_provider_is_real_dogfood():
 
 
 def test_provider_readiness_json_schema(clean_env):
-    result = runner.invoke(
-        app,
-        [
-            "provider",
-            "readiness",
-            "--config",
-            "src/mindforge/assets/configs/mindforge.yaml",
-            "--format",
-            "json",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.output)
+    from mindforge.assets_runtime import bundled_asset_path_for_process
+    from mindforge.app_context import load_app_config
+
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    report = build_readiness_report(cfg.llm)
     # schema 稳定性: 三段 + invariants 五字段
     assert set(report.keys()) == {"provider", "opt_in", "invariants"}
     assert set(report["opt_in"].keys()) >= {"opt_in_state", "blockers", "can_run_real_smoke"}
@@ -89,30 +84,29 @@ def test_provider_readiness_json_schema(clean_env):
     assert report["opt_in"]["opt_in_state"] == "profile_only"
 
 
-def test_readiness_unknown_format_rejected():
-    result = runner.invoke(
-        app,
-        ["provider", "readiness", "--config", "configs/mindforge.yaml", "--format", "xml"],
-    )
+def test_provider_cli_surface_removed_from_typer_registry():
+    """legacy provider command 不再是完整 Typer command group。"""
+    result = runner.invoke(app, ["provider", "readiness"])
     assert result.exit_code == 2
+    assert "No such command" in result.output
 
 
 def test_llm_ping_and_provider_readiness_agree_on_real_profile_missing_env(clean_env):
-    """真实 dogfood 默认 profile 缺 key 时，两个 surface 都应提示缺 env。
+    """真实模型默认配置缺 key 时，readiness 与 smoke guard 语义一致。
 
-    这里不调用真实 provider，只验证 readiness/ping 的 presence-only 诊断一致。
+    这里不调用真实 provider，只验证 presence-only 诊断与 smoke guard
+    都不会 fake 成功。
     """
 
-    config = "src/mindforge/assets/configs/mindforge.yaml"
-    ping = runner.invoke(app, ["llm", "ping", "--config", config])
-    assert ping.exit_code == 1, ping.output
-    assert "MISSING" in ping.output
+    from mindforge.assets_runtime import bundled_asset_path_for_process
+    from mindforge.app_context import load_app_config
 
-    readiness = runner.invoke(
-        app, ["provider", "readiness", "--config", config, "--format", "json"],
-    )
-    assert readiness.exit_code == 0
-    report = json.loads(readiness.output)
+    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    smoke = run_synthetic_real_smoke(cfg.llm, allow_real=True)
+    assert smoke["ran"] is False
+    assert "profile_only" in smoke["blocker"]
+
+    report = build_readiness_report(cfg.llm)
     assert report["opt_in"]["opt_in_state"] == "profile_only"
     assert report["opt_in"]["can_run_real_smoke"] is False
 
@@ -125,6 +119,6 @@ def test_capability_matrix_section_consistency():
     """
     text = Path("README.md").read_text(encoding="utf-8")
     assert "Real LLM enabled by default" in text
-    assert "Real Cubox API calls enabled by default" in text
+    assert "External account ingestion" in text
     assert "Hidden automatic approval" in text
     assert "does not automatically modify a real private vault" in text

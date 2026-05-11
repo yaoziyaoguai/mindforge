@@ -254,5 +254,5 @@ def test_completion_ledger_doc_exists_with_required_buckets():
         "`forbidden`",
     ):
         assert bucket in text, f"completion ledger missing bucket: {bucket}"
-    for gate in ("Real Cubox ingestion", "Real Obsidian", "RAG / embedding", "Public release"):
+    for gate in ("External account ingestion", "Real Obsidian", "RAG / embedding", "Public release"):
         assert gate in text

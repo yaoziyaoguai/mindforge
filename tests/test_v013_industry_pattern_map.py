@@ -26,9 +26,9 @@ REQUIRED_TOKENS = [
     "not embedding",
     "explicit approval",
     "human_approved",
-    "fake provider",
-    "real provider",
-    "opt-in",
+    "Test doubles",
+    "real provider opt-in",
+    "local secret store",
 ]
 
 

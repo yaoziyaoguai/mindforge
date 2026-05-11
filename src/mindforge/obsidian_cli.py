@@ -31,7 +31,7 @@ from .obsidian_stage import (
     safe_relative_to,
     staged_export_dir,
 )
-from .obsidian_workflow import build_obsidian_next_plan, obsidian_dogfood_command_snippets
+from .obsidian_workflow import build_obsidian_next_plan, obsidian_workflow_command_snippets
 from .obsidian_cli_presenter import (
     build_skipped_notes_table,
     build_stage_preview_table,
@@ -699,7 +699,7 @@ def obsidian_next(
     ),
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
 ) -> None:
-    """输出 Obsidian dogfooding 路径；只做导航，不执行命令、不写 vault。"""
+    """输出 Obsidian staged workflow 路径；只做导航，不执行命令、不写 vault。"""
 
     from .obsidian import resolve_obsidian_vault
 
@@ -710,7 +710,7 @@ def obsidian_next(
         override=_obsidian_vault_override(vault),
     )
     plan = build_obsidian_next_plan(vault_root=vault_root, output_dir=output_dir)
-    console.print("[bold]MindForge Obsidian dogfooding flow[/bold]")
+    console.print("[bold]MindForge Obsidian staged workflow[/bold]")
     console.print(f"vault copy: {plan.vault_root}")
     console.print(f"staged export dir: {plan.output_dir}")
     print(plan.safety_line)
@@ -734,14 +734,14 @@ def obsidian_next(
         print(f"- {step}")
 
 
-def _obsidian_dogfood_command_snippets(
+def _obsidian_workflow_command_snippets(
     vault: Path,
     source_hint: str,
     output_dir: Path,
 ) -> list[tuple[str, str]]:
     """兼容旧测试入口；实际 snippets 已迁到 service 层。"""
 
-    return [(item.command, item.note) for item in obsidian_dogfood_command_snippets(vault, source_hint, output_dir)]
+    return [(item.command, item.note) for item in obsidian_workflow_command_snippets(vault, source_hint, output_dir)]
 
 
 @obsidian_app.command("doctor")

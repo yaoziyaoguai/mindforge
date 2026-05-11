@@ -16,13 +16,15 @@ references are touched.
 
 ## Onboarding Smoke
 
-The executable onboarding smoke is `tests/test_onboarding_smoke.py`. It copies `examples/demo-vault/` to `tmp_path`, writes runtime state to `tmp_path/.mindforge`, and runs:
+The executable onboarding smoke is `tests/test_onboarding_smoke.py`. It copies
+`examples/fixture-vault/` to `tmp_path`, writes runtime state to
+`tmp_path/.mindforge`, and runs:
 
 1. `mindforge commands`
 2. `mindforge next`
 3. `mindforge doctor`
 4. `mindforge scan`
-5. `mindforge process --profile fake --limit 1`
+5. `mindforge process --limit 1`
 6. `mindforge approve list`
 7. `mindforge index rebuild`
 8. `mindforge recall --query "checkpoint runtime"`
@@ -34,21 +36,21 @@ Run it directly:
 pytest tests/test_onboarding_smoke.py
 ```
 
-## Manual Demo Smoke
+## Manual Fixture Smoke
 
-Use only the fictional demo vault:
+Use only the fictional fixture vault:
 
 ```bash
-mindforge --vault examples/demo-vault doctor
-mindforge --vault examples/demo-vault next
-mindforge --vault examples/demo-vault scan
-mindforge --vault examples/demo-vault index rebuild
-mindforge --vault examples/demo-vault recall --query "checkpoint runtime" --ranking hybrid
-mindforge --vault examples/demo-vault project context my-first-agent --target claude-code
-mindforge obsidian doctor --vault examples/demo-vault
-mindforge obsidian scan --vault examples/demo-vault --limit 5
-mindforge obsidian links --vault examples/demo-vault
-mindforge obsidian stage --vault examples/demo-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
+mindforge --vault examples/fixture-vault doctor
+mindforge --vault examples/fixture-vault next
+mindforge --vault examples/fixture-vault scan
+mindforge --vault examples/fixture-vault index rebuild
+mindforge --vault examples/fixture-vault recall --query "checkpoint runtime" --ranking hybrid
+mindforge --vault examples/fixture-vault project context my-first-agent --target claude-code
+mindforge obsidian doctor --vault examples/fixture-vault
+mindforge obsidian scan --vault examples/fixture-vault --limit 5
+mindforge obsidian links --vault examples/fixture-vault
+mindforge obsidian stage --vault examples/fixture-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
 ```
 
 Obsidian-specific regression coverage lives in `tests/test_v0_5_obsidian.py`.
@@ -66,7 +68,7 @@ mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format jso
 
 ## Safety Checks To Preserve
 
-- Fake provider path must not perform HTTP.
+- Test-double model path must not perform HTTP.
 - Doctor/next must not read `.env` contents.
 - Raw source files under `00-Inbox/` must remain unchanged.
 - `process` must not produce `human_approved`.
@@ -83,6 +85,6 @@ mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format jso
 |---|---|
 | `mindforge: command not found` | Activate venv and run `pip install -e .`. |
 | Missing config | Run `mindforge init --interactive` or pass `--config`. |
-| No cards after process | Check `active_profile`, source files, and `mindforge status`. |
+| No cards after process | Check model setup, source files, and `mindforge status`. |
 | PDF/docx dependency error | Install extras or disable those source types. |
-| Demo vault writes runtime state | Use `--config` with `state.workdir` in `/tmp`, as the tests do. |
+| Fixture vault writes runtime state | Use `--config` with `state.workdir` in `/tmp`, as the tests do. |

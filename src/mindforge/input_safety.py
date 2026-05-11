@@ -1,12 +1,11 @@
-"""v0.13 Stage 4 — controlled real-but-safe dogfooding preflight.
+"""Source/input safety preflight for local MindForge workflows.
 
-为什么单独一个 dogfood_safety 模块?
-====================================
+为什么单独一个 input_safety 模块?
+=================================
 
-``dogfood plan`` (cli.py) 只是 checklist 静态导航; 它不告诉用户
-"我现在要跑的这条 input 安全吗"。Stage 3 之后真实 LLM smoke 已可
-opt-in, 接下来的关键风险是: 用户可能不小心把家目录、Obsidian vault、
-或一个 Cubox 真实 dump 当作 dogfood 输入丢进 pipeline。
+本模块不再服务历史演示 runbook，而是服务真实本地 source-centric
+工作流中的安全边界：用户可能不小心把家目录、真实 Obsidian vault，
+或其它私人资料目录当作 source 输入丢进 pipeline。
 
 本模块提供一个**纯路径分类 + readiness 组合**的 preflight 报告器,
 不读取 input 目录内容、不调用 LLM、不写任何东西; 只回答:
@@ -14,8 +13,8 @@ opt-in, 接下来的关键风险是: 用户可能不小心把家目录、Obsidia
 1. 这条 input path 属于哪类 (synthetic / non_sensitive_local /
    private_real_data_forbidden / obsidian_vault_forbidden /
    home_scan_forbidden);
-2. 当前 LLM 状态是 fake-default 还是 real-opt-in;
-3. 综合下来这次 dogfood run 应该 ``allowed`` / ``refused``;
+2. 当前模型配置是否可用于需要 LLM 的处理;
+3. 综合下来这次 source processing 应该 ``allowed`` / ``refused``;
 4. refused 时给出明确的 ``blockers``;
 5. 输出永远是 review-only artifact, 不是 ``human_approved``。
 
@@ -45,7 +44,7 @@ CLASS_OBSIDIAN_VAULT_FORBIDDEN = "obsidian_vault_forbidden"
 CLASS_HOME_SCAN_FORBIDDEN = "home_scan_forbidden"
 CLASS_PATH_DOES_NOT_EXIST = "path_does_not_exist"
 
-_SYNTHETIC_PARENTS = ("examples/demo-vault", "examples/custom-strategies")
+_SYNTHETIC_PARENTS = ("examples/fixture-vault", "examples/custom-strategies")
 _DISPOSABLE_ROOT_MARKERS = ("/tmp/", "/private/tmp/")
 
 
@@ -61,7 +60,7 @@ def classify_input_path(
     规则 (优先级从高到低):
 
     1. 路径不存在 → ``path_does_not_exist`` (refuse: 不能猜测意图);
-    2. 路径解析后在 ``examples/demo-vault`` 或 ``examples/custom-strategies``
+    2. 路径解析后在 ``examples/fixture-vault`` 或 ``examples/custom-strategies``
        下 → ``synthetic`` (最安全);
     3. 路径解析后在系统临时目录下，且用户显式声明 non-sensitive →
        ``non_sensitive_local``。这是 README 推荐的 disposable vault 复制路径；
@@ -85,18 +84,16 @@ def classify_input_path(
 
     resolved = path.resolve()
 
-    # synthetic 路径优先级最高 (白名单): examples/demo-vault 自身就是
-    # Obsidian vault (含 .obsidian/), 但它是项目内显式 disposable 副本,
-    # 必须允许 dogfood 使用。
+    # synthetic 路径优先级最高（白名单）：fixture vault 是项目内显式
+    # disposable 副本，允许测试/开发 preflight 使用，但不作为用户主路径。
     resolved_str = str(resolved).replace("\\", "/")
     for marker in _SYNTHETIC_PARENTS:
         if f"/{marker}" in resolved_str or resolved_str.endswith(marker):
             return CLASS_SYNTHETIC
 
-    # README / quickstart 推荐用户用 package demo asset 在 /tmp 创建
-    # disposable project vault。它会保留 .obsidian 形状，但目标是可删除副本，
-    # 且 readiness/preflight 仍不读取内容、不写 vault；因此在用户显式声明
-    # non-sensitive 时允许通过。home 下真实个人 vault 不会命中此分支。
+    # 临时目录下的 disposable project vault 可用于测试和人工安全检查。它会
+    # 保留 .obsidian 形状，但目标是可删除副本，且 preflight 仍不读取内容、
+    # 不写 vault；因此在用户显式声明 non-sensitive 时允许通过。
     if declared_non_sensitive and any(
         resolved_str.startswith(marker) for marker in _DISPOSABLE_ROOT_MARKERS
     ):
@@ -137,21 +134,22 @@ _REFUSING_CLASSES = {
 }
 
 
-def dogfood_readiness_report(
+def input_readiness_report(
     *,
     vault: Path,
     llm_config: Any,
-    cubox_export: Path | None = None,
+    source_export: Path | None = None,
     declared_non_sensitive: bool = True,
     cwd: Path | None = None,
     home: Path | None = None,
 ) -> dict[str, Any]:
-    """汇总新用户 dogfood 前的安全状态；只做 presence/path 检查。
+    """汇总本地 source 输入前的安全状态；只做 presence/path 检查。
 
-    中文学习型说明：``dogfood readiness`` 是产品化入口，不是 runner。
+    中文学习型说明：input readiness 是 source-centric workflow 的安全检查，
+    不是 runner。
     它复用 preflight 的路径分类和 provider readiness 的 presence-only
     报告，把“当前是否适合复制 quickstart 命令”压成一个只读摘要。
-    这里不读取 Cubox export 内容、不读取 `.env`、不遍历 vault、不调用
+    这里不读取 source export 内容、不读取 `.env`、不遍历 vault、不调用
     LLM，也不写任何 vault/card。
     """
     from .provider_readiness import build_readiness_report
@@ -163,7 +161,7 @@ def dogfood_readiness_report(
         home=home,
     )
     provider = build_readiness_report(llm_config)
-    export_exists = cubox_export.exists() if cubox_export is not None else None
+    export_exists = source_export.exists() if source_export is not None else None
 
     blockers: list[str] = []
     warnings: list[str] = []
@@ -171,13 +169,13 @@ def dogfood_readiness_report(
         blockers.append(f"vault classification={vault_classification!r}")
     if provider["opt_in"]["opt_in_state"] != "fake_default":
         warnings.append(
-            f"provider opt_in_state={provider['opt_in']['opt_in_state']!r}; "
-            "quickstart should stay fake-default unless you intentionally opt in"
+            f"model opt_in_state={provider['opt_in']['opt_in_state']!r}; "
+            "configure a real model in Web Setup before processing"
         )
-    if cubox_export is None:
-        warnings.append("cubox_export not provided; quickstart will print <file.json> placeholder")
+    if source_export is None:
+        warnings.append("source_export not provided")
     elif export_exists is False:
-        blockers.append(f"cubox_export path does not exist: {cubox_export}")
+        blockers.append(f"source_export path does not exist: {source_export}")
 
     ready = not blockers
     return {
@@ -185,13 +183,13 @@ def dogfood_readiness_report(
             "path": str(vault),
             "classification": vault_classification,
         },
-        "provider": {
+        "model": {
             "active_profile": provider["provider"]["active_profile"],
             "opt_in_state": provider["opt_in"]["opt_in_state"],
-            "fake_default": provider["provider"]["active_profile"] == "fake",
+            "uses_test_double": provider["provider"]["active_profile"] == "fake",
         },
-        "cubox_export": {
-            "path": str(cubox_export) if cubox_export is not None else None,
+        "source_export": {
+            "path": str(source_export) if source_export is not None else None,
             "exists": export_exists,
             "will_read_contents": False,
         },
@@ -204,7 +202,7 @@ def dogfood_readiness_report(
             "renders_commands_only": True,
             "reads_env": False,
             "calls_real_llm": False,
-            "calls_real_cubox_api": False,
+            "calls_external_api": False,
             "writes_vault": False,
             "writes_cards": False,
             "approves": False,
@@ -213,16 +211,16 @@ def dogfood_readiness_report(
     }
 
 
-def render_dogfood_readiness_report(report: dict[str, Any]) -> str:
-    """渲染 dogfood readiness；只输出状态和下一步命令，不执行命令。"""
-    lines = ["MindForge dogfood readiness", "=" * 40]
+def render_input_readiness_report(report: dict[str, Any]) -> str:
+    """渲染 input readiness；只输出状态和下一步命令，不执行命令。"""
+    lines = ["MindForge input readiness", "=" * 40]
     lines.append(f"vault.path              : {report['vault']['path']}")
     lines.append(f"vault.classification    : {report['vault']['classification']}")
-    lines.append(f"provider.active_profile : {report['provider']['active_profile']}")
-    lines.append(f"provider.opt_in_state   : {report['provider']['opt_in_state']}")
-    lines.append(f"provider.fake_default   : {report['provider']['fake_default']}")
-    lines.append(f"cubox_export.path       : {report['cubox_export']['path'] or '-'}")
-    lines.append(f"cubox_export.exists     : {report['cubox_export']['exists']}")
+    lines.append(f"model.active_profile    : {report['model']['active_profile']}")
+    lines.append(f"model.opt_in_state      : {report['model']['opt_in_state']}")
+    lines.append(f"model.uses_test_double  : {report['model']['uses_test_double']}")
+    lines.append(f"source_export.path      : {report['source_export']['path'] or '-'}")
+    lines.append(f"source_export.exists    : {report['source_export']['exists']}")
     lines.append(f"decision.ready          : {report['decision']['ready']}")
     if report["decision"]["blockers"]:
         lines.append("decision.blockers       :")
@@ -234,29 +232,24 @@ def render_dogfood_readiness_report(report: dict[str, Any]) -> str:
             lines.append(f"  - {item}")
     lines.append(
         "output_contract         : renders_commands_only=True, "
-        "reads_env=False, calls_real_llm=False, calls_real_cubox_api=False, "
+        "reads_env=False, calls_real_llm=False, calls_external_api=False, "
         "writes_vault=False, human_approved=False"
     )
     lines.append("")
     if report["decision"]["ready"]:
         lines.append("Recommended next:")
+        lines.append("  mindforge web")
         lines.append(
-            f"  mindforge dogfood quickstart --vault {report['vault']['path']}"
-        )
-        lines.append(
-            f"  mindforge dogfood preflight {report['vault']['path']} "
-            "--declare-non-sensitive"
+            f"  mindforge watch add {report['vault']['path']}"
         )
     else:
         lines.append("Fix first:")
-        lines.append("  mindforge demo")
-        lines.append("  mindforge dogfood init-demo --target /tmp/dogfood-vault")
-        lines.append("  mindforge dogfood quickstart --vault /tmp/dogfood-vault")
+        lines.append("  mindforge web")
+        lines.append("  choose a local non-sensitive source folder")
     lines.append("")
     lines.append(
         "Cleanup: use a disposable vault copy, e.g. "
-        "mindforge dogfood init-demo --target /tmp/dogfood-vault; "
-        "rollback = delete that copy."
+        "create a disposable local source copy; rollback = delete that copy."
     )
     return "\n".join(lines)
 
@@ -351,7 +344,7 @@ def build_preflight_report(
 
 def render_preflight_report(report: dict[str, Any]) -> str:
     """人类可读的 preflight 报告; 不含任何 secret value。"""
-    lines = ["MindForge dogfood preflight", "=" * 40]
+    lines = ["MindForge input preflight", "=" * 40]
     lines.append(f"input.path           : {report['input']['path']}")
     lines.append(f"input.classification : {report['input']['classification']}")
     lines.append(f"provider.profile     : {report['provider']['active_profile']}")
@@ -373,22 +366,19 @@ def render_preflight_report(report: dict[str, Any]) -> str:
         f"{report['output_contract']['artifact_type']}, "
         f"human_approved=False, writes_vault=False"
     )
-    # 友好提示: 当 preflight 通过时, 给一条最安全的下一步建议命令; 当
-    # 拒绝时, 提示 dogfood plan 仍可作为只读 checklist 使用。这里只输
-    # 出字符串, 不真正执行任何命令; 不读 input 内容; 不调 LLM。
+    # 友好提示：preflight 只给真实 source-centric 下一步，不再输出
+    # 历史演示 runbook。这里只输出字符串，不执行命令、不读 input、
+    # 不调 LLM。
     if report["decision"]["allowed"]:
         lines.append("")
-        lines.append("Suggested next (manual, fake-safe):")
-        lines.append(
-            f"  mindforge process --profile fake --limit 1 "
-            f"--vault {report['input']['path']}"
-        )
+        lines.append("Suggested next:")
+        lines.append("  mindforge web")
+        lines.append(f"  mindforge watch add {report['input']['path']}")
     else:
         lines.append("")
         lines.append("Refused. Safe alternatives:")
-        lines.append("  - mindforge dogfood init-demo --target /tmp/dogfood-vault")
-        lines.append("  - mindforge dogfood plan --vault /tmp/dogfood-vault")
-        lines.append("  - mindforge dogfood preflight /tmp/dogfood-vault --declare-non-sensitive")
+        lines.append("  - mindforge web")
+        lines.append("  - choose a local non-sensitive source folder")
     return "\n".join(lines)
 
 
@@ -396,8 +386,8 @@ __all__ = [
     "classify_input_path",
     "build_preflight_report",
     "render_preflight_report",
-    "dogfood_readiness_report",
-    "render_dogfood_readiness_report",
+    "input_readiness_report",
+    "render_input_readiness_report",
     "CLASS_SYNTHETIC",
     "CLASS_NON_SENSITIVE_LOCAL",
     "CLASS_PRIVATE_REAL_DATA_FORBIDDEN",

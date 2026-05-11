@@ -22,7 +22,7 @@ status buckets without requiring dozens of historical milestone files.
 
 | Capability | Bucket | Boundary |
 | --- | --- | --- |
-| Real Cubox ingestion | `future-gated` | sample folder, item cap, dry-run-first, no-persist preview |
+| External account ingestion | `future-gated` | sample folder, item cap, dry-run-first, no-persist preview |
 | Real Obsidian formal-note write | `future-gated` | diff preview, backup, rollback, per-write confirmation |
 | Approval UX polish | `future-gated` | ergonomics only; no timer/model/similarity auto-approval |
 | Custom executable strategy runtime | `future-gated` | not active; declarative custom strategies only |
@@ -30,14 +30,14 @@ status buckets without requiring dozens of historical milestone files.
 | Public release / git tag | `release-gated` | no automation may create a tag |
 | Auto-approve / generated `human_approved` | `forbidden` | only explicit human approval can promote a draft |
 
-No tag and No release are part of the current dogfood closure. Public tags or
-release artifacts require a separate named release authorization.
+No tag and No release are part of the current local workflow closure. Public
+tags or release artifacts require a separate named release authorization.
 
 ## Completion Claim
 
-MindForge is clean enough for long-term local dogfood on non-sensitive or
-project-only data. The current safe path and product direction are documented
-in `README.md`.
+MindForge is clean enough for long-term local use on non-sensitive or
+project-only data. The current safe path and product direction are documented in
+`README.md`.
 
 Opening a future gate requires updating `README.md`, this ledger, and the
 boundary tests in the same change.

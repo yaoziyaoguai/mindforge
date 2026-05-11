@@ -20,7 +20,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app, _dogfood_command_snippets, _normalize_post_command_global_options
+from mindforge.cli import app, _normalize_post_command_global_options
 from mindforge.config import load_mindforge_config
 from mindforge.scanner import Scanner
 from mindforge.sources.base import SourceAdapter, SourceDocument, compute_content_hash
@@ -757,18 +757,11 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
-def test_dogfood_plan_lists_safe_copyable_loop() -> None:
-    """v0.6.5: dogfood plan 是只读命令地图，不是自动 runner。"""
-    res = runner.invoke(app, ["dogfood", "plan", "--vault", "/tmp/disposable-vault"])
-    assert res.exit_code == 0, res.output
-    for command, _note in _dogfood_command_snippets(Path("/tmp/disposable-vault")):
-        assert command in res.output
-    assert "disposable non-sensitive copy" in res.output
-    assert "no .env" in res.output
-    assert "no real LLM" in res.output
-    assert "no Obsidian formal-note writes" in res.output
-    assert "RAG enabled" not in res.output
-    assert "plugin enabled" not in res.output
+def test_legacy_runbook_command_is_not_registered() -> None:
+    """旧 runbook command 已迁移为进程入口 redirect，不再是 Typer 命令组。"""
+    res = runner.invoke(app, ["removed-local-runbook", "plan", "--vault", "/tmp/disposable-vault"])
+    assert res.exit_code != 0
+    assert "No such command" in res.output
 
 
 def test_approve_show_previews_frontmatter_without_approving_or_env(
@@ -802,20 +795,19 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
     assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 
-def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
-    """README-first 文档必须强调非敏感、安全边界。"""
+def test_readme_primary_path_keeps_safety_boundaries() -> None:
+    """README-first 文档必须强调真实本地主路径和安全边界。"""
     root = Path(__file__).resolve().parent.parent
     doc = root / "README.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
     for required in [
         "non-sensitive",
-        "真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY`",
-        "No RAG / embedding",
-        "No Obsidian plugin",
+        "真实模型",
+        "No RAG",
         "No automatic approve",
         "mindforge status",
-        "mindforge obsidian stage",
+        "mindforge web",
     ]:
         assert required in text
 
@@ -828,7 +820,7 @@ def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
     text = doc.read_text(encoding="utf-8")
     for boundary in (
         "Real LLM enabled by default",
-        "does not print `.env` secret values",
+        "Keep API keys in the local secret store",
         "No formal Obsidian note writes",
         "RAG / embedding",
         "Obsidian plugin",
@@ -1022,10 +1014,10 @@ def test_source_document_is_immutable_contract() -> None:
         doc.raw_text = "tampered"  # type: ignore[misc]
 
 
-def test_demo_vault_exists_and_has_minimum_assets() -> None:
-    """examples/demo-vault/ 必须存在且包含最小资产，供文档与 smoke 引用。"""
-    root = Path(__file__).resolve().parent.parent / "examples" / "demo-vault"
-    assert root.exists(), "examples/demo-vault/ 必须存在"
+def test_fixture_vault_exists_and_has_minimum_assets() -> None:
+    """examples/fixture-vault/ 是测试 fixture，不是用户主路径。"""
+    root = Path(__file__).resolve().parent.parent / "examples" / "fixture-vault"
+    assert root.exists(), "examples/fixture-vault/ 必须存在"
     assert (root / "README.md").exists()
     assert (root / "00-Inbox" / "Cubox").is_dir()
     assert (root / "00-Inbox" / "WebClips").is_dir()
@@ -1035,15 +1027,15 @@ def test_demo_vault_exists_and_has_minimum_assets() -> None:
     assert len(cards) >= 2
 
 
-def test_demo_vault_does_not_contain_secrets() -> None:
-    """demo vault 必须不含任何 secret 关键字 / 真实 token / .env。"""
-    root = Path(__file__).resolve().parent.parent / "examples" / "demo-vault"
+def test_fixture_vault_does_not_contain_secrets() -> None:
+    """fixture vault 必须不含任何 secret 关键字 / 真实 token / .env。"""
+    root = Path(__file__).resolve().parent.parent / "examples" / "fixture-vault"
     forbidden = ["sk-ant-", "sk-proj-", "Bearer ", "ANTHROPIC_API_KEY=", "OPENAI_API_KEY="]
     for p in root.rglob("*"):
         if not p.is_file():
             continue
         if p.name == ".env":
-            raise AssertionError("demo vault 不能含 .env")
+            raise AssertionError("fixture vault 不能含 .env")
         text = p.read_text(encoding="utf-8", errors="ignore")
         for f in forbidden:
             assert f not in text, f"{p} 含敏感片段 {f!r}"

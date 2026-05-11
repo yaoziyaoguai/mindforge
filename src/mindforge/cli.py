@@ -30,7 +30,6 @@ from .cli_runtime import (
     override_active_profile as _override_active_profile,
     render_active_vault_resolution_notice,
 )
-from .cubox_cli import cubox_app
 from .daily_cli import (
     DailySnapshot,
     _compact_next_suggestions,
@@ -51,7 +50,6 @@ from .doctor_cli import (
     _ok_dir,
     doctor,
 )
-from .dogfood_cli import _dogfood_command_snippets, _dogfood_quickstart_steps, dogfood_app
 from .init_config_cli import (
     _available_profile_names,
     _build_config_init_plan,
@@ -66,19 +64,17 @@ from .init_config_cli import (
     setup_cmd,
 )
 from .import_cli import import_cmd
-from .llm_cli import llm_app
 from .llm import build_providers
 from .library_cli import library_app
 from .models import ItemState
 from .next_suggestions import NextSuggestion, compact_next_suggestions, next_suggestions
-from .obsidian_cli import _obsidian_dogfood_command_snippets, obsidian_app
+from .obsidian_cli import _obsidian_workflow_command_snippets, obsidian_app
 from .env_loader import load_dotenv_silently
 from .process_cli import _finalize_process_run, process
 from .processors import Pipeline  # noqa: F401 -- 保留向后兼容 re-export
 from .process_executor import process_one_result as _process_one_result
 from .project_cli import project_app
 from .prompt_cli import prompts_app
-from .provider_cli import provider_app
 from .recall_index_cli import (
     _do_bm25_recall,
     _do_index_status,
@@ -139,9 +135,7 @@ __all__ = [
     "_doctor_icon",
     "_dir_state",
     "_ok_dir",
-    "_dogfood_command_snippets",
-    "_dogfood_quickstart_steps",
-    "_obsidian_dogfood_command_snippets",
+    "_obsidian_workflow_command_snippets",
     "_available_profile_names",
     "_validate_interactive_vault_target",
     "_rewrite_init_config",
@@ -227,51 +221,6 @@ def _global_options(
         )
     else:
         os.environ.pop("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE", None)
-
-
-@app.command(
-    hidden=True,
-    add_help_option=False,
-    help="Internal fixture compatibility entry; use `mindforge web` for the product path.",
-)
-def demo(
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="输出机器可读 JSON (供 tests / CI 消费); 默认输出新用户可读文本。",
-    ),
-) -> None:
-    """Internal fixture compatibility entry.
-
-    中文学习型说明：该入口只保留给旧测试 fixture。普通用户产品路径是
-    Web Setup → Add Source → background processing → Review / Approve。
-    """
-    from .demo_tour import render_demo_tour, run_demo_tour
-
-    report = run_demo_tour()
-    if json_output:
-        import json as _json
-
-        payload = {
-            "all_ok": report.all_ok,
-            "steps": [
-                {
-                    "name": s.name,
-                    "title": s.title,
-                    "ok": s.ok,
-                    "summary": s.summary,
-                    "detail": s.detail,
-                }
-                for s in report.steps
-            ],
-            "safety_invariants": list(report.safety_invariants),
-            "next_actions": list(report.next_actions),
-        }
-        print(_json.dumps(payload, ensure_ascii=False, indent=2))
-    else:
-        print(render_demo_tour(report))
-    if not report.all_ok:
-        raise typer.Exit(code=1)
 
 
 @app.command(hidden=True, add_help_option=False)
@@ -518,13 +467,10 @@ app.command("commands")(commands_cmd)
 app.command("start")(start_cmd)
 app.command("today")(today_cmd)
 app.command("next")(next_cmd)
-app.add_typer(llm_app, name="llm", hidden=True)
 app.add_typer(library_app, name="library")
 app.add_typer(backup_app, name="backup", hidden=True)
 app.add_typer(config_app, name="config", hidden=True)
-app.add_typer(dogfood_app, name="dogfood", hidden=True)
 app.add_typer(obsidian_app, name="obsidian", hidden=True)
-app.add_typer(provider_app, name="provider", hidden=True)
 app.add_typer(approve_app, name="approve")
 app.add_typer(review_app, name="review")
 app.add_typer(project_app, name="project", hidden=True)
@@ -533,7 +479,6 @@ app.add_typer(prompts_app, name="prompts")
 app.add_typer(index_app, name="index")
 app.add_typer(telemetry_app, name="telemetry", hidden=True)
 app.add_typer(vault_app, name="vault", hidden=True)
-app.add_typer(cubox_app, name="cubox", hidden=True)
 app.add_typer(workspace_app, name="workspace", hidden=True)
 app.add_typer(trash_app, name="trash")
 app.add_typer(wiki_app, name="wiki")
@@ -546,6 +491,8 @@ def main() -> None:
     import sys
 
     sys.argv = _normalize_post_command_global_options(sys.argv)
+    if _render_legacy_command_redirect(sys.argv):
+        sys.exit(2)
     debug = os.environ.get("MINDFORGE_DEBUG") == "1" or "--debug" in sys.argv
     try:
         app()
@@ -557,6 +504,35 @@ def main() -> None:
         console.print(f"[red]✗ unexpected error: {type(e).__name__}: {e}[/red]")
         console.print("[dim]提示：加 --debug 查看完整 traceback。[/dim]")
         sys.exit(1)
+
+
+def _render_legacy_command_redirect(argv: list[str]) -> bool:
+    """把旧命令变成迁移提示，而不是继续暴露一套隐藏产品面。
+
+    中文学习型说明：这里刻意放在 ``main`` 的 argv 边界，而不是注册 Typer
+    hidden command。原因是 Typer hidden command 仍可通过 ``cmd --help`` 直达，
+    会把 demo/fake/Cubox/profile 等历史语义继续变成第二套用户手册。
+    """
+    if len(argv) < 2:
+        return False
+    command = argv[1]
+    redirects = {
+        "demo": "mindforge web",
+        "dogfood": "mindforge web",
+        "cubox": "mindforge watch add <local-file-or-folder>",
+        "provider": "mindforge web",
+        "llm": "mindforge web",
+    }
+    replacement = redirects.get(command)
+    if replacement is None:
+        return False
+    console.print("[yellow]This legacy command has been removed.[/yellow]")
+    console.print(
+        "MindForge now uses real model setup, local sources, background "
+        "processing, review, approve, library, and wiki."
+    )
+    console.print(f"Use: [bold]{replacement}[/bold]")
+    return True
 
 
 if __name__ == "__main__":  # pragma: no cover

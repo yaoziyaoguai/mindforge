@@ -115,15 +115,15 @@ class WebConfigService:
         classification = classify_cubox_real_opt_in(report, allow_real=False)
         token_present = bool(report.get("token_present", False))
         return StatusItem(
-            key="cubox",
-            label="Cubox JSON export",
+            key="external_import",
+            label="External import",
             status="ok" if token_present else "info",
-            value="token configured" if token_present else "JSON export path available",
+            value="future-gated",
             detail=str(classification.get("next_action", "")),
             next_action=NextAction(
-                label="Use JSON export",
-                description="真实 Cubox HTTP ingestion 尚未开放；先使用本地 JSON export。",
-                command="mindforge cubox dry-run --export <file.json>",
+                label="Use local sources",
+                description="第一阶段请添加本地文件或文件夹 source；外部账号同步尚未开放。",
+                href="/sources",
             ),
         )
 

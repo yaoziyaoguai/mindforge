@@ -93,12 +93,12 @@ def vault_refresh(
     vault_links(config=config, top_k=5, min_score=3, dry_run=False)
 
 
-def _obsidian_dogfood_command_snippets(
+def _obsidian_workflow_command_snippets(
     vault: Path,
     source_hint: str,
     output_dir: Path,
 ) -> list[tuple[str, str]]:
     """兼容旧测试入口；Obsidian CLI adapter 实现已迁到 obsidian_cli.py。"""
-    from .obsidian_cli import _obsidian_dogfood_command_snippets as _snippets
+    from .obsidian_cli import _obsidian_workflow_command_snippets as _snippets
 
     return _snippets(vault, source_hint, output_dir)

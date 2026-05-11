@@ -1,14 +1,12 @@
-"""v0.13 Stage 4 — controlled dogfood preflight safety tests.
+"""Input safety preflight tests for source-centric MindForge workflows.
 
-覆盖 ``dogfood_safety`` 模块 + ``mindforge dogfood preflight`` 命令的
-关键安全契约:
+覆盖 ``input_safety`` 模块的关键安全契约:
 
 - synthetic 路径 → allowed;
 - non-existent / private / Obsidian / home 路径 → refused;
 - declared_non_sensitive 不能绕过更高优先级拒绝;
 - preflight 永远不读取 input 目录内容 (静态分类);
 - 输出 contract 永远 ``human_approved=False`` / ``writes_vault=False``;
-- CLI 命令对 refused 退出码非 0; allowed 退出码 0;
 - 不依赖真实 secret, 不发起任何网络调用。
 """
 
@@ -17,11 +15,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from mindforge.cli import app
 from mindforge.config import LLMConfig, with_fake_llm_profile
-from mindforge.dogfood_safety import (
+from mindforge.input_safety import (
     CLASS_HOME_SCAN_FORBIDDEN,
     CLASS_NON_SENSITIVE_LOCAL,
     CLASS_OBSIDIAN_VAULT_FORBIDDEN,
@@ -30,8 +26,9 @@ from mindforge.dogfood_safety import (
     CLASS_SYNTHETIC,
     build_preflight_report,
     classify_input_path,
-    dogfood_readiness_report,
-    render_dogfood_readiness_report,
+    input_readiness_report,
+    render_input_readiness_report,
+    render_preflight_report,
 )
 
 
@@ -46,7 +43,7 @@ def fake_llm_config() -> LLMConfig:
 
 def test_synthetic_examples_path_classified_as_synthetic(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
-    synthetic = repo_root / "examples" / "demo-vault"
+    synthetic = repo_root / "examples" / "fixture-vault"
     assert classify_input_path(synthetic) == CLASS_SYNTHETIC
 
 
@@ -64,11 +61,10 @@ def test_obsidian_vault_path_is_forbidden(tmp_path):
 
 
 def test_tmp_disposable_obsidian_vault_can_be_declared_non_sensitive(tmp_path):
-    """README 推荐的 /tmp disposable vault 副本应能通过 readiness。
+    """临时 disposable vault 副本应能通过 readiness。
 
-    中文学习：真实 dogfood reality check 发现用户按文档复制 demo vault 到
-    /tmp 后会保留 .obsidian 目录。这里允许的前提很窄：必须是临时目录下、
-    必须显式声明 non-sensitive；home 下真实个人 vault 仍由下一条测试拒绝。
+    中文学习：这里允许的前提很窄：必须是临时目录下、必须显式声明
+    non-sensitive；home 下真实个人 vault 仍由下一条测试拒绝。
     """
     vault = Path("/tmp") / f"mindforge-test-{tmp_path.name}"
     (vault / ".obsidian").mkdir(parents=True, exist_ok=True)
@@ -154,7 +150,7 @@ def test_classify_does_not_read_file_contents(tmp_path, monkeypatch):
 def test_preflight_report_synthetic_path_allowed(fake_llm_config):
     repo_root = Path(__file__).resolve().parents[1]
     report = build_preflight_report(
-        repo_root / "examples" / "demo-vault",
+        repo_root / "examples" / "fixture-vault",
         declared_non_sensitive=False,
         allow_real=False,
         llm_config=fake_llm_config,
@@ -187,7 +183,7 @@ def test_preflight_report_refuses_obsidian(tmp_path, fake_llm_config):
 def test_preflight_allow_real_blocked_when_fake_default(fake_llm_config):
     repo_root = Path(__file__).resolve().parents[1]
     report = build_preflight_report(
-        repo_root / "examples" / "demo-vault",
+        repo_root / "examples" / "fixture-vault",
         declared_non_sensitive=False,
         allow_real=True,
         llm_config=fake_llm_config,
@@ -199,111 +195,94 @@ def test_preflight_allow_real_blocked_when_fake_default(fake_llm_config):
     assert report["output_contract"]["human_approved"] is False
 
 
-def test_cli_dogfood_preflight_synthetic_exits_zero(tmp_path):
-    """CLI smoke: synthetic 路径 → exit 0, 输出包含分类。"""
-    runner = CliRunner()
+def test_render_input_preflight_synthetic_is_actionable(fake_llm_config):
+    """service smoke: synthetic 路径 → allowed, 输出指向真实主路径。"""
     repo_root = Path(__file__).resolve().parents[1]
-    synthetic = repo_root / "examples" / "demo-vault"
-    result = runner.invoke(
-        app,
-        [
-            "dogfood",
-            "preflight",
-            str(synthetic),
-            "--config",
-            str(repo_root / "configs" / "mindforge.yaml"),
-        ],
+    report = build_preflight_report(
+        repo_root / "examples" / "fixture-vault",
+        declared_non_sensitive=False,
+        allow_real=False,
+        llm_config=fake_llm_config,
     )
-    assert result.exit_code == 0, result.output
-    assert "synthetic" in result.output
-    assert "decision.allowed     : True" in result.output
+    rendered = render_preflight_report(report)
+    assert "synthetic" in rendered
+    assert "decision.allowed     : True" in rendered
+    assert "mindforge web" in rendered
+    assert "mindforge watch add" in rendered
     # 输出绝不能含 human_approved=True / api_key 字面值
-    assert "human_approved=True" not in result.output
-    assert "api_key" not in result.output.lower() or "api_key_present" in result.output.lower()
+    assert "human_approved=True" not in rendered
+    assert "api_key" not in rendered.lower()
 
 
-def test_cli_dogfood_preflight_obsidian_exits_nonzero(tmp_path, monkeypatch):
-    runner = CliRunner()
-    repo_root = Path(__file__).resolve().parents[1]
+def test_render_input_preflight_obsidian_is_refused(tmp_path, fake_llm_config):
     vault = tmp_path / "v"
     (vault / ".obsidian").mkdir(parents=True)
     note = vault / "n.md"
     note.write_text("x", encoding="utf-8")
-    result = runner.invoke(
-        app,
-        [
-            "dogfood",
-            "preflight",
-            str(note),
-            "--config",
-            str(repo_root / "configs" / "mindforge.yaml"),
-            "--declare-non-sensitive",
-        ],
+    report = build_preflight_report(
+        note,
+        declared_non_sensitive=True,
+        allow_real=False,
+        llm_config=fake_llm_config,
     )
-    assert result.exit_code == 2, result.output
-    assert "obsidian_vault_forbidden" in result.output
+    rendered = render_preflight_report(report)
+    assert report["decision"]["allowed"] is False
+    assert "obsidian_vault_forbidden" in rendered
 
 
-def test_cli_dogfood_preflight_does_not_invoke_llm(tmp_path, monkeypatch):
-    """CLI 路径必须**不**调用 llm.factory.build_providers / provider.generate。"""
+def test_input_preflight_does_not_invoke_llm(tmp_path, fake_llm_config, monkeypatch):
+    """preflight 必须**不**调用 llm.factory.build_providers / provider.generate。"""
     repo_root = Path(__file__).resolve().parents[1]
     import mindforge.llm.factory as factory_mod
 
     real_build = factory_mod.build_providers
 
     def _fail_build(*args, **kwargs):
-        raise AssertionError("dogfood preflight must not build any LLM provider")
+        raise AssertionError("input preflight must not build any LLM provider")
 
     monkeypatch.setattr(factory_mod, "build_providers", _fail_build)
     try:
-        runner = CliRunner()
-        synthetic = repo_root / "examples" / "demo-vault"
-        result = runner.invoke(
-            app,
-            [
-                "dogfood",
-                "preflight",
-                str(synthetic),
-                "--config",
-                str(repo_root / "configs" / "mindforge.yaml"),
-            ],
+        report = build_preflight_report(
+            repo_root / "examples" / "fixture-vault",
+            declared_non_sensitive=False,
+            allow_real=False,
+            llm_config=fake_llm_config,
         )
-        assert result.exit_code == 0, result.output
+        assert report["decision"]["allowed"] is True
     finally:
         monkeypatch.setattr(factory_mod, "build_providers", real_build)
 
 
-def test_dogfood_readiness_summarizes_safe_default_path(fake_llm_config):
-    """readiness 是 quickstart 前的只读产品检查点，不读取任何输入内容。"""
+def test_input_readiness_summarizes_safe_default_path(fake_llm_config):
+    """readiness 是 source 输入前的只读检查点，不读取任何输入内容。"""
     repo_root = Path(__file__).resolve().parents[1]
-    report = dogfood_readiness_report(
-        vault=repo_root / "examples" / "demo-vault",
-        cubox_export=None,
+    report = input_readiness_report(
+        vault=repo_root / "examples" / "fixture-vault",
+        source_export=None,
         declared_non_sensitive=True,
         llm_config=fake_llm_config,
     )
     assert report["decision"]["ready"] is True
-    assert report["provider"]["fake_default"] is True
+    assert report["model"]["uses_test_double"] is True
     assert report["output_contract"]["reads_env"] is False
     assert report["output_contract"]["calls_real_llm"] is False
-    assert report["output_contract"]["calls_real_cubox_api"] is False
+    assert report["output_contract"]["calls_external_api"] is False
     assert report["output_contract"]["human_approved"] is False
-    rendered = render_dogfood_readiness_report(report)
-    assert "MindForge dogfood readiness" in rendered
-    assert "mindforge dogfood quickstart" in rendered
-    assert "mindforge dogfood preflight" in rendered
-    assert "--declare-non-sensitive" in rendered
+    rendered = render_input_readiness_report(report)
+    assert "MindForge input readiness" in rendered
+    assert "mindforge web" in rendered
+    assert "mindforge watch add" in rendered
     assert "rollback = delete that copy" in rendered
 
 
-def test_dogfood_readiness_allows_tmp_disposable_vault(fake_llm_config, tmp_path):
-    """readiness 必须承接 README 的 cp -R examples/demo-vault /tmp 路径。"""
+def test_input_readiness_allows_tmp_disposable_vault(fake_llm_config, tmp_path):
+    """readiness 必须承接临时 disposable vault 路径。"""
     vault = Path("/tmp") / f"mindforge-readiness-{tmp_path.name}"
     (vault / ".obsidian").mkdir(parents=True, exist_ok=True)
     try:
-        report = dogfood_readiness_report(
+        report = input_readiness_report(
             vault=vault,
-            cubox_export=None,
+            source_export=None,
             declared_non_sensitive=True,
             llm_config=fake_llm_config,
         )
@@ -314,56 +293,48 @@ def test_dogfood_readiness_allows_tmp_disposable_vault(fake_llm_config, tmp_path
         vault.rmdir()
 
 
-def test_dogfood_readiness_blocks_missing_export(fake_llm_config, tmp_path):
-    """提供 Cubox export 时只检查存在性；缺失要给 blocker，而不是猜测继续。"""
+def test_input_readiness_blocks_missing_export(fake_llm_config, tmp_path):
+    """提供 source export 时只检查存在性；缺失要给 blocker，而不是猜测继续。"""
     repo_root = Path(__file__).resolve().parents[1]
     missing_export = tmp_path / "missing.json"
-    report = dogfood_readiness_report(
-        vault=repo_root / "examples" / "demo-vault",
-        cubox_export=missing_export,
+    report = input_readiness_report(
+        vault=repo_root / "examples" / "fixture-vault",
+        source_export=missing_export,
         declared_non_sensitive=True,
         llm_config=fake_llm_config,
     )
     assert report["decision"]["ready"] is False
-    assert any("cubox_export" in b for b in report["decision"]["blockers"])
-    assert report["cubox_export"]["will_read_contents"] is False
+    assert any("source_export" in b for b in report["decision"]["blockers"])
+    assert report["source_export"]["will_read_contents"] is False
 
 
-def test_cli_dogfood_readiness_does_not_read_env_or_export_contents(
+def test_input_readiness_does_not_read_env_or_export_contents(
     tmp_path, fake_llm_config, monkeypatch
 ):
-    """CLI readiness 不读 `.env`，也不读取 Cubox export 内容。"""
+    """readiness 不读 `.env`，也不读取 source export 内容。"""
     repo_root = Path(__file__).resolve().parents[1]
     export = tmp_path / "export.json"
     export.write_text("SECRET-CONTENT-MUST-NOT-BE-READ", encoding="utf-8")
 
     def _blocked_env(*_args, **_kwargs):  # pragma: no cover
-        raise AssertionError("dogfood readiness 不应读取 .env")
+        raise AssertionError("input readiness 不应读取 .env")
 
     def _blocked_read_text(self, *args, **kwargs):  # noqa: ANN001
         if self == export:
-            raise AssertionError("dogfood readiness 不应读取 Cubox export 内容")
+            raise AssertionError("input readiness 不应读取 source export 内容")
         return real_read_text(self, *args, **kwargs)
 
     real_read_text = Path.read_text
     monkeypatch.setattr("mindforge.env_loader.load_dotenv_silently", _blocked_env)
     monkeypatch.setattr(Path, "read_text", _blocked_read_text)
 
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        [
-            "dogfood",
-            "readiness",
-            "--vault",
-            str(repo_root / "examples" / "demo-vault"),
-            "--cubox-export",
-            str(export),
-            "--config",
-            str(repo_root / "configs" / "mindforge.yaml"),
-        ],
+    report = input_readiness_report(
+        vault=repo_root / "examples" / "fixture-vault",
+        source_export=export,
+        declared_non_sensitive=True,
+        llm_config=fake_llm_config,
     )
-    assert result.exit_code == 0, result.output
-    assert "decision.ready          : True" in result.output
-    assert "reads_env=False" in result.output
-    assert "human_approved=False" in result.output
+    rendered = render_input_readiness_report(report)
+    assert "decision.ready          : True" in rendered
+    assert "reads_env=False" in rendered
+    assert "human_approved=False" in rendered

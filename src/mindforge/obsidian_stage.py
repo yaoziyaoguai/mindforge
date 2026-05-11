@@ -16,17 +16,17 @@ from typing import Any
 
 from .config import MindForgeConfig
 from .obsidian_workflow import (
-    ObsidianDogfoodCommand,
     ObsidianNextPlan,
+    ObsidianWorkflowCommand,
     build_obsidian_next_plan,
-    obsidian_dogfood_command_snippets,
+    obsidian_workflow_command_snippets,
 )
 from .safety_policy import obsidian_manifest_safety_flags
 
 __all__ = [
     "DiffPreviewPlan",
-    "ObsidianDogfoodCommand",
     "ObsidianNextPlan",
+    "ObsidianWorkflowCommand",
     "PreflightDisplayPlan",
     "StagedExportPlan",
     "build_obsidian_next_plan",
@@ -34,7 +34,7 @@ __all__ = [
     "build_staged_diff_preview_plan",
     "build_staged_manifest_payload",
     "first_markdown_hint",
-    "obsidian_dogfood_command_snippets",
+    "obsidian_workflow_command_snippets",
     "obsidian_export_filename",
     "plan_staged_export",
     "resolve_obsidian_source_for_preview",

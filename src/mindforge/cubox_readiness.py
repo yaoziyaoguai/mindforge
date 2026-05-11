@@ -10,13 +10,12 @@
 - ``CuboxApiAdapter.fetch_inbox``: 显式 ``NotImplementedError``,
   作为未来 G1 真实 HTTP API 的 opt-in 闸门;
 - ``CuboxApiCredential.__repr__``: secret-safe (永不打印 token);
-- ``mindforge cubox dry-run``: 离线 export 预检命令, 已经能让用户
-  用真实 Cubox 数据跑一次 dogfood, 不联网。
+  用真实 Cubox export 做内部 fixture/preflight 验证, 不联网。
 
 但 **没有** 一个面向新用户与测试的统一入口告诉:
 
 - "我配置的 Cubox token 环境变量到底有没有生效?"
-- "我现在能跑哪条 Cubox dogfood 路径?"
+- "当前 Cubox 真实 API gate 是否仍关闭?"
 - "future G1 真实 HTTP API 的解锁条件还差什么?"
 
 这就是 ``cubox_readiness`` 的唯一职责: 把 "有没有 token / 有没有
@@ -78,7 +77,7 @@ def inspect_cubox_config(*, token_env_var: str = "MINDFORGE_CUBOX_TOKEN") -> dic
     --------
     - ``token_env_var``: 用户传入的变量名 (字面量, 非 value)
     - ``token_present``: bool — env 中是否存在该 var
-    - ``json_export_path_recommended``: 建议命令片段
+    - ``json_export_path_recommended``: 内部说明，不是用户命令
     - ``g1_gate_open``: bool — 永远 False (G1 当前未开放)
     - ``hint``: 中英短提示, 不含 token value
 
@@ -94,7 +93,7 @@ def inspect_cubox_config(*, token_env_var: str = "MINDFORGE_CUBOX_TOKEN") -> dic
         return {
             "token_env_var": "",
             "token_present": False,
-            "json_export_path_recommended": "mindforge cubox dry-run --export <file.json>",
+            "json_export_path_recommended": "offline JSON export remains internal-only",
             "g1_gate_open": False,
             "blocked_reason": "token_env_var must be a non-empty string",
         }
@@ -105,7 +104,7 @@ def inspect_cubox_config(*, token_env_var: str = "MINDFORGE_CUBOX_TOKEN") -> dic
     return {
         "token_env_var": token_env_var,
         "token_present": token_present,
-        "json_export_path_recommended": "mindforge cubox dry-run --export <file.json>",
+        "json_export_path_recommended": "offline JSON export remains internal-only",
         "g1_gate_open": False,  # G1 真实 HTTP API 路径在本仓库内未开放
     }
 
@@ -172,7 +171,7 @@ def render_cubox_readiness_report(
 
     输出格式刻意保留固定字面量 (例如 ``cubox-real-opt-in``,
     ``token value not printed``, ``human approval required``,
-    ``json export is the safe dogfood path today``), 让测试 / 文档可
+    ``json export remains offline-only``), 让测试 / 文档可
     以稳定断言, 防止 wording 漂移。
     """
     lines: list[str] = []
@@ -190,8 +189,8 @@ def render_cubox_readiness_report(
         for b in blockers:
             lines.append(f"  - {b}")
     lines.append("")
-    lines.append("Safe dogfood path (works today):")
-    lines.append("  json export is the safe dogfood path today")
+    lines.append("Offline fixture path (works today):")
+    lines.append("  json export remains offline-only")
     lines.append(f"  -> {classification.get('next_action', '')}")
     lines.append("")
     lines.append("Boundaries:")

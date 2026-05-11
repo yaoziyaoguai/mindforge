@@ -119,7 +119,7 @@ def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() 
     text = Path("README.md").read_text(encoding="utf-8")
     collapsed = " ".join(text.split())
     assert "Developer Testing" in text
-    assert "fake the LLM response, not the extraction strategy" in text
+    assert "Test doubles replace model responses only inside tests" in text
     assert "not product providers or recommended extraction strategies" in collapsed
     assert "Advanced / Troubleshooting" in text
     assert "scan/process" in text

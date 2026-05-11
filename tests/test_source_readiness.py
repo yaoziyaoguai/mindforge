@@ -1,11 +1,15 @@
-"""Tests for ``mindforge.cubox_readiness`` + ``mindforge dogfood cubox-readiness``.
+"""Tests for ``mindforge.cubox_readiness`` service boundary.
 
 边界守护要点 (与 provider_readiness 同款):
 - presence-only: 永不读取 / 返回 / 打印 token value;
 - G1 gate 始终关闭 (本模块不开闸);
 - AST: 不 import HTTP client / cubox_api / llm / obsidian / cli /
-  approval / writer / cards / scanner / env_loader / dotenv /
+    approval / writer / cards / scanner / env_loader / dotenv /
   subprocess / process_service。
+
+中文学习型说明：Cubox readiness 仍可作为内部 presence-only service
+被测试覆盖，但不再通过 legacy command 暴露为用户命令。第一阶段
+用户主路径是本地 source + Web Setup + 后台 processing。
 """
 
 from __future__ import annotations
@@ -14,9 +18,7 @@ import ast
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from mindforge.cli import app
 from mindforge.cubox_readiness import (
     classify_cubox_real_opt_in,
     inspect_cubox_config,
@@ -92,7 +94,7 @@ def test_render_contains_pinned_literals(monkeypatch: pytest.MonkeyPatch) -> Non
     for literal in (
         "cubox-real-opt-in",
         "token value not printed",
-        "json export is the safe dogfood path today",
+        "json export remains offline-only",
         "human approval required",
         "no .env content is read or printed",
         "G1",
@@ -136,22 +138,24 @@ def test_module_imports_no_http_or_secrets() -> None:
             assert not mod.startswith(banned_prefixes), mod
 
 
-def test_cli_default_invocation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_service_default_render(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MINDFORGE_CUBOX_TOKEN", raising=False)
-    runner = CliRunner()
-    result = runner.invoke(app, ["dogfood", "cubox-readiness"])
-    assert result.exit_code == 0, result.output
-    assert "cubox-real-opt-in" in result.output
-    assert "token value not printed" in result.output
-    assert "G1" in result.output
-
-
-def test_cli_does_not_leak_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(_TOKEN_VAR, _LEAK_SENTINEL)
-    runner = CliRunner()
-    result = runner.invoke(
-        app, ["dogfood", "cubox-readiness", "--token-env", _TOKEN_VAR]
+    report = inspect_cubox_config()
+    text = render_cubox_readiness_report(
+        report,
+        classify_cubox_real_opt_in(report, allow_real=False),
     )
-    assert result.exit_code == 0, result.output
-    assert _LEAK_SENTINEL not in result.output
-    assert "token_present:           True" in result.output
+    assert "cubox-real-opt-in" in text
+    assert "token value not printed" in text
+    assert "G1" in text
+
+
+def test_service_render_does_not_leak_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(_TOKEN_VAR, _LEAK_SENTINEL)
+    report = inspect_cubox_config(token_env_var=_TOKEN_VAR)
+    text = render_cubox_readiness_report(
+        report,
+        classify_cubox_real_opt_in(report, allow_real=False),
+    )
+    assert _LEAK_SENTINEL not in text
+    assert "token_present:           True" in text
