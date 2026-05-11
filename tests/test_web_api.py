@@ -19,7 +19,8 @@ from mindforge.app_context import AppContextError
 from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
-from mindforge_web.services.processing_run_service import ProcessingRunRecord, _now, _safe_error_message
+from mindforge.ingestion_service import IngestionSummary
+from mindforge_web.services.processing_run_service import ProcessingRunRecord, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 
 
@@ -568,6 +569,141 @@ def test_stale_running_run_is_visible_as_failed_after_reload(
     assert watched["processing_status"] == "failed"
     assert watched["active_run_id"] is None
     assert watched["last_error"]
+
+
+def test_worker_completion_does_not_overwrite_finalized_run(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """worker 最终完成不能覆盖已经 finalized 的 run。
+
+    中文学习型说明：Mina 审计指出过真实竞态：normalizer 先把 stale running
+    标为 failed，随后 worker 完成又写 succeeded。run lifecycle 必须单调：
+    一旦离开 queued/running，后台 worker 只能停止写最终状态，不能反向覆盖。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    entered_work = threading.Event()
+    release_work = threading.Event()
+    record = ProcessingRunRecord(
+        run_id="pr_finalized_guard",
+        source_ref="source-finalized",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="queued",
+        started_at=_now(),
+    )
+    _save_processing_run_record(cfg, record)
+
+    def slow_success() -> IngestionSummary:
+        entered_work.set()
+        release_work.wait(timeout=10)
+        return IngestionSummary(
+            mode="watch_scan",
+            target=tmp_path / "source.md",
+            counts={"seen": 1, "processed": 1, "skipped": 0, "failed": 0},
+        )
+
+    worker = threading.Thread(target=_run_worker, args=(cfg, record.run_id, slow_success))
+    worker.start()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        running = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.processing_run(record.run_id)
+        if running is not None and running.status == "running":
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("worker did not enter running state")
+    assert entered_work.wait(timeout=3)
+
+    finalized = ProcessingRunRecord(
+        run_id=record.run_id,
+        source_ref=record.source_ref,
+        source_path=record.source_path,
+        mode=record.mode,
+        status="failed",
+        started_at=record.started_at,
+        finished_at=_now(),
+        current_step="abandoned",
+        summary={"discovered": 0, "processed": 0, "drafts": 0, "skipped": 0, "errors": 1},
+        message="Processing did not finish.",
+        error_type="AbandonedProcessingRun",
+        error_message="abandoned by normalizer",
+    )
+    _save_processing_run_record(cfg, finalized)
+
+    release_work.set()
+    worker.join(timeout=3)
+    latest = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.processing_run(record.run_id)
+
+    assert latest is not None
+    assert latest.status == "failed"
+    assert latest.current_step == "abandoned"
+    assert latest.summary["errors"] == 1
+    assert latest.summary["drafts"] == 0
+    assert latest.error_message == "abandoned by normalizer"
+
+
+def test_fresh_heartbeat_prevents_long_running_false_abandoned(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """长时间运行但 heartbeat 新鲜的 run 不能被误判 abandoned。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_fresh_heartbeat",
+        source_ref="source-heartbeat",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at=_now(),
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_fresh_heartbeat"
+    ).json()
+
+    assert run["status"] == "running"
+    assert run["last_heartbeat_at"]
+    assert run["error_type"] is None
+
+
+def test_stale_heartbeat_marks_run_abandoned(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """heartbeat stale 才能把 active run 收敛为 abandoned failed。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_stale_heartbeat",
+        source_ref="source-heartbeat",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_stale_heartbeat"
+    ).json()
+
+    assert run["status"] == "failed"
+    assert run["current_step"] == "abandoned"
+    assert run["error_type"] == "AbandonedProcessingRun"
 
 
 def test_sources_uses_newest_run_when_older_run_finishes_later(

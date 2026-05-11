@@ -29,6 +29,7 @@ from mindforge_web.schemas import NextAction, ProcessingRunResponse
 RunStatus = Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
 ACTIVE_RUN_STATUSES = {"queued", "running"}
 ABANDONED_RUN_AFTER = timedelta(minutes=30)
+HEARTBEAT_INTERVAL_SECONDS = 5.0
 
 
 @dataclass
@@ -39,6 +40,7 @@ class ProcessingRunRecord:
     mode: str
     status: RunStatus
     started_at: str
+    last_heartbeat_at: str | None = None
     finished_at: str | None = None
     current_step: str = "queued"
     summary: dict[str, int] = field(default_factory=lambda: {
@@ -90,6 +92,7 @@ def start_processing_run(
         mode=mode,
         status="queued",
         started_at=_now(),
+        last_heartbeat_at=_now(),
         summary=_empty_summary(),
         message=started_response_message(),
     )
@@ -148,6 +151,7 @@ def processing_run_response(record: ProcessingRunRecord) -> ProcessingRunRespons
         mode=record.mode,
         status=record.status,
         started_at=record.started_at,
+        last_heartbeat_at=record.last_heartbeat_at,
         finished_at=record.finished_at,
         current_step=record.current_step,
         summary=dict(record.summary),
@@ -225,11 +229,22 @@ def _run_worker(
         return
     record.status = "running"
     record.current_step = "processing source"
+    record.last_heartbeat_at = _now()
     _save_record(cfg, record)
 
     before_draft_ids = _draft_ids(cfg)
+    stop_heartbeat = threading.Event()
+    heartbeat_thread = threading.Thread(
+        target=_heartbeat_loop,
+        args=(cfg, run_id, stop_heartbeat),
+        name=f"mindforge-processing-heartbeat-{run_id}",
+        daemon=True,
+    )
+    heartbeat_thread.start()
     try:
+        _heartbeat(cfg, run_id)
         summary = work()
+        _heartbeat(cfg, run_id)
         after_draft_ids = _draft_ids(cfg)
         draft_ids = sorted(after_draft_ids - before_draft_ids)
         _apply_summary(record, summary, draft_ids=draft_ids)
@@ -241,7 +256,9 @@ def _run_worker(
         record.error_type = type(exc).__name__
         record.error_message = _safe_error_message(str(exc))
         record.message = f"Processing failed. Reason: {record.error_message}"
-    _save_record(cfg, record)
+    finally:
+        stop_heartbeat.set()
+    _save_final_record_if_active(cfg, record)
 
 
 def _apply_summary(
@@ -381,6 +398,7 @@ def _load_record(path: Path) -> ProcessingRunRecord:
         skip_reasons=[str(item) for item in (raw.get("skip_reasons") or [])],
         error_type=raw.get("error_type"),
         error_message=raw.get("error_message"),
+        last_heartbeat_at=raw.get("last_heartbeat_at"),
     )
 
 
@@ -398,11 +416,11 @@ def _normalize_abandoned_run(
 
     if record.status not in ACTIVE_RUN_STATUSES:
         return record
-    started_at = _parse_datetime(record.started_at)
-    if started_at is None:
+    heartbeat_at = _parse_datetime(record.last_heartbeat_at or record.started_at)
+    if heartbeat_at is None:
         return record
     now = datetime.now(timezone.utc).astimezone()
-    if now - started_at <= ABANDONED_RUN_AFTER:
+    if now - heartbeat_at <= ABANDONED_RUN_AFTER:
         return record
 
     record.status = "failed"
@@ -418,6 +436,51 @@ def _normalize_abandoned_run(
     record.message = f"Processing did not finish. Reason: {record.error_message}"
     _save_record(cfg, record)
     return record
+
+
+def _heartbeat(cfg: MindForgeConfig, run_id: str) -> None:
+    """轻量刷新 active run 的 heartbeat，不创建 scheduler 或 queue。
+
+    中文学习型说明：heartbeat 只说明当前进程里的 worker 仍在推进该 run。
+    它不是分布式 lease，也不恢复已中断任务；normalizer 只用它避免长耗时
+    pipeline 被 started_at 固定阈值误判 abandoned。
+    """
+
+    latest = get_processing_run(cfg, run_id)
+    if latest is None or latest.status not in ACTIVE_RUN_STATUSES:
+        return
+    latest.last_heartbeat_at = _now()
+    _save_record(cfg, latest)
+
+
+def _heartbeat_loop(
+    cfg: MindForgeConfig,
+    run_id: str,
+    stop_event: threading.Event,
+) -> None:
+    """worker 运行期间定期刷新 heartbeat，避免长 pipeline 被误判 abandoned。"""
+
+    while not stop_event.wait(HEARTBEAT_INTERVAL_SECONDS):
+        _heartbeat(cfg, run_id)
+
+
+def _save_final_record_if_active(cfg: MindForgeConfig, candidate: ProcessingRunRecord) -> None:
+    """最终状态写盘前重新读取最新 record，保证 lifecycle 单调。
+
+    中文学习型说明：normalizer 可能在 worker 长时间运行时先把 run 标记为
+    abandoned failed。worker 完成后若直接保存旧内存对象，就会产生
+    running -> failed -> succeeded 的状态回退。这里用 final reload guard 做
+    最小 coordination：只有最新 record 仍是 queued/running，worker 才能写最终
+    succeeded/failed/partial_failed。
+    """
+
+    latest = get_processing_run(cfg, candidate.run_id)
+    if latest is None:
+        return
+    if latest.status not in ACTIVE_RUN_STATUSES:
+        return
+    candidate.last_heartbeat_at = _now()
+    _save_record(cfg, candidate)
 
 
 def _parse_datetime(value: str) -> datetime | None:

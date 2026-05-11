@@ -405,6 +405,7 @@ class ProcessingRunResponse(BaseModel):
     mode: str
     status: Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
     started_at: str
+    last_heartbeat_at: str | None = None
     finished_at: str | None = None
     current_step: str
     summary: dict[str, int] = Field(default_factory=dict)

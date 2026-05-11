@@ -284,6 +284,7 @@ export interface ProcessingRunResponse {
   mode: string;
   status: "queued" | "running" | "succeeded" | "skipped" | "failed" | "partial_failed";
   started_at: string;
+  last_heartbeat_at?: string | null;
   finished_at?: string | null;
   current_step: string;
   summary: Record<string, number>;
