@@ -202,8 +202,15 @@ def render_approval_list(
         console.print(
             f"- [{ref.number}] {c.title or '?'} · short_ref={ref.short_ref} · "
             f"source={format_card_source_hint(c)} · created={format_card_created_at(c)} · "
-            f"next=`mindforge approve {ref.number} --confirm` · "
             f"full_path={c.rel_path}",
+            markup=False,
+        )
+        console.print(
+            f"  view:    mindforge approve show --card {ref.number} --show-content",
+            markup=False,
+        )
+        console.print(
+            f"  approve: mindforge approve {ref.number} --confirm",
             markup=False,
         )
     console.print(
@@ -221,6 +228,8 @@ def render_approval_show(
     console: Console,
     preview: ApprovalPreviewResult,
     fallback_card_path: Any,
+    *,
+    short_ref: str | None = None,
 ) -> None:
     """渲染 ``approve show`` 安全字段摘要。
 
@@ -229,17 +238,30 @@ def render_approval_show(
 
     ``fallback_card_path`` 用于 preview.card_path 缺失时显示原始
     用户传入路径，与 v0.7.20 的 ``card_path = preview.card_path or card`` 一致。
+
+    ``short_ref`` 是可选的数字 ref（如 "1"），存在时 Next 命令优先使用短命令
+    ``mindforge approve <short_ref> --confirm``，不优先展示超长绝对路径。
     """
     card_path = preview.card_path or fallback_card_path
     console.print("[bold]Approve preview[/bold]")
     for key in APPROVAL_PREVIEW_FIELDS:
         console.print(f"{key:<12}: {preview.fields.get(key, '-')}")
     console.print(f"path        : {card_path}")
+
+    # Next 命令优先短 ref，其次 short_ref slug，最后完整路径
+    if short_ref is not None:
+        next_cmd = f"mindforge approve {short_ref} --confirm"
+        next_show = f"mindforge approve show --card {short_ref} --show-content"
+    else:
+        next_cmd = f"mindforge approve --card {card_path} --confirm"
+        next_show = f"mindforge approve show --card {card_path} --show-content"
+
     console.print(
         "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
         markup=False,
     )
-    console.print(f"Next: mindforge approve --card {card_path} --confirm", markup=False)
+    console.print(f"Next (view):  {next_show}", markup=False)
+    console.print(f"Next (approve): {next_cmd}", markup=False)
 
 
 # ---------------------------------------------------------------------------

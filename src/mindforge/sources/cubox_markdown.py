@@ -50,7 +50,29 @@ class CuboxMarkdownAdapter(SourceAdapter):
     source_type = "cubox_markdown"  # type: ignore[assignment]
 
     def can_handle(self, path: str) -> bool:
-        return path.lower().endswith(".md")
+        """仅匹配 .md 后缀且含 Cubox 特征 frontmatter 或 highlights 段。
+
+        普通本地 markdown 不该被标成 cubox_markdown；这里不做全量 YAML 解析，
+        只做轻量字符串探测：检查文件前 2KB 是否含 Cubox 特有 frontmatter key
+        或 highlights 标题。
+        """
+        if not path.lower().endswith(".md"):
+            return False
+        p = Path(path)
+        if not p.exists():
+            return False
+        try:
+            head = p.read_text(encoding="utf-8")[:2048]
+        except (OSError, UnicodeDecodeError):
+            return False
+        # Cubox 特征 frontmatter key：URL / source / link / 网址
+        cubox_keys = ("url:", "source_url:", "source:", "link:", "URL:", "网址:")
+        if any(k in head for k in cubox_keys):
+            return True
+        # Cubox highlights 段标题
+        if _HIGHLIGHTS_HEADINGS.search(head):
+            return True
+        return False
 
     def load(self, path: str) -> SourceDocument:
         p = Path(path)

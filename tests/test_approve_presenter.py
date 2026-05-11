@@ -186,7 +186,41 @@ def test_render_approval_show_lists_preview_fields_and_boundary_line():
     assert "id          : card-1" in out
     assert "title       : 示例卡片" in out
     assert "Boundary: preview only; no auto approve, no .env, no LLM" in out
-    assert "Next: mindforge approve --card" in out
+    assert "Next (view):" in out
+    assert "Next (approve):" in out
+    assert "mindforge approve show --card" in out
+    assert "mindforge approve --card" in out
+
+
+def test_render_approval_show_prefers_short_ref_in_next_commands():
+    """传入 short_ref 时 Next 命令优先展示短命令，不展示超长绝对路径。"""
+    preview = ApprovalPreviewResult(
+        card_path=Path("/tmp/vault/knowledge-cards/general/sample.md"),
+        fields={"id": "card-1", "title": "示例卡片", "status": "ai_draft"},
+    )
+    console, buf = _capture_console()
+    approve_presenter.render_approval_show(
+        console, preview, fallback_card_path=Path("ignored"), short_ref="3"
+    )
+    out = buf.getvalue()
+    assert "mindforge approve 3 --confirm" in out
+    assert "mindforge approve show --card 3 --show-content" in out
+    # 有 short_ref 时不应出现长路径 --card
+    assert f"mindforge approve --card {preview.card_path}" not in out
+
+
+def test_render_approval_show_without_short_ref_falls_back_to_full_path():
+    """无 short_ref 时仍使用完整路径作为 Next 命令。"""
+    preview = ApprovalPreviewResult(
+        card_path=Path("/tmp/vault/knowledge-cards/general/sample.md"),
+        fields={"id": "card-1", "title": "示例卡片", "status": "ai_draft"},
+    )
+    console, buf = _capture_console()
+    approve_presenter.render_approval_show(
+        console, preview, fallback_card_path=Path("ignored"), short_ref=None
+    )
+    out = buf.getvalue()
+    assert "mindforge approve --card /tmp/vault/knowledge-cards/general/sample.md --confirm" in out
 
 
 def test_render_approval_show_uses_fallback_when_card_path_missing():

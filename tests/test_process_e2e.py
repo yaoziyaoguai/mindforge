@@ -423,3 +423,114 @@ def test_v0_1_stop_rule_safety_guarantees(
     state_text = (tmp_path / ".mindforge" / "state.json").read_text("utf-8")
     _assert_forbidden_terms_absent(state_text, _FORBIDDEN_STATE_FIELDS, "state.json")
     _assert_run_log_safety(tmp_path / ".mindforge" / "runs")
+
+
+def test_plain_local_markdown_gets_plain_source_type_not_cubox(
+    tmp_path: Path,
+    monkeypatch: "pytest.MonkeyPatch",  # noqa: F821
+) -> None:
+    """普通本地 markdown 的 source_type 不能是 cubox_markdown。
+
+    中文学习型说明：用户把普通 markdown 文件直接放在 00-Inbox/ 下 import，
+    MindForge 必须把 source_type 标为 plain_markdown 而非 cubox_markdown。
+    Cubox 只能作为 optional adapter / legacy source，不得污染普通本地文件路径。
+
+    本测试同时启用 cubox_markdown 和 plain_markdown，用不含 Cubox 特征的
+    普通 markdown 验证 _load_with_first_matching_adapter 不会误匹配到
+    CuboxMarkdownAdapter。
+    """
+    _isolate_fake_cli_path(tmp_path, monkeypatch)
+    vault = tmp_path / "vault"
+    inbox = vault / "00-Inbox"
+    inbox.mkdir(parents=True)
+    (vault / "20-Knowledge-Cards").mkdir(parents=True)
+
+    # 普通本地 markdown — 无 Cubox frontmatter（url/link/source）也无 highlights 段
+    # 放在 ManualNotes 子目录下，让 scan 能通过 plain_markdown adapter 发现
+    manual = inbox / "ManualNotes"
+    manual.mkdir(parents=True)
+    src_file = manual / "local-note.md"
+    src_file.write_text(
+        "# 本地笔记\n\n这是一篇普通的手写笔记，没有任何 Cubox 特征。\n",
+        encoding="utf-8",
+    )
+
+    cfg_dir = tmp_path / "configs"
+    cfg_dir.mkdir()
+    cfg = {
+        "version": 0.1,
+        "vault": {
+            "root": str(vault),
+            "inbox_root": "00-Inbox",
+            "cards_dir": "20-Knowledge-Cards",
+            "archive_dir": "90-Archive/Skipped",
+        },
+        "sources": {
+            # 两个都启用，cubox_markdown 排在前面 — 但 can_handle 必须拒绝非 Cubox 文件
+            "enabled": ["cubox_markdown", "plain_markdown"],
+            "registry": {
+                "cubox_markdown": {
+                    "adapter": "CuboxMarkdownAdapter",
+                    "inbox_subdir": "Cubox",
+                    "file_glob": "*.md",
+                    "enabled": True,
+                },
+                "plain_markdown": {
+                    "adapter": "PlainMarkdownAdapter",
+                    "inbox_subdir": "ManualNotes",
+                    "file_glob": "*.md",
+                    "enabled": True,
+                },
+            },
+        },
+        "state": {
+            "workdir": str(tmp_path / ".mindforge"),
+            "state_file": "state.json",
+            "runs_dir": "runs",
+            "index_file": "index.jsonl",
+        },
+        "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+        "llm": {
+            "active_profile": "fake",
+            "profiles": {
+                "fake": {
+                    "triage": "f1",
+                    "distill": "f1",
+                    "link_suggestion": "f1",
+                    "review_questions": "f1",
+                    "action_extraction": "f1",
+                }
+            },
+            "models": {
+                "f1": {
+                    "provider": "fake-local",
+                    "type": "fake",
+                    "base_url": "fake://",
+                    "model": "fake-1",
+                    "timeout_seconds": 5,
+                    "max_retries": 0,
+                }
+            },
+        },
+        "prompts": {
+            "triage_version": "v1",
+            "distill_version": "v1",
+            "link_suggestion_version": "v1",
+            "review_questions_version": "v1",
+            "action_extraction_version": "v1",
+        },
+        "logging": {"level": "INFO", "file": str(tmp_path / "mf.log")},
+    }
+    cfg_path = cfg_dir / "mindforge.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+
+    _run_scan_process_status(cfg_path)
+
+    cards = list((vault / "20-Knowledge-Cards").rglob("*.md"))
+    assert len(cards) == 1, f"期望 1 张卡片，实得 {len(cards)}"
+    card_text = cards[0].read_text("utf-8")
+    # 核心断言：普通本地 markdown 的 source_type 不得是 cubox_markdown
+    assert "source_type: plain_markdown" in card_text, (
+        f"普通本地 markdown 应标记为 plain_markdown，card 内容:\n{card_text}"
+    )
+    assert "cubox_markdown" not in card_text
