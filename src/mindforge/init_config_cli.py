@@ -1,6 +1,6 @@
 """Init / config / setup CLI adapters.
 
-本模块负责本地配置和 vault 骨架初始化。它不读取 .env、不调用 provider，
+本模块负责本地配置和 vault 骨架初始化。它不读取 secret、不调用 provider，
 只复制 package assets 并在用户显式选项下改写安全配置字段。
 """
 from __future__ import annotations
@@ -58,7 +58,7 @@ def _interactive_init_choices(*, project_root: Path, repo_root: Path, vault_dirs
     model_ids = _available_model_ids(project_root, repo_root)
     default_model = "main" if "main" in model_ids else (model_ids[0] if model_ids else "main")
     console.print("[bold]MindForge init --interactive[/bold]")
-    console.print("[dim]说明：telemetry 只写本地文件，不上传；init 不读取 .env、不调用 LLM。[/dim]")
+    console.print("[dim]说明：telemetry 只写本地文件，不上传；init 不读取 provider key、不调用 LLM。[/dim]")
     console.print(
         f"[dim]已配置 model id：{', '.join(model_ids) if model_ids else '(未能读取，默认 main)'}[/dim]"
     )
@@ -68,14 +68,12 @@ def _interactive_init_choices(*, project_root: Path, repo_root: Path, vault_dirs
             "启用本地 telemetry？（仅写 .mindforge/telemetry.jsonl，不上传）",
             default=True,
         )
-        console.print(
-            "[yellow]提示：API key 需要单独配置 .env；MindForge init 不会读取 .env。[/yellow]"
+        console.print("[yellow]提示：provider key 需要在 Web Setup 或 local secret store 中单独配置。[/yellow]")
+        active_model = _prompt_interactive_model(
+            default_model=default_model,
+            model_ids=model_ids,
         )
-        active_profile = _prompt_interactive_profile(
-            default_profile=default_model,
-            profile_names=model_ids,
-        )
-        return target_vault, telemetry_enabled, active_profile
+        return target_vault, telemetry_enabled, active_model
     except (KeyboardInterrupt, EOFError):
         console.print("\n[yellow]已中断；尚未写入任何文件。[/yellow]")
         raise typer.Exit(code=130) from None
@@ -94,17 +92,17 @@ def _prompt_interactive_vault(*, default_vault: Path, vault_dirs: tuple[str, ...
     return target_vault
 
 
-def _prompt_interactive_profile(*, default_profile: str, profile_names: list[str]) -> str:
-    profile_text = typer.prompt("llm.default_model", default=default_profile).strip()
-    if not profile_text:
+def _prompt_interactive_model(*, default_model: str, model_ids: list[str]) -> str:
+    model_text = typer.prompt("llm.default_model", default=default_model).strip()
+    if not model_text:
         console.print("[red]✗ llm.default_model 不能为空。[/red]")
         raise typer.Exit(code=2)
-    if profile_names and profile_text not in profile_names:
+    if model_ids and model_text not in model_ids:
         console.print(
-            f"[red]✗ llm.default_model={profile_text!r} 不在已配置 model id 中：{profile_names}[/red]"
+            f"[red]✗ llm.default_model={model_text!r} 不在已配置 model id 中：{model_ids}[/red]"
         )
         raise typer.Exit(code=2)
-    return profile_text
+    return model_text
 
 
 def _print_init_plan(
@@ -114,7 +112,7 @@ def _print_init_plan(
     dry_run: bool,
     interactive: bool,
     telemetry_enabled: bool | None,
-    active_profile: str | None,
+    active_model: str | None,
 ) -> None:
     for line in _ip.format_plan_header(plan):
         console.print(line)
@@ -123,7 +121,7 @@ def _print_init_plan(
     for line in _ip.format_interactive_summary(
         interactive=interactive,
         telemetry_enabled=telemetry_enabled,
-        active_profile=active_profile,
+        active_profile=active_model,
     ):
         console.print(line)
     console.print(_ip.format_plan_summary(plan.summary()))
@@ -134,7 +132,7 @@ def _execute_init_plan(
     plan,
     project_root: Path,
     telemetry_enabled: bool | None,
-    active_profile: str | None,
+    active_model: str | None,
 ) -> None:
     from .init_cmd import execute_plan, next_steps_hint
 
@@ -147,7 +145,7 @@ def _execute_init_plan(
         cfg_dst,
         vault_root=plan.vault_root,
         telemetry_enabled=telemetry_enabled,
-        active_profile=active_profile,
+        active_profile=active_model,
     )
 
     for line in _ip.format_next_steps(next_steps_hint()):
@@ -216,7 +214,7 @@ def init(
         dry_run=dry_run,
         interactive=interactive,
         telemetry_enabled=interactive_telemetry_enabled,
-        active_profile=interactive_active_profile,
+        active_model=interactive_active_profile,
     )
 
     if dry_run:
@@ -229,12 +227,12 @@ def init(
         plan=plan,
         project_root=project_root,
         telemetry_enabled=interactive_telemetry_enabled,
-        active_profile=interactive_active_profile,
+        active_model=interactive_active_profile,
     )
 
 
 def _available_model_ids(project_root: Path, repo_root: Path) -> list[str]:
-    """只读 yaml provider/profile 名，不读取 .env、不解析 provider 环境变量。"""
+    """只读 yaml model id，不读取 provider key、不解析 advanced key 来源。"""
     import yaml as _yaml
 
     for cfg_path in (
@@ -250,15 +248,15 @@ def _available_model_ids(project_root: Path, repo_root: Path) -> list[str]:
                 continue
             models = llm.get("models") if isinstance(llm, dict) else None
             if isinstance(models, dict):
-                # 新配置里 model id 才是用户要选择的对象；legacy profiles 不再作为
-                # init 主交互入口，避免把 fake/test/default 语义带回用户配置。
+                # 新配置里 model id 才是用户要选择的对象；历史 routing 分组不再
+                # 作为 init 主交互入口，避免把测试/默认语义带回用户配置。
                 return sorted(str(k) for k in models)
         except Exception:  # noqa: BLE001
             continue
     return ["main"]
 
 
-# 兼容旧测试/内部 re-export 名称；返回值已经是新语义下的 model id，不再是 profile。
+# 兼容旧测试/内部 re-export 名称；返回值已经是新语义下的 model id。
 _available_profile_names = _available_model_ids
 
 
@@ -381,7 +379,7 @@ def config_show(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
     output_format: str = typer.Option("text", "--format", help="text | json"),
 ) -> None:
-    """展示当前本地配置视图；只读 yaml，不读 .env、不解析真实 provider。"""
+    """展示当前本地配置视图；只读 yaml，不读取 provider key。"""
     cfg = load_cfg(config, read_env=False)
     payload = _config_ux_payload(config, cfg)
     if output_format == "json":
@@ -402,7 +400,7 @@ def config_doctor(
         console.print("[red]✗ config missing[/red]")
         console.print("Next: mindforge config init --output <path> --vault <vault>", markup=False)
         console.print(
-            "Safe defaults: config only; secrets via env/.env; no API call during init.",
+            "Safe defaults: config only; provider keys stay in Web Setup / local secret store; no API call during init.",
             markup=False,
         )
         raise typer.Exit(code=2)
@@ -422,7 +420,7 @@ def config_doctor(
         if next_action:
             console.print(f"    next: {next_action}", markup=False)
     if all(state != "error" for state, *_rest in rows):
-        console.print("[green]✓ config looks safe for local fake-provider use[/green]")
+        console.print("[green]✓ config looks safe for local model setup checks[/green]")
 
 
 @config_app.command("status")
@@ -453,7 +451,7 @@ def config_init(
     dry_run: bool = typer.Option(False, "--dry-run", help="只打印计划，不写文件"),
     force: bool = typer.Option(False, "--force", help="允许覆盖已有 config 文件"),
 ) -> None:
-    """生成最小本地配置文件；默认真实 dogfood profile 且拒绝覆盖。
+    """生成最小本地配置文件；默认写入通用 model setup 占位且拒绝覆盖。
 
     中文学习型说明：这是 setup UX 的轻量入口，不替代 `mindforge init` 的 vault
     骨架创建；它只从 package asset 复制一份安全默认 yaml，并改写少量字段。
@@ -483,7 +481,7 @@ def setup_cmd(
     console.print("推荐替代：[bold]mindforge web[/bold] 打开 Setup UI，或 [bold]mindforge config[/bold] 做本地配置诊断。")
     console.print("Mode: dry-run" if dry_run else "Mode: write config", markup=False)
     console.print(
-        "Safety: writes config only; secrets stay in env/.env; no LLM call; no Obsidian formal-note writes.",
+        "Safety: writes config only; provider keys stay in Web Setup / local secret store; no LLM call; no Obsidian formal-note writes.",
         markup=False,
     )
     plan = _build_config_init_plan(output=config, vault=vault, force=force)
@@ -499,7 +497,10 @@ def setup_cmd(
 
 
 def _config_ux_payload(config_path: Path, cfg: MindForgeConfig) -> dict[str, object]:
-    """把 MindForgeConfig 压成 setup UX 摘要；不包含 secret 或 provider env 值。"""
+    """把 MindForgeConfig 压成 setup UX 摘要；不包含 secret。"""
+    from .model_setup_readiness import model_setup_readiness
+
+    readiness = model_setup_readiness(cfg)
     return {
         "config_path": str(config_path),
         "vault_root": str(cfg.vault.root),
@@ -513,10 +514,9 @@ def _config_ux_payload(config_path: Path, cfg: MindForgeConfig) -> dict[str, obj
             "review": "frontmatter review_after fields",
             "backups": str(cfg.state.workdir / "backups"),
         },
-        "active_provider": cfg.llm.active_profile,
+        "model_setup": readiness.label,
         "safe_by_default": {
-            "fake_provider": cfg.llm.active_profile == "fake",
-            "reads_env": False,
+            "reads_provider_key": False,
             "calls_real_llm": False,
             "writes_formal_obsidian_notes": False,
             "telemetry_upload": False,
@@ -530,7 +530,7 @@ def _print_config_ux_payload(title: str, payload: dict[str, object]) -> None:
     console.print(f"[bold]{title}[/bold]")
     console.print(f"config        : {payload['config_path']}")
     console.print(f"vault.root    : {payload['vault_root']}")
-    console.print(f"active_provider: {payload['active_provider']}")
+    console.print(f"model setup   : {payload['model_setup']}")
     paths = payload["paths"]
     if isinstance(paths, dict):
         console.print("[bold]Paths[/bold]")
@@ -574,7 +574,7 @@ def _print_config_init_plan(plan: dict[str, object], *, dry_run: bool) -> None:
     console.print(f"vault  : {plan['vault']}")
     console.print(f"exists : {plan['exists']}  force={plan['force']}")
     console.print(
-        "defaults: llm.default_model=main, secrets via env/.env, no API call during init",
+        "defaults: llm.default_model=main, provider keys via Web Setup / local secret store, no API call during init",
         markup=False,
     )
     if dry_run:

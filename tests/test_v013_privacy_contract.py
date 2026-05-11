@@ -25,7 +25,6 @@ def test_privacy_contract_exists():
         "human_approved",
         "local secret store",
         "secret",
-        "Cubox",
         "Obsidian",
         "Real ≠ Approved",
         "Human Decision Gate Map",

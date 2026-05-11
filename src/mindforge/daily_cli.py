@@ -23,8 +23,8 @@ daily_app = typer.Typer(add_completion=False)
 
 # ---------------------------------------------------------------------------
 # version — 打印版本与运行配置摘要（不含 secret）
-# 设计意图：终端用户最常问的是"我装的哪个版本？现在用的哪个 vault / profile？"
-# 输出严格仅元数据：不读 .env，不打印 api_key / model 名以外的敏感字段。
+# 设计意图：终端用户最常问的是"我装的哪个版本？现在用的哪个 workspace / model？"
+# 输出严格仅元数据：不读取 provider key，不打印 api_key / model 名以外的敏感字段。
 # ---------------------------------------------------------------------------
 
 
@@ -58,7 +58,7 @@ def version(
     console.print(f"- vault.cards_dir   : {cfg.vault.cards_dir}")
     console.print(f"- vault.projects_dir: {cfg.vault.projects_dir}")
     console.print(f"- state.workdir     : {cfg.state.workdir}")
-    console.print(f"- llm.active_profile: {cfg.llm.active_profile}")
+    console.print(f"- llm.default_model  : {cfg.llm.default_model or '(not set)'}")
 
     enabled_sources = sorted(cfg.sources.enabled)
     console.print(f"- sources.enabled   : {', '.join(enabled_sources) or '(none)'}")
@@ -66,9 +66,7 @@ def version(
     console.print(f"- telemetry.local_only: {cfg.telemetry.local_only}")
     if cfg.telemetry.enabled:
         console.print(f"- telemetry.file    : {telemetry_path(cfg.state.workdir)}")
-    console.print(
-        "[dim]说明：本命令不读 .env、不发 HTTP、不打印任何 api_key 或 token。[/dim]"
-    )
+    console.print("[dim]说明：本命令不读 provider key、不发 HTTP、不打印任何 api_key 或 token。[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +79,7 @@ def version(
 #    - `commands` 按"任务场景"分组，给每条命令一句中文"什么时候用"。
 #    - `next` 读取当前 vault / state 的健康指标，给出"现在最该做的下一步"。
 # 2. 这两条命令必须遵守 v0.x 安全核心：
-#    - **不读 .env 内容**（仅检查文件是否存在）；
+#    - **不读 secret 内容**；
 #    - **不调 LLM**（纯字符串模板 + 文件系统统计）；
 #    - **不联网**；
 #    - **不输出 raw_text / 卡片正文 / prompt / completion / api_key**。
@@ -173,7 +171,7 @@ def commands_cmd() -> None:
     """按"任务场景"列出 MindForge 所有命令 + 一句话用途说明。
 
     设计原则：
-    - 仅从静态脚本生成，不读 vault、不读 .env、不发 HTTP；
+    - 仅从静态脚本生成，不读 vault、不读 secret、不发 HTTP；
     - 不调 LLM；
     - 不输出任何卡片正文 / raw_text / prompt / completion / api_key。
     """
@@ -220,7 +218,7 @@ def _daily_snapshot(cfg: MindForgeConfig) -> DailySnapshot:
     """读取本地 daily loop 所需的安全摘要。
 
     所有信息来自文件名、state.json 状态字段和 Knowledge Card frontmatter
-    白名单字段；不会读取 `.env`、prompt、completion、source raw_text 或
+    白名单字段；不会读取 provider key、prompt、completion、source raw_text 或
     Obsidian 正式 note 正文。
     """
     from .cards import iter_cards
@@ -359,19 +357,21 @@ def _print_start_guidance(snapshot: DailySnapshot, suggestions: list[NextSuggest
     doctor/today/next 的只读信号组合成用户能理解的步骤，避免把 onboarding
     做成 Web UI/TUI 或隐藏式自动流程。
     """
-    console.print("[bold]Onboarding status[/bold]")
-    console.print(f"  vault exists        : {'yes' if snapshot.vault_exists else 'no'}")
-    console.print(f"  initialized         : {'yes' if snapshot.state_exists else 'not yet / state missing'}")
-    console.print(f"  sources in inbox    : {snapshot.inbox_files}")
-    console.print(f"  ai_draft cards      : {snapshot.card_counts.get('ai_draft', 0)}")
-    console.print(f"  human_approved      : {snapshot.card_counts.get('human_approved', 0)}")
-    console.print(f"  model setup         : {snapshot.model_setup}")
-    console.print(f"  bm25 index          : {'ready' if snapshot.index_exists else 'missing'}")
-    console.print(
-        f"  review schedule     : overdue={snapshot.review_overdue} · "
-        f"due_this_week={snapshot.review_due_week}"
-    )
-    _print_next_actions(suggestions[:3])
+    console.print("[bold]First-run checklist[/bold]")
+    workspace_state = "ready" if snapshot.vault_exists else "missing"
+    source_state = "empty" if snapshot.inbox_files == 0 else f"{snapshot.inbox_files} file(s)"
+    processing_state = "no runs" if snapshot.latest_run is None else snapshot.latest_run
+    draft_count = snapshot.card_counts.get("ai_draft", 0)
+    console.print(f"  Workspace: {workspace_state}")
+    console.print(f"  Model setup: {snapshot.model_setup}")
+    console.print(f"  Sources: {source_state}")
+    console.print(f"  Processing: {processing_state}")
+    console.print(f"  Drafts: {draft_count}")
+    if suggestions:
+        console.print(f"  Next action: {suggestions[0].command}", markup=False, soft_wrap=True)
+        console.print(f"    {suggestions[0].reason}", markup=False, soft_wrap=True)
+    else:
+        console.print("  Next action: mindforge status", markup=False)
     console.print(
         "\n[dim]安全默认：start 只做本地状态检查；不会调用模型、不会发起网络请求、"
         "不会写入 approved knowledge。AI draft 生成需要完成 model setup，并通过 "
@@ -473,7 +473,7 @@ def today_cmd(
 
     中文学习型说明：`today` 是 v0.5.4 的个人日常使用入口。它只读取本地状态
     与卡片 frontmatter 安全字段，不触发 process、不自动 approve、不读取
-    `.env`、不调用真实 LLM，也不修改 Obsidian notes。
+    provider key、不调用真实 LLM，也不修改 Obsidian notes。
     """
     if not config.exists():
         if output_format == "json":
@@ -509,7 +509,7 @@ def today_cmd(
     _print_daily_snapshot(snapshot)
     _print_next_actions(suggestions)
     console.print(
-        "\n[dim]说明：today 只读本地状态和卡片 frontmatter；不读 .env、不调 LLM、"
+        "\n[dim]说明：today 只读本地状态和卡片 frontmatter；不读 provider key、不调 LLM、"
         "不发 HTTP、不自动 approve。[/dim]"
     )
 
@@ -532,7 +532,7 @@ def next_cmd(
     """根据 vault 当前状态，推荐"下一步该做什么"。
 
     安全契约（与 doctor 一致）：
-    - 不读 .env 内容；
+    - 不读 secret 内容；
     - 不调 LLM；
     - 不发 HTTP；
     - 不输出卡片正文 / raw_text / prompt / completion；
@@ -591,6 +591,6 @@ def next_cmd(
     _print_daily_snapshot(_daily_snapshot(cfg))
     _print_next_actions(suggestions)
     console.print(
-        "\n[dim]说明：本命令不读 .env、不调 LLM、不发 HTTP；"
+        "\n[dim]说明：本命令不读 provider key、不调 LLM、不发 HTTP；"
         "建议来自文件系统可观察事实（state.json / 卡片 frontmatter / 索引文件）。[/dim]"
     )

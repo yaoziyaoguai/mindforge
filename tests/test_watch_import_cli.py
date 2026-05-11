@@ -1142,6 +1142,37 @@ def test_process_without_model_config_reports_setup_action(
     assert "Traceback" not in result.output
 
 
+def test_import_missing_model_setup_run_has_friendly_next_actions(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """缺 model setup 是后台 run 的可观察状态，不是 import 命令的同步失败。
+
+    中文学习型说明：CLI import 主路径只负责创建 durable run 并返回 run_id。
+    worker 失败后，用户通过 runs show 看到 Web Setup / local secret store 的
+    下一步，而不是 env/fake/profile 之类历史诊断。
+    """
+
+    cfg, vault = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    source = tmp_path / "import-no-model-friendly.md"
+    source.write_text("# Import No Model Friendly\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(vault)
+
+    result = runner.invoke(app, ["import", str(source), "--config", str(cfg)])
+    run = _wait_for_cli_run(cfg, result.output)
+    shown = runner.invoke(app, ["runs", "show", run.run_id, "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert run.status in {"failed", "needs_model_setup"}
+    assert "Model setup is incomplete" in shown.output or "Add a model in Web Setup" in shown.output
+    assert "retry after setup" in shown.output or "Retry after completing model setup" in shown.output
+    for token in ("fake", ".env", " env", "demo", "profile", "api_key_env"):
+        assert token not in shown.output
+
+
 def test_watch_scan_without_model_config_reports_setup_action(
     tmp_path: Path,
     monkeypatch,

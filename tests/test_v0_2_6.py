@@ -181,8 +181,8 @@ def test_init_creates_vault_and_configs(tmp_path: Path) -> None:
     assert (tmp_path / "configs" / "mindforge.yaml").exists()
     assert not (tmp_path / "configs" / "learning_tracks.yaml").exists()
     assert not (tmp_path / "configs" / "llm.example.yaml").exists()
-    # .env.example 而非 .env
-    assert (tmp_path / ".env.example").exists()
+    # first-run 不创建 shell key 模板，provider key 走 Web Setup / local secret store。
+    assert not (tmp_path / ".env.example").exists()
     assert not (tmp_path / ".env").exists()
     # next steps 提示
     assert "Next steps" in res.output

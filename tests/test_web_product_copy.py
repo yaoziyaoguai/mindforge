@@ -81,6 +81,16 @@ def test_setup_copy_uses_model_and_secret_safe_language() -> None:
     assert "Provider:" not in combined
 
 
+def test_home_model_setup_copy_does_not_depend_on_env_state() -> None:
+    """Home 的 model setup readiness 必须用产品语义，不再把 env_only 当 ready。"""
+
+    home = _read("pages/HomePage.tsx")
+
+    assert "model_setup" in home
+    assert "env_only" not in home
+    assert "fake_default" not in home
+
+
 def test_setup_page_exposes_safe_editor_controls() -> None:
     setup = _read("pages/SetupPage.tsx")
 

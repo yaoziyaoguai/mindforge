@@ -449,6 +449,50 @@ def test_status_empty_state_does_not_recommend_approve_show_without_drafts() -> 
     assert "mindforge watch add" in out
 
 
+def test_status_cli_hides_old_setup_words_when_no_drafts(tmp_path: Path) -> None:
+    """status 是 read/query 主路径：无 draft 时不给空 approve show，也不泄漏旧词。"""
+
+    project = tmp_path / "project"
+    vault = project / "vault"
+    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+        (vault / subdir).mkdir(parents=True, exist_ok=True)
+    cfg = project / "configs" / "mindforge.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        """
+version: 0.7
+vault:
+  root: "vault"
+llm:
+  default_model: main
+  models:
+    main:
+      type: openai_compatible
+      base_url: "https://provider.example.com/v1"
+      model: "model-name"
+  routing:
+    triage: main
+    distill: main
+    link_suggestion: main
+    review_questions: main
+    action_extraction: main
+telemetry:
+  enabled: true
+  local_only: true
+""",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["status", "--config", str(cfg)])
+
+    assert result.exit_code == 0, result.output
+    assert "model setup=needs setup" in result.output.replace("\n", "")
+    assert "mindforge watch add" in result.output or "mindforge import" in result.output
+    assert "approve show" not in result.output
+    for token in ("fake", ".env", " env", "demo", "profile", "Cubox", "api_key_env"):
+        assert token not in result.output
+
+
 def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
     """doctor 的建议必须指向真实 Setup，而不是历史 demo/profile 路径。"""
 
@@ -475,6 +519,40 @@ def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
     assert "configs/mindforge_example.yaml" in text
     assert "local secret store" in text
     assert "API key 不写 YAML" in text
+
+
+def test_readme_quickstart_uses_async_cli_main_path_and_hides_legacy_terms() -> None:
+    """Quick Start 必须从 clean clone 到 async processing，而不是 Web-only 或旧同步路径。"""
+
+    text = Path("README.md").read_text(encoding="utf-8")
+    quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
+
+    for token in (
+        "mindforge init",
+        "mindforge start",
+        "mindforge status",
+        "mindforge watch add",
+        "mindforge import",
+        "mindforge runs list",
+        "mindforge runs show",
+        "mindforge approve list",
+        "Library",
+        "Wiki",
+    ):
+        assert token in quickstart
+    for forbidden in (
+        "Cubox",
+        "cubox",
+        "fake",
+        "demo",
+        "profile",
+        ".env",
+        "environment variable",
+        "mindforge scan",
+        "mindforge process",
+        "scan && process",
+    ):
+        assert forbidden not in quickstart
 
 
 def _source_doc() -> SourceDocument:

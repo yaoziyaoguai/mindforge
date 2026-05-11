@@ -16,19 +16,20 @@ references are touched.
 
 ## Onboarding Smoke
 
-The executable onboarding smoke is `tests/test_onboarding_smoke.py`. It copies
-`examples/fixture-vault/` to `tmp_path`, writes runtime state to
-`tmp_path/.mindforge`, and runs:
+The executable onboarding smoke is `tests/test_onboarding_smoke.py`. It uses a
+fictional fixture workspace under `tmp_path`, writes runtime state to
+`tmp_path/.mindforge`, and keeps the product path asynchronous:
 
 1. `mindforge commands`
-2. `mindforge next`
-3. `mindforge doctor`
-4. `mindforge scan`
-5. `mindforge process --limit 1`
-6. `mindforge approve list`
-7. `mindforge index rebuild`
-8. `mindforge recall --query "checkpoint runtime"`
-9. `mindforge project context my-first-agent --target claude-code`
+2. `mindforge start`
+3. `mindforge status`
+4. `mindforge watch add <file-or-folder>`
+5. `mindforge import <file-or-folder>`
+6. `mindforge runs list`
+7. `mindforge runs show <run_id>`
+8. `mindforge approve list`
+9. `mindforge index rebuild`
+10. `mindforge recall --query "checkpoint runtime"`
 
 Run it directly:
 
@@ -43,12 +44,12 @@ Use only the fictional fixture vault:
 ```bash
 mindforge --vault examples/fixture-vault doctor
 mindforge --vault examples/fixture-vault next
-mindforge --vault examples/fixture-vault scan
+mindforge watch add examples/fixture-vault/00-Inbox/ManualNotes --config configs/mindforge.yaml
+mindforge runs list --config configs/mindforge.yaml
 mindforge --vault examples/fixture-vault index rebuild
 mindforge --vault examples/fixture-vault recall --query "checkpoint runtime" --ranking hybrid
 mindforge --vault examples/fixture-vault project context my-first-agent --target claude-code
 mindforge obsidian doctor --vault examples/fixture-vault
-mindforge obsidian scan --vault examples/fixture-vault --limit 5
 mindforge obsidian links --vault examples/fixture-vault
 mindforge obsidian stage --vault examples/fixture-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
 ```
@@ -61,15 +62,15 @@ Use `/tmp`, not personal data:
 
 ```bash
 mindforge init --interactive --project-root /tmp/mindforge-smoke
+mindforge start --config /tmp/mindforge-smoke/configs/mindforge.yaml
+mindforge status --config /tmp/mindforge-smoke/configs/mindforge.yaml
 mindforge doctor --config /tmp/mindforge-smoke/configs/mindforge.yaml
-mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml
-mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format json
 ```
 
 ## Safety Checks To Preserve
 
 - Test-double model path must not perform HTTP.
-- Doctor/next must not read `.env` contents.
+- Doctor/start/status/next must not read provider key values.
 - Raw source files under `00-Inbox/` must remain unchanged.
 - `process` must not produce `human_approved`.
 - Telemetry must use the whitelist only.
@@ -85,6 +86,6 @@ mindforge next --config /tmp/mindforge-smoke/configs/mindforge.yaml --format jso
 |---|---|
 | `mindforge: command not found` | Activate venv and run `pip install -e .`. |
 | Missing config | Run `mindforge init --interactive` or pass `--config`. |
-| No cards after process | Check model setup, source files, and `mindforge status`. |
+| No cards after processing | Check `mindforge runs show <run_id>`, model setup, source files, and `mindforge status`. |
 | PDF/docx dependency error | Install extras or disable those source types. |
 | Fixture vault writes runtime state | Use `--config` with `state.workdir` in `/tmp`, as the tests do. |

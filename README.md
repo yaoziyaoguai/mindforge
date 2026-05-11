@@ -46,59 +46,75 @@ Source → AI Draft → Human Review → Explicit Approve → Approved Card
 # 1. 克隆
 git clone https://github.com/yaoziyaoguai/mindforge.git
 cd mindforge
+git checkout feat-wiki-llm-synthesis
 
 # 2. 安装
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# 3. 启动 Web 控制台
+# 3. 初始化本地 workspace
+mindforge init
+
+# 4. 查看 first-run checklist
+mindforge start
+mindforge status
+```
+
+首次运行 `mindforge init` 会在当前目录创建本地 `configs/mindforge.yaml` 和 `vault/` 骨架。`configs/mindforge.yaml` 是本机 runtime config，已被 gitignore，不要提交；提交用模板是 `configs/mindforge_example.yaml`。API key 不写 YAML，后续通过 Web Setup 写入本地 `local secret store`（`.mindforge/secrets.json`）。
+
+**配置 model setup（必须）：**
+
+```bash
 mindforge web
 ```
 
 浏览器打开 `http://127.0.0.1:8765`。
 
-首次运行时，MindForge 会在本地创建 `configs/mindforge.yaml`。这是本机 runtime config，已被 gitignore，不要提交；提交用模板是 `configs/mindforge_example.yaml`。API key 不写 YAML，后续通过 Web Setup 写入本地 `local secret store`（`.mindforge/secrets.json`）。
-
-**配置真实模型（必须）：**
-
 1. 打开 **Setup** 页面 → **Add model**
 2. 填写 model id（如 `main`）、type（anthropic/openai/anthropic_compatible/openai_compatible）、base url、模型名、API key
 3. 保存
 
-**添加第一个 source：**
+**添加第一个 source 并查看后台 processing：**
 
-1. 在 Setup 页的 "Add a file or folder" 输入框粘贴文件/文件夹的**绝对路径**
-2. 推荐先用 1-2 个 Markdown 文件测试
-3. 点击 **Add and process now** → 立即启动后台 processing run；完成后在 Sources 查看结果，生成的 draft 会出现在 Review
+```bash
+mkdir -p vault/00-Inbox/ManualNotes
+printf '# First note\n\nA short note for MindForge.\n' > vault/00-Inbox/ManualNotes/first-note.md
+
+mindforge watch add vault/00-Inbox/ManualNotes/first-note.md
+# 或一次性导入：
+mindforge import vault/00-Inbox/ManualNotes/first-note.md
+
+mindforge runs list
+mindforge runs show <run_id>
+```
+
+`watch add` / `import` 会注册 source、创建 durable run、启动 background processing，并立即返回 `run_id`。如果 model setup 还没完成，run 会失败并提示去 Web Setup / local secret store 添加 provider key；补齐后重新 `mindforge import <path>` 或在 Web Sources 里 Process now。
 
 **Review → Approve：**
 
-1. 打开 **Review** 页面，查看 AI 生成的知识草稿
-2. 确认内容无误后点击 **Approve**
-3. Approved card 进入 Library，可被 Recall 检索，也会参与后续手动 Wiki rebuild
-
-CLI 快速体验：
-
 ```bash
-mindforge watch add /path/to/folder --every manual
 mindforge approve list
+mindforge approve show --card <path>
 mindforge approve 1 --confirm
+mindforge library list
 mindforge recall --query "MindForge"
+mindforge wiki status
 ```
 
-### First-run 路径（Advanced）
+也可以在 Web **Review** 页面查看 AI 生成的知识草稿，确认后点击 **Approve**。Approved card 进入 **Library**，可被 Recall 检索，也会参与后续手动 Wiki rebuild。
 
-如果需要在任意目录创建新项目：
+`mindforge doctor` 是 troubleshooting 入口，不是第一条主路径；当 `start/status/runs show` 给出的状态不清楚时再使用。
+
+如果要在任意目录验收 first-run：
 
 ```bash
-mkdir -p /tmp/mindforge-first-run && cd /tmp/mindforge-first-run
+mkdir -p /tmp/mindforge-first-run
+cd /tmp/mindforge-first-run
 mindforge init
 ```
 
-- `cd /tmp/mindforge-first-run` 会让该目录成为 project root。
-- `vault.root` 默认是相对 project root 的 `vault`，所以新项目只需要 `00-Inbox/` 和生成的 `configs/mindforge.yaml`。
-- Vault resolution is `cwd-first / vault-first`: explicit `--vault`, cwd/ancestor vault, project-root-relative, then active-vault-relative.
+这个目录会成为 project root。`vault.root` 默认是相对 project root 的 `vault`；路径解析遵循 `cwd-first / vault-first`：explicit `--vault` > cwd/ancestor vault > project-root-relative > active-vault-relative。
 
 Model type is an API protocol type such as `openai_compatible`, `openai`, `anthropic`, or `anthropic_compatible`.
 
@@ -537,7 +553,7 @@ Obsidian boundary notes:
 - `mindforge obsidian next --vault /path/to/project-vault`, `mindforge obsidian doctor --vault /path/to/project-vault`, `mindforge obsidian scan --vault /path/to/project-vault --limit 20`, `mindforge obsidian links --vault /path/to/project-vault`, `mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run`, `mindforge obsidian preflight --vault /path/to/project-vault --manifest`.
 - `<export>.manifest.json` is the staged export manifest format.
 
-Supported source format adapters: Markdown, TXT, CSV, Cubox Markdown, WebClip, ChatExport. The SourceAdapter layer normalizes diverse formats into a unified pipeline. BM25 is the current retrieval path (no embedding / no vector DB).
+Supported source format adapters include local documents and optional structured exports. The SourceAdapter layer normalizes diverse formats into a unified pipeline. BM25 is the current retrieval path (no embedding / no vector DB).
 
 ### 相关文档
 

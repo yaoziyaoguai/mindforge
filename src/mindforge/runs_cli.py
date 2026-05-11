@@ -86,11 +86,18 @@ def _print_record(record) -> None:
         markup=False,
     )
     if record.status in {"failed", "partial_failed"}:
-        console.print(
-            "Next: fix the issue above, then retry with mindforge watch scan <watch-id> or mindforge import <path>.",
-            markup=False,
-            soft_wrap=True,
-        )
+        if _looks_like_model_setup_error(record.error_message or record.message):
+            console.print(
+                "Next: complete model setup in Web Setup or local secret store, then retry after setup with mindforge import <path> or Process now.",
+                markup=False,
+                soft_wrap=True,
+            )
+        else:
+            console.print(
+                "Next: fix the issue above, then retry with mindforge import <path> or Process now from Sources.",
+                markup=False,
+                soft_wrap=True,
+            )
     elif record.status in {"queued", "running"}:
         console.print(
             "Background processing is active. You can continue using MindForge and check this run later.",
@@ -99,6 +106,18 @@ def _print_record(record) -> None:
         )
     elif record.summary.get("drafts", 0):
         console.print("Drafts appear in: mindforge approve list", markup=False)
+
+
+def _looks_like_model_setup_error(message: str) -> bool:
+    """识别 model setup blocker，只用于展示下一步，不读取 secret。"""
+
+    lowered = message.lower()
+    return (
+        "model setup" in lowered
+        or "add a model in web setup" in lowered
+        or "provider api key" in lowered
+        or "no model configured" in lowered
+    )
 
 
 __all__ = ["runs_app"]

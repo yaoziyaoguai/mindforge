@@ -3,7 +3,7 @@
 中文学习边界：
 - 本模块只构造字符串；不打印（``console.print`` 留在 cli.py）、不调
   ``typer.prompt`` / ``typer.confirm``、不写 ``configs/mindforge.yaml``、
-  不读 ``.env``、不访问 ``os.environ``。
+  不读 provider key、不访问 ``os.environ``。
 - 交互式 vault 路径 / telemetry / default_model 的 prompt 仍属于 cli.py 的
   ``init`` 命令体，因为它们与 Typer 的输入流强耦合，移出去会让 ``init_cmd``
   变成隐式 CLI adapter。
@@ -106,7 +106,7 @@ def format_next_steps(steps: Iterable[str]) -> list[str]:
 
 
 def format_safety_footer() -> str:
-    """init 安全 footer：只讲用户主路径，不暴露 env/fake 等内部兼容语义。"""
+    """init 安全 footer：只讲用户主路径，不暴露内部兼容语义。"""
 
     return "[dim]说明：init 只创建本地目录与配置；模型调用需要先完成 Web Setup。[/dim]"
 

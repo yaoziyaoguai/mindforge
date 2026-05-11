@@ -1,8 +1,8 @@
 """Secret-safe Web configuration status.
 
-中文学习型说明：Web 需要告诉用户“哪些 key 已配置”，但绝不能泄露 key 的值。
-因此本模块只做 `.env` 文件的 key presence 解析，并且不把 value 写入
-`os.environ`。provider readiness 仍复用 `mindforge.provider_readiness`。
+中文学习型说明：Web 需要告诉用户“model setup 是否可用”，但绝不能泄露 key
+的值。普通用户主路径以 Web Setup / local secret store 为准；legacy key
+presence 兼容只保留给 advanced diagnostics，不进入 Home/Setup 主判断。
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import yaml
 
 from mindforge.config import REQUIRED_STAGES, MindForgeConfig
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
+from mindforge.model_setup_readiness import model_setup_readiness
 from mindforge.provider_readiness import build_readiness_report
 from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
 
@@ -92,9 +93,12 @@ class WebConfigService:
         report = build_readiness_report(self.cfg.llm)
         provider = report["provider"]
         opt_in = report["opt_in"]
+        readiness = model_setup_readiness(self.cfg)
         return ProviderStatus(
             active_profile=provider["active_profile"],
             opt_in_state=opt_in["opt_in_state"],
+            model_setup=readiness.status,
+            model_setup_label=readiness.label,
             can_run_real_smoke=opt_in["can_run_real_smoke"],
             aliases=[
                 ProviderAliasStatus(

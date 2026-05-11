@@ -202,3 +202,18 @@ def test_doctor_first_run_actions_do_not_recommend_scan_process_sync_path(tmp_pa
     assert "mindforge watch add" in res.output or "mindforge import" in res.output
     assert "mindforge scan && mindforge process" not in res.output
     assert "state.json 缺失 → 运行: mindforge scan" not in res.output
+
+
+def test_doctor_output_hides_old_first_run_words(tmp_path: Path) -> None:
+    """doctor 是 troubleshooting：可诊断，但不能把旧主路径重新推给新用户。"""
+
+    vault = tmp_path / "vault"
+    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+        (vault / subdir).mkdir(parents=True, exist_ok=True)
+
+    res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])
+
+    assert res.exit_code == 0, res.output
+    assert "Troubleshooting" in res.output or "Action items" in res.output
+    for token in ("fake", ".env", " env", "demo", "profile", "Cubox", "api_key_env"):
+        assert token not in res.output

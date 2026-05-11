@@ -249,7 +249,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatusCard label="Knowledge vault" value={data.vault.exists ? "Ready" : "Created automatically"} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} />
-        <StatusCard label="Model config" value={data.provider.opt_in_state === "env_only" ? "Configured" : "Check setup"} status={data.provider.opt_in_state === "env_only" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
+        <StatusCard label="Model config" value={data.provider.model_setup === "ready" ? "Configured" : "Check setup"} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
       </div>
 
       {form && editable ? (

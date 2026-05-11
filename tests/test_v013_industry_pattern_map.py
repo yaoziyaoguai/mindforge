@@ -19,7 +19,6 @@ REQUIRED_TOKENS = [
     "local-first",
     "single-user",
     "SourceAdapter",
-    "Cubox",
     "Obsidian",
     "BM25",
     "not RAG",

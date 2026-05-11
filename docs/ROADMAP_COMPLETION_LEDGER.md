@@ -9,7 +9,6 @@ status buckets without requiring dozens of historical milestone files.
 | Bucket | Meaning | Who can move it |
 | --- | --- | --- |
 | `available` | Safe local capability is usable now | Normal contribution flow |
-| `fake-only` | Default path is fake/offline only | Normal contribution flow |
 | `real-opt-in` | Real provider path exists but requires explicit opt-in | Named human authorizer |
 | `review-only` | Produces inspectable artifacts, not approved knowledge | Normal contribution flow |
 | `pushed` | Implemented, committed, and validated in the local branch history | Normal contribution flow |

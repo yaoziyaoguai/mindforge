@@ -25,6 +25,8 @@ export interface EnvKeyStatus {
 export interface ProviderStatus {
   active_profile: string;
   opt_in_state: string;
+  model_setup: "ready" | "needs_setup" | string;
+  model_setup_label: string;
   can_run_real_smoke: boolean;
   aliases: Array<{
     alias: string;

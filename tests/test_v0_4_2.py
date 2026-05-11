@@ -200,7 +200,8 @@ def test_next_after_scan_uses_configured_state_path(tmp_path: Path) -> None:
     assert scan.exit_code == 0, scan.output
     assert res.exit_code == 0, res.output
     assert "state.json 还没建立" not in res.output
-    assert "process --limit" in res.output
+    assert "mindforge import" in res.output
+    assert "process --limit" not in res.output
 
 
 def test_next_json_format_is_parseable(tmp_path: Path) -> None:
@@ -268,12 +269,31 @@ def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
     res = runner.invoke(app, ["start", "--config", str(cfg)])
     assert res.exit_code == 0, res.output
     assert "MindForge start" in res.output
-    assert "Onboarding status" in res.output
-    assert "human_approved" in res.output
-    assert "Next actions" in res.output
+    assert "First-run checklist" in res.output
+    assert "Drafts:" in res.output
+    assert "Next action:" in res.output
     assert "只做本地状态检查" in res.output
     for legacy_term in (".env", "fake", "demo", "profile"):
         assert legacy_term not in res.output
+
+
+def test_start_checklist_matches_first_run_product_path(tmp_path: Path) -> None:
+    """start checklist 只展示 workspace/model/source/processing/draft 五个产品状态。
+
+    中文学习型说明：start 是第一天入口，不是 doctor 的长诊断输出。这里锁住
+    async processing 心智：用户看见 run 状态，再去 runs/status/watch status
+    继续观察，而不是回到同步 scan/process。
+    """
+
+    cfg = _make_vault(tmp_path)
+
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    for label in ("Workspace:", "Model setup:", "Sources:", "Processing:", "Drafts:", "Next action:"):
+        assert label in res.output
+    for forbidden in ("mindforge scan", "mindforge process", "fake", ".env", " env", "demo", "profile"):
+        assert forbidden not in res.output
 
 
 def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
@@ -363,6 +383,22 @@ def test_start_first_run_copy_uses_model_setup_language_not_legacy_modes(tmp_pat
     assert "model setup" in res.output.lower()
     for token in ("fake provider", ".env", " env", "demo", "profile fake"):
         assert token not in res.output.lower()
+
+
+def test_next_does_not_recommend_scan_or_process_for_first_run_sources(tmp_path: Path) -> None:
+    """有 source 但没有 state 时，推荐 async run 主路径而不是旧同步路径。"""
+
+    cfg = _make_vault(tmp_path)
+    inbox = tmp_path / "vault" / "00-Inbox" / "ManualNotes"
+    (inbox / "first.md").write_text("# First\n\nbody\n", encoding="utf-8")
+
+    res = runner.invoke(app, ["next", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "mindforge watch add" in res.output or "mindforge import" in res.output
+    assert "mindforge runs list" in res.output or "runs show" in res.output
+    assert "mindforge scan" not in res.output
+    assert "mindforge process" not in res.output
 
 
 def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
@@ -698,7 +734,8 @@ def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
     assert show.exit_code == 0, show.output
     assert "MindForge config show" in show.output
     assert "vault.root" in show.output
-    assert "active_provider: fake" in show.output
+    assert "model setup" in show.output
+    assert "active_provider" not in show.output
     assert "calls_real_llm" in show.output
     assert "False" in show.output
 
@@ -773,7 +810,8 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
 
     setup = runner.invoke(app, ["setup", "--config", str(run_dir / "new.yaml"), "--vault", str(tmp_path / "vault"), "--dry-run"])
     assert setup.exit_code == 0, setup.output
-    assert "secrets stay in env/.env" in setup.output
+    assert "provider keys stay in Web Setup" in setup.output
+    assert "local secret" in setup.output
     assert "no LLM call" in setup.output
     assert not (run_dir / "new.yaml").exists()
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()

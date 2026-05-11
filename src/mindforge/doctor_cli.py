@@ -99,7 +99,7 @@ def _print_optional_installs_section() -> None:
 
 
 def _model_setup_text(cfg) -> str:
-    """用第一阶段产品语言描述模型配置，不泄露 profile/env 等历史字段。"""
+    """用第一阶段产品语言描述模型配置，不泄露历史 provider 字段。"""
 
     return model_setup_readiness(cfg).label
 
@@ -166,7 +166,7 @@ def _print_action_hints(cfg, recovery_hints: dict) -> None:
     hints = list(dict.fromkeys(hints))
     hints.sort(key=lambda item: {"try_first": -1, "critical": 0, "recommended": 1, "info": 2}.get(item[0], 9))
     _divider()
-    console.print("[bold]Action items:[/bold]")
+    console.print("[bold]Action items (Troubleshooting):[/bold]")
     for priority, hint in hints:
         console.print(f"  [{priority}] {hint}", markup=False)
 
@@ -191,9 +191,7 @@ def doctor(
     _print_safety_section()
     recovery_hints = _print_recovery_section(cfg, paths=paths)
     _print_action_hints(cfg, recovery_hints)
-    console.print(
-        "[dim]说明：本命令不读 secret、不发 HTTP、不打印 api_key / token。[/dim]"
-    )
+    console.print("[dim]说明：本命令不读 secret、不发 HTTP、不打印 api_key / token。[/dim]")
 
 
 # Historical doctor pure-logic helpers extracted to services/doctor.py.

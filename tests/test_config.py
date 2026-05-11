@@ -80,7 +80,8 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
 
     中文学习型说明：运行时仍需要 sources/state/search/prompts 等系统默认值，
     但这些属于 MindForge 内置 defaults。新用户第一天看到的 YAML 只应该承载
-    vault、provider env 映射和 telemetry 这类用户决策。
+    workspace、model setup 占位和 telemetry 这类用户决策；provider key 通过
+    Web Setup / local secret store 完成，不创建 env 模板来分叉 first-run 主路径。
     """
 
     project_root = tmp_path / "project"
@@ -97,7 +98,6 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     parsed = yaml.safe_load(text)
 
     assert sorted(p.relative_to(project_root).as_posix() for p in project_root.rglob("*") if p.is_file()) == [
-        ".env.example",
         "configs/mindforge.yaml",
     ]
     assert set(parsed) == {"version", "vault", "llm", "telemetry"}
@@ -141,7 +141,9 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
         assert marker not in text
 
 
-def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
+def test_init_does_not_create_env_example_on_first_run(tmp_path: Path) -> None:
+    """first-run init 不创建 env 模板，避免把 advanced 兼容路径变成用户主路径。"""
+
     project_root = tmp_path / "project"
     vault = tmp_path / "vault"
     plan = build_plan(
@@ -151,19 +153,8 @@ def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
     )
     execute_plan(plan)
 
-    text = (project_root / ".env.example").read_text(encoding="utf-8")
-
-    for marker in (
-        "MINDFORGE_OPENAI_API_KEY",
-        "MINDFORGE_OPENAI_BASE_URL",
-        "MINDFORGE_OPENAI_MODEL",
-        "MINDFORGE_ANTHROPIC_API_KEY",
-        "MINDFORGE_ANTHROPIC_BASE_URL",
-        "MINDFORGE_ANTHROPIC_MODEL",
-    ):
-        assert marker in text
-    assert "sk-" not in text
-    assert "MINDFORGE_LLM_API_KEY" not in text
+    assert not (project_root / ".env.example").exists()
+    assert all(item.target.name != ".env.example" for item in plan.items)
 
 
 def test_init_default_skeleton_uses_local_sources_not_cubox(tmp_path: Path) -> None:
@@ -194,7 +185,7 @@ def test_init_help_uses_model_setup_language_not_legacy_env_modes() -> None:
 
     assert res.exit_code == 0, res.output
     assert "configs/" in res.output
-    for token in (".env", "environment variable", "fake", "demo", "profile fake", "Cubox"):
+    for token in (".env", "env", "environment variable", "fake", "demo", "profile fake", "Cubox"):
         assert token not in res.output
 
 

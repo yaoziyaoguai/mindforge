@@ -30,7 +30,7 @@ def _read(p: Path) -> str:
 def test_closure_ledger_lists_all_state_buckets():
     text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
     for bucket in (
-        "available", "fake-only", "real-opt-in",
+        "available", "real-opt-in",
         "review-only", "future-gated", "forbidden",
     ):
         assert f"`{bucket}`" in text, f"closure ledger missing bucket: {bucket}"

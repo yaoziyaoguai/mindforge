@@ -131,9 +131,9 @@ def _render_vault(console: Console, vault: dict[str, Any]) -> None:
 
 
 def _model_setup_label(provider: dict[str, Any]) -> str:
-    """把 legacy readiness 压缩成普通用户能理解的模型配置状态。
+    """把 readiness 压缩成普通用户能理解的模型配置状态。
 
-    中文学习型说明：status/config 是用户主路径，不应把 env/profile/fake 等
+    中文学习型说明：status/config 是用户主路径，不应把历史 provider 分组等
     开发兼容细节重新暴露为产品概念。service 层仍保留历史字段给内部调用者，
     presenter 只渲染“已配置 / 需要 Setup”这样的用户语义。
     """

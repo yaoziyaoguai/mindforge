@@ -102,14 +102,13 @@ class WebFacade:
         workspace = self.workspace_status()
         vault = self.vault_status(status_counts=status_counts, scan_error_count=len(cards_scan.errors))
         provider = self.config_service.provider_status()
-        env_keys = self.config_service.env_key_statuses()
         recall = self.recall_status(approved_count=status_counts.get("human_approved", 0))
         return HomeStatusResponse(
             safety=safety,
             workspace=workspace,
             vault=vault,
             provider=provider,
-            env_keys=env_keys,
+            env_keys=[],
             recall=recall,
             cards_by_status=status_counts,
             next_actions=self._next_actions(vault, safety, recall),
@@ -140,10 +139,10 @@ class WebFacade:
             ),
             StatusItem(
                 key="provider",
-                label="LLM provider",
-                status="ok" if provider.opt_in_state == "fake_default" else "warn",
-                value=provider.opt_in_state,
-                detail="Provider readiness 只检查 key presence，不调用真实 LLM。",
+                label="Model setup",
+                status="ok" if provider.model_setup == "ready" else "warn",
+                value=provider.model_setup_label,
+                detail="Model setup 只检查 metadata 与 local secret store presence，不调用真实 LLM。",
             ),
             StatusItem(
                 key="env",
@@ -456,20 +455,19 @@ class WebFacade:
     def safety_summary(self, *, status_counts: dict[str, int] | None = None) -> SafetySummary:
         status_counts = status_counts or self._card_status_counts()
         provider = self.config_service.provider_status()
-        env_keys = self.config_service.env_key_statuses()
         vault_real = self._is_real_environment()
         warnings: list[str] = []
         if vault_real:
             warnings.append("Real-looking vault is active; writes require explicit user action.")
-        if provider.opt_in_state not in {"fake_default", "env_only"}:
-            warnings.append("Real provider profile may be active; no hidden provider calls are made.")
+        if provider.model_setup != "ready":
+            warnings.append("Model setup needs attention; no hidden provider calls are made.")
         return SafetySummary(
             local_only=self.host in {"127.0.0.1", "localhost"},
             host=self.host,
             vault_path=str(self.cfg.vault.root),
             vault_status="warn" if vault_real else "ok",
-            provider_state=provider.opt_in_state,
-            env_status="ok" if any(item.configured for item in env_keys) else "info",
+            provider_state=provider.model_setup,
+            env_status="ok" if provider.model_setup == "ready" else "info",
             write_mode="explicit_approval_required",
             pending_drafts_count=status_counts.get("ai_draft", 0),
             warnings=warnings,
