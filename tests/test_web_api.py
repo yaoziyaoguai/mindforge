@@ -706,6 +706,82 @@ def test_stale_heartbeat_marks_run_abandoned(
     assert run["error_type"] == "AbandonedProcessingRun"
 
 
+def test_processing_run_get_normalizes_stale_run_without_writing_disk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """GET run 只能返回 normalized view，不能在 read path 写磁盘。
+
+    中文学习型说明：stale/orphan visibility 是用户体验需求，但 GET/read path
+    仍应遵守 CQS。这里锁定行为：API 返回 failed/abandoned 视图，但 JSON 文件
+    仍保持原始 running 状态，真正状态推进只由 worker 或显式 command path 写盘。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_get_no_write",
+        source_ref="source-get",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+    run_path = tmp_path / ".mindforge" / "processing_runs" / "pr_get_no_write.json"
+    before = run_path.read_text(encoding="utf-8")
+
+    response = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_get_no_write"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["current_step"] == "abandoned"
+    assert run_path.read_text(encoding="utf-8") == before
+
+
+def test_sources_normalizes_stale_run_without_writing_disk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Sources read path 展示 abandoned，但不能顺手 repair run JSON。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    source = tmp_path / "source-for-sources.md"
+    source.write_text("# Source For Sources\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_sources_no_write",
+        source_ref=registered["watch_id"],
+        source_path=str(source.resolve()),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+    run_path = tmp_path / ".mindforge" / "processing_runs" / "pr_sources_no_write.json"
+    before = run_path.read_text(encoding="utf-8")
+
+    sources = client.get("/api/sources").json()
+    watched = next(item for item in sources["watched_sources"] if item["id"] == registered["watch_id"])
+
+    assert watched["processing_status"] == "failed"
+    assert watched["last_error"]
+    assert run_path.read_text(encoding="utf-8") == before
+
+
 def test_sources_uses_newest_run_when_older_run_finishes_later(
     tmp_path: Path,
     monkeypatch,

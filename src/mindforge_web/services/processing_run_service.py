@@ -14,7 +14,7 @@ import secrets
 import tempfile
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
@@ -406,12 +406,12 @@ def _normalize_abandoned_run(
     cfg: MindForgeConfig,
     record: ProcessingRunRecord,
 ) -> ProcessingRunRecord:
-    """把服务重启后不可恢复的 active run 收敛成用户可见失败。
+    """把服务重启后不可恢复的 active run 收敛成只读用户视图。
 
     中文学习型说明：第一阶段后台执行只靠当前进程的 daemon thread。进程重启后
-    queued/running JSON 不会自动恢复执行；继续展示 running 会误导用户。这里
-    不引入队列，只把超过阈值的 active run 标记为 abandoned failed，并保留
-    retry/reprocess 的可行动入口。
+    queued/running JSON 不会自动恢复执行；继续展示 running 会误导用户。但
+    GET/Sources 是 read path，不能为了修正展示而写磁盘。这里返回 in-memory
+    normalized view，真正写盘仍只发生在 worker/command path。
     """
 
     if record.status not in ACTIVE_RUN_STATUSES:
@@ -423,19 +423,22 @@ def _normalize_abandoned_run(
     if now - heartbeat_at <= ABANDONED_RUN_AFTER:
         return record
 
-    record.status = "failed"
-    record.current_step = "abandoned"
-    record.finished_at = _now()
-    record.summary = {**_empty_summary(), **dict(record.summary)}
-    record.summary["errors"] = max(int(record.summary.get("errors", 0)), 1)
-    record.error_type = "AbandonedProcessingRun"
-    record.error_message = (
+    summary = {**_empty_summary(), **dict(record.summary)}
+    summary["errors"] = max(int(summary.get("errors", 0)), 1)
+    error_message = (
         "Processing did not finish after MindForge was closed or restarted. "
         "Run Process now again to retry."
     )
-    record.message = f"Processing did not finish. Reason: {record.error_message}"
-    _save_record(cfg, record)
-    return record
+    return replace(
+        record,
+        status="failed",
+        current_step="abandoned",
+        finished_at=_now(),
+        summary=summary,
+        error_type="AbandonedProcessingRun",
+        error_message=error_message,
+        message=f"Processing did not finish. Reason: {error_message}",
+    )
 
 
 def _heartbeat(cfg: MindForgeConfig, run_id: str) -> None:
