@@ -174,8 +174,11 @@ def test_init_default_skeleton_uses_local_sources_not_cubox(tmp_path: Path) -> N
     )
     execute_plan(plan)
 
-    assert (vault / "00-Inbox" / "ManualNotes").is_dir()
+    assert (vault / "00-Inbox").is_dir()
     assert not (vault / "00-Inbox" / "Cubox").exists()
+    # first-run 不预建分类子目录（ManualNotes/WebClips/ChatExports/PDFs/Docs）
+    for sub in ("ManualNotes", "WebClips", "ChatExports", "PDFs", "Docs"):
+        assert not (vault / "00-Inbox" / sub).exists()
 
 
 def test_init_help_uses_model_setup_language_not_legacy_env_modes() -> None:

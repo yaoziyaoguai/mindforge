@@ -78,12 +78,12 @@ mindforge web
 **添加第一个 source 并查看后台 processing：**
 
 ```bash
-mkdir -p vault/00-Inbox/ManualNotes
-printf '# First note\n\nA short note for MindForge.\n' > vault/00-Inbox/ManualNotes/first-note.md
+mkdir -p vault/00-Inbox
+printf '# First note\n\nA short note for MindForge.\n' > vault/00-Inbox/first-note.md
 
-mindforge watch add vault/00-Inbox/ManualNotes/first-note.md
+mindforge watch add vault/00-Inbox/first-note.md
 # 或一次性导入：
-mindforge import vault/00-Inbox/ManualNotes/first-note.md
+mindforge import vault/00-Inbox/first-note.md
 
 mindforge runs list
 mindforge runs show <run_id>

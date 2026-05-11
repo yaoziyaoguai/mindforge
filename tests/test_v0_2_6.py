@@ -162,21 +162,18 @@ def test_init_creates_vault_and_configs(tmp_path: Path) -> None:
         ["init", "--vault", str(target), "--project-root", str(tmp_path)],
     )
     assert res.exit_code == 0, res.output
-    # vault 必备目录
+    # vault 必备目录 — first-run 只创建通用 inbox 入口，不预建分类子目录。
     for d in (
-        "00-Inbox/ManualNotes",
-        "00-Inbox/WebClips",
-        "00-Inbox/ChatExports",
-        "00-Inbox/PDFs",
-        "00-Inbox/Docs",
+        "00-Inbox",
         "20-Knowledge-Cards",
         "30-Projects",
         "80-Reviews",
         "90-System",
     ):
         assert (target / d).is_dir(), f"missing {d}"
-    # first-run 默认目录表达本地文件 source 主路径，不再把 Cubox 作为默认入口。
     assert not (target / "00-Inbox" / "Cubox").exists()
+    for sub in ("ManualNotes", "WebClips", "ChatExports", "PDFs", "Docs"):
+        assert not (target / "00-Inbox" / sub).exists(), f"unexpected {sub}"
     # configs
     assert (tmp_path / "configs" / "mindforge.yaml").exists()
     assert not (tmp_path / "configs" / "learning_tracks.yaml").exists()

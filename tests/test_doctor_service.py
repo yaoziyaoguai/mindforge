@@ -149,7 +149,7 @@ def test_doctor_model_setup_matches_status_without_secret(tmp_path: Path) -> Non
 
     project = tmp_path / "project"
     vault = project / "vault"
-    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+    for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
     cfg = project / "configs" / "mindforge.yaml"
     cfg.parent.mkdir(parents=True)
@@ -193,7 +193,7 @@ telemetry:
 
 def test_doctor_first_run_actions_do_not_recommend_scan_process_sync_path(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
-    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+    for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
 
     res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])
@@ -208,7 +208,7 @@ def test_doctor_output_hides_old_first_run_words(tmp_path: Path) -> None:
     """doctor 是 troubleshooting：可诊断，但不能把旧主路径重新推给新用户。"""
 
     vault = tmp_path / "vault"
-    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+    for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
 
     res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])

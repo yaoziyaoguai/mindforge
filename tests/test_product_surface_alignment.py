@@ -454,7 +454,7 @@ def test_status_cli_hides_old_setup_words_when_no_drafts(tmp_path: Path) -> None
 
     project = tmp_path / "project"
     vault = project / "vault"
-    for subdir in ("00-Inbox/ManualNotes", "20-Knowledge-Cards", "30-Projects"):
+    for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
     cfg = project / "configs" / "mindforge.yaml"
     cfg.parent.mkdir(parents=True)

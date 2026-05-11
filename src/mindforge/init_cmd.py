@@ -21,13 +21,12 @@ from pathlib import Path
 from typing import Literal
 
 # ── vault 必备子目录（与 vault_template/ 对齐）─────────────────────────────
+# 中文学习型说明：first-run 只创建一个通用 inbox 入口 00-Inbox/，
+# 不预建 ManualNotes/WebClips/ChatExports/PDFs/Docs 等分类子目录。
+# 用户通过 mindforge watch add <path> 或 mindforge import <path>
+# 直接接入任意本地文件/文件夹，不需要先学习分类体系。
 VAULT_DIRS: tuple[str, ...] = (
     "00-Inbox",
-    "00-Inbox/WebClips",
-    "00-Inbox/ChatExports",
-    "00-Inbox/PDFs",
-    "00-Inbox/Docs",
-    "00-Inbox/ManualNotes",
     "20-Knowledge-Cards",
     "30-Projects",
     "80-Reviews",
