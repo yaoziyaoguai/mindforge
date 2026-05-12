@@ -57,6 +57,33 @@ def web(
         if vault is None:  # 未显式设置
             vault = ws / "vault"
 
+    # 使用统一 workspace resolution 解析 config
+    from .app_context import load_app_config, AppContextError
+    from .workspace_resolver import set_active_workspace, WorkspaceResolutionError
+
+    try:
+        resolved_cfg = load_app_config(
+            config,
+            vault_override=vault or global_vault_override(),
+            cwd=Path.cwd(),
+        )
+    except AppContextError:
+        # 解析失败 — 尝试 bootstrap
+        pass
+    else:
+        # 解析成功：确认/更新 active workspace
+        project_meta = (
+            resolved_cfg.raw.get("_mindforge_config", {})
+            if isinstance(resolved_cfg.raw, dict)
+            else {}
+        )
+        ws_root = project_meta.get("project_root") if isinstance(project_meta, dict) else None
+        if ws_root:
+            try:
+                set_active_workspace(Path(str(ws_root)))
+            except WorkspaceResolutionError:
+                pass  # 静默：active workspace 不是 web 启动的必要条件
+
     effective_vault = vault or global_vault_override()
     bootstrap = maybe_bootstrap_local_config(config)
     if bootstrap.config_path is None and not config.expanduser().exists():

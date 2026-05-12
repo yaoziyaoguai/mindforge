@@ -126,7 +126,11 @@ def build_local_status_snapshot(
 
 
 def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
-    """把 config/path 错误转成人能看懂的四段式解释。"""
+    """把 config/path 错误转成人能看懂的四段式解释。
+
+    中文学习型说明：错误提示只涉及 workspace path、config path，不含 API key、
+    token 或 secret。workspace 概念是用户唯一需要理解的产品概念。
+    """
 
     return FriendlyError(
         what_happened=f"MindForge 无法加载配置文件：{config_path}。{message}",
@@ -134,7 +138,12 @@ def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
             "真实数据 CLI 需要先知道 vault、state 和 provider 配置在哪里；"
             "在配置未确认前继续执行容易误读或误写错误 workspace。"
         ),
-        how_to_fix="检查 --config 路径，或用安全模板生成一份本地配置。",
+        how_to_fix=(
+            "1. 创建新 workspace：mindforge init\n"
+            "2. 切换到已有 workspace：mindforge workspace use /path/to/workspace\n"
+            "3. 临时指定 workspace：mindforge status --workspace /path/to/workspace\n"
+            "4. 高级方式指定配置：mindforge status --config /path/to/configs/mindforge.yaml"
+        ),
         safe_next_command="mindforge init --interactive",
     )
 

@@ -53,7 +53,7 @@ mindforge status
 # 5. 启动 Web 配置模型
 mindforge web --open
 
-`mindforge init` 在当前目录（也就是 project root）创建 `configs/mindforge.yaml`（本地 runtime config，已 gitignore）和 `vault/` 骨架。`vault.root` 默认是相对 project root 的 `vault`；路径解析遵循 `cwd-first / vault-first`：explicit `--vault` > cwd/ancestor vault > project-root-relative > active-vault-relative。`configs/mindforge.yaml` 是本机 runtime config，已被 gitignore，不要提交；提交用模板是 `configs/mindforge_example.yaml`。
+`mindforge init` 创建 MindForge **workspace**：包含 vault 骨架和本地 runtime config。init 完成后会自动记住 workspace 路径（`~/.mindforge/current_workspace.json`），之后在任意目录运行 `mindforge status` / `mindforge start` 等命令都会自动找到它。用户只需理解 workspace 这一个概念，无需关心内部 config 文件路径。
 
 首次运行后 `mindforge status` 查看 workspace / vault / draft 状态。
 
@@ -89,7 +89,7 @@ source 放在 `vault/00-Inbox/` 下即可，无需预先创建 ManualNotes / Web
 
 ### 路径规则
 
-`vault/` 是本地知识库目录。`configs/mindforge.yaml` 是本机 runtime config（本地运行时配置），已 gitignore，不提交。
+`vault/` 是本地知识库目录。本地 runtime config 已 gitignore，不提交。
 
 **Web Add Source 必须绝对路径。** 浏览器环境无法解析相对路径：
 - `~/Documents/note.md` → 自动展开为 `/Users/<name>/Documents/note.md`

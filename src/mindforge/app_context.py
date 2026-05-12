@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .assets_runtime import bundled_asset_path_for_process
 from .config import ConfigError, MindForgeConfig, load_mindforge_config
 
 
@@ -100,24 +99,34 @@ def resolve_config_path(config_path: Path, *, cwd: Path | None = None) -> Path:
 
 
 def _resolve_config_path(config_path: Path, *, cwd: Path | None) -> Path:
-    """解析 CLI config path，默认配置缺失时回退到 package asset。
+    """解析 CLI config path，按统一优先级查找 workspace。
 
-    中文学习型说明：安装态用户经常在任意目录运行 ``mindforge demo`` /
-    ``dogfood readiness`` / ``doctor``，当前目录没有 ``configs/mindforge.yaml``
-    是正常状态。默认路径会先从 cwd 向上寻找 MindForge project root，再
-    回退到包内配置；如果用户显式传了其它 ``--config``，仍严格报错，避免把
-    拼错的路径静默吞掉。
+    中文学习型说明：用户只需理解 workspace，不需要每天关心 config file path。
+    解析优先级：
+    1. 显式 --config（文件存在）
+    2. 显式 --workspace（通过 env var 传递）
+    3. cwd 向上查找 configs/mindforge.yaml
+    4. 全局 active workspace（~/.mindforge/current_workspace.json）
+    5. 友好错误提示
+
+    不在错误目录静默创建 config，不把 secret 写进全局配置。
     """
 
-    if config_path.exists():
-        return config_path
-    default = Path("configs/mindforge.yaml")
-    if config_path == default:
-        project_root = find_project_root(cwd)
-        if project_root is not None:
-            return project_root / "configs" / "mindforge.yaml"
-        return bundled_asset_path_for_process("configs", "mindforge.yaml")
-    raise AppContextError("missing_config", f"配置文件不存在：{config_path}")
+    from .workspace_resolver import (
+        WorkspaceResolutionError,
+        global_workspace_override,
+        resolve_workspace_config,
+    )
+
+    workspace_override = global_workspace_override()
+    try:
+        return resolve_workspace_config(
+            config_path,
+            workspace_override=workspace_override,
+            cwd=cwd,
+        )
+    except WorkspaceResolutionError as exc:
+        raise AppContextError(exc.kind, str(exc)) from exc
 
 
 def build_app_context(
@@ -126,9 +135,14 @@ def build_app_context(
     vault_override: Path | None = None,
     cwd: Path | None = None,
 ) -> AppContext:
-    """构建 console-independent AppContext；不创建目录、不写文件。"""
+    """构建 console-independent AppContext；不创建目录、不写文件。
+
+    中文学习型说明：当 cwd 未显式传递时，以 config 文件所在目录为基准，
+    避免 process cwd 意外影响 vault 检测（如 home 目录的 .mindforge 被误判为 vault）。
+    """
     resolved_config = _resolve_config_path(config_path, cwd=cwd)
-    cfg = load_app_config(resolved_config, vault_override=vault_override, cwd=cwd)
+    effective_cwd = cwd or resolved_config.parent
+    cfg = load_app_config(resolved_config, vault_override=vault_override, cwd=effective_cwd)
     return AppContext(
         config=cfg,
         paths=AppPaths(

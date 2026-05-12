@@ -148,9 +148,29 @@ def _execute_init_plan(
         active_profile=active_model,
     )
 
+    # init 成功后自动设为 active workspace，
+    # 用户之后可在任意目录运行 mindforge status/web 等命令。
+    _auto_set_active_workspace(project_root, cfg_dst)
+
     for line in _ip.format_next_steps(next_steps_hint()):
         console.print(line)
     console.print(_ip.format_safety_footer())
+
+
+def _auto_set_active_workspace(project_root: Path, config_path: Path) -> None:
+    """init 成功后自动将 workspace 设为全局 active workspace。
+
+    中文学习型说明：init 是用户第一次接触 MindForge 的入口，之后他们应该
+    在任意目录都能用 mindforge status/web 等命令。自动设置 active workspace
+    避免了用户需要额外运行 workspace use 的摩擦。
+    """
+    from .workspace_resolver import set_active_workspace, WorkspaceResolutionError
+
+    try:
+        active = set_active_workspace(project_root)
+        console.print(f"  [green]✓ active workspace 已设置为[/green] {active.workspace_path}")
+    except WorkspaceResolutionError:
+        pass  # init 已成功，active workspace 设置失败不阻塞用户
 
 
 @init_config_app.command()

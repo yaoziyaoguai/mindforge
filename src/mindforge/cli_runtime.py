@@ -36,6 +36,10 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
 
     只有用户显式走需要真实 provider env 的 CLI 路径时才允许 ``read_env=True``；
     fake/safe 路径必须传 ``read_env=False``，从而保持 no API key required。
+
+    中文学习型说明：config resolution 统一走 ``app_context.load_app_config``，
+    它会按 --config > --workspace > cwd 向上查找 > 全局 active workspace 的
+    优先级链解析。找不到时给出 workspace-aware 友好错误提示。
     """
 
     if read_env:
@@ -50,12 +54,8 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
             cwd=Path.cwd(),
         )
     except AppContextError as e:
-        if e.kind == "missing_config":
-            console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")
-            console.print(
-                "[dim]提示：可以从仓库中的 configs/mindforge.yaml 复制一份到目标位置，"
-                "再用 --config 指定，或直接在仓库根运行命令。[/dim]"
-            )
+        if e.kind in {"no_workspace", "stale_workspace", "missing_config", "invalid_workspace"}:
+            console.print(f"[red]✗ {e}[/red]")
             raise typer.Exit(code=2) from e
         console.print(f"[red]✗ 配置错误：{e}[/red]")
         console.print(
@@ -248,16 +248,18 @@ _COMMANDS_WITH_LOCAL_VAULT_OPTION = {"init", "obsidian", "setup"}
 
 
 def normalize_post_command_global_options(argv: list[str]) -> list[str]:
-    """把后置 ``--vault`` 归一化为 Typer 全局参数位置。
+    """把后置 ``--vault`` / ``--workspace`` 归一化为 Typer 全局参数位置。
 
     ``init`` / ``obsidian`` / ``config init`` 拥有自己的局部 ``--vault``
-    语义，不能搬动；其他命令的 ``--vault`` 表示全局 vault override。
+    语义，不能搬动；其他命令的 ``--vault`` / ``--workspace`` 表示全局 override。
     """
 
     if len(argv) < 3:
         return argv
 
-    option_takes_value = {"--config", "-c", "--vault", "--obsidian-vault"}
+    option_takes_value = {
+        "--config", "-c", "--vault", "--workspace", "-w", "--obsidian-vault",
+    }
     command_idx: int | None = None
     i = 1
     while i < len(argv):
@@ -285,21 +287,29 @@ def normalize_post_command_global_options(argv: list[str]) -> list[str]:
     ):
         return argv
 
+    # 可搬动的全局选项及其带值形式
+    global_options_with_value = {"--vault", "--workspace"}
     moved: list[str] = []
     rest: list[str] = []
     i = 1
     while i < len(argv):
         token = argv[i]
-        if i > command_idx and token == "--vault" and i + 1 < len(argv):
+        if i <= command_idx:
+            rest.append(token)
+            i += 1
+            continue
+        if token in global_options_with_value and i + 1 < len(argv):
             moved.extend([token, argv[i + 1]])
             i += 2
             continue
-        if i > command_idx and token.startswith("--vault="):
-            moved.extend(["--vault", token.split("=", 1)[1]])
+        for opt in global_options_with_value:
+            if token.startswith(f"{opt}="):
+                moved.extend([opt, token.split("=", 1)[1]])
+                i += 1
+                break
+        else:
+            rest.append(token)
             i += 1
-            continue
-        rest.append(token)
-        i += 1
 
     if not moved:
         return argv

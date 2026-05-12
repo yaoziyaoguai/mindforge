@@ -169,6 +169,8 @@ app = typer.Typer(
         "常用命令：\n"
         "  mindforge web                — 打开本地 Web 控制台并配置真实模型\n"
         "  mindforge status             — 查看本地 workspace / draft / library 状态\n"
+        "  mindforge workspace current  — 查看当前 active workspace\n"
+        "  mindforge workspace use <path> — 设置 active workspace（之后可在任意目录运行）\n"
         "  mindforge doctor             — 做本地安装与路径健康检查\n"
         "  watch add <path>             — 注册 watched source，并启动后台 Process\n"
         "  import <path>                — 一次性导入文件/文件夹，并启动后台 Process\n"
@@ -201,6 +203,16 @@ def _global_options(
             "configured/bundled fallback。"
         ),
     ),
+    workspace: Path | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help=(
+            "指定 MindForge workspace 路径。自动推导 --config 为 "
+            "<workspace>/configs/mindforge.yaml。优先级：--config > --workspace > "
+            "cwd 向上查找 > 全局 active workspace。"
+        ),
+    ),
     obsidian_vault: Path | None = typer.Option(
         None,
         "--obsidian-vault",
@@ -229,6 +241,12 @@ def _global_options(
         os.environ["MINDFORGE_VAULT_OVERRIDE"] = str(vault.expanduser().resolve())
     else:
         os.environ.pop("MINDFORGE_VAULT_OVERRIDE", None)
+    if workspace is not None:
+        os.environ["MINDFORGE_WORKSPACE_OVERRIDE"] = str(
+            workspace.expanduser().resolve()
+        )
+    else:
+        os.environ.pop("MINDFORGE_WORKSPACE_OVERRIDE", None)
     if obsidian_vault is not None:
         os.environ["MINDFORGE_OBSIDIAN_VAULT_OVERRIDE"] = str(
             obsidian_vault.expanduser().resolve()
@@ -484,7 +502,7 @@ app.add_typer(prompts_app, name="prompts")
 app.add_typer(index_app, name="index")
 app.add_typer(telemetry_app, name="telemetry", hidden=True)
 app.add_typer(vault_app, name="vault", hidden=True)
-app.add_typer(workspace_app, name="workspace", hidden=True)
+app.add_typer(workspace_app, name="workspace")
 app.add_typer(trash_app, name="trash")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(watch_app, name="watch")

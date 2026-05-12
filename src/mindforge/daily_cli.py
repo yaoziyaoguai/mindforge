@@ -401,7 +401,10 @@ def start_cmd(
     该命令只读本地文件系统和卡片 frontmatter，不会 init、scan、process、
     approve 或写 Obsidian notes。真正动作仍由用户显式执行。
     """
-    if not config.exists():
+    try:
+        cfg = load_cfg(config, read_env=False)
+    except typer.Exit:
+        # load_cfg 失败 → config 找不到或无 workspace
         if output_format == "json":
             import json as _json
 
@@ -419,11 +422,11 @@ def start_cmd(
         else:
             console.print("[bold]MindForge start[/bold]\n")
             console.print("[yellow]尚未找到配置。[/yellow]")
-            console.print("  下一步：mindforge init --interactive", markup=False)
+            console.print("  1. 创建新 workspace：[bold]mindforge init[/bold]", markup=False)
+            console.print("  2. 切换已有 workspace：[bold]mindforge workspace use /path/to/workspace[/bold]", markup=False)
+            console.print("  3. 临时指定：[bold]mindforge start --workspace /path/to/workspace[/bold]", markup=False)
             console.print("[dim]安全默认：初始化不会调用模型；完成 Web Setup 后再处理 source。[/dim]")
         return
-
-    cfg = load_cfg(config, read_env=False)
     snapshot = _daily_snapshot(cfg)
     suggestions = _next_suggestions(cfg)
     if output_format == "json":
@@ -475,15 +478,18 @@ def today_cmd(
     与卡片 frontmatter 安全字段，不触发 process、不自动 approve、不读取
     provider key、不调用真实 LLM，也不修改 Obsidian notes。
     """
-    if not config.exists():
+    try:
+        cfg = load_cfg(config, read_env=False)
+    except typer.Exit:
         if output_format == "json":
             import json as _json
 
             print(_json.dumps({"version": 1, "error": "config_missing"}, ensure_ascii=False))
         else:
-            console.print("[yellow]配置不存在，先跑：mindforge init --interactive[/yellow]")
+            console.print("[yellow]配置不存在。[/yellow]")
+            console.print("  1. 创建新 workspace：[bold]mindforge init[/bold]", markup=False)
+            console.print("  2. 切换已有 workspace：[bold]mindforge workspace use /path/to/workspace[/bold]", markup=False)
         return
-    cfg = load_cfg(config, read_env=False)
     snapshot = _daily_snapshot(cfg)
     suggestions = _next_suggestions(cfg)
 
@@ -538,7 +544,10 @@ def next_cmd(
     - 不输出卡片正文 / raw_text / prompt / completion；
     - 输出仅含命令字符串与中文原因，不含 secret。
     """
-    if not config.exists():
+    try:
+        cfg = load_cfg(config, read_env=False)
+    except typer.Exit:
+        # load_cfg 已输出 workspace-aware 错误信息
         if output_format == "json":
             import json as _json
 
@@ -548,18 +557,11 @@ def next_cmd(
                 "suggestions": [
                     {
                         "command": "mindforge init",
-                        "reason": "configs/mindforge.yaml 不存在",
+                        "reason": "config not found — create a workspace first",
                         "priority": "critical",
                     }
                 ],
             }, ensure_ascii=False))
-        else:
-            console.print("[yellow]配置不存在，先跑：[/yellow]")
-            console.print("  [critical] mindforge init --interactive", markup=False)
-        return
-    try:
-        cfg = load_cfg(config, read_env=False)
-    except typer.Exit:
         return
 
     suggestions = _next_suggestions(cfg)
