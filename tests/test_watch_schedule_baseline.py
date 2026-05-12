@@ -608,7 +608,6 @@ def test_unchanged_unprocessed_file_retried_after_model_fix(
 
     # 第二阶段：修正模型配置（模拟用户在 Web Setup 修正 provider）
     _rewrite_config_with_fake_provider(cfg, vault)
-    source_id = reg_after_fail.sources[0].id
 
     # retry: watch scan --all
     scan = runner.invoke(app, ["watch", "scan", "--all", "--config", str(cfg)])

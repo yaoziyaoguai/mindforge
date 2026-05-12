@@ -206,9 +206,13 @@ def test_example_config_routing_refs_valid_models() -> None:
 
 
 def test_readme_references_example_config() -> None:
-    """README 引用了 mindforge_example.yaml。"""
+    """README 以 workspace 为用户主概念；example config 仍存在于磁盘供 CI/部署。"""
     text = Path("README.md").read_text(encoding="utf-8")
-    assert "mindforge_example.yaml" in text
+    # 磁盘上的 example config 是 CI/部署产物，仍然存在
+    assert Path("configs/mindforge_example.yaml").is_file()
+    # README 不再让用户把它当主概念——workspace 是用户唯一需要理解的概念
+    assert "workspace" in text
+    assert "无需关心内部 config 文件路径" in text
 
 
 def test_llm_provider_doc_references_example_config() -> None:
@@ -246,9 +250,10 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     main, _, developer = text.partition("## 开发者")
 
-    assert "configs/mindforge_example.yaml" in text
     assert "configs/mindforge.yaml" in text
-    assert "本地运行时配置" in text
+    assert "本地 runtime config" in text
+    assert "workspace" in text
+    assert "自动记住" in text
     assert "secret store" in text
     assert ".mindforge/secrets.json" in text
     assert "Web Add Source" in text
@@ -508,15 +513,16 @@ def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
 
 
 def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
-    """README 必须说明 clean clone 后 `mindforge web` 会创建本地 runtime config。"""
+    """README Quick Start 以 workspace 为用户主概念，说明 init 后自动记住 workspace。"""
 
     text = Path("README.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
 
     assert "mindforge web" in quickstart
     assert "首次运行" in quickstart
-    assert "configs/mindforge.yaml" in quickstart
-    assert "configs/mindforge_example.yaml" in text
+    assert "workspace" in quickstart
+    assert "自动记住" in quickstart
+    assert "无需关心内部 config 文件路径" in quickstart
     assert "local secret store" in text
     assert "API key 不写 YAML" in text
 

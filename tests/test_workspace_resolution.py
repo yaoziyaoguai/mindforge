@@ -15,7 +15,6 @@ import pytest
 import yaml
 
 from mindforge.workspace_resolver import (
-    ActiveWorkspace,
     WorkspaceResolutionError,
     clear_active_workspace,
     get_active_workspace,
@@ -297,8 +296,7 @@ def test_workspace_current_no_secret(tmp_path):
             assert "api" not in key.lower()
             assert "key" not in key.lower()
             assert "token" not in key.lower()
-        # 验证 config 路径下的 yaml 内容也不应出现在 workspace info 中
-        config_text = (tmp_path / "configs" / "mindforge.yaml").read_text()
+        # 验证 active 对象的 to_dict 不包含任何 secret 相关字段
         assert "workspace_path" in json.dumps(info)  # 正常包含路径信息
     finally:
         clear_active_workspace()

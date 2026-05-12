@@ -126,20 +126,19 @@ def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() 
 
 
 def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
-    """README first-run 路径必须解释 cwd vault 与 recall --query，防 dogfood 漂移。"""
+    """README first-run 路径以 workspace 为主概念，解释自动查找和 recall --query。"""
 
     text = Path("README.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
     first_run = text.split("### First-run", 1)[1].split("\n## ", 1)[0] if "### First-run" in text else quickstart
 
     assert "cd /tmp/mindforge-first-run" in first_run or "cd /tmp/mindforge-first-run" in text
-    assert "project root" in first_run or "project root" in text
-    assert "vault.root` 默认是相对 project root 的 `vault`" in first_run or "vault.root" in text
-    assert "cwd-first / vault-first" in first_run or "cwd-first / vault-first" in text
-    assert "explicit `--vault`" in first_run or "explicit `--vault`" in text
-    assert "cwd/ancestor vault" in first_run or "cwd/ancestor vault" in text
-    assert "project-root-relative" in first_run or "project-root-relative" in text
-    assert "active-vault-relative" in first_run or "active-vault-relative" in text
+    # workspace-first：用户只需理解 workspace，无需关心内部 config 路径
+    assert "workspace" in quickstart
+    assert "自动记住" in quickstart
+    assert "无需关心内部 config 文件路径" in quickstart
+    # source path resolution 仍保留在 README（CLI Source Path 章节）
+    assert "cwd → project-root → active-vault" in text
     assert "00-Inbox/" in text
     assert "configs/mindforge.yaml" in text
     assert 'mindforge recall --query "MindForge"' in text
