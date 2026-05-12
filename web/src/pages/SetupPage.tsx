@@ -353,7 +353,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : null}
 
-            {/* ---- Model cards ---- */}
+            {/* ---- Model cards ----
+              中文学习型说明：当 editing.modelId 与列表中某个 model 匹配时，
+              该 model 处于编辑态。此时 Edit/Delete 按钮应替换为 "Editing..."
+              标签，避免用户误认为有两个同名模型，或误点 Delete/Edit。 */}
             {hasConfiguredModels ? (
               <div className="space-y-3">
                 {modelIds.map((modelId) => {
@@ -368,18 +371,30 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     : keySource === "demo"
                     ? "missing"
                     : "missing";
+                  {/* 该 model 是否正在编辑：编辑态时隐藏 Edit/Delete，显示 Editing 标签 */}
+                  const currentlyEditing = editing && !editing.isNew && editing.modelId === modelId;
                   return (
-                    <article key={modelId} className="rounded-md border border-line p-3">
+                    <article key={modelId} className={`rounded-md border p-3 ${currentlyEditing ? "border-primary bg-blue-50" : "border-line"}`}>
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="font-semibold text-ink">{modelId}</div>
+                          {currentlyEditing ? (
+                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-white">Editing</span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`rounded-md px-2 py-0.5 text-xs ${keySource === "local_secret" || keySource === "env" ? "bg-green-100 text-green-700" : "bg-stone-100 text-muted"}`}>
                             API key: {apiKeyLabel}
                           </span>
-                          <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">Edit</button>
-                          <button className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-red-50" onClick={() => deleteModel(modelId)} type="button">Delete</button>
+                          {currentlyEditing ? (
+                            /* 编辑态：不显示 Edit/Delete 按钮；编辑表单在上方，用户用 Save/Cancel 操作 */
+                            <span className="text-xs text-muted">Editing...</span>
+                          ) : (
+                            <>
+                              <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">Edit</button>
+                              <button className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-red-50" onClick={() => deleteModel(modelId)} type="button">Delete</button>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted md:grid-cols-4">

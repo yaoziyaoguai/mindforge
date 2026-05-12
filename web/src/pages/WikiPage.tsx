@@ -69,9 +69,16 @@ export function WikiPage() {
         if (data.warnings?.length) {
           setMessage(prev => (prev ?? "") + " — Warnings: " + data.warnings!.join("; "));
         }
+        // 中文学习型说明：rebuild 响应中已携带 last_rebuilt_at，先立即更新 status
+        // 避免用户看到旧时间戳；同时仍调用 load() 从服务端拉取 status + content 完整刷新。
+        if (data.last_rebuilt_at) {
+          setStatus(prev => prev ? { ...prev, last_rebuilt_at: data.last_rebuilt_at ?? null, wiki_card_count: data.included_cards ?? prev.wiki_card_count } : prev);
+        }
       } else {
         setMessage(`Rebuild failed: ${data.error ?? "unknown error"}`);
       }
+      // 重建后双重刷新：先立即用响应中的 last_rebuilt_at 更新 status，再 fetch
+      // /api/wiki/status 和 /api/wiki/content 确保 UI 与服务端一致。
       await load();
     } catch {
       setMessage("Wiki rebuild failed");

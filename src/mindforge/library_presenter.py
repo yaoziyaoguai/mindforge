@@ -19,7 +19,7 @@ def render_library_stats(console: Console, stats: LibraryStats) -> None:
     console.print(f"total cards: {stats.total_cards}", markup=False)
     console.print(f"by status : {_counts(stats.by_status)}", markup=False)
     console.print(f"by track  : {_counts(stats.by_track)}", markup=False)
-    console.print(f"by provider/profile: {_counts(stats.by_provider)}", markup=False)
+    console.print(f"by model: {_counts(stats.by_provider)}", markup=False)
     console.print(
         f"index     : path={stats.index_path} exists={'yes' if stats.index_exists else 'no'}",
         markup=False,
@@ -42,7 +42,7 @@ def render_library_list(console: Console, inventory: LibraryInventory) -> None:
         "status",
         "track",
         "source",
-        "provider/profile",
+        "model",
         "updated",
         "path",
     ):
@@ -69,7 +69,7 @@ def render_library_list(console: Console, inventory: LibraryInventory) -> None:
             f"- {card.title or '?'} · status={card.status} · track={card.track or '-'} · "
             f"source_type={card.source_type or '-'} · adapter_name={card.adapter_name or '-'} · "
             f"source_title={card.source_title or '-'} · source_missing={'yes' if item.source_missing else 'no'} · "
-            f"profile={card.profile or card.provider or '-'} · path={card.rel_path}",
+            f"model={card.profile or card.provider or '-'} · path={card.rel_path}",
             markup=False,
             soft_wrap=True,
         )
@@ -90,7 +90,7 @@ def render_library_detail(console: Console, detail: LibraryCardDetail) -> None:
         "source_path": card.source_path or "-",
         "source_archive_path": card.source_archive_path or "-",
         "source_missing": "yes" if detail.card.source_missing else "no",
-        "profile/provider": card.profile or card.provider or "-",
+        "model": card.profile or card.provider or "-",
         "approved_at": card.reviewed_at.isoformat() if card.reviewed_at else "-",
         "path": card.rel_path,
     }
