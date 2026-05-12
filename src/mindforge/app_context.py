@@ -84,13 +84,23 @@ def load_app_config(
 
     中文学习型说明：是否加载 `.env` 仍由 CLI 入口显式决定。这里保持纯
     config/path resolution，避免 service/context 层悄悄改变 provider 环境。
+
+    ``--workspace`` 通过 env var 传递，直接影响 vault 优先级：
+    当 ``--workspace`` 显式提供时，workspace 的 configured vault 优先于 cwd vault。
     """
     config_path = resolve_config_path(config_path, cwd=cwd)
     try:
         cfg = load_mindforge_config(config_path)
     except ConfigError as e:
         raise AppContextError("invalid_config", str(e)) from e
-    decision = resolve_active_vault(cfg, vault_override=vault_override, cwd=cwd)
+    from .workspace_resolver import global_workspace_override
+    workspace_override = global_workspace_override()
+    decision = resolve_active_vault(
+        cfg,
+        vault_override=vault_override,
+        cwd=cwd,
+        workspace_override=workspace_override,
+    )
     return apply_active_vault(cfg, decision)
 
 
@@ -139,6 +149,9 @@ def build_app_context(
 
     中文学习型说明：当 cwd 未显式传递时，以 config 文件所在目录为基准，
     避免 process cwd 意外影响 vault 检测（如 home 目录的 .mindforge 被误判为 vault）。
+
+    ``--workspace`` 通过 env var 传递；本函数内部已通过 ``load_app_config``
+    自动传播到 vault resolution，无需调用方显式处理。
     """
     resolved_config = _resolve_config_path(config_path, cwd=cwd)
     effective_cwd = cwd or resolved_config.parent
@@ -217,12 +230,18 @@ def resolve_active_vault(
     *,
     vault_override: Path | None = None,
     cwd: Path | None = None,
+    workspace_override: Path | None = None,
 ) -> ActiveVaultDecision:
     """按统一优先级选择 active vault。
 
-    优先级：explicit ``--vault`` > cwd/ancestor vault > configured vault。
-    这个规则保证用户在 vault root 内运行 ``mindforge scan`` 时，scanner、
-    state/index、next command 全部指向同一个 vault。
+    优先级：
+    1. explicit ``--vault``（始终最高）
+    2. cwd/ancestor vault（仅在未显式提供 ``--workspace`` 时）
+    3. configured vault
+
+    当 ``--workspace`` 显式提供时，跳过 cwd vault 检测。
+    用户指定 workspace 意味着"使用这个 workspace 的配置"，不应被当前目录的
+    vault 意外覆盖。
     """
 
     project_root = _project_root_from_raw(cfg)
@@ -233,13 +252,15 @@ def resolve_active_vault(
             reason="explicit --vault",
             configured_root=configured,
         )
-    cwd_vault = detect_cwd_vault(cwd)
-    if cwd_vault is not None:
-        return ActiveVaultDecision(
-            root=cwd_vault,
-            reason="cwd vault",
-            configured_root=configured,
-        )
+    # --workspace 显式提供时，跳过 cwd vault，直接使用 workspace 配置的 vault
+    if workspace_override is None:
+        cwd_vault = detect_cwd_vault(cwd)
+        if cwd_vault is not None:
+            return ActiveVaultDecision(
+                root=cwd_vault,
+                reason="cwd vault",
+                configured_root=configured,
+            )
     return ActiveVaultDecision(
         root=configured,
         reason="configured vault",

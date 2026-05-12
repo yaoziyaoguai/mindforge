@@ -300,3 +300,117 @@ def test_workspace_current_no_secret(tmp_path):
         assert "workspace_path" in json.dumps(info)  # 正常包含路径信息
     finally:
         clear_active_workspace()
+
+
+# ---------------------------------------------------------------------------
+# 7. --workspace 阻止 cwd vault 覆盖 configured vault
+# ---------------------------------------------------------------------------
+
+
+def test_workspace_override_prevents_cwd_vault_override(tmp_path):
+    """--workspace 显式提供时，cwd vault 不能覆盖 workspace 的 configured vault。
+
+    中文学习型说明：用户在 /tmp/mindforge-first-run（有 vault）里运行
+    ``mindforge --workspace ~/my-workspace status`` 时，必须使用
+    ~/my-workspace 的 configured vault，而不是当前目录的 vault。
+    """
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    # 创建 workspace 及其配置的 vault
+    _make_workspace(tmp_path)
+    configured_vault = tmp_path / "vault"
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    # 模拟 cwd 在另一个有 vault 的目录
+    cwd_vault_dir = tmp_path / "other-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+
+    # --workspace 显式提供 → cwd vault 被跳过
+    decision = resolve_active_vault(
+        cfg,
+        cwd=cwd_vault_dir,
+        workspace_override=tmp_path,
+    )
+    assert decision.root == configured_vault.resolve(), (
+        f"--workspace 提供时 cwd vault 不应覆盖 configured vault，"
+        f"expected={configured_vault.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "configured vault"
+
+
+def test_no_workspace_override_cwd_vault_still_wins(tmp_path):
+    """没有 --workspace 时，cwd vault 仍然优先于 configured vault。
+
+    中文学习型说明：这是原有行为，必须保持不变。
+    """
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    cwd_vault_dir = tmp_path / "cwd-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+
+    decision = resolve_active_vault(
+        cfg,
+        cwd=cwd_vault_dir,
+        workspace_override=None,
+    )
+    assert decision.root == cwd_vault_dir.resolve(), (
+        f"无 --workspace 时 cwd vault 应优先，expected={cwd_vault_dir.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "cwd vault"
+
+
+def test_explicit_vault_wins_over_workspace(tmp_path):
+    """--vault 始终最高优先级，即使 --workspace 已提供。"""
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    cwd_vault_dir = tmp_path / "cwd-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+    explicit_vault = tmp_path / "explicit-vault"
+    explicit_vault.mkdir()
+
+    decision = resolve_active_vault(
+        cfg,
+        vault_override=explicit_vault,
+        cwd=cwd_vault_dir,
+        workspace_override=tmp_path,
+    )
+    assert decision.root == explicit_vault.resolve(), (
+        f"--vault 必须最高优先级，expected={explicit_vault.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "explicit --vault"
+
+
+def test_workspace_override_no_cwd_vault_uses_configured(tmp_path):
+    """--workspace 提供且 cwd 无 vault 时，fallback 到 configured vault。"""
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    configured_vault = tmp_path / "vault"
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    decision = resolve_active_vault(
+        cfg,
+        cwd=empty_dir,
+        workspace_override=tmp_path,
+    )
+    assert decision.root == configured_vault.resolve(), (
+        f"expected={configured_vault.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "configured vault"
