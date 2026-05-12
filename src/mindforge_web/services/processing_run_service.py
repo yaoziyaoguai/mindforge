@@ -298,6 +298,9 @@ def _apply_summary(
         record.error_type = "ProcessingError"
         record.error_message = error_messages[0]
 
+    # watch retry 边界：discovered > 0 但无任何产出（drafts=0 skipped=0 errors=0）
+    # 说明 processing 被跳过或静默无输出（如 unchanged+unprocessed 文件未被
+    # retry），必须标记为 failed 而非 succeeded，避免伪成功。
     if errors and (drafts or skipped):
         record.status = "partial_failed"
     elif errors:
@@ -306,6 +309,14 @@ def _apply_summary(
         record.status = "succeeded"
     elif skipped or discovered == 0:
         record.status = "skipped"
+    elif discovered > 0:
+        record.status = "failed"
+        record.error_type = "NoOutputError"
+        record.error_message = (
+            f"Scan found {discovered} file(s) but processing produced no output "
+            f"(drafts=0, skipped=0, errors=0). "
+            "Model setup may be incomplete or files may need retry."
+        )
     else:
         record.status = "succeeded"
     record.message = _message_for_summary(record)
@@ -327,7 +338,11 @@ def _message_for_summary(record: ProcessingRunRecord) -> str:
         return f"Evaluated source, but no draft was generated.{suffix}"
     if discovered == 0:
         return "No supported source files found."
-    return "Processing completed."
+    # discovered > 0 但无产出：no-output failure
+    return (
+        f"Scan found {discovered} file(s) but produced no output. "
+        "Model setup may be incomplete — check runs show for details."
+    )
 
 
 def _skip_reasons(summary: IngestionSummary | WatchScanSummary) -> list[str]:

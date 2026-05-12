@@ -337,12 +337,35 @@ def watch_scan_sources(
         # registry 更新：process_changes=False 时只更新 scan 时间戳和 diff_counts，
         # 不更新 baseline（留给 worker 处理完后再更新），避免 worker 找不到变更。
         if process_changes:
+            # watch retry 边界：source-level last_processed_at 只在真正成功时更新。
+            # 如果 run failed（LLM error / model setup incomplete），保持旧值或 null，
+            # 确保下次 scan 可以 retry。baseline item last_processed_at 同理：
+            # 成功处理的文件标记 now，失败的保持 null 以便下次 retry。
+            source_processed_ok = bool(changed_targets) and not source_failed
+            source_last_processed = (
+                _now() if source_processed_ok else source.last_processed_at
+            )
+            if source_processed_ok:
+                changed_set = {p.resolve() for p in changed_targets}
+                for key, item in baseline.items():
+                    if item.path.resolve() in changed_set:
+                        baseline[key] = WatchFileSnapshot(
+                            relative_path=item.relative_path,
+                            path=item.path,
+                            content_hash=item.content_hash,
+                            size=item.size,
+                            mtime=item.mtime,
+                            last_seen_at=item.last_seen_at,
+                            last_processed_at=_now(),
+                            status=item.status,
+                            skipped_reason=item.skipped_reason,
+                        )
             update_watch_source(
                 cfg.vault.root,
                 registry_path,
                 source.id,
                 last_seen_at=_now(),
-                last_processed_at=_now() if changed_targets else source.last_processed_at,
+                last_processed_at=source_last_processed,
                 last_scan_at=_now(),
                 next_scan_at=next_scan_after(_now(), source.frequency),
                 status="error" if source_failed else "active",
@@ -682,13 +705,22 @@ def _changed_targets_from_baseline(
     baseline: dict[str, WatchFileSnapshot],
     diff_counts: dict[str, int],
 ) -> list[Path]:
-    if not diff_counts.get("added") and not diff_counts.get("changed"):
-        return []
-    return [
-        item.path
-        for item in baseline.values()
-        if item.status in {"added", "changed"} and item.path.exists()
+    """返回需要进入 processing 的文件路径。
+
+    中文学习型说明：watch retry 边界——文件 unchanged 但 last_processed_at=null
+    说明之前从未成功处理过（上次 run failed / model error），必须重新处理。
+    否则用户修正模型配置后 retry 同一个 watched folder 会伪成功 no-output。
+    """
+    # 标准变更：added / changed
+    standard = [item for item in baseline.values() if item.status in {"added", "changed"}]
+    if standard:
+        return [item.path for item in standard if item.path.exists()]
+    # retry：unchanged 但从未成功处理过
+    retry = [
+        item for item in baseline.values()
+        if item.status == "unchanged" and item.last_processed_at is None
     ]
+    return [item.path for item in retry if item.path.exists()]
 
 
 def _relative_to_source(source: WatchedSource, path: Path) -> str:
