@@ -43,11 +43,12 @@ llm:
     action_extraction: main
 
 # -----------------------------------------------------------------------------
-# Wiki 配置（可选）
-# mode: deterministic（无需 LLM，按模板拼接）或 llm（LLM 综合归纳）
+# Wiki 配置
+# MindForge 是 LLM-first 工具，Wiki 主路径走 LLM synthesis。
+# mode: llm（推荐，LLM 综合归纳）或 deterministic（deprecated，仅内部兼容回退）
 # -----------------------------------------------------------------------------
 wiki:
-  mode: deterministic
+  mode: llm
   model: main
   auto_rebuild_on_approve: false
 

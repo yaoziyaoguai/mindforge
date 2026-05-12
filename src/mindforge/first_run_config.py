@@ -117,6 +117,9 @@ llm:
   routing: {}
 
 wiki:
+  # mode 为 deprecated/compatibility 字段。Web UI 不暴露 mode 选择器，
+  # 统一走 LLM synthesis 主路径。此处的 deterministic 是安全回退默认值，
+  # 确保无模型时不会错误触发 LLM 调用。
   mode: deterministic
   model: null
   auto_rebuild_on_approve: false

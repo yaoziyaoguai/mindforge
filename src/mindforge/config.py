@@ -375,9 +375,14 @@ class StrategyConfig:
 
 @dataclass(frozen=True)
 class WikiConfig:
-    """Wiki 生成配置。"""
+    """Wiki 生成配置。
 
-    mode: str = "deterministic"  # deterministic | llm
+    mode 字段为 deprecated/compatibility fallback。MindForge 是 LLM-first 工具，
+    Wiki 主路径走 llm synthesis。deterministic 模式仅保留作为内部回退和测试路径，
+    不在 Web UI 中作为普通用户可选模式暴露。
+    """
+
+    mode: str = "deterministic"  # deprecated: 仅保留兼容；主路径为 llm
     model: str | None = None
     auto_rebuild_on_approve: bool = True
 
@@ -845,6 +850,10 @@ def _parse_strategy(raw: Any) -> StrategyConfig:
 
 def _parse_wiki(raw: Any) -> WikiConfig:
     """解析 ``wiki.mode`` / ``wiki.model``，缺失时稳定回退 deterministic。
+
+    wiki.mode 为 deprecated/compatibility 字段。MindForge Web UI 只展示 LLM synthesis
+    作为主路径，deterministic 不在普通用户可选项中。此解析器保留 deterministic 回退
+    仅用于兼容旧配置和内部 fallback。
 
     wiki.model 必须引用 llm.models 中已存在的 model id（由调用方校验）。
     """

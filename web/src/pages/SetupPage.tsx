@@ -23,7 +23,6 @@ type SetupForm = {
   models: Record<string, ModelForm>;
   routing: Record<string, string>;
   routing_is_explicit: boolean;
-  wiki_mode: string;
   wiki_model: string;
   wiki_auto_rebuild: boolean;
 };
@@ -330,10 +329,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? "Enter API key" : "Leave empty to keep current key"} />
                     <span className="text-xs text-muted">{editing.isNew ? "" : "Leave empty to preserve existing API key."}</span>
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-ink">
-                    <input checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
-                    API key optional (local endpoints)
-                  </label>
                   {!editing.isNew ? (
                     <div className="flex items-center gap-2">
                       <button className="text-xs text-danger" onClick={() => setEditing({ ...editing, form: { ...editing.form, api_key: "", api_key_action: "clear" } })} type="button">
@@ -343,6 +338,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     </div>
                   ) : null}
                 </div>
+                <details className="mt-4 rounded-md border border-line p-2">
+                  <summary className="cursor-pointer text-xs font-medium text-muted">Advanced</summary>
+                  <label className="mt-2 flex items-center gap-2 text-sm text-ink">
+                    <input checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
+                    API key optional (local endpoints)
+                  </label>
+                  <p className="mt-1 text-xs text-muted">Only enable this for local or self-hosted model endpoints that do not require an API key. Most hosted providers require an API key.</p>
+                </details>
                 <div className="mt-4 flex gap-2">
                   <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={saveModelEdit} type="button">Save</button>
                   <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={cancelEdit} type="button">Cancel</button>
@@ -501,35 +504,23 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
               <h2 className="text-lg font-semibold text-ink">Wiki generation</h2>
-              <p className="mt-1 text-sm text-muted">Configure how MindForge builds the Main Wiki from human-approved cards. The Wiki is a derived view; source files are not modified.</p>
+              <p className="mt-1 text-sm text-muted">MindForge uses LLM synthesis to build the Main Wiki from human-approved cards. The Wiki is a derived view; source files are not modified.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Generation mode</span>
-                <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={form.wiki_mode} onChange={(event) => setForm({ ...form, wiki_mode: event.target.value })}>
-                  <option value="deterministic">Template summary (no model)</option>
-                  <option value="llm">LLM synthesis</option>
-                </select>
-                <span className="text-xs text-muted">{form.wiki_mode === "deterministic"
-                  ? "Fast and deterministic — builds a structured Wiki from approved cards without calling a model."
-                  : "Uses a configured model to synthesize a more coherent Main Wiki from approved cards."}</span>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Model for LLM synthesis</span>
+                <span className="font-medium text-ink">Model for Wiki synthesis</span>
                 <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100"
-                  disabled={!hasConfiguredModels || form.wiki_mode === "deterministic"}
+                  disabled={!hasConfiguredModels}
                   value={form.wiki_model || ""}
                   onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
                   <option value="">Use default model</option>
                   {modelIds.map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
                 </select>
                 <span className="text-xs text-muted">
-                  {form.wiki_mode === "deterministic"
-                    ? "No model is needed for template summary mode."
-                    : !hasConfiguredModels
-                    ? "Add a model first to use LLM synthesis."
+                  {!hasConfiguredModels
+                    ? "Complete model setup to generate Wiki."
                     : form.wiki_model
-                    ? `Will use ${form.wiki_model}.`
+                    ? `Will use ${form.wiki_model} for Wiki synthesis.`
                     : "Falls back to default model."}
                 </span>
               </label>
@@ -538,7 +529,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
                   <span className="font-medium">Auto update Wiki after approval</span>
                 </span>
-                <span className="text-xs text-muted ml-6">When enabled, MindForge updates the Main Wiki after each approval using the safe template summary mode. LLM synthesis is never run automatically — trigger it manually from the Wiki page.</span>
+                <span className="text-xs text-muted ml-6">When enabled, MindForge updates the Main Wiki after each approval. LLM synthesis is never run automatically — trigger it manually from the Wiki page.</span>
               </label>
             </div>
           </section>
@@ -591,7 +582,6 @@ function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
     ),
     routing: editable.llm.routing,
     routing_is_explicit: editable.llm.routing_is_explicit,
-    wiki_mode: editable.wiki?.mode ?? "deterministic",
     wiki_model: editable.wiki?.model ?? "",
     wiki_auto_rebuild: editable.wiki?.auto_rebuild_on_approve ?? false,
   };
@@ -633,7 +623,6 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
     default_model: modelIds.length && form.default_model ? form.default_model : undefined,
     models: modelIds.length ? models : undefined,
     routing: form.routing_is_explicit ? compactRouting(form.routing, form.default_model) : undefined,
-    wiki_mode: form.wiki_mode || undefined,
     wiki_model: form.wiki_model || undefined,
     wiki_auto_rebuild_on_approve: form.wiki_auto_rebuild,
   };

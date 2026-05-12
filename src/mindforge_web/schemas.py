@@ -227,8 +227,14 @@ class EditableCuboxConfig(BaseModel):
 
 
 class EditableWikiConfig(BaseModel):
-    """Wiki 可编辑配置。"""
-    mode: str = "deterministic"
+    """Wiki 可编辑配置。
+
+    mode 为 deprecated/compatibility 字段。MindForge Web UI 只展示 LLM synthesis
+    作为主路径，deterministic 仅保留为内部 fallback / 测试路径，不在普通用户
+    可选项中暴露。此字段仍在 API response 中返回（兼容旧前端），但 Setup 页面
+    不再将其作为用户可选 generation mode。
+    """
+    mode: str = "deterministic"  # deprecated: compatibility fallback, not user-facing
     model: str | None = None
     auto_rebuild_on_approve: bool = False
 
@@ -279,7 +285,7 @@ class SetupConfigPatch(BaseModel):
     default_model: str | None = None
     models: dict[str, SetupModelPatch] = Field(default_factory=dict)
     routing: dict[str, str] = Field(default_factory=dict)
-    wiki_mode: str | None = None
+    wiki_mode: str | None = Field(default=None, description="deprecated: compatibility fallback; Web UI no longer sets this field")
     wiki_model: str | None = None
     wiki_auto_rebuild_on_approve: bool | None = None
     cubox_export_path: str | None = None

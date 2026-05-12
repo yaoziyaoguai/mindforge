@@ -18,14 +18,18 @@ router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 @router.get("/status")
 def wiki_status(facade: WebFacade = Depends(get_facade)):
     """返回 Main Wiki 状态摘要。"""
+    from mindforge.model_setup_readiness import model_setup_readiness
     from mindforge.wiki_service import get_wiki_status
     status = get_wiki_status(facade.cfg)
+    readiness = model_setup_readiness(facade.cfg)
     return {
         "wiki_path": status.wiki_path,
         "exists": status.exists,
         "last_rebuilt_at": status.last_rebuilt_at,
         "approved_card_count": status.approved_card_count,
         "wiki_card_count": status.wiki_card_count,
+        "model_ready": readiness.ready,
+        "model_ready_label": readiness.label,
     }
 
 

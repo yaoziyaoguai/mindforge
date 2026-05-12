@@ -42,19 +42,13 @@ def test_real_mindforge_yaml_loads() -> None:
     cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     # vault
     assert cfg.vault.inbox_root == "00-Inbox"
-    # sources
-    assert "cubox_markdown" in cfg.sources.enabled
+    # sources：v0.7.21 起默认只启用 plain_markdown。
+    # 其余 adapter 是 optional/advanced，默认不在 enabled 列表中。
     assert "plain_markdown" in cfg.sources.enabled
     active = {e.source_type for e in cfg.sources.active_entries()}
-    # v0.2.4 起 webclip_markdown / chat_export 默认启用；本 milestone 增加
-    # common_document 作为通用本地文档入口，不把 Cubox 当核心配置项。
-    assert active == {
-        "cubox_markdown",
-        "plain_markdown",
-        "webclip_markdown",
-        "chat_export",
-        "common_document",
-    }
+    assert active == {"plain_markdown"}, (
+        "默认只启用 plain_markdown；其他 adapter 为 optional，需用户显式启用"
+    )
     # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
     assert cfg.llm.active_profile == "__model_routing__"
     assert cfg.llm.default_model == "main"

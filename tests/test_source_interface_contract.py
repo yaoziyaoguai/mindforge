@@ -40,12 +40,18 @@ _DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
 
 
 def test_default_yaml_enables_cubox_markdown() -> None:
-    """默认 source 语义来自 runtime defaults + user override 合并后的配置。"""
+    """默认 source 语义来自 runtime defaults + user override 合并后的配置。
+
+    v0.7.21 起默认只启用 plain_markdown。cubox_markdown 是 optional adapter，
+    默认不启用。用户可以通过 enabled 列表显式启用。
+    """
     from mindforge.config import load_mindforge_config
 
     cfg = load_mindforge_config(_DEFAULT_YAML)
-    assert "cubox_markdown" in cfg.sources.enabled
-    assert cfg.sources.registry["cubox_markdown"].enabled is True
+    assert "plain_markdown" in cfg.sources.enabled
+    assert cfg.sources.registry["plain_markdown"].enabled is True
+    # cubox_markdown 是 optional adapter，默认不启用
+    assert "cubox_markdown" not in cfg.sources.enabled
 
 
 def test_default_yaml_does_not_enable_cubox_api() -> None:
@@ -55,12 +61,17 @@ def test_default_yaml_does_not_enable_cubox_api() -> None:
 
 
 def test_default_active_entries_only_cubox_markdown_among_cubox_family() -> None:
-    """Selector 解析默认 yaml 后，cubox 家族中只能激活 cubox_markdown。"""
+    """Selector 解析默认 yaml 后，cubox 家族默认不激活。
+
+    v0.7.21 起默认只启用 plain_markdown。cubox 家族 adapter 均为 optional，
+    active_entries 中不包含任何 cubox_ 前缀条目。
+    """
     from mindforge.config import load_mindforge_config
     cfg = load_mindforge_config(_DEFAULT_YAML)
     active_types = {e.source_type for e in cfg.sources.active_entries()}
+    assert "plain_markdown" in active_types
     cubox_active = {t for t in active_types if t.startswith("cubox_")}
-    assert cubox_active == {"cubox_markdown"}
+    assert cubox_active == set(), "cubox 家族 adapter 默认不激活（optional）"
 
 
 def test_core_modules_do_not_hardcode_cubox() -> None:
@@ -235,11 +246,16 @@ def test_scanner_module_does_not_perform_knowledge_or_review() -> None:
 
 
 def test_scanner_with_real_default_yaml_uses_cubox_markdown(tmp_path: Path) -> None:
-    """端到端 thin 集成：用默认 yaml 构造 Scanner，确认 adapters dict 含 cubox_markdown。"""
+    """端到端 thin 集成：用默认 yaml 构造 Scanner，确认 adapters dict 含 plain_markdown。
+
+    v0.7.21 起默认只启用 plain_markdown。Scanner 只应包含启用的 adapter。
+    """
     from mindforge.config import load_mindforge_config
     cfg = load_mindforge_config(_DEFAULT_YAML)
     # 重写 vault 路径到 tmp 避免依赖真实 vault
     cfg = replace(cfg, vault=replace(cfg.vault, root=tmp_path))
     scanner = Scanner(cfg)
-    assert "cubox_markdown" in scanner.adapters
-    assert scanner.adapters["cubox_markdown"].__class__.__name__ == "CuboxMarkdownAdapter"
+    assert "plain_markdown" in scanner.adapters
+    assert scanner.adapters["plain_markdown"].__class__.__name__ == "PlainMarkdownAdapter"
+    # cubox_markdown 是 optional adapter，默认不出现
+    assert "cubox_markdown" not in scanner.adapters

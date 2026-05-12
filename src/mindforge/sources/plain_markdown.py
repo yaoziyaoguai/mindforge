@@ -28,7 +28,11 @@ from .base import SourceAdapter, SourceDocument, compute_content_hash
 
 
 class PlainMarkdownAdapter(SourceAdapter):
-    """把 ``00-Inbox/ManualNotes/*.md`` 解析为统一的 SourceDocument。"""
+    """把 ``00-Inbox/*.md`` 解析为统一的 SourceDocument。
+
+    plain_markdown 是本地普通 Markdown 的通用 adapter，不绑定任何子目录分类。
+    用户通过 watch add/import 将任意本地 .md 接入 inbox 即可。
+    """
 
     name = "PlainMarkdownAdapter"
     source_type = "plain_markdown"  # type: ignore[assignment]

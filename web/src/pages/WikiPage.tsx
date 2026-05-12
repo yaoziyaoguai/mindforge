@@ -6,6 +6,8 @@ interface WikiStatus {
   last_rebuilt_at: string | null;
   approved_card_count: number;
   wiki_card_count: number;
+  model_ready: boolean;
+  model_ready_label: string;
 }
 
 interface WikiContent {
@@ -110,11 +112,8 @@ export function WikiPage() {
             <span className="text-muted">Approved cards: </span>
             <span className="text-ink">{status.approved_card_count}</span>
           </div>
-          <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy} onClick={() => rebuild("deterministic")} type="button">
-            Deterministic Rebuild
-          </button>
-          <button className="rounded-md border border-primary px-3 py-2 text-sm font-medium text-primary disabled:opacity-50" disabled={busy} onClick={() => rebuild("llm")} type="button">
-            LLM Rebuild
+          <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !status.model_ready} onClick={() => rebuild("llm")} type="button" title={status.model_ready ? "Rebuild Wiki with LLM synthesis" : status.model_ready_label}>
+            Rebuild Wiki
           </button>
         </div>
       ) : null}
@@ -124,9 +123,23 @@ export function WikiPage() {
         {content?.content ? (
           <pre className="whitespace-pre-wrap font-sans text-sm text-ink leading-relaxed">{content.content}</pre>
         ) : (
-          <p className="text-sm text-muted">Wiki has not been generated yet. Click a rebuild button or run mindforge wiki rebuild.</p>
+          <div>
+            <p className="text-sm text-muted">Wiki has not been generated yet. Click Rebuild Wiki or run mindforge wiki rebuild.</p>
+            {!status?.model_ready && <p className="text-sm text-warn">Model setup required for Wiki generation. Complete model setup first.</p>}
+          </div>
         )}
       </div>
+
+      {/* Advanced: deterministic template rebuild fallback */}
+      <details className="rounded-md border border-line p-3">
+        <summary className="cursor-pointer text-sm font-medium text-muted">Advanced</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted">Template rebuild is a troubleshooting fallback. It does not require a model and produces a structured summary from approved cards without LLM synthesis. This is not the recommended Wiki generation path.</p>
+          <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy} onClick={() => rebuild("deterministic")} type="button">
+            Template rebuild (no model)
+          </button>
+        </div>
+      </details>
     </div>
   );
 }

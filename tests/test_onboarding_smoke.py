@@ -157,7 +157,7 @@ def test_process_explicit_asset_paths_still_win(tmp_path: Path) -> None:
             "--profile",
             "fake",
             "--limit",
-            "1",
+            "5",  # v0.7.21: 默认只启用 plain_markdown，扫描整个 inbox，需要足够 limit 覆盖所有子目录
             "--prompts-dir",
             str(Path.cwd() / "prompts"),
             "--tracks",
