@@ -14,6 +14,10 @@ git status --short
 Run the full suite after documentation governance changes when tests or CLI help
 references are touched.
 
+## First Status Commands
+
+新用户首选检查命令：`mindforge status`。
+
 ## Onboarding Smoke
 
 The executable onboarding smoke is `tests/test_onboarding_smoke.py`. It uses a
@@ -66,6 +70,13 @@ mindforge start --config /tmp/mindforge-smoke/configs/mindforge.yaml
 mindforge status --config /tmp/mindforge-smoke/configs/mindforge.yaml
 mindforge doctor --config /tmp/mindforge-smoke/configs/mindforge.yaml
 ```
+
+## Local workflow safety notes
+
+- Use local source files or folders that you are comfortable processing; start with non-sensitive material.
+- Keep API keys in the local secret store managed by Web Setup; do not put keys in YAML or docs.
+- Real model calls require explicit model configuration and an explicit processing action.
+- No automatic approve.
 
 ## Safety Checks To Preserve
 

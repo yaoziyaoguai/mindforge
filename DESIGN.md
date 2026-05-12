@@ -26,8 +26,8 @@ change long-term memory.
   localhost, current vault, and local files.
 - Explicit write actions: write-capable controls are visually distinct and
   state exactly what will be written.
-- Transparent configuration: `.env` and provider readiness are shown as
-  configured/missing only; secret values never appear.
+- Transparent configuration: model setup status is shown as configured/missing
+  only; secret values never appear.
 - No hidden automation for approval: `human_approved` can only be produced by
   an explicit user confirmation.
 
@@ -40,8 +40,8 @@ space.
 - Left sidebar: persistent navigation for Home, Setup / Config, Sources,
   Drafts / Review, and Recall / Knowledge.
 - Top Safety Bar: visible on every page and never hidden behind a drawer. It
-  summarizes local-only status, active vault, provider readiness, `.env`
-  presence, write mode, and pending draft count.
+  summarizes local-only status, active vault, model setup status,
+  write mode, and pending draft count.
 - Main content area: one primary task per page. Avoid nested cards and avoid
   landing-page hero structures.
 - Optional right detail panel: used for draft metadata, source context, or the
@@ -49,9 +49,9 @@ space.
 
 ## Core Navigation
 
-- Home: current workspace, vault, provider, `.env`, draft, approved, recall,
-  and next-action status.
-- Setup / Config: configuration checklist, provider readiness, Cubox/local
+- Home: current workspace, vault, model setup, draft, approved, recall, and
+  next-action status.
+- Setup / Config: configuration checklist, model setup readiness, source
   import readiness, vault path readiness, safety mode, and next steps.
 - Sources: source registry status and read-only scan/source state when
   available. Import controls only appear when the backend can perform the
@@ -68,8 +68,8 @@ Safety Bar content is part of the product contract:
 - Show "Local only" and the host when running on `127.0.0.1` / `localhost`.
 - Show the current vault path. If it looks like a real user vault, use amber
   tone and plain warning language.
-- Show provider status as `fake`, `real`, or `missing/incomplete`.
-- Show `.env` status as configured/missing by key name only. Never show values.
+- Show model setup status as `configured` or `missing`.
+- Show model setup indicator. Never show API key values.
 - Show write mode as `read-only` or `explicit approval required`.
 - Show pending draft count.
 - Warn when a real vault or real provider is active.
@@ -78,7 +78,7 @@ The bar should use short labels and avoid raw stack traces or config dumps.
 
 ## Color Semantics
 
-- Green: safe, local, ready, fake-default, completed.
+- Green: safe, local, ready, local-default, completed.
 - Amber: needs attention, real environment, incomplete config, missing index,
   real vault warning.
 - Red: destructive or irreversible write, failed safety condition, dangerous
@@ -91,8 +91,8 @@ branding.
 
 ## Component Semantics
 
-- `ConfigChecklist`: checklist rows for required config paths, env key
-  presence, provider readiness, Cubox readiness, and vault readiness.
+- `ConfigChecklist`: checklist rows for required config paths, model setup
+  status, source import readiness, and vault readiness.
 - `StatusCard`: compact status summary with a label, value, state color, and
   one optional next action.
 - `SafetyBar`: always-on local safety summary; consumes only secret-safe status
@@ -130,7 +130,7 @@ Every empty state tells the user what to do next:
 - No vault: configure `vault.root` or run the setup command.
 - No sources: place supported files in the configured inbox or use a supported
   import path.
-- No drafts: run scan/process or inspect source readiness.
+- No drafts: check model setup, then add source via Watch Add or Import.
 - No approved cards: review and approve at least one draft before recall.
 - No recall index: search can still do memory rebuild when supported; suggest
   `mindforge index rebuild` when applicable.
