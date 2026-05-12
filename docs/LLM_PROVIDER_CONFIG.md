@@ -29,7 +29,7 @@ llm:
     action_extraction: main
 
 wiki:
-  mode: deterministic
+  mode: llm  # LLM-first synthesis（推荐）；Troubleshooting 回退用 deterministic
   model: main
   auto_rebuild_on_approve: false
 ```
@@ -43,7 +43,7 @@ wiki:
 | `llm.routing` | 可选，workflow step → model id。省略时全部使用 default_model |
 | routing 部分缺失 | 缺失 step fallback 到 default_model |
 | `wiki.model` | Wiki LLM synthesis 使用的 model id；必须引用 `llm.models` |
-| `wiki.auto_rebuild_on_approve` | 默认 false；开启后也只运行 deterministic rebuild，不自动运行 LLM synthesis |
+| `wiki.auto_rebuild_on_approve` | 默认 false。开启后会在 approve 时自动触发 Wiki 重建（使用 `wiki.mode` 指定的方式，LLM synthesis 需要已配置模型和 API key）。不开启时 Wiki 需在 Web Wiki 页面或 CLI 手动触发 |
 
 ---
 

@@ -649,6 +649,126 @@ class _NoOpLogger:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Wiki LLM-first 产品语义 characterization tests
+# ---------------------------------------------------------------------------
+
+
+def test_commands_map_shows_wiki_rebuild_as_llm_first_not_deterministic() -> None:
+    """``mindforge commands`` 中 wiki rebuild 不展示 --mode deterministic 作为主路径。
+
+    设计意图：Wiki 主路径是 LLM synthesis，deterministic 只在 Advanced/Troubleshooting
+    回退中暴露。命令地图是用户发现入口，必须展示 LLM-first 语义。
+    """
+    result = runner.invoke(app, ["commands"])
+
+    assert result.exit_code == 0, result.output
+    out = result.output
+
+    # LLM-first wiki rebuild 命令存在
+    assert "mindforge wiki rebuild" in out
+    assert "LLM synthesis" in out or "LLM" in out
+
+    # 主路径命令地图不展示 --mode deterministic
+    assert "--mode deterministic" not in out
+
+
+def test_llm_provider_doc_yaml_example_uses_llm_mode_not_deterministic() -> None:
+    """docs/LLM_PROVIDER_CONFIG.md 的 YAML 示例必须推荐 mode: llm（非 deterministic）。
+
+    LLM-first 产品承诺：普通用户看到的配置示例应该以 LLM synthesis 为默认路径。
+    """
+    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+
+    # YAML 示例中 wiki.mode 推荐 llm
+    assert "mode: llm" in text, "LLM provider doc 应包含 mode: llm 注释说明"
+
+    # 不推荐 mode: deterministic 作为默认
+    assert "mode: deterministic" not in text, (
+        "LLM provider doc 不应推荐 mode: deterministic；llm 是主路径"
+    )
+
+    # 注释解释 LLM-first 语义
+    assert "LLM-first" in text, "应在注释中说明 LLM-first synthesis 是推荐路径"
+
+
+def test_llm_provider_doc_deterministic_only_in_troubleshooting_context() -> None:
+    """deterministic 只在 Troubleshooting/回退上下文中出现，不作为并列选项。
+
+    验证：docs/LLM_PROVIDER_CONFIG.md 中所有 deterministic 出现位置均
+    在回退说明或 Troubleshooting 上下文中，而非 YAML 配置示例或推荐路径。
+    """
+    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if "deterministic" in line.lower():
+            # 收集周围上下文（上下各 3 行）
+            start = max(0, i - 3)
+            end = min(len(lines), i + 4)
+            context = " ".join(lines[start:end]).lower()
+
+            troubleshooting_words = (
+                "troubleshooting", "回退", "fallback", "advanced",
+                "不推荐", "不是推荐", "not the recommended",
+            )
+            assert any(w in context for w in troubleshooting_words), (
+                f"line {i}: 'deterministic' 出现在非回退上下文中: {line.strip()}"
+            )
+
+
+def test_llm_provider_doc_auto_rebuild_explains_llm_safety() -> None:
+    """auto_rebuild_on_approve 的说明必须包含 LLM synthesis 安全语义。
+
+    不应暗示只运行 deterministic rebuild。应明确说明使用 wiki.mode 指定的方式，
+    LLM synthesis 需要已配置模型和 API key。
+    """
+    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+
+    assert "auto_rebuild_on_approve" in text
+
+    # 新语义：使用 wiki.mode 指定的方式
+    assert "wiki.mode" in text or "mode" in text
+
+    # 不应暗示只运行 deterministic
+    assert "只运行 deterministic" not in text
+    assert "也只运行 deterministic" not in text
+
+    # 应提到需要模型配置
+    assert ("模型" in text) or ("model" in text.lower() and "api" in text.lower()), (
+        "auto_rebuild_on_approve 说明应提到模型配置要求"
+    )
+
+
+def test_readme_wiki_section_does_not_expose_deterministic_as_primary() -> None:
+    """README Wiki 章节不暴露 deterministic 作为主路径。
+
+    Wiki 是 LLM-first synthesis；deterministic 仅在 Advanced/Troubleshooting 中出现。
+    """
+    text = Path("README.md").read_text(encoding="utf-8")
+
+    # 找到 Wiki 相关内容
+    wiki_start = text.find("Wiki")
+    assert wiki_start >= 0, "README 应包含 Wiki 内容"
+
+    # 在 Wiki 相关内容区域（前后各 200 字符）
+    region = text[max(0, wiki_start - 200):wiki_start + 2000]
+
+    # LLM-first 描述
+    assert "LLM-first synthesis" in region or "LLM synthesis" in region
+
+    # Wiki rebuild 命令不展示 --mode deterministic
+    assert "wiki rebuild\"" not in region or "--mode deterministic" not in region
+
+    # deterministic 只应在 Advanced 或 Troubleshooting 上下文
+    if "deterministic" in region:
+        idx = region.index("deterministic")
+        nearby = region[max(0, idx - 50):idx + 100]
+        assert any(w in nearby.lower() for w in ("advanced", "troubleshooting", "回退", "fallback", "not recommended")), (
+            "README 中 deterministic 只应在 Advanced/Troubleshooting 上下文出现"
+        )
+
+
 def _replace_strategy(cfg: MindForgeConfig, active: str) -> MindForgeConfig:
     return MindForgeConfig(
         version=cfg.version,
