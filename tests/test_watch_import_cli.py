@@ -156,6 +156,9 @@ def _run_id_from_output(output: str) -> str:
     for line in output.splitlines():
         if line.startswith("run_id: "):
             return line.split("run_id: ", 1)[1].strip()
+    for line in output.splitlines():
+        if "run_id=" in line:
+            return line.split("run_id=", 1)[1].strip()
     raise AssertionError(f"missing run_id in output:\n{output}")
 
 
@@ -1177,6 +1180,13 @@ def test_watch_scan_without_model_config_reports_setup_action(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    """无 model setup 时，watch scan 应创建 background run 并 failed，而非同步崩溃。
+
+    中文学习型说明：watch scan 现在使用 process_changes=False 做只读 scan，
+    然后为有变更的 source 创建 background ProcessingRun。model setup 错误应
+    出现在 background run 中（通过 runs show 观察），而不是 watch scan 命令
+    同步返回错误码。
+    """
     cfg, vault = _write_config(tmp_path)
     raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -1190,10 +1200,16 @@ def test_watch_scan_without_model_config_reports_setup_action(
 
     result = runner.invoke(app, ["watch", "scan", watch_id, "--config", str(cfg)])
 
-    assert result.exit_code == 2, result.output
-    assert "No model configured for stage 'triage'" in result.output
-    assert "Add a model in Web Setup" in result.output
-    assert "Traceback" not in result.output
+    # scan 本身成功（只做文件扫描和 diff）
+    assert result.exit_code == 0, result.output
+    assert "scanned=1" in result.output
+
+    # background run 应该 fail with model setup error
+    run = _wait_for_cli_run(cfg, result.output)
+    assert run.status in {"failed", "needs_model_setup"}
+    assert "No model configured" in (run.error_message or run.message) or \
+           "model setup" in (run.error_message or run.message).lower()
+    assert "traceback" not in (run.error_message or run.message).lower()
 
 
 def test_process_missing_real_provider_key_reports_selected_provider(

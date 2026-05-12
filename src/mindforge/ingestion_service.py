@@ -79,6 +79,21 @@ class IngestionSummary:
 
 
 @dataclass(frozen=True)
+class WatchScanSourceDetail:
+    """单个 watched source 的 scan 结果，供 CLI 创建 background processing run。
+
+    中文学习型说明：CLI watch scan 命令需要知道每个 source 是否有新增/变更文件，
+    才能为有变更的 source 创建 background processing run。这个 dataclass 是
+    watch_scan_sources() 的 per-source 输出，不包含 processing 结果。
+    """
+
+    source_id: str
+    path: Path
+    has_changes: bool
+    diff_counts: dict[str, int]
+
+
+@dataclass(frozen=True)
 class WatchScanSummary:
     scanned: int
     not_due: int
@@ -86,6 +101,7 @@ class WatchScanSummary:
     counts: dict[str, int]
     diff_counts: dict[str, int]
     source_ids: tuple[str, ...]
+    source_details: tuple[WatchScanSourceDetail, ...] = ()
     skipped: tuple[SkippedDocumentDetail, ...] = ()
     errors: tuple[str, ...] = ()
     provider_failure: ProviderFailureDetail | None = None
@@ -199,12 +215,17 @@ def watch_scan_sources(
     ref: str | None = None,
     all_sources: bool = False,
     strategy: StrategySelection | None = None,
+    process_changes: bool = True,
 ) -> WatchScanSummary:
-    """扫描已保存 watched sources，并按 baseline diff 决定是否进入 ingestion。
+    """扫描已保存 watched sources, 并按 baseline diff 决定是否进入 ingestion.
 
-    中文学习型说明：schedule/baseline 只决定“哪个顶层 source due、哪些文件新增
-    或变化”。它不生成卡片、不删除知识；真正生成 ai_draft 仍委托现有
-    ingestion pipeline。Source deletion never deletes approved knowledge.
+    schedule/baseline 只决定"哪个顶层 source due, 哪些文件新增或变化".
+    当 process_changes=True (worker 路径) 时, 变更文件直接进入 ingestion pipeline
+    同步处理. 当 process_changes=False (CLI 路径) 时, 只做 scan + diff + registry
+    更新, 不调用 _ingest_targets_summary(); CLI 调用方负责为有变更的 source
+    创建 background ProcessingRun.
+
+    Source deletion never deletes approved knowledge.
     Knowledge reduction is always manual. Watch is additive by default.
     """
 
@@ -224,6 +245,7 @@ def watch_scan_sources(
     not_due = 0
     missing = 0
     scanned_ids: list[str] = []
+    source_details: list[WatchScanSourceDetail] = []
     skipped_details: list[SkippedDocumentDetail] = []
     error_details: list[str] = []
     provider_failure: ProviderFailureDetail | None = None
@@ -263,6 +285,12 @@ def watch_scan_sources(
                 "skipped": 0,
             }
             _merge_counts(diff_totals, source_diff)
+            source_details.append(WatchScanSourceDetail(
+                source_id=source.id,
+                path=source.path,
+                has_changes=False,
+                diff_counts=source_diff,
+            ))
             update_watch_source(
                 cfg.vault.root,
                 registry_path,
@@ -279,8 +307,11 @@ def watch_scan_sources(
         baseline, source_diff = _build_source_baseline(cfg, source)
         _merge_counts(diff_totals, source_diff)
         changed_targets = _changed_targets_from_baseline(baseline, source_diff)
+        has_changes = bool(changed_targets)
         source_failed = False
-        if changed_targets:
+
+        if process_changes and changed_targets:
+            # worker 路径：同步处理变更文件
             effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
             summary = _ingest_targets_summary(
                 cfg,
@@ -295,19 +326,40 @@ def watch_scan_sources(
             if summary.provider_failure is not None:
                 provider_failure = summary.provider_failure
             source_failed = bool(summary.counts.get("failed"))
-        update_watch_source(
-            cfg.vault.root,
-            registry_path,
-            source.id,
-            last_seen_at=_now(),
-            last_processed_at=_now() if changed_targets else source.last_processed_at,
-            last_scan_at=_now(),
-            next_scan_at=next_scan_after(_now(), source.frequency),
-            status="error" if source_failed else "active",
-            error="one or more sources failed" if source_failed else None,
-            baseline=baseline,
+
+        source_details.append(WatchScanSourceDetail(
+            source_id=source.id,
+            path=source.path,
+            has_changes=has_changes,
             diff_counts=source_diff,
-        )
+        ))
+
+        # registry 更新：process_changes=False 时只更新 scan 时间戳和 diff_counts，
+        # 不更新 baseline（留给 worker 处理完后再更新），避免 worker 找不到变更。
+        if process_changes:
+            update_watch_source(
+                cfg.vault.root,
+                registry_path,
+                source.id,
+                last_seen_at=_now(),
+                last_processed_at=_now() if changed_targets else source.last_processed_at,
+                last_scan_at=_now(),
+                next_scan_at=next_scan_after(_now(), source.frequency),
+                status="error" if source_failed else "active",
+                error="one or more sources failed" if source_failed else None,
+                baseline=baseline,
+                diff_counts=source_diff,
+            )
+        else:
+            update_watch_source(
+                cfg.vault.root,
+                registry_path,
+                source.id,
+                last_seen_at=_now(),
+                last_scan_at=_now(),
+                next_scan_at=next_scan_after(_now(), source.frequency),
+                diff_counts=source_diff,
+            )
 
     return WatchScanSummary(
         scanned=scanned,
@@ -316,6 +368,7 @@ def watch_scan_sources(
         counts=totals,
         diff_counts=diff_totals,
         source_ids=tuple(scanned_ids),
+        source_details=tuple(source_details),
         skipped=tuple(skipped_details),
         errors=tuple(error_details),
         provider_failure=provider_failure,
@@ -695,7 +748,7 @@ def _build_processed_content_hash_index(checkpoint) -> dict[str, ProcessedSource
 
     中文学习型说明：同一个 source 的 unchanged 文件优先走 already_processed，
     不同路径但相同 parser content_hash 的文件走 duplicate_content_hash。
-    这样用户能区分“这个文件没变”和“这个内容已经从别处生成过知识”。
+    这样用户能区分"这个文件没变"和"这个内容已经从别处生成过知识"。
     """
 
     keys: dict[str, ProcessedSourceMatch] = {}
@@ -767,6 +820,7 @@ def _now() -> str:
 
 __all__ = [
     "IngestionSummary",
+    "WatchScanSourceDetail",
     "WatchScanSummary",
     "import_sources",
     "watch_scan_sources",

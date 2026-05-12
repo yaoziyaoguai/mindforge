@@ -93,10 +93,39 @@ def _registry(vault: Path) -> WatchRegistry:
     return WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
 
 
+def _wait_for_scan_runs(output: str, cfg_path: Path, *, timeout: float = 5.0) -> None:
+    """等待 watch scan 创建的 background processing runs 全部完成。
+
+    中文学习型说明：watch scan 现在为每个有变更的 source 创建一个 background
+    ProcessingRun。测试需要等待所有 run 完成后再检查结果。
+    """
+    run_ids = [line.split("run_id=", 1)[1].strip() for line in output.splitlines() if "run_id=" in line]
+    if not run_ids:
+        return
+    cfg = load_cfg(cfg_path, read_env=False)
+    deadline = time.monotonic() + timeout
+    pending = set(run_ids)
+    while time.monotonic() < deadline and pending:
+        done = set()
+        for rid in list(pending):
+            latest = get_processing_run(cfg, rid)
+            if latest is not None and latest.status not in {"queued", "running"}:
+                done.add(rid)
+        pending -= done
+        if pending:
+            time.sleep(0.05)
+    if pending:
+        raise AssertionError(f"watch scan runs did not finish: {pending}")
+
+
 def _run_id_from_output(output: str) -> str:
     for line in output.splitlines():
         if line.startswith("run_id: "):
             return line.split("run_id: ", 1)[1].strip()
+    # watch scan 输出中 run_id 格式变为 "run_id=..."
+    for line in output.splitlines():
+        if "run_id=" in line:
+            return line.split("run_id=", 1)[1].strip()
     raise AssertionError(f"missing run_id in output:\n{output}")
 
 
@@ -191,6 +220,8 @@ def test_watch_scan_default_scans_due_sources_but_skips_not_due(
     assert result.exit_code == 0, result.output
     assert "scanned=1" in result.output
     assert "not_due=1" in result.output
+    # watch scan 现在是异步：等待 background processing run 完成
+    _wait_for_scan_runs(result.output, cfg)
     assert len(_cards(vault)) == 3
 
 
@@ -216,6 +247,8 @@ def test_watch_scan_all_and_specific_source_can_override_due_state(
     scan_all = runner.invoke(app, ["watch", "scan", "--all", "--config", str(cfg)])
     assert scan_all.exit_code == 0, scan_all.output
     assert "scanned=2" in scan_all.output
+    # watch scan 现在是异步：等待 background processing runs 完成
+    _wait_for_scan_runs(scan_all.output, cfg)
     assert len(_cards(vault)) == 4
 
     first.write_text("# First\n\nchanged again\n", encoding="utf-8")
@@ -224,6 +257,8 @@ def test_watch_scan_all_and_specific_source_can_override_due_state(
 
     assert specific.exit_code == 0, specific.output
     assert "scanned=1" in specific.output
+    # watch scan 现在是异步：等待 background processing run 完成
+    _wait_for_scan_runs(specific.output, cfg)
     assert len(_cards(vault)) == 5
 
 
@@ -257,6 +292,8 @@ def test_baseline_diff_tracks_added_changed_unchanged_and_deleted_without_deleti
     assert "changed=1" in scan.output
     assert "unchanged=1" in scan.output
     assert "deleted=1" in scan.output
+    # watch scan 现在是异步：等待 background processing run 完成
+    _wait_for_scan_runs(scan.output, cfg)
     registry_source = _registry(vault).sources[0]
     assert registry_source.diff_counts["deleted"] == 1
     assert any(item.status == "deleted" for item in registry_source.baseline.values())

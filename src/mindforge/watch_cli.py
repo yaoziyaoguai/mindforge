@@ -1,7 +1,8 @@
 """Simple watch CLI.
 
 watch 是用户级 ingestion 入口：注册一个 file/folder，并启动后台 processing。
-ai_draft 只有后台 run 成功后才会出现在 approve list。
+watch scan 扫描 due watched sources，发现 added/changed 文件时创建 background
+processing run。ai_draft 只有后台 run 成功后才会出现在 approve list。
 """
 
 from __future__ import annotations
@@ -163,22 +164,32 @@ def watch_scan(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
     provider: str | None = typer.Option(None, "--provider", help="临时覆盖 provider，不修改 YAML。"),
 ) -> None:
-    """扫描 due watched sources；当前是 Advanced 同步 troubleshooting 入口。"""
+    """扫描 due watched sources，发现 added/changed 文件时启动后台 processing。
+
+    中文学习型说明：watch scan 是 frequency scan 的产品入口。它先做只读 scan
+    找到 added/changed 文件，再为有变更的每个 source 创建独立的 background
+    ProcessingRun。用户通过 runs show 观察后台进度。没有常驻 daemon，
+    可配合 cron/launchd/外部调度定期运行。
+    """
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=None)
     render_active_vault_resolution_notice(cfg)
     if cfg.llm.active_profile != FAKE_PROFILE:
         load_dotenv_silently(Path.cwd())
+
+    # process_changes=False：只做 scan + diff，不调用 _ingest_targets_summary()。
+    # CLI 负责为有变更的 source 创建 background ProcessingRun。
     try:
-        summary = watch_scan_sources(cfg, ref=ref, all_sources=all_sources)
+        summary = watch_scan_sources(cfg, ref=ref, all_sources=all_sources, process_changes=False)
     except (ValueError, RuntimeError) as exc:
         console.print(str(exc), markup=False, soft_wrap=True)
         raise typer.Exit(code=2) from exc
+
     console.print("[bold]watch scan[/bold]")
     console.print(
-        "scanned={scanned} not_due={not_due} missing={missing} processed={processed} "
-        "skipped={skipped} failed={failed} seen={seen}".format(
+        "scanned={scanned} not_due={not_due} missing={missing} "
+        "processed={processed} skipped={skipped} failed={failed} seen={seen}".format(
             scanned=summary.scanned,
             not_due=summary.not_due,
             missing=summary.missing,
@@ -199,10 +210,49 @@ def watch_scan(
         ),
         markup=False,
     )
+
+    # 为有 added/changed 的 source 创建 background processing run
+    launched_count = 0
+    for detail in summary.source_details:
+        if not detail.has_changes:
+            continue
+        if not detail.path.exists():
+            continue
+        run = start_cli_processing_run(
+            cfg,
+            config_path=config_path_from_cfg(cfg, config),
+            source_ref=detail.source_id,
+            source_path=detail.path,
+            mode="watch_scan",
+            worker_args=[
+                "--mode",
+                "watch_scan",
+                "--ref",
+                detail.source_id,
+                *(["--provider", provider] if provider else []),
+            ],
+        )
+        launched_count += 1
+        console.print(
+            f"  Background processing started for {detail.source_id}: run_id={run.record.run_id}",
+            markup=False,
+        )
+
     if summary.missing:
         console.print("Missing watched source paths were kept; knowledge cards were not deleted.", markup=False)
     console.print("Boundary: source deletion never deletes approved knowledge.", markup=False)
-    _print_advanced_sync_scan_hint()
+
+    # 打印产品主路径提示
+    if launched_count > 0:
+        console.print(
+            "Background processing started when changes were found; "
+            "use runs show <run_id> to track progress.",
+            markup=False,
+        )
+    else:
+        console.print("No added/changed files found; no processing run created.", markup=False)
+    console.print("Product path: mindforge watch add <file-or-folder>", markup=False)
+    console.print("Background processing status: mindforge runs list", markup=False)
 
 
 @watch_app.command("status")
@@ -305,19 +355,6 @@ def _print_background_run_hint(run_id: str, *, reused_existing: bool = False) ->
         markup=False,
         soft_wrap=True,
     )
-
-
-def _print_advanced_sync_scan_hint() -> None:
-    """同步 scan 只保留为排障入口，不能塑造成用户主路径。
-
-    中文学习型说明：watch add / import 是产品主路径，会创建 durable run 并让
-    用户通过 runs/watch status 观察后台处理；watch scan 当前仍同步执行，只用于
-    Advanced troubleshooting，避免验收用户误以为本地知识处理必须阻塞 CLI。
-    """
-
-    console.print("Advanced troubleshooting scan completed in this command.", markup=False)
-    console.print("Product path: mindforge watch add <file-or-folder>", markup=False)
-    console.print("Background processing status: mindforge runs list", markup=False)
 
 
 __all__ = ["watch_app"]
