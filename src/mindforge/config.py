@@ -382,7 +382,7 @@ class WikiConfig:
     不在 Web UI 中作为普通用户可选模式暴露。
     """
 
-    mode: str = "deterministic"  # deprecated: 仅保留兼容；主路径为 llm
+    mode: str = "llm"
     model: str | None = None
     auto_rebuild_on_approve: bool = True
 
@@ -849,19 +849,16 @@ def _parse_strategy(raw: Any) -> StrategyConfig:
 
 
 def _parse_wiki(raw: Any) -> WikiConfig:
-    """解析 ``wiki.mode`` / ``wiki.model``，缺失时稳定回退 deterministic。
+    """解析 ``wiki.mode`` / ``wiki.model``，默认 LLM-first synthesis。
 
-    wiki.mode 为 deprecated/compatibility 字段。MindForge Web UI 只展示 LLM synthesis
-    作为主路径，deterministic 不在普通用户可选项中。此解析器保留 deterministic 回退
-    仅用于兼容旧配置和内部 fallback。
-
-    wiki.model 必须引用 llm.models 中已存在的 model id（由调用方校验）。
+    deterministic 模式仅保留作为内部兼容回退和测试路径，不在 Web UI 或 CLI 帮助中
+    作为普通用户可选项暴露。
     """
     if not isinstance(raw, dict):
         return WikiConfig()
-    mode = str(raw.get("mode") or "deterministic").strip()
-    if mode not in {"deterministic", "llm"}:
-        raise ConfigError(f"wiki.mode 必须是 deterministic 或 llm，得到 {mode!r}")
+    mode = str(raw.get("mode") or "llm").strip()
+    if mode not in {"llm", "deterministic"}:
+        raise ConfigError(f"wiki.mode 必须是 llm 或 deterministic（deprecated），得到 {mode!r}")
     model = raw.get("model")
     return WikiConfig(
         mode=mode,

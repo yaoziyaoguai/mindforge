@@ -48,12 +48,21 @@ def wiki_rebuild(
     payload: WikiRebuildRequest | None = None,
     facade: WebFacade = Depends(get_facade),
 ):
-    """从 approved cards 重建 Main Wiki。JSON body: {"mode": "deterministic" | "llm"}。"""
+    """从 approved cards 重建 Main Wiki。主路径为 LLM synthesis，需要 model setup ready。"""
+    from mindforge.model_setup_readiness import model_setup_readiness
     from mindforge.wiki_service import rebuild_main_wiki, llm_rebuild_wiki, WikiError
+
     requested_mode = payload.mode if payload and payload.mode else None
     effective_mode = requested_mode or facade.cfg.wiki.mode
 
     if effective_mode == "llm":
+        readiness = model_setup_readiness(facade.cfg)
+        if not readiness.ready:
+            return {
+                "ok": False,
+                "mode": "llm",
+                "error": f"LLM-first wiki rebuild requires model setup ready ({readiness.label}). Complete model setup first.",
+            }
         try:
             result = llm_rebuild_wiki(facade.cfg)
             return {
@@ -70,11 +79,20 @@ def wiki_rebuild(
         except WikiError as e:
             return {"ok": False, "mode": "llm", "error": str(e)}
 
-    result = rebuild_main_wiki(facade.cfg)
+    if effective_mode == "deterministic":
+        # deterministic template rebuild 仅保留为内部 Troubleshooting 回退，
+        # 不在 Web UI 普通用户路径中暴露。
+        result = rebuild_main_wiki(facade.cfg)
+        return {
+            "ok": True,
+            "mode": "deterministic",
+            "wiki_path": result.wiki_path,
+            "included_cards": result.included_cards,
+            "last_rebuilt_at": result.last_rebuilt_at,
+        }
+
     return {
-        "ok": True,
-        "mode": "deterministic",
-        "wiki_path": result.wiki_path,
-        "included_cards": result.included_cards,
-        "last_rebuilt_at": result.last_rebuilt_at,
+        "ok": False,
+        "mode": effective_mode or "unknown",
+        "error": f"Unknown wiki mode: {effective_mode!r}. Use llm or deterministic（Troubleshooting fallback）.",
     }

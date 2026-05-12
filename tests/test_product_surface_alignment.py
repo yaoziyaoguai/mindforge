@@ -786,3 +786,193 @@ def _replace_strategy(cfg: MindForgeConfig, active: str) -> MindForgeConfig:
         strategy=StrategyConfig(active=active),
         raw=cfg.raw,
     )
+
+
+# —— wiki rebuild LLM-first 边界测试 ——
+
+
+def test_wiki_config_default_mode_is_llm() -> None:
+    """WikiConfig 默认 mode 必须是 llm，不是 deterministic。
+
+    deterministic 仅保留为内部兼容回退，不在普通用户配置默认中暴露。
+    """
+    from mindforge.config import WikiConfig
+
+    cfg = WikiConfig()
+    assert cfg.mode == "llm", f"WikiConfig 默认 mode 应为 llm，实际为 {cfg.mode!r}"
+
+
+def test_wiki_parse_defaults_to_llm() -> None:
+    """_parse_wiki 缺失 mode 字段时应默认 llm，不是 deterministic。"""
+    from mindforge.config import _parse_wiki
+
+    wiki = _parse_wiki({})
+    assert wiki.mode == "llm", f"缺失 mode 时应默认 llm，实际为 {wiki.mode!r}"
+
+    wiki_none = _parse_wiki(None)
+    assert wiki_none.mode == "llm", f"raw=None 时应默认 llm，实际为 {wiki_none.mode!r}"
+
+
+def test_wiki_parse_rejects_unknown_mode_with_llm_first_message() -> None:
+    """_parse_wiki 错误消息应优先推荐 llm。"""
+    from mindforge.config import ConfigError, _parse_wiki
+
+    with pytest.raises(ConfigError) as exc:
+        _parse_wiki({"mode": "gpt5"})
+    msg = str(exc.value)
+    assert "llm" in msg, f"错误消息应包含 llm: {msg}"
+    assert msg.index("llm") < msg.index("deterministic"), (
+        f"错误消息中 llm 应在 deterministic 之前: {msg}"
+    )
+
+
+def test_wiki_rebuild_help_hides_mode_option(tmp_path: Path) -> None:
+    """wiki rebuild --help 不应展示 --mode deterministic 选项给普通用户。
+
+    --mode 选项标记为 hidden=True，只在显式 --help 不展示。
+    """
+    import yaml
+
+    vault = tmp_path / "vault"
+    (vault / "00-Inbox").mkdir(parents=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {"root": str(vault)},
+                "llm": {
+                    "default_model": "main",
+                    "models": {
+                        "main": {"type": "anthropic_compatible", "base_url": "https://x.example.com", "model": "m1"},
+                    },
+                },
+                "wiki": {"mode": "llm"},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["wiki", "rebuild", "--help", "--config", str(cfg_path)])
+
+    assert result.exit_code == 0, result.output
+    # --mode 不应出现在帮助文本中
+    assert "--mode" not in result.output, (
+        "wiki rebuild --help 不应展示 --mode 选项，实际输出包含 --mode"
+    )
+    # 不应展示 deterministic 作为选项
+    assert "deterministic" not in result.output, (
+        f"wiki rebuild --help 不应展示 deterministic，实际输出: {result.output}"
+    )
+
+
+def test_wiki_rebuild_requires_model_setup(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """wiki rebuild 在 model setup incomplete 时必须报错，不能静默 fallback 到 deterministic。
+
+    LLM-first 原则：没有模型配置时，wiki rebuild 应明确提示需要 model setup，
+    而不是走 deterministic template rebuild 作为静默主路径。
+    """
+    import yaml
+
+    vault = tmp_path / "vault"
+    (vault / "00-Inbox").mkdir(parents=True)
+    (vault / "20-Knowledge-Cards").mkdir(parents=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {
+                    "root": str(vault),
+                    "inbox_root": "00-Inbox",
+                    "cards_dir": "20-Knowledge-Cards",
+                    "archive_dir": "90-Archive",
+                },
+                "sources": {
+                    "enabled": ["plain_markdown"],
+                    "registry": {
+                        "plain_markdown": {
+                            "adapter": "PlainMarkdownAdapter",
+                            "inbox_subdir": "00-Inbox",
+                            "file_glob": "*.md",
+                            "enabled": True,
+                        },
+                    },
+                },
+                "state": {
+                    "workdir": ".mindforge",
+                    "state_file": "state.json",
+                    "runs_dir": "runs",
+                    "index_file": "index.jsonl",
+                    "backup_state": True,
+                },
+                "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+                "llm": {
+                    "default_model": None,
+                    "models": {},
+                    "routing": {},
+                },
+                "wiki": {"mode": "llm"},
+                "prompts": {
+                    "triage_version": "v1",
+                    "distill_version": "v1",
+                    "link_suggestion_version": "v1",
+                    "review_questions_version": "v1",
+                    "action_extraction_version": "v1",
+                },
+                "logging": {"level": "INFO", "file": str(tmp_path / "mf.log")},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(vault)
+
+    result = runner.invoke(app, ["wiki", "rebuild", "--config", str(cfg_path)])
+
+    assert result.exit_code != 0, (
+        f"model setup incomplete 时 wiki rebuild 应报错退出，实际 exit_code=0: {result.output}"
+    )
+    assert "model setup" in result.output.lower(), (
+        f"错误消息应包含 model setup，实际: {result.output}"
+    )
+    assert "deterministic" not in result.output.lower(), (
+        f"model setup incomplete 时不应建议 deterministic 作为替代方案: {result.output}"
+    )
+
+
+def test_llm_first_readme_wiki_rebuild_not_deterministic() -> None:
+    """README 中 wiki rebuild 命令描述不应暗示 deterministic 为主路径。"""
+    text = Path("README.md").read_text(encoding="utf-8")
+
+    # 找到 wiki rebuild 相关上下文
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if "wiki rebuild" in line.lower() and "deterministic" not in line.lower():
+            # 检查周围 5 行，不应有将 deterministic 作为主路径的描述
+            start = max(0, i - 2)
+            end = min(len(lines), i + 3)
+            context = " ".join(lines[start:end]).lower()
+            assert "deterministic" not in context, (
+                f"line {i}: wiki rebuild 上下文不应出现 deterministic: {line.strip()}"
+            )
+
+
+def test_mindforge_commands_wiki_rebuild_is_llm_first() -> None:
+    """mindforge commands 输出中 wiki rebuild 应描述为 LLM synthesis。"""
+    result = runner.invoke(app, ["commands"])
+
+    assert result.exit_code == 0, result.output
+    # wiki rebuild 描述应包含 LLM synthesis
+    assert ("LLM synthesis" in result.output or "LLM" in result.output), (
+        f"commands 中 wiki rebuild 应描述为 LLM synthesis，实际: {result.output}"
+    )
+    # 不应将 deterministic 作为可见命令选项
+    assert "deterministic" not in result.output, (
+        f"commands 输出不应包含 deterministic: {result.output}"
+    )

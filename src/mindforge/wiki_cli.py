@@ -1,8 +1,8 @@
 """Wiki CLI —— 从 approved cards 生成和维护 Main Wiki。
 
-中文学习型说明：CLI 只调用 WikiService，不直接操作文件。
-Wiki 是 approved cards 的派生视图。LLM mode 只负责内容合成，
-provenance 由代码追加，不读取 source 原文。
+中文学习型说明：Wiki 是 LLM-first 派生视图，主路径走 LLM synthesis。
+deterministic template rebuild 仅保留为内部兼容回退和 Troubleshooting，
+不在普通用户帮助中可见。
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
+from .model_setup_readiness import model_setup_readiness
 from .wiki_service import (
     WikiError,
     get_wiki_status,
@@ -29,15 +30,27 @@ wiki_app = typer.Typer(
 @wiki_app.command("rebuild")
 def wiki_rebuild(
     config: Path = typer.Option(Path("configs/mindforge.yaml"), "--config", "-c"),
-    mode: str = typer.Option("", "--mode", help="重建模式：deterministic | llm。默认使用 config wiki.mode。"),
+    mode: str = typer.Option(
+        "",
+        "--mode",
+        hidden=True,
+        help="重建模式：llm（默认）| deterministic（仅 Troubleshooting 回退）。",
+    ),
 ) -> None:
-    """从所有 approved cards 重建 Main Wiki。"""
+    """从所有 approved cards 重建 Main Wiki（LLM synthesis，需要 model setup ready）。"""
     cfg = load_cfg(config, read_env=False)
     render_active_vault_resolution_notice(cfg)
 
     effective_mode = mode.strip() if mode.strip() else cfg.wiki.mode
 
     if effective_mode == "llm":
+        readiness = model_setup_readiness(cfg)
+        if not readiness.ready:
+            console.print(
+                f"[red]LLM-first wiki rebuild requires model setup ready ({readiness.label}). "
+                f"Complete model setup first.[/red]"
+            )
+            raise typer.Exit(code=1)
         try:
             result = llm_rebuild_wiki(cfg)
             console.print("[green]Wiki rebuilt (LLM synthesis).[/green]")
@@ -54,13 +67,13 @@ def wiki_rebuild(
             raise typer.Exit(code=1)
     elif effective_mode == "deterministic":
         result = rebuild_main_wiki(cfg)
-        console.print("[green]Wiki rebuilt (deterministic).[/green]")
+        console.print("[green]Wiki rebuilt (deterministic template, Troubleshooting fallback).[/green]")
         console.print(f"  Path: {result.wiki_path}")
         console.print(f"  Cards included: {result.included_cards}")
         console.print(f"  Last rebuilt: {result.last_rebuilt_at}")
         console.print("[dim]Wiki is a derived view. Source files are not affected.[/dim]")
     else:
-        console.print(f"[red]Unknown mode: {effective_mode!r}. Use deterministic or llm.[/red]")
+        console.print(f"[red]Unknown mode: {effective_mode!r}. Use llm or deterministic（Troubleshooting fallback）.[/red]")
         raise typer.Exit(code=1)
 
 
