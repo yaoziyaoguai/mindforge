@@ -156,8 +156,11 @@ def resolve_workspace_config(
     is_default_path = (config_path == _DEFAULT_CONFIG_RELATIVE)
 
     # 1) 显式 --config 如果文件存在，直接使用
-    if resolved_explicit.is_file():
-        return resolved_explicit.resolve()
+    # 当 --workspace 也提供了，默认 config_path 的 cwd 解析不应抢占
+    # workspace 路径，否则用户显式指定的 workspace 会被 cwd 的 config 覆盖。
+    if not is_default_path or workspace_override is None:
+        if resolved_explicit.is_file():
+            return resolved_explicit.resolve()
 
     # 非默认路径且文件不存在 → 显式指定的 config 不存在，不应 fallback
     if not is_default_path:

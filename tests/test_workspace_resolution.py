@@ -307,6 +307,32 @@ def test_workspace_current_no_secret(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_workspace_config_override_prevents_cwd_config_shortcut(tmp_path):
+    """--workspace 时，即使 cwd 下有默认 config，也优先使用 workspace config。
+
+    中文学习型说明：这是 resolve_workspace_config 的 step 1 vs step 2
+    优先级修正。cwd 下的默认 config 不应抢在显式 --workspace 之前。
+    """
+    from mindforge.workspace_resolver import resolve_workspace_config
+
+    # 创建 workspace A（cwd 所在）
+    ws_a = tmp_path / "ws-a"
+    _make_workspace(ws_a)
+    # 创建 workspace B（--workspace 指向）
+    ws_b = tmp_path / "ws-b"
+    _make_workspace(ws_b)
+
+    resolved = resolve_workspace_config(
+        Path("configs/mindforge.yaml"),
+        workspace_override=ws_b,
+        cwd=ws_a,
+    )
+    assert resolved == (ws_b / "configs" / "mindforge.yaml").resolve(), (
+        f"--workspace 时应使用 workspace config，而不是 cwd config，"
+        f"expected={ws_b / 'configs' / 'mindforge.yaml'}, got={resolved}"
+    )
+
+
 def test_workspace_override_prevents_cwd_vault_override(tmp_path):
     """--workspace 显式提供时，cwd vault 不能覆盖 workspace 的 configured vault。
 
