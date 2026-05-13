@@ -3467,3 +3467,52 @@ def test_clean_clone_refresh_after_save_keeps_model(tmp_path: Path, monkeypatch)
     masked = str(model.get("api_key_masked_value", ""))
     assert "sk-sensitive" not in masked
     assert masked != "sk-sensitive-key-8888"  # 不是完整 raw key
+
+
+def test_setup_save_anchors_config_and_secret_to_current_workspace(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Setup 保存链路必须锚定当前 workspace，而不是启动命令所在 CWD。
+
+    中文学习型说明：release dogfood 暴露的问题看起来像“保存成功但 CLI
+    仍 needs setup”。这个测试把 Web server CWD 放到另一个目录，只通过
+    config_path 指向目标 workspace，验证 config、secret presence 和
+    readiness 使用同一个 workspace anchor；测试只检查 secret 文件存在，
+    不读取或输出 secret 内容。
+    """
+
+    workspace = tmp_path / "workspace"
+    repo_cwd = tmp_path / "repo-cwd"
+    repo_cwd.mkdir()
+    cfg_path, _vault = _write_clean_clone_config(workspace)
+    monkeypatch.chdir(repo_cwd)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://provider.example.test/v1",
+                    "model": "release-test-model",
+                    "api_key": "dummy-test-key-not-real",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.json()
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    saved = yaml.safe_load(yaml_text)
+    assert saved["llm"]["models"]["main"]["base_url"] == "https://provider.example.test/v1"
+    assert saved["llm"]["models"]["main"]["model"] == "release-test-model"
+    assert "dummy-test-key-not-real" not in yaml_text
+    assert (workspace / ".mindforge" / "secrets.json").exists()
+    assert not (repo_cwd / ".mindforge" / "secrets.json").exists()
+
+    status = client.get("/api/config/status").json()
+    assert status["provider"]["model_setup"] == "ready"
