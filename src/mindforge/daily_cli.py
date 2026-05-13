@@ -141,7 +141,7 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("mindforge index rebuild", "本地 BM25 索引重建（不联网）"),
             ("mindforge recall --query \"...\"", "本地词法检索"),
-            ("mindforge recall --ranking hybrid --explain", "三路融合 + 评分解释"),
+            ("mindforge recall --query \"...\" --ranking hybrid --explain", "三路融合 + 评分解释"),
         ],
     ),
     (

@@ -316,6 +316,10 @@ def test_cli_commands_map_hides_internal_demo_cubox_env_profile_surfaces() -> No
     assert "mindforge web" in out
     assert "mindforge watch add" in out
     assert "mindforge approve list" in out
+    # 中文学习型说明：recall 的 ranking/explain 只在 --query 路径生效。
+    # 命令地图里的示例必须可直接 copy-paste，不能生成缺 query 会失败的命令。
+    assert 'mindforge recall --query "..." --ranking hybrid --explain' in out
+    assert "mindforge recall --ranking hybrid --explain" not in out
 
 
 def test_cli_direct_help_does_not_expose_retired_mode_surfaces() -> None:
