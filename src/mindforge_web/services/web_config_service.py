@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from mindforge.config import REQUIRED_STAGES, MindForgeConfig
+from mindforge.config import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from mindforge.model_setup_readiness import model_setup_readiness
 from mindforge.provider_readiness import build_readiness_report
@@ -789,6 +790,11 @@ class WebConfigService:
             _assign_if_present(item, "type", model_patch.type)
             _assign_if_present(item, "base_url", model_patch.base_url)
             _assign_if_present(item, "model", model_patch.model)
+            # timeout/retry 是真实 provider 调用的用户体验边界。Web 主路径不暴露
+            # 复杂高级设置，但保存时写出有限默认值，避免 workspace YAML 看起来
+            # 像是无限等待或不可控 retry。
+            item.setdefault("timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS)
+            item.setdefault("max_retries", DEFAULT_PROVIDER_MAX_RETRIES)
             if model_patch.api_key_optional is not None:
                 item["api_key_optional"] = model_patch.api_key_optional
             # env var name 字段不写回 YAML；仅 Advanced env mode 显式开关时保留

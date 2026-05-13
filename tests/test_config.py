@@ -319,6 +319,24 @@ telemetry:
     assert cfg.llm.active_profile == "fake"
 
 
+def test_explicit_null_provider_runtime_fields_use_product_defaults(tmp_path: Path) -> None:
+    """用户 YAML 显式写 null 时，provider timeout/retry 仍回到产品默认值。
+
+    中文学习型说明：Web Setup 普通用户不需要配置 timeout/retry；release 主路径
+    必须把缺失或 null 都收敛成有限等待和有限重试，不能把 None 传给 provider
+    底层库或 retry loop。
+    """
+
+    data = _minimal_valid_config()
+    model = data["llm"]["models"]["m1"]
+    model["timeout_seconds"] = None
+    model["max_retries"] = None
+    cfg = load_mindforge_config(_write_yaml(tmp_path, data))
+
+    assert cfg.llm.models["m1"].timeout_seconds == 120
+    assert cfg.llm.models["m1"].max_retries == 1
+
+
 def test_new_active_wins_over_legacy_active_profile(tmp_path: Path) -> None:
     """同时存在新旧字段时，产品语义以 ``llm.active`` 为准。"""
 

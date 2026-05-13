@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from mindforge.config import DEFAULT_PROVIDER_MAX_RETRIES
+
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
 
 
@@ -81,7 +83,10 @@ class LLMClient:
             response_format=opts.get("response_format"),
         )
 
-        attempts = max(1, mc.max_retries + 1)
+        max_retries = getattr(mc, "max_retries", None)
+        if max_retries is None:
+            max_retries = DEFAULT_PROVIDER_MAX_RETRIES
+        attempts = max(1, int(max_retries) + 1)
         last_err: ProviderError | None = None
         for i in range(attempts):
             try:

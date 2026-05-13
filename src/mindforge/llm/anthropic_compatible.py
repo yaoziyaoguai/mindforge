@@ -51,6 +51,8 @@ from typing import Any
 
 import httpx
 
+from mindforge.config import DEFAULT_PROVIDER_TIMEOUT_SECONDS
+
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 _DEFAULT_VERSION = "2023-06-01"
@@ -79,7 +81,7 @@ class AnthropicCompatibleProvider(LLMProvider):
         self.base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._anthropic_version = anthropic_version or _DEFAULT_VERSION
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout_seconds or DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __repr__(self) -> str:
         # 主动安全 repr：只暴露 name 与 credential_present 标记，
@@ -160,6 +162,8 @@ class AnthropicCompatibleProvider(LLMProvider):
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 resp = client.post(url, headers=headers, json=body)
+        except httpx.ReadTimeout:
+            raise ProviderError(_timeout_error_message()) from None
         except httpx.HTTPError as e:
             # 不打印 body（含 prompt） / 不打印 headers（含 api_key）
             raise ProviderError(f"HTTP 错误：{type(e).__name__}") from None
@@ -203,6 +207,13 @@ def _extract_text_from_content_blocks(data: dict[str, Any]) -> str | None:
     if not parts:
         return None
     return "".join(parts)
+
+
+def _timeout_error_message() -> str:
+    return (
+        "Provider timed out while waiting for the model endpoint. "
+        "Check the model endpoint, network/proxy, or increase timeout_seconds, then retry."
+    )
 
 
 def _resolve_api_key(

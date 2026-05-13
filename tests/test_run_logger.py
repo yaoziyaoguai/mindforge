@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from mindforge.run_logger import (
+    EVENT_LLM_CALL_STARTED,
     EVENT_RUN_FAILED,
     EVENT_RUN_FINISHED,
     EVENT_RUN_STARTED,
@@ -64,6 +65,29 @@ def test_emit_rejects_unknown_field(tmp_path: Path) -> None:
     with RunLogger(tmp_path / "runs", command="scan") as logger:
         with pytest.raises(ValueError, match="不在白名单"):
             logger.emit(EVENT_SOURCE_SEEN, raw_text="敏感原文")  # noqa: S106
+
+
+def test_llm_call_started_event_uses_safe_metadata_only(tmp_path: Path) -> None:
+    """provider 调用开始事件只允许非敏感 metadata，便于 running 阶段观察进展。"""
+
+    with RunLogger(tmp_path / "runs", command="import") as logger:
+        logger.emit(
+            EVENT_LLM_CALL_STARTED,
+            stage="triage",
+            model_alias="main",
+            provider="main",
+            provider_type="anthropic_compatible",
+            actual_model="test-model",
+            prompt_version="triage@v1",
+            input_file_hash="sha256:test",
+            status="started",
+        )
+
+    events = _read_jsonl(logger.jsonl_path)
+    started = events[1]
+    assert started["event"] == "llm_call_started"
+    assert started["status"] == "started"
+    assert "api_key" not in json.dumps(started)
 
 
 def test_emit_after_close_raises(tmp_path: Path) -> None:

@@ -38,6 +38,11 @@ REQUIRED_STAGES: tuple[str, ...] = (
     "action_extraction",
 )
 
+# 真实 provider 调用的产品默认边界。Web Setup 普通用户不需要理解这些字段，
+# 但 release 主路径必须有有限等待/有限重试，不能把 None 交给底层 HTTP 库。
+DEFAULT_PROVIDER_TIMEOUT_SECONDS = 120
+DEFAULT_PROVIDER_MAX_RETRIES = 1
+
 # v0.1 已知的 source_type，必须与 mindforge.sources.base.SourceType 同步
 KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
     {
@@ -1029,8 +1034,14 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             type=_require(mraw, "type", str, ctx=f"llm.models.{alias}"),
             base_url=base_url,
             model=str(model_str or ""),
-            timeout_seconds=int(mraw.get("timeout_seconds", 120)),
-            max_retries=int(mraw.get("max_retries", 1)),
+            timeout_seconds=_int_with_default(
+                mraw.get("timeout_seconds"),
+                DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+            ),
+            max_retries=_int_with_default(
+                mraw.get("max_retries"),
+                DEFAULT_PROVIDER_MAX_RETRIES,
+            ),
             api_key_env=mraw.get("api_key_env"),
             api_key_optional=bool(mraw.get("api_key_optional", False)),
             base_url_env=base_url_env,
@@ -1186,8 +1197,14 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
         type=model_type,
         base_url=base_url,
         model=str(model_str or ""),
-        timeout_seconds=int(mraw.get("timeout_seconds", 120)),
-        max_retries=int(mraw.get("max_retries", 1)),
+        timeout_seconds=_int_with_default(
+            mraw.get("timeout_seconds"),
+            DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+        ),
+        max_retries=_int_with_default(
+            mraw.get("max_retries"),
+            DEFAULT_PROVIDER_MAX_RETRIES,
+        ),
         api_key_env=mraw.get("api_key_env"),
         api_key_optional=bool(mraw.get("api_key_optional", False)),
         base_url_env=base_url_env,
@@ -1238,8 +1255,24 @@ def _require(d: dict[str, Any], key: str, expected_type: type, *, ctx: str) -> A
     return val
 
 
+def _int_with_default(value: Any, default: int) -> int:
+    """把缺失/null 的 provider 数值字段收敛到产品默认值。
+
+    中文学习型说明：timeout/retry 是 release 用户体验边界。普通用户通过 Web
+    Setup 配模型，不一定会看到这些字段；旧配置或迁移 YAML 也可能显式留下
+    null。这里把 null 当作“使用 MindForge 默认”，但其它非法类型仍按 Python
+    int 转换失败暴露配置问题。
+    """
+
+    if value is None:
+        return default
+    return int(value)
+
+
 __all__ = [
     "REQUIRED_STAGES",
+    "DEFAULT_PROVIDER_TIMEOUT_SECONDS",
+    "DEFAULT_PROVIDER_MAX_RETRIES",
     "KNOWN_SOURCE_TYPES",
     "ConfigError",
     "VaultConfig",

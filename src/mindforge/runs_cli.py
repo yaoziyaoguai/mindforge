@@ -68,6 +68,8 @@ def _print_record(record) -> None:
     console.print(f"mode: {record.mode}", markup=False)
     console.print(f"source: {record.source_path or record.source_ref}", markup=False, soft_wrap=True)
     console.print(f"started_at: {record.started_at}", markup=False)
+    console.print(f"current_step: {record.current_step or '-'}", markup=False)
+    console.print(f"last_heartbeat_at: {record.last_heartbeat_at or '-'}", markup=False)
     console.print(f"finished_at: {record.finished_at or '-'}", markup=False)
     console.print(f"message: {record.message}", markup=False, soft_wrap=True)
     if record.error_message:
@@ -100,7 +102,7 @@ def _print_record(record) -> None:
             )
     elif record.status in {"queued", "running"}:
         console.print(
-            "Background processing is active. You can continue using MindForge and check this run later.",
+            "Background processing is active. Current step and heartbeat show the worker is still making progress.",
             markup=False,
             soft_wrap=True,
         )

@@ -177,3 +177,22 @@ def test_client_retries_then_raises() -> None:
     with pytest.raises(ProviderError, match="boom"):
         client.generate(stage="triage", prompt="title: x\n")
     assert boom.calls == 3
+
+
+def test_client_uses_finite_default_retries_when_model_value_is_none() -> None:
+    """max_retries=None 也必须收敛成有限默认值，不能交给 provider 无限等待。
+
+    中文学习型说明：真实 Web Setup 由 YAML 驱动，loader 会给缺失字段补默认值；
+    但 release 用户体验边界不能依赖所有调用方都是完整 ModelConfig。旧配置、
+    测试替身或未来迁移对象如果携带 None，LLMClient 仍要使用有限 retry。
+    """
+
+    cfg = _FakeLLMConfig()
+    cfg.models["a"].max_retries = None
+    boom = _BoomProvider()
+    client = LLMClient(llm_config=cfg, providers={"a": boom, "b": FakeProvider()})
+
+    with pytest.raises(ProviderError, match="boom"):
+        client.generate(stage="triage", prompt="title: x\n")
+
+    assert boom.calls == 2

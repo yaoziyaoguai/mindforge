@@ -20,6 +20,8 @@ from typing import Any
 
 import httpx
 
+from mindforge.config import DEFAULT_PROVIDER_TIMEOUT_SECONDS
+
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 
@@ -37,7 +39,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self.name = name
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout_seconds or DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __repr__(self) -> str:
         # 主动安全 repr：只暴露 name 与 credential_present 标记，
@@ -107,8 +109,13 @@ class OpenAICompatibleProvider(LLMProvider):
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 resp = client.post(url, headers=headers, json=body)
+        except httpx.ReadTimeout:
+            raise ProviderError(
+                "Provider timed out while waiting for the model endpoint. "
+                "Check the model endpoint, network/proxy, or increase timeout_seconds, then retry."
+            ) from None
         except httpx.HTTPError as e:
-            raise ProviderError(f"HTTP 错误：{type(e).__name__}: {e}") from e
+            raise ProviderError(f"HTTP 错误：{type(e).__name__}") from None
         latency_ms = int((time.perf_counter() - start) * 1000)
 
         if resp.status_code >= 400:

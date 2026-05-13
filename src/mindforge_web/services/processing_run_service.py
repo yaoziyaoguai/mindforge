@@ -145,6 +145,9 @@ def list_processing_runs(cfg: MindForgeConfig) -> list[ProcessingRunRecord]:
 
 
 def processing_run_response(record: ProcessingRunRecord) -> ProcessingRunResponse:
+    message = record.message
+    if record.status in ACTIVE_RUN_STATUSES and record.current_step:
+        message = _running_message(record)
     return ProcessingRunResponse(
         run_id=record.run_id,
         source_ref=record.source_ref,
@@ -157,7 +160,7 @@ def processing_run_response(record: ProcessingRunRecord) -> ProcessingRunRespons
         current_step=record.current_step,
         summary=dict(record.summary),
         draft_ids=list(record.draft_ids),
-        message=record.message,
+        message=message,
         skip_reasons=list(record.skip_reasons),
         error_type=record.error_type,
         error_message=record.error_message,
@@ -215,6 +218,23 @@ def started_response_message() -> str:
     return (
         "Processing started in the background. You can keep using MindForge. "
         "Sources will show the final status, and Review will show any generated drafts."
+    )
+
+
+def _running_message(record: ProcessingRunRecord) -> str:
+    """给 running run 展示当前 step，避免长模型调用看起来像无进展。
+
+    中文学习型说明：heartbeat 只能说明 worker 仍活着；current_step 告诉用户
+    当前卡在 processing/model 调用附近。这里仅改变 response 展示，不在 read
+    path 修改 run JSON。
+    """
+
+    step = record.current_step.replace("_", " ").strip()
+    if not step or step == "queued":
+        return record.message
+    return (
+        f"{record.message} Current step: {step}. "
+        f"Last heartbeat: {record.last_heartbeat_at or '-'}."
     )
 
 

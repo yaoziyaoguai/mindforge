@@ -676,6 +676,42 @@ def test_fresh_heartbeat_prevents_long_running_false_abandoned(
     assert run["error_type"] is None
 
 
+def test_running_processing_run_response_exposes_step_and_heartbeat(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """running run 要展示当前 step/heartbeat，不能只显示 discovered=0。
+
+    中文学习型说明：真实 provider 调用可能持续几十秒。用户在 release 主路径
+    看到 running 时，至少要知道 worker 仍在处理模型调用附近的阶段，而不是
+    误以为系统卡在空扫描或伪成功。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_running_visible",
+        source_ref="source-visible",
+        source_path=str(tmp_path / "source.md"),
+        mode="import",
+        status="running",
+        started_at=_now(),
+        last_heartbeat_at=_now(),
+        current_step="calling model: triage",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_running_visible"
+    ).json()
+
+    assert run["status"] == "running"
+    assert run["current_step"] == "calling model: triage"
+    assert run["last_heartbeat_at"]
+    assert "calling model" in run["message"].lower()
+
+
 def test_stale_heartbeat_marks_run_abandoned(
     tmp_path: Path,
     monkeypatch,
@@ -3516,3 +3552,43 @@ def test_setup_save_anchors_config_and_secret_to_current_workspace(
 
     status = client.get("/api/config/status").json()
     assert status["provider"]["model_setup"] == "ready"
+
+
+def test_setup_save_writes_provider_timeout_and_retry_defaults(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Setup 保存模型时显式写入 timeout/retry 默认值。
+
+    中文学习型说明：真实用户看到的是 workspace config，而不是 Python loader
+    里的隐式默认。保存时写出有限 timeout/retry，能让 release dogfood 中的
+    ReadTimeout 变成可解释、可调整的用户体验边界；API key 仍只写 secret store。
+    """
+
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://provider.example.test/v1",
+                    "model": "release-test-model",
+                    "api_key": "dummy-test-key-not-real",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.json()
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    saved = yaml.safe_load(yaml_text)
+    model = saved["llm"]["models"]["main"]
+    assert model["timeout_seconds"] == 120
+    assert model["max_retries"] == 1
+    assert "dummy-test-key-not-real" not in yaml_text
