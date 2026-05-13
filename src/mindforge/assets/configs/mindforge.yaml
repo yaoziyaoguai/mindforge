@@ -22,7 +22,7 @@ version: 0.1
 # 注意：MindForge 对 inbox_root 下所有文件**只读**，永不改写、删除、重命名。
 # -----------------------------------------------------------------------------
 vault:
-  root: "/Users/jinkun.wang/Obsidian/MyVault"
+  root: "/path/to/your/vault"
   inbox_root: "00-Inbox"            # 通用 inbox 根；用户通过 watch add/import 将文件接入
   cards_dir: "20-Knowledge-Cards"   # MindForge Writer 唯一写入区
   archive_dir: "90-Archive/Skipped" # value_score 不达标的源仅记录链接到这里

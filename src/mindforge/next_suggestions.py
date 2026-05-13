@@ -107,8 +107,8 @@ def _missing_vault_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
             "recommended",
         ),
         NextSuggestion(
-            f"mindforge init --vault {cfg.vault.root}",
-            "vault 根目录不存在，先一键铺骨架",
+            "mindforge init",
+            "vault 根目录不存在，运行 init 重建骨架",
             "critical",
         ),
     ]

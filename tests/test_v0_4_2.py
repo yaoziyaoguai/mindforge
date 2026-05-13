@@ -144,10 +144,14 @@ def test_commands_does_not_leak_secrets() -> None:
 # `mindforge next`
 # ===========================================================================
 def test_next_without_config_suggests_init(tmp_path: Path) -> None:
-    """配置不存在时 next 应当建议 init，且不抛错。"""
+    """配置不存在时 next 应当给出友好的 workspace 指引，且不抛错。"""
     res = runner.invoke(app, ["next", "--config", str(tmp_path / "missing.yaml")])
     assert res.exit_code == 0
+    assert "尚未找到配置" in res.output
     assert "mindforge init" in res.output
+    assert "mindforge workspace use" in res.output
+    assert "--workspace" in res.output
+    assert "--config" in res.output
 
 
 def test_next_empty_vault_suggests_inbox_or_index(tmp_path: Path) -> None:
@@ -310,10 +314,14 @@ def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
 
 
 def test_start_missing_config_suggests_init(tmp_path: Path) -> None:
-    """未 init 场景要直接指向 init，而不是抛 Python traceback。"""
+    """未 init 场景要给出友好的 workspace 指引，而不是抛 Python traceback。"""
     res = runner.invoke(app, ["start", "--config", str(tmp_path / "missing.yaml")])
     assert res.exit_code == 0, res.output
-    assert "mindforge init --interactive" in res.output
+    assert "尚未找到配置" in res.output
+    assert "mindforge init" in res.output
+    assert "mindforge workspace use" in res.output
+    assert "--workspace" in res.output
+    assert "--config" in res.output
 
 
 def test_start_json_from_non_repo_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

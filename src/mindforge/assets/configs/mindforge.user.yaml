@@ -11,7 +11,7 @@
 version: 0.1
 
 vault:
-  root: "/Users/jinkun.wang/MindForgeVault"
+  root: "/path/to/your/vault"
 
 llm:
   # model id chosen from llm.models keys.

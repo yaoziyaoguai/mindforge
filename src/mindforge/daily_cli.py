@@ -430,6 +430,7 @@ def start_cmd(
             console.print("  1. 创建新 workspace：[bold]mindforge init[/bold]", markup=False)
             console.print("  2. 切换已有 workspace：[bold]mindforge workspace use /path/to/workspace[/bold]", markup=False)
             console.print("  3. 临时指定：[bold]mindforge start --workspace /path/to/workspace[/bold]", markup=False)
+            console.print("  4. 高级指定配置：[bold]mindforge start --config /path/to/configs/mindforge.yaml[/bold]", markup=False)
             console.print("[dim]安全默认：初始化不会调用模型；完成 Web Setup 后再处理 source。[/dim]")
         return
     snapshot = _daily_snapshot(cfg)
@@ -567,6 +568,14 @@ def next_cmd(
                     }
                 ],
             }, ensure_ascii=False))
+        else:
+            console.print("[bold]MindForge next[/bold]\n")
+            console.print("[yellow]尚未找到配置。[/yellow]")
+            console.print("  1. 创建新 workspace：[bold]mindforge init[/bold]", markup=False)
+            console.print("  2. 切换已有 workspace：[bold]mindforge workspace use /path/to/workspace[/bold]", markup=False)
+            console.print("  3. 临时指定：[bold]mindforge next --workspace /path/to/workspace[/bold]", markup=False)
+            console.print("  4. 高级指定配置：[bold]mindforge next --config /path/to/configs/mindforge.yaml[/bold]", markup=False)
+            console.print("[dim]安全默认：初始化不会调用模型；完成 Web Setup 后再处理 source。[/dim]")
         return
 
     suggestions = _next_suggestions(cfg)
