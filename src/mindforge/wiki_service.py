@@ -452,10 +452,14 @@ def _generate_wiki_synthesis(cfg: MindForgeConfig, model_id: str, prompt: str) -
 
     from .llm.base import LLMRequest, ProviderError
     from .llm.factory import build_provider_for_model
+    from .secret_store import resolve_project_root_from_config
 
     model_config = cfg.llm.models[model_id]
     try:
-        provider = build_provider_for_model(model_config)
+        provider = build_provider_for_model(
+            model_config,
+            project_root=resolve_project_root_from_config(cfg),
+        )
     except ProviderError as exc:
         raise WikiError(str(exc)) from exc
 

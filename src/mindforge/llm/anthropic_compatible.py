@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -94,7 +95,7 @@ class AnthropicCompatibleProvider(LLMProvider):
     # 工厂
     # ------------------------------------------------------------------
     @classmethod
-    def from_model_config(cls, mc: Any) -> AnthropicCompatibleProvider:
+    def from_model_config(cls, mc: Any, *, project_root: Path | None = None) -> AnthropicCompatibleProvider:
         # base_url：优先 env，再回落 yaml 中的 base_url
         base_url = ""
         if mc.base_url_env:
@@ -107,10 +108,11 @@ class AnthropicCompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key 解析优先级：env var > local secret store > missing
+        # api_key 解析优先级：env var > workspace secret store > CWD fallback
         # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
         # env var mode 是 legacy/advanced deployment mode，仍可读取。
-        api_key = _resolve_api_key(mc.alias, mc.api_key_env)
+        # project_root 是 P0-2 修复的关键参数：provider 不再从 CWD 猜 secrets path。
+        api_key = _resolve_api_key(mc.alias, mc.api_key_env, project_root=project_root)
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
                 "Model setup is incomplete. Add a provider API key in Web Setup "
@@ -203,37 +205,32 @@ def _extract_text_from_content_blocks(data: dict[str, Any]) -> str | None:
     return "".join(parts)
 
 
-def _resolve_api_key(alias: str, api_key_env: str | None) -> str | None:
-    """API key 解析：env var > local secret store > None。
+def _resolve_api_key(
+    alias: str,
+    api_key_env: str | None,
+    *,
+    project_root: Path | None = None,
+) -> str | None:
+    """API key 解析：env var > workspace secret store > CWD fallback > None。
 
     中文学习型说明：Web 用户通过 Setup 输入的 key 存在 .mindforge/secrets.json；
     env var mode 是 legacy/advanced deployment mode。
 
-    Secret store 路径从 CWD 向上查找（与 env_loader 查找 .env 逻辑一致），
-    避免硬编码相对路径导致的跨目录 CLI 失败。
+    当 ``project_root`` 提供时，优先使用 workspace 锚定的 secrets path；
+    不再仅依赖 CWD 向上查找。这是 P0-2 修复的关键：processing worker 即使
+    CWD 在别的目录，也能找到正确 workspace 的 secrets。
     """
     # 1) env var（legacy/advanced mode）
     if api_key_env:
         value = os.environ.get(api_key_env)
         if value:
             return value
-    # 2) local secret store — 从 CWD 向上查找 .mindforge/secrets.json
-    from mindforge.secret_store import SecretStore
-    secrets_path = _find_secrets_store()
+    # 2) local secret store — 优先 workspace 锚点，fallback CWD 向上查找
+    from mindforge.secret_store import SecretStore, find_secret_store_path
+    secrets_path = find_secret_store_path(project_root=project_root)
     if secrets_path is not None:
         store = SecretStore(secrets_path)
         return store.get(alias)
-    return None
-
-
-def _find_secrets_store():
-    """从 CWD 向上查找 .mindforge/secrets.json，与 env_loader 模式一致。"""
-    from pathlib import Path
-    cur = Path.cwd().resolve()
-    for directory in (cur, *cur.parents):
-        candidate = directory / ".mindforge" / "secrets.json"
-        if candidate.is_file():
-            return candidate
     return None
 
 

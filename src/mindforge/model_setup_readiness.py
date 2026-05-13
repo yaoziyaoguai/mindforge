@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import REQUIRED_STAGES, MindForgeConfig, ModelConfig
-from .secret_store import SecretStore
+from .secret_store import SecretStore, find_secret_store_path, resolve_project_root_from_config
 
 
 @dataclass(frozen=True)
@@ -77,13 +77,19 @@ def _model_metadata_complete(model: ModelConfig) -> bool:
 
 
 def _secret_store_path(cfg: MindForgeConfig) -> Path:
-    raw = cfg.raw if isinstance(cfg.raw, dict) else {}
-    project_meta = raw.get("_mindforge_project")
-    if isinstance(project_meta, dict) and project_meta.get("root"):
-        return Path(str(project_meta["root"])) / ".mindforge" / "secrets.json"
-    config_meta = raw.get("_mindforge_config")
-    if isinstance(config_meta, dict) and config_meta.get("project_root"):
-        return Path(str(config_meta["project_root"])) / ".mindforge" / "secrets.json"
+    """解析 secrets.json 路径，复用 ``find_secret_store_path`` 的锚点语义。
+
+    与 processing provider 使用同一套 project_root → secrets path 解析逻辑。
+    当 project_root 已解析但 secrets 文件尚未创建（用户未做 Web Setup）时，
+    返回 project_root 锚定的预期路径，而非 CWD 任意位置。这样 readiness 判断
+    与 processing provider 始终校验同一 workspace 的 secrets。
+    """
+    project_root = resolve_project_root_from_config(cfg)
+    result = find_secret_store_path(project_root=project_root)
+    if result is not None:
+        return result
+    if project_root is not None:
+        return project_root / ".mindforge" / "secrets.json"
     return Path.cwd() / ".mindforge" / "secrets.json"
 
 

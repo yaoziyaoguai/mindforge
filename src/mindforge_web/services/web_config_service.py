@@ -39,7 +39,7 @@ from mindforge_web.schemas import (
     SetupValidationResponse,
     StatusItem,
 )
-from mindforge.secret_store import SecretStore
+from mindforge.secret_store import SecretStore, resolve_project_root_from_config
 
 
 @dataclass(frozen=True)
@@ -61,15 +61,16 @@ class WebConfigService:
         self.cfg = cfg
         self.config_path = config_path
         self.cwd = cwd or Path.cwd()
-        # .mindforge/ 目录在项目根（configs/ 的父目录）
-        # 中文学习型说明：不再 fallback 到 cwd。标准结构 <project>/configs/mindforge.yaml
-        # 的 project root 是 <project>；扁平结构 <dir>/mindforge.yaml 的 project root
-        # 是 <dir>。自动创建 .mindforge/，避免 secret store 写到错误目录。
-        config_dir = config_path.resolve().parent
-        if config_dir.name == "configs":
-            project_root = config_dir.parent
-        else:
-            project_root = config_dir
+        # 优先使用已解析的 workspace/config metadata 中的 project_root，
+        # 确保 Web Setup 写入的 secrets 与 processing provider 读取的
+        # secrets 在同一个 workspace。仅 metadata 缺失时从 config_path 推导。
+        project_root = resolve_project_root_from_config(cfg)
+        if project_root is None:
+            config_dir = config_path.resolve().parent
+            if config_dir.name == "configs":
+                project_root = config_dir.parent
+            else:
+                project_root = config_dir
         mindforge_dir = project_root / ".mindforge"
         mindforge_dir.mkdir(parents=True, exist_ok=True)
         self.secrets = SecretStore(mindforge_dir / "secrets.json")

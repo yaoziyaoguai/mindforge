@@ -418,6 +418,111 @@ def test_explicit_vault_wins_over_workspace(tmp_path):
     assert decision.reason == "explicit --vault"
 
 
+# ---------------------------------------------------------------------------
+# 8. config_explicit 阻止 cwd vault 覆盖（P0-1）
+# ---------------------------------------------------------------------------
+
+
+def test_config_explicit_prevents_cwd_vault_override(tmp_path):
+    """--config 显式提供时，cwd vault 不能覆盖 configured vault。"""
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    configured_vault = tmp_path / "vault"
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    cwd_vault_dir = tmp_path / "other-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+
+    decision = resolve_active_vault(
+        cfg,
+        cwd=cwd_vault_dir,
+        config_explicit=True,
+    )
+    assert decision.root == configured_vault.resolve(), (
+        f"config_explicit=True 时 cwd vault 不应覆盖 configured vault，"
+        f"expected={configured_vault.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "configured vault"
+
+
+def test_config_explicit_overrides_cwd_vault_but_not_explicit_vault(tmp_path):
+    """--config + --vault → --vault 仍最高优先级。"""
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    cwd_vault_dir = tmp_path / "cwd-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+    explicit_vault = tmp_path / "explicit-vault"
+    explicit_vault.mkdir()
+
+    decision = resolve_active_vault(
+        cfg,
+        vault_override=explicit_vault,
+        cwd=cwd_vault_dir,
+        config_explicit=True,
+    )
+    assert decision.root == explicit_vault.resolve()
+    assert decision.reason == "explicit --vault"
+
+
+def test_config_not_explicit_cwd_vault_wins(tmp_path):
+    """config_explicit=False（默认值）时 cwd vault 行为不变。"""
+    from mindforge.app_context import resolve_active_vault
+    from mindforge.config import load_mindforge_config
+
+    _make_workspace(tmp_path)
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+    cfg = load_mindforge_config(cfg_path)
+
+    cwd_vault_dir = tmp_path / "cwd-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+
+    decision = resolve_active_vault(
+        cfg,
+        cwd=cwd_vault_dir,
+        config_explicit=False,
+    )
+    assert decision.root == cwd_vault_dir.resolve(), (
+        f"config_explicit=False 时 cwd vault 应优先，"
+        f"expected={cwd_vault_dir.resolve()}, got={decision.root}"
+    )
+    assert decision.reason == "cwd vault"
+
+
+def test_active_workspace_not_overridden_by_cwd_vault(tmp_path):
+    """active workspace 时 config_explicit=True，cwd vault 不应错误覆盖。"""
+    from mindforge.app_context import load_app_config
+    from mindforge.workspace_resolver import clear_active_workspace, set_active_workspace
+
+    _make_workspace(tmp_path)
+    set_active_workspace(tmp_path)
+
+    cwd_vault_dir = tmp_path / "cwd-vault"
+    (cwd_vault_dir / "00-Inbox").mkdir(parents=True)
+    cfg_path = tmp_path / "configs" / "mindforge.yaml"
+
+    try:
+        cfg = load_app_config(
+            cfg_path,
+            vault_override=None,
+            cwd=cwd_vault_dir,
+            config_explicit=True,
+        )
+        assert cfg.vault.root == (tmp_path / "vault").resolve(), (
+            f"配置的 vault 不应被 cwd vault 覆盖，"
+            f"expected={(tmp_path / 'vault').resolve()}, got={cfg.vault.root}"
+        )
+    finally:
+        clear_active_workspace()
+
+
 def test_workspace_override_no_cwd_vault_uses_configured(tmp_path):
     """--workspace 提供且 cwd 无 vault 时，fallback 到 configured vault。"""
     from mindforge.app_context import resolve_active_vault

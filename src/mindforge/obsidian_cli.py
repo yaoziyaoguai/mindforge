@@ -63,8 +63,13 @@ def _load_cfg(config_path: Path) -> MindForgeConfig:
     Obsidian 本地检查流程。
     """
 
+    config_explicit = (config_path != Path("configs/mindforge.yaml"))
     try:
-        return load_app_config(config_path, vault_override=_global_vault_override())
+        return load_app_config(
+            config_path,
+            vault_override=_global_vault_override(),
+            config_explicit=config_explicit,
+        )
     except AppContextError as e:
         if e.kind == "missing_config":
             console.print(f"[red]✗ 配置文件不存在：{config_path}[/red]")

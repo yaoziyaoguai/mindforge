@@ -34,7 +34,11 @@ def run(
 ) -> None:
     """执行单个 run；所有异常交给 ProcessingRun worker 收敛成 failed。"""
 
-    cfg = load_app_config(config, cwd=Path.cwd())
+    # 后台 worker 的 --config 始终是父进程显式传入的已解析路径。
+    # config_explicit=True 确保 worker vault 不会被 cwd 覆盖，且所有
+    # downstream provider 使用同一个 workspace 的 secrets path。
+    # 这是 P0-1/P0-2 修复的一部分：worker 不应从 CWD 重新猜 vault 或 secrets。
+    cfg = load_app_config(config, cwd=Path.cwd(), config_explicit=True)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
 
     def work():

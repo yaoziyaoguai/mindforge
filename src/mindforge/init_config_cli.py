@@ -424,8 +424,13 @@ def config_doctor(
             markup=False,
         )
         raise typer.Exit(code=2)
+    config_explicit = (config != Path("configs/mindforge.yaml"))
     try:
-        cfg = load_app_config(config, vault_override=global_vault_override())
+        cfg = load_app_config(
+            config,
+            vault_override=global_vault_override(),
+            config_explicit=config_explicit,
+        )
     except AppContextError as e:
         console.print(f"[red]✗ config invalid[/red] {e}")
         console.print("Next: fix YAML, or run `mindforge config init --dry-run` to inspect a safe template.")

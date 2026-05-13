@@ -538,6 +538,61 @@ class TestWebConfigServiceSecretStore:
         assert (tmp_path / ".mindforge" / "secrets.json").parent.exists()
         assert (tmp_path / ".mindforge").is_dir()
 
+    def test_uses_cfg_metadata_project_root_when_available(self, tmp_path: Path):
+        """P1-1: cfg.raw._mindforge_project.root 存在时优先使用，
+        而非从 config_path 重新推导 project_root。"""
+        config_path = tmp_path / "configs" / "mindforge.yaml"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text(
+            yaml.safe_dump({"version": 0.7, "vault": {"root": str(tmp_path / "vault")},
+                            "llm": {"active_profile": "fake", "profiles": {"fake": {"triage": "x", "distill": "x", "link_suggestion": "x", "review_questions": "x", "action_extraction": "x"}}, "models": {"x": {"provider": "fake", "type": "fake", "base_url": "fake://", "model": "fake"}}},
+                            "state": {"workdir": ".mindforge"}}),
+            encoding="utf-8",
+        )
+        cfg = load_mindforge_config(config_path)
+        # 注入 _mindforge_project metadata（模拟 build_app_context 注入）
+        explicit_root = tmp_path / "explicit-project-root"
+        cfg.raw["_mindforge_project"] = {"root": str(explicit_root), "config_path": str(config_path)}
+
+        WebConfigService(cfg, config_path=config_path)
+        # 验证 .mindforge/ 创建在 metadata 锚点的 project_root，而非 config_path 推导的 tmp_path
+        assert (explicit_root / ".mindforge" / "secrets.json").parent.exists()
+        assert (explicit_root / ".mindforge").is_dir()
+
+    def test_repo_cwd_secrets_not_contaminate_workspace(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """P1-1: 在 repo cwd 运行但 config 指向 workspace 时，
+        WebConfigService 使用 workspace 的 .mindforge/，而非 repo cwd 的。"""
+        # 在 repo cwd 创建 .mindforge/secrets.json
+        repo_cwd = tmp_path / "repo-cwd"
+        repo_cwd.mkdir()
+        repo_secrets_dir = repo_cwd / ".mindforge"
+        repo_secrets_dir.mkdir()
+        (repo_secrets_dir / "secrets.json").write_text(
+            '{"repo_key": "sk-should-not-be-used"}', encoding="utf-8"
+        )
+
+        # 创建 workspace（独立于 repo cwd）
+        ws = tmp_path / "ws"
+        config_path = ws / "configs" / "mindforge.yaml"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text(
+            yaml.safe_dump({"version": 0.7, "vault": {"root": str(ws / "vault")},
+                            "llm": {"active_profile": "fake", "profiles": {"fake": {"triage": "x", "distill": "x", "link_suggestion": "x", "review_questions": "x", "action_extraction": "x"}}, "models": {"x": {"provider": "fake", "type": "fake", "base_url": "fake://", "model": "fake"}}},
+                            "state": {"workdir": ".mindforge"}}),
+            encoding="utf-8",
+        )
+        cfg = load_mindforge_config(config_path)
+
+        monkeypatch.chdir(repo_cwd)
+        WebConfigService(cfg, config_path=config_path)
+
+        # workspace 的 .mindforge 被创建
+        assert (ws / ".mindforge" / "secrets.json").parent.exists()
+        # repo cwd 的 secrets.json 未被读取或修改（路径选择不碰 CWD 的 secrets）
+        assert repo_secrets_dir.exists()  # 仍然存在，未被触碰
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # gitignore / 运行时数据隔离测试

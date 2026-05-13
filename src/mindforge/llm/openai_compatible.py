@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -49,7 +50,7 @@ class OpenAICompatibleProvider(LLMProvider):
     __str__ = __repr__
 
     @classmethod
-    def from_model_config(cls, mc: Any) -> OpenAICompatibleProvider:
+    def from_model_config(cls, mc: Any, *, project_root: Path | None = None) -> OpenAICompatibleProvider:
         # base_url：优先 env，再回落 yaml；type=openai 默认使用 OpenAI 官方 API
         base_url = ""
         if getattr(mc, "base_url_env", None):
@@ -64,10 +65,15 @@ class OpenAICompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key 解析优先级：env var > local secret store > None
+        # api_key 解析优先级：env var > workspace secret store > CWD fallback
         # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
+        # project_root 是 P0-2 修复的关键参数：provider 不再从 CWD 猜 secrets path。
         from mindforge.llm.anthropic_compatible import _resolve_api_key
-        api_key = _resolve_api_key(mc.alias, getattr(mc, "api_key_env", None))
+        api_key = _resolve_api_key(
+            mc.alias,
+            getattr(mc, "api_key_env", None),
+            project_root=project_root,
+        )
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
                 "Model setup is incomplete. Add a provider API key in Web Setup "

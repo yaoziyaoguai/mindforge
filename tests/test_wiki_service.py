@@ -301,7 +301,7 @@ def test_llm_rebuild_uses_wiki_model_without_processing_routing(tmp_path: Path, 
 
     monkeypatch.setattr(
         "mindforge.llm.factory.build_provider_for_model",
-        lambda _model_config: _WikiSynthesisStubProvider(),
+        lambda _model_config, **_: _WikiSynthesisStubProvider(),
     )
 
     result = llm_rebuild_wiki(cfg)

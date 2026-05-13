@@ -3,6 +3,8 @@
 这些测试复现真实使用里的矛盾：人在 vault root 里运行命令时，state path、
 scanner vault、next command 必须指向同一个 active vault，不能一半来自 cwd、
 一半来自 configured vault。
+
+P0-1 修正：--config 显式提供时 configured vault 优先，不再被 cwd vault 覆盖。
 """
 
 from __future__ import annotations
@@ -19,10 +21,17 @@ runner = CliRunner()
 
 
 def _write_config(tmp_path: Path, configured_vault: Path) -> Path:
+    """写自定义路径的测试 config（触发 config_explicit=True）。"""
+    cfg_path = tmp_path / "mindforge.yaml"
+    _write_config_content(cfg_path, configured_vault, tmp_path)
+    return cfg_path
+
+
+
+def _write_config_content(cfg_path: Path, configured_vault: Path, tmp_path: Path) -> None:
     configured_vault.mkdir(parents=True, exist_ok=True)
     (configured_vault / "00-Inbox" / "ManualNotes").mkdir(parents=True, exist_ok=True)
     (configured_vault / "20-Knowledge-Cards").mkdir(parents=True, exist_ok=True)
-    cfg_path = tmp_path / "mindforge.yaml"
     cfg_path.write_text(
         yaml.safe_dump(
             {
@@ -88,7 +97,6 @@ def _write_config(tmp_path: Path, configured_vault: Path) -> Path:
         ),
         encoding="utf-8",
     )
-    return cfg_path
 
 
 def _make_vault(path: Path, note_name: str = "second-note.md") -> Path:
@@ -107,10 +115,16 @@ def _make_fresh_inbox_vault(path: Path, note_name: str = "external-smoke-note.md
     return path
 
 
-def test_scan_from_vault_root_uses_cwd_vault_and_consistent_next_command(
+# ---------------------------------------------------------------------------
+# 1. --config 显式提供 → configured vault 优先（P0-1 修正）
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_config_uses_configured_vault_not_cwd_vault(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    """--config 显式提供时，configured vault 优先，不查找 cwd vault。"""
     configured = _make_vault(tmp_path / "configured-vault", "old.md")
     active = _make_vault(tmp_path / "active-vault", "second-note.md")
     cfg = _write_config(tmp_path, configured)
@@ -119,17 +133,13 @@ def test_scan_from_vault_root_uses_cwd_vault_and_consistent_next_command(
     result = runner.invoke(app, ["scan", "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert "second-note.md" in result.output
-    assert "old.md" not in result.output
-    assert f"active vault: {active}" in result.output
-    assert f"state path  : {active / '.mindforge' / 'state.json'}" in result.output
-    assert f"Next: mindforge web  # open Sources to process {active}" in result.output
-    assert "--profile fake" not in result.output
-    assert (active / ".mindforge" / "state.json").exists()
-    assert not (configured / ".mindforge" / "state.json").exists()
+    assert "old.md" in result.output
+    assert "second-note.md" not in result.output
+    assert f"active vault: {configured}" in result.output
 
 
-def test_scan_from_vault_child_detects_ancestor_vault(tmp_path: Path, monkeypatch) -> None:
+def test_explicit_config_child_cwd_uses_configured_vault(tmp_path: Path, monkeypatch) -> None:
+    """--config 显式 + cwd 在另一个 vault 子目录 → configured vault 仍优先。"""
     configured = _make_vault(tmp_path / "configured-vault", "old.md")
     active = _make_vault(tmp_path / "active-vault", "second-note.md")
     cfg = _write_config(tmp_path, configured)
@@ -139,13 +149,17 @@ def test_scan_from_vault_child_detects_ancestor_vault(tmp_path: Path, monkeypatc
     result = runner.invoke(app, ["scan", "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert f"active vault: {active}" in result.output
-    assert f"Next: mindforge web  # open Sources to process {active}" in result.output
-    assert "--profile fake" not in result.output
-    assert (active / ".mindforge" / "state.json").exists()
+    assert f"active vault: {configured}" in result.output
+    assert (configured / ".mindforge" / "state.json").exists()
 
 
-def test_explicit_vault_wins_over_cwd_vault(tmp_path: Path, monkeypatch) -> None:
+# ---------------------------------------------------------------------------
+# 2. --vault 始终最高优先级
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_vault_wins_over_cwd_and_config(tmp_path: Path, monkeypatch) -> None:
+    """--vault 始终最高优先级，即使 --config + cwd vault 都存在。"""
     configured = _make_vault(tmp_path / "configured-vault", "old.md")
     cwd_vault = _make_vault(tmp_path / "cwd-vault", "cwd.md")
     explicit = _make_vault(tmp_path / "explicit-vault", "explicit.md")
@@ -161,42 +175,9 @@ def test_explicit_vault_wins_over_cwd_vault(tmp_path: Path, monkeypatch) -> None
     assert (explicit / ".mindforge" / "state.json").exists()
 
 
-def test_scan_from_fresh_inbox_only_vault_uses_cwd_vault(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    configured = _make_vault(tmp_path / "configured-vault", "old.md")
-    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
-    cfg = _write_config(tmp_path, configured)
-    monkeypatch.chdir(fresh)
-
-    result = runner.invoke(app, ["scan", "--config", str(cfg)])
-
-    assert result.exit_code == 0, result.output
-    assert "external-smoke-note.md" in result.output
-    assert "old.md" not in result.output
-    assert f"active vault: {fresh}" in result.output
-    assert f"state path  : {fresh / '.mindforge' / 'state.json'}" in result.output
-    assert f"Next: mindforge web  # open Sources to process {fresh}" in result.output
-    assert "--profile fake" not in result.output
-
-
-def test_scan_from_fresh_inbox_child_detects_ancestor_vault(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    configured = _make_vault(tmp_path / "configured-vault", "old.md")
-    fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
-    cfg = _write_config(tmp_path, configured)
-    monkeypatch.chdir(fresh / "00-Inbox" / "ManualNotes")
-
-    result = runner.invoke(app, ["scan", "--config", str(cfg)])
-
-    assert result.exit_code == 0, result.output
-    assert "external-smoke-note.md" in result.output
-    assert f"active vault: {fresh}" in result.output
-    assert f"Next: mindforge web  # open Sources to process {fresh}" in result.output
-    assert "--profile fake" not in result.output
+# ---------------------------------------------------------------------------
+# 4. repo .mindforge 误判为 user vault（保持防护）
+# ---------------------------------------------------------------------------
 
 
 def test_repo_runtime_mindforge_is_not_mistaken_for_user_vault(
@@ -218,10 +199,13 @@ def test_repo_runtime_mindforge_is_not_mistaken_for_user_vault(
     assert f"active vault: {configured}" in result.output
 
 
-def test_status_uses_fresh_cwd_vault_when_configured_vault_differs(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
+# ---------------------------------------------------------------------------
+# 5. --config 显式 → status/library/approve/index/recall 一致使用 configured vault
+# ---------------------------------------------------------------------------
+
+
+def test_status_with_explicit_config_uses_configured_vault(tmp_path: Path, monkeypatch) -> None:
+    """--config 显式 → status 使用 configured vault，不检测 cwd vault。"""
     configured = _make_vault(tmp_path / "configured-vault", "old.md")
     fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
     cfg = _write_config(tmp_path, configured)
@@ -230,16 +214,15 @@ def test_status_uses_fresh_cwd_vault_when_configured_vault_differs(
     result = runner.invoke(app, ["status", "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert "ExternalMindForgeVault" in result.output
-    assert f"active vault          : {fresh}" in result.output
-    assert "vault source          : cwd vault" in result.output
-    assert f"fallback candidate only: {configured}" in result.output
+    assert "configured-vault" in result.output
+    assert result.output.count("cwd vault") == 0  # P0-1: 不查找 cwd vault
 
 
-def test_process_library_approve_index_recall_share_fresh_cwd_vault(
+def test_process_library_approve_index_recall_use_configured_vault(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    """--config 显式 → process/library/approve/index/recall 一致使用 configured vault。"""
     configured = _make_vault(tmp_path / "configured-vault", "old.md")
     fresh = _make_fresh_inbox_vault(tmp_path / "ExternalMindForgeVault")
     cfg = _write_config(tmp_path, configured)
@@ -247,41 +230,29 @@ def test_process_library_approve_index_recall_share_fresh_cwd_vault(
 
     process = runner.invoke(app, ["process", "--config", str(cfg), "--profile", "fake", "--limit", "1"])
     assert process.exit_code == 0, process.output
-    assert "external-smoke-note.md" in process.output
-    assert f"active vault: {fresh}" in process.output
-    assert "vault source: cwd vault" in process.output
-    assert f"configured vault is fallback candidate only: {configured}" in process.output
+    assert "old.md" in process.output
+    assert "external-smoke-note.md" not in process.output
+    assert f"active vault: {configured}" in process.output
     assert "Next: mindforge approve list --vault" in process.output
-    assert "ExternalMindForgeVault" in process.output
-    assert not list(configured.joinpath("20-Knowledge-Cards").rglob("*.md"))
 
     library_draft = runner.invoke(app, ["library", "list", "--config", str(cfg)])
     assert library_draft.exit_code == 0, library_draft.output
-    assert "external-smoke-note" in library_draft.output
-    assert f"configured vault is fallback candidate only: {configured}" in library_draft.output
+    assert "old" in library_draft.output
 
-    card = next(fresh.joinpath("20-Knowledge-Cards").rglob("*.md"))
-    rel_card = card.relative_to(fresh).as_posix()
+    card = next(configured.joinpath("20-Knowledge-Cards").rglob("*.md"))
+    rel_card = card.relative_to(configured).as_posix()
     show = runner.invoke(app, ["approve", "show", "--card", rel_card, "--config", str(cfg)])
     assert show.exit_code == 0, show.output
-    assert f"configured vault is fallback candidate only: {configured}" in show.output
     approve = runner.invoke(app, ["approve", "--card", rel_card, "--confirm", "--config", str(cfg)])
     assert approve.exit_code == 0, approve.output
-    assert f"configured vault is fallback candidate only: {configured}" in approve.output
     assert read_card_frontmatter(card)["status"] == "human_approved"
 
     index = runner.invoke(app, ["index", "rebuild", "--config", str(cfg)])
     assert index.exit_code == 0, index.output
-    assert f"configured vault is fallback candidate only: {configured}" in index.output
-    assert "ExternalMindForgeVault/.mindforge" in index.output
-    assert "bm25.json" in index.output
-    assert "bm25.json" in index.output
-    assert (fresh / ".mindforge" / "index" / "bm25.json").exists()
-    assert not (configured / ".mindforge" / "index" / "bm25.json").exists()
+    assert (configured / ".mindforge" / "index" / "bm25.json").exists()
+    assert not (fresh / ".mindforge" / "index" / "bm25.json").exists()
 
-    recall = runner.invoke(app, ["recall", "--query", "external", "--config", str(cfg)])
+    recall = runner.invoke(app, ["recall", "--query", "old", "--config", str(cfg)])
     assert recall.exit_code == 0, recall.output
-    assert f"Vault: vault.root={fresh}" in recall.output
-    assert "external-smoke-note" in recall.output
-    assert f"configured vault is fallback candidate only: {configured}" in recall.output
-    assert str(fresh / ".mindforge" / "index" / "bm25.json") in recall.output
+    assert f"Vault: vault.root={configured}" in recall.output
+    assert "old" in recall.output

@@ -79,14 +79,17 @@ def load_app_config(
     *,
     vault_override: Path | None = None,
     cwd: Path | None = None,
+    config_explicit: bool = False,
 ) -> MindForgeConfig:
     """加载 config 并应用本次命令的 vault override；不读 `.env`。
 
     中文学习型说明：是否加载 `.env` 仍由 CLI 入口显式决定。这里保持纯
     config/path resolution，避免 service/context 层悄悄改变 provider 环境。
 
-    ``--workspace`` 通过 env var 传递，直接影响 vault 优先级：
-    当 ``--workspace`` 显式提供时，workspace 的 configured vault 优先于 cwd vault。
+    ``--config`` / ``--workspace`` 都意味着用户显式选择了 workspace；
+    ``config_explicit`` 为 True 时 cwd vault 不应覆盖 config 的 configured vault。
+    这与 ``--workspace`` 通过 env var 传递的效果一致：用户指定了 workspace，
+    vault 就应该来自那个 workspace，而不是被当前目录的 vault 意外覆盖。
     """
     config_path = resolve_config_path(config_path, cwd=cwd)
     try:
@@ -100,6 +103,7 @@ def load_app_config(
         vault_override=vault_override,
         cwd=cwd,
         workspace_override=workspace_override,
+        config_explicit=config_explicit,
     )
     return apply_active_vault(cfg, decision)
 
@@ -150,12 +154,18 @@ def build_app_context(
     中文学习型说明：当 cwd 未显式传递时，以 config 文件所在目录为基准，
     避免 process cwd 意外影响 vault 检测（如 home 目录的 .mindforge 被误判为 vault）。
 
-    ``--workspace`` 通过 env var 传递；本函数内部已通过 ``load_app_config``
+    ``--config`` / ``--workspace`` 通过 env var 传递；本函数内部已通过 ``load_app_config``
     自动传播到 vault resolution，无需调用方显式处理。
     """
     resolved_config = _resolve_config_path(config_path, cwd=cwd)
     effective_cwd = cwd or resolved_config.parent
-    cfg = load_app_config(resolved_config, vault_override=vault_override, cwd=effective_cwd)
+    config_explicit = (config_path != Path("configs/mindforge.yaml"))
+    cfg = load_app_config(
+        resolved_config,
+        vault_override=vault_override,
+        cwd=effective_cwd,
+        config_explicit=config_explicit,
+    )
     return AppContext(
         config=cfg,
         paths=AppPaths(
@@ -231,17 +241,22 @@ def resolve_active_vault(
     vault_override: Path | None = None,
     cwd: Path | None = None,
     workspace_override: Path | None = None,
+    config_explicit: bool = False,
 ) -> ActiveVaultDecision:
     """按统一优先级选择 active vault。
 
     优先级：
     1. explicit ``--vault``（始终最高）
-    2. cwd/ancestor vault（仅在未显式提供 ``--workspace`` 时）
-    3. configured vault
+    2. cwd/ancestor vault（仅在未显式提供 ``--config`` 或 ``--workspace`` 时）
+    3. configured vault（来自已解析的 config）
 
-    当 ``--workspace`` 显式提供时，跳过 cwd vault 检测。
-    用户指定 workspace 意味着"使用这个 workspace 的配置"，不应被当前目录的
-    vault 意外覆盖。
+    当 ``--config`` 或 ``--workspace`` 显式提供时，跳过 cwd vault 检测。
+    用户指定了 config/workspace 意味着"使用这个 config/workspace 的 vault"，
+    cwd 附近的 vault 不应意外覆盖用户选择。
+
+    中文学习型说明：cwd vault 是便利特性，只在用户没有显式选择
+    config/workspace 时才生效。一旦用户说了"用这个 config"或"用这个
+    workspace"，cwd 就不再参与 vault 选择。
     """
 
     project_root = _project_root_from_raw(cfg)
@@ -252,8 +267,9 @@ def resolve_active_vault(
             reason="explicit --vault",
             configured_root=configured,
         )
-    # --workspace 显式提供时，跳过 cwd vault，直接使用 workspace 配置的 vault
-    if workspace_override is None:
+    # --config 或 --workspace 显式提供时，跳过 cwd vault。
+    # cwd vault 只在用户没有任何显式选择时才参与优先级。
+    if workspace_override is None and not config_explicit:
         cwd_vault = detect_cwd_vault(cwd)
         if cwd_vault is not None:
             return ActiveVaultDecision(

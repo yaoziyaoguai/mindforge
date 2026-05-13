@@ -40,6 +40,9 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
     中文学习型说明：config resolution 统一走 ``app_context.load_app_config``，
     它会按 --config > --workspace > cwd 向上查找 > 全局 active workspace 的
     优先级链解析。找不到时给出 workspace-aware 友好错误提示。
+
+    当 ``--config`` 显式指定时，config_explicit=True 阻止 cwd vault 覆盖
+    config 的 configured vault。
     """
 
     if read_env:
@@ -48,10 +51,12 @@ def load_cfg(config_path: Path, *, read_env: bool = True) -> MindForgeConfig:
         # cwd-first / vault-first 是 CLI 产品规则，不是 app_context 的偶然默认值。
         # 这里显式传入 Path.cwd()，确保 scan/process/library/approve/index/recall
         # 等共享入口都用同一个 active-vault 解析边界。
+        config_explicit = (config_path != Path("configs/mindforge.yaml"))
         return load_app_config(
             config_path,
             vault_override=global_vault_override(),
             cwd=Path.cwd(),
+            config_explicit=config_explicit,
         )
     except AppContextError as e:
         if e.kind in {"no_workspace", "stale_workspace", "missing_config", "invalid_workspace"}:

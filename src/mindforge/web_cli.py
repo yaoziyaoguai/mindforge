@@ -50,6 +50,7 @@ def web(
     should_open = open_browser and not no_open
 
     # --workspace 推导 config / vault（explicit --config / --vault 优先）
+    config_explicit = (config != Path("configs/mindforge.yaml"))
     if workspace is not None:
         ws = workspace.expanduser().resolve()
         if config == Path("configs/mindforge.yaml"):  # 默认值，未显式设置
@@ -66,6 +67,7 @@ def web(
             config,
             vault_override=vault or global_vault_override(),
             cwd=Path.cwd(),
+            config_explicit=config_explicit,
         )
     except AppContextError:
         # 解析失败 — 尝试 bootstrap

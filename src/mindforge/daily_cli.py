@@ -47,8 +47,13 @@ def version(
         console.print("  [yellow](config 文件不存在；以下字段省略)[/yellow]")
         console.print("[dim]提示：复制 configs/mindforge.yaml 到目标位置后重试。[/dim]")
         return
+    config_explicit = (config != Path("configs/mindforge.yaml"))
     try:
-        cfg = load_app_config(config, vault_override=global_vault_override())
+        cfg = load_app_config(
+            config,
+            vault_override=global_vault_override(),
+            config_explicit=config_explicit,
+        )
     except AppContextError as e:
         console.print(f"  [red]config 解析失败：{e}[/red]")
         raise typer.Exit(code=2) from e
