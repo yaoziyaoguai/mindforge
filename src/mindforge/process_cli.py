@@ -48,17 +48,23 @@ def _format_process_status(result, *, cfg, status: str, message: str | None, dry
     doc = result.document
     assert doc is not None
     if status == "skipped":
-        console.print(_pp.format_skipped(source_path=doc.source_path, skip_reason=message))
+        console.print(_pp.format_skipped(source_path=doc.source_path, skip_reason=message), soft_wrap=True)
     elif status == "failed":
-        console.print(_pp.format_failed(source_path=doc.source_path, error_stage=None, error_message=message))
+        console.print(
+            _pp.format_failed(source_path=doc.source_path, error_stage=None, error_message=message),
+            soft_wrap=True,
+        )
     elif dry_run and status == "processed":
-        console.print(_pp.format_processed_dry_run(source_path=doc.source_path, target_dir=cfg.vault.cards_path))
+        console.print(
+            _pp.format_processed_dry_run(source_path=doc.source_path, target_dir=cfg.vault.cards_path),
+            soft_wrap=True,
+        )
     else:
         console.print(_pp.format_processed_real(
             source_path=doc.source_path,
             output_path=Path(message or ""),
             conflict=(status == "conflict"),
-        ))
+        ), soft_wrap=True)
 
 
 def _finalize_process_run(*, cp, cfg, logger, console, counts, dry_run):
@@ -110,6 +116,9 @@ def _build_process_runtime_parts(*, cfg, runtime, strategy: str) -> ProcessRunti
         # 诊断，不 fallback fake，也不打印 env value / prompt / source 正文。
         print_provider_failure(console, provider_failure_detail(cfg, str(exc)))
         raise typer.Exit(code=2) from None
+    except ValueError as exc:
+        console.print(str(exc), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2) from None
 
 
 def _run_process_loop(*, cfg, parts: ProcessRuntimeParts, file, limit, dry_run) -> None:
@@ -142,7 +151,7 @@ def _run_process_loop(*, cfg, parts: ProcessRuntimeParts, file, limit, dry_run) 
                 console.print(_pp.format_skipped(
                     source_path=doc.source_path,
                     skip_reason="already_approved",
-                ))
+                ), soft_wrap=True)
                 continue
 
             attempted += 1
@@ -201,12 +210,14 @@ def process(
         None,
         "--profile",
         "-p",
-        help="Legacy alias for --provider；临时覆盖 provider（仅本次进程，不改 yaml）",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     provider: str | None = typer.Option(
         None,
         "--provider",
-        help="高级临时覆盖 llm.active 指向的 provider（仅本次进程，不改 yaml）",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -258,15 +269,13 @@ def process(
 
     selected_strategy = _resolve_strategy_or_exit(cfg=cfg, explicit_strategy=strategy)
     if runtime.provider.requires_real_env and selected_strategy.metadata.provider_mode != "deterministic":
-        # 中文学习型注释：v0.5.1 把本地 smoke 路径收紧为“不读 .env”。
-        # 只有用户显式切到真实 provider 时，才加载 .env 以解析 base_url /
-        # api_key 等环境变量；测试替身 provider 必须保持完全离线、无 secret 依赖。
-        # v0.7.20：provider env 判断已下沉到 process_service.requires_real_env，
-        # CLI 只负责实际 IO（load_dotenv），保持 service 无副作用。
+        # 中文学习型注释：legacy process 是内部兼容路径；普通用户主路径是
+        # Web Setup 写 local secret store 后，从 Sources 启动后台 processing。
+        # 这里仅在内部兼容模式需要时加载本地 secret fallback，service 仍无副作用。
         load_dotenv_silently(Path.cwd())
     if dry_run:
         console.print("[yellow]--dry-run：不会写卡片、不会写 state.json[/yellow]")
-    console.print(f"active_profile = [bold]{cfg.llm.active_profile}[/bold]")
+    console.print(f"model setup = [bold]{cfg.llm.default_model or 'missing'}[/bold]")
     console.print(
         f"active_strategy = [bold]{selected_strategy.strategy_id}[/bold] "
         f"({selected_strategy.source})"

@@ -11,6 +11,7 @@ from mindforge.llm import (
     LLMClient,
     LLMRequest,
     ProviderError,
+    build_provider_for_model,
     build_providers,
 )
 from mindforge.llm.client import ResolvedModel
@@ -49,6 +50,19 @@ class _FakeLLMConfig:
         return self.models[self.profiles[self.active_profile][stage]]
 
 
+class _FallbackLLMConfig(_FakeLLMConfig):
+    """模拟新 routing/default_model 解析层，不暴露 profile[stage]。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.default_model = "a"
+        self.routing = {}
+        self.profiles = {"default": {}}
+
+    def resolve_stage(self, stage: str):
+        return self.models[self.default_model]
+
+
 def test_fake_provider_returns_schema_for_each_stage() -> None:
     fp = FakeProvider()
     for stage in [
@@ -84,6 +98,14 @@ def test_build_providers_unknown_type_raises() -> None:
         build_providers(cfg)
 
 
+def test_build_provider_for_model_does_not_require_stage_routing() -> None:
+    """Wiki synthesis 等单模型用途可复用 provider 工厂，但不绑定 processing routing。"""
+
+    provider = build_provider_for_model(_FakeMC("wiki"))
+
+    assert isinstance(provider, FakeProvider)
+
+
 def test_client_resolve_for_each_stage() -> None:
     cfg = _FakeLLMConfig()
     client = LLMClient(llm_config=cfg, providers=build_providers(cfg))
@@ -93,6 +115,23 @@ def test_client_resolve_for_each_stage() -> None:
     assert r.model_alias == "a"
     assert r.actual_model == "fake-model-a"
     assert r.type == "fake"
+
+
+def test_client_resolve_uses_resolved_model_alias_without_profile_lookup() -> None:
+    """LLMClient 不应在 resolve_stage 后再次读取 profile[stage]。
+
+    中文学习型说明：新格式允许 stage routing 缺省并 fallback 到 default_model。
+    如果 client 又走旧 profile 字典取 alias，就会在 dogfood processing 中复现
+    KeyError('triage')。
+    """
+
+    cfg = _FallbackLLMConfig()
+    client = LLMClient(llm_config=cfg, providers=build_providers(cfg))
+
+    resolved = client.resolve_model_for_stage("triage")
+
+    assert resolved.model_alias == "a"
+    assert resolved.actual_model == "fake-model-a"
 
 
 def test_client_generate_returns_result_and_routes_correctly() -> None:
@@ -138,3 +177,22 @@ def test_client_retries_then_raises() -> None:
     with pytest.raises(ProviderError, match="boom"):
         client.generate(stage="triage", prompt="title: x\n")
     assert boom.calls == 3
+
+
+def test_client_uses_finite_default_retries_when_model_value_is_none() -> None:
+    """max_retries=None 也必须收敛成有限默认值，不能交给 provider 无限等待。
+
+    中文学习型说明：真实 Web Setup 由 YAML 驱动，loader 会给缺失字段补默认值；
+    但 release 用户体验边界不能依赖所有调用方都是完整 ModelConfig。旧配置、
+    测试替身或未来迁移对象如果携带 None，LLMClient 仍要使用有限 retry。
+    """
+
+    cfg = _FakeLLMConfig()
+    cfg.models["a"].max_retries = None
+    boom = _BoomProvider()
+    client = LLMClient(llm_config=cfg, providers={"a": boom, "b": FakeProvider()})
+
+    with pytest.raises(ProviderError, match="boom"):
+        client.generate(stage="triage", prompt="title: x\n")
+
+    assert boom.calls == 2

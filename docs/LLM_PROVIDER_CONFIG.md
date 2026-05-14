@@ -3,6 +3,8 @@
 本文档说明 MindForge 当前 LLM 模型配置体系。推荐通过 Web Setup 配置模型，
 CLI 用于高级诊断。
 
+完整示例配置参考：`configs/mindforge_example.yaml`
+
 ---
 
 ## 当前主配置格式
@@ -18,6 +20,8 @@ llm:
       type: anthropic_compatible
       base_url: https://your-endpoint.example.com/anthropic
       model: your-model-name
+      timeout_seconds: 120
+      max_retries: 1
 
   routing:
     triage: main
@@ -25,6 +29,11 @@ llm:
     link_suggestion: main
     review_questions: main
     action_extraction: main
+
+wiki:
+  mode: llm  # LLM-first synthesis（推荐）；Troubleshooting 回退用 deterministic
+  model: main
+  auto_rebuild_on_approve: false
 ```
 
 ### 语义
@@ -34,7 +43,11 @@ llm:
 | `llm.models` | 用户配置的可用模型池，每个 model id 对应一个 endpoint + 协议 + 模型名 |
 | `llm.default_model` | 所有 workflow step 默认使用的模型 |
 | `llm.routing` | 可选，workflow step → model id。省略时全部使用 default_model |
+| `timeout_seconds` | 单次 provider HTTP request timeout；省略时使用运行时默认值，不限制整个 import/watch run |
+| `max_retries` | 单次 provider call 的有限 retry 次数；省略时使用运行时默认值，不做 run-level 无限重试 |
 | routing 部分缺失 | 缺失 step fallback 到 default_model |
+| `wiki.model` | Wiki LLM synthesis 使用的 model id；必须引用 `llm.models` |
+| `wiki.auto_rebuild_on_approve` | 默认 false。开启后会在 approve 时自动触发 Wiki 重建（使用 `wiki.mode` 指定的方式，LLM synthesis 需要已配置模型和 API key）。不开启时 Wiki 需在 Web Wiki 页面或 CLI 手动触发 |
 
 ---
 
@@ -46,7 +59,7 @@ llm:
 2. 在 **Configured models** 区域点击 **\+ Add model**
 3. 填写：
    - **Model id**: 模型别名，如 `main`、`claude`
-   - **Type**: `anthropic` / `anthropic_compatible` / `openai_compatible`
+   - **Type**: `anthropic` / `anthropic_compatible` / `openai` / `openai_compatible`
    - **Base URL**: 模型 endpoint
    - **Model**: 模型名
    - **API key**: 输入你的真实 key
@@ -55,6 +68,15 @@ llm:
 Web Setup 还支持：
 - **Default model** 选择
 - **Processing Workflow** 中每个 step 的模型分配
+- **Wiki generation mode / Wiki model** 配置；LLM synthesis 需要用户手动触发
+
+如果默认端口已被占用，换一个端口启动，避免误操作旧 server：
+
+```bash
+mindforge web --port 8766 --open
+```
+
+端口被占用时，CLI 会先失败并提示换端口，不会先打开浏览器。
 
 ---
 
@@ -64,7 +86,8 @@ Web Setup 还支持：
 |------|------|---------|
 | `anthropic` | 原生 Anthropic Messages API | 直接使用 Anthropic Claude |
 | `anthropic_compatible` | 兼容 Anthropic 协议 | DashScope、OpenRouter 等 |
-| `openai_compatible` | 兼容 OpenAI Chat Completions 协议 | OpenAI、Ollama、LM Studio、vLLM、DeepSeek 等 |
+| `openai` | OpenAI 官方 Chat Completions API | 直接使用 OpenAI（默认 `https://api.openai.com/v1`） |
+| `openai_compatible` | 兼容 OpenAI Chat Completions 协议 | Ollama、LM Studio、vLLM、DeepSeek、聚合网关等 |
 
 Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_optional: true` 配置。
 
@@ -79,46 +102,30 @@ Local 模型（Ollama、LM Studio 等）通过 `openai_compatible` + `api_key_op
 - 路径：`.mindforge/secrets.json`
 - 已被 `.gitignore` 中 `.mindforge/` 规则覆盖
 - API key **不写入 YAML config**
+- `configs/mindforge.yaml` 是本地 runtime config，已 gitignore，不应提交
 - Web API **只返回 masked 值**（如 `sk-****abcd`）
-- Provider runtime 优先从 secret store 取 key，其次从环境变量 fallback
+- Provider runtime 优先从 secret store 取 key；部署场景可通过外部进程注入 key
 
-### 环境变量模式（Advanced / Legacy Compatible）
+### Advanced deployment fallback
 
-如果必须使用环境变量：
+普通用户不需要配置此路径。自动化部署或 CI 如需把 key 注入运行进程，应
+保持 API key 不进入 YAML、不进入 Git，并以 Web Setup / local secret store
+作为本地使用的默认路径。
 
-```bash
-export MINDFORGE_LLM_API_KEY="<your-key>"
-```
-
-并在 YAML 中声明：
-
-```yaml
-models:
-  main:
-    type: anthropic_compatible
-    base_url: https://example.com/anthropic
-    model: your-model
-    api_key_env: MINDFORGE_LLM_API_KEY   # env var name
-```
-
-**环境变量模式是 advanced/deployment 路径，不是普通用户推荐路径。**
-Web Setup 普通保存不会写出 `api_key_env`、`base_url_env`、`model_env` 字段。
-
-### 优先级
-
-Provider runtime 解析 API key 的优先级：**env var > local secret store > missing**
+Web Setup 普通保存不会写出 legacy key/base URL/model indirection 字段。
 
 ---
 
 ## Provider Types
 
-MindForge 在 `src/mindforge/llm/` 下维护三类 provider：
+MindForge 在 `src/mindforge/llm/` 下维护 provider：
 
 | type 字段 | 模块 | 协议 | 适用场景 |
 |---|---|---|---|
-| `fake` | `llm/fake.py` | 本地确定性 JSON | 测试、CI、开发（离线、零成本） |
-| `openai_compatible` | `llm/openai_compatible.py` | `POST /chat/completions` | OpenAI、Ollama、vLLM、聚合网关 |
-| `anthropic_compatible` | `llm/anthropic_compatible.py` | `POST /v1/messages` | Anthropic、DashScope 等 |
+| `openai` | `llm/openai_compatible.py` | `POST /chat/completions` | OpenAI 官方 API |
+| `openai_compatible` | `llm/openai_compatible.py` | `POST /chat/completions` | Ollama、vLLM、聚合网关 |
+| `anthropic` | `llm/anthropic_compatible.py` | `POST /v1/messages` | Anthropic 官方 API |
+| `anthropic_compatible` | `llm/anthropic_compatible.py` | `POST /v1/messages` | DashScope、OpenRouter 等 |
 
 三个 provider 分开的原因：
 - 协议不同（chat/completions vs messages）
@@ -134,7 +141,7 @@ MindForge 在 `src/mindforge/llm/` 下维护三类 provider：
 - routing key 必须是合法 workflow step（triage / distill / link_suggestion / review_questions / action_extraction）
 - routing value 必须是 `llm.models` 中已配置的 model id
 - 缺失的 step fallback 到 `llm.default_model`
-- routing 不叫 `stage_models`，不使用旧 `active_profile` / `profiles` 概念
+- routing 是第一阶段唯一用户可见的模型分配方式
 
 ---
 
@@ -159,11 +166,11 @@ MindForge 在 `src/mindforge/llm/` 下维护三类 provider：
 | 原则 | 实现 |
 |------|------|
 | API key 不进 YAML | Web 保存不写 api_key 字段；raw key 只在 secret store |
-| API key 不进 Git | `.env` + `.mindforge/` 均 gitignore |
+| API key 不进 Git | `.mindforge/` 已 gitignore；不要提交任何本地 secret 文件 |
 | API key 不进前端 | API response 只返回 masked key |
 | Provider 不打印 key | 错误消息不包含 raw key |
-| 默认不调真实 LLM | fake provider 是默认（零成本、零网络） |
-| 真实 LLM 必须 opt-in | 需配置真实模型 + API key + 显式触发 watch/import/process |
+| 首次启动不调真实 LLM | `llm.default_model: null` / `llm.models: {}` 可启动 Web Setup |
+| 真实 LLM 必须 opt-in | 需配置真实模型 + API key + 显式触发 watch/import/process 或 Wiki LLM rebuild |
 
 ---
 
@@ -187,36 +194,12 @@ tokens_in / tokens_out / latency_ms
 
 ## Legacy 配置兼容
 
-### 旧格式：active_profile / profiles
-
-```yaml
-llm:
-  active_profile: my_profile
-  profiles:
-    my_profile:
-      triage: alias_a
-      distill: alias_a
-```
-
-此格式仍可**读取加载**，但新配置和新卡片使用 `llm.models` / `llm.default_model` / `llm.routing`。
-
-### 迁移建议
+旧配置仍尽量只读兼容，但普通用户不需要学习旧字段。推荐迁移路径：
 
 1. 备份旧 `configs/mindforge.yaml`
-2. 通过 Web Setup 保存一次配置 → 自动迁移为新格式
-3. 或手动将 `profiles` + `models` 改为 `llm.models` + `llm.default_model` + 可选 `llm.routing`
-4. 移除 `active_profile` 和 `profiles` 字段
-
-### 旧字段对照
-
-| 旧字段 | 新语义 |
-|--------|--------|
-| `llm.active_profile` | `llm.default_model`（default model id） |
-| `llm.profiles` | 不再需要；改为 `llm.default_model` + `llm.routing` |
-| `api_key_env` | 改为 local secret store |
-| `base_url_env` | 改为直接在 model 中配置 `base_url` |
-| `model_env` | 改为直接在 model 中配置 `model` |
-| `stage_models` | replaced by `model_routing` in card provenance |
+2. 启动 Web Setup
+3. 按当前 UI 保存一次模型、default model、routing 和 wiki 设置
+4. 确认 API key 只进入 local secret store
 
 ---
 
@@ -234,7 +217,6 @@ llm:
 ## Anti-Patterns
 
 - ❌ 把 API key 写进 YAML config、commit message、issue 或聊天记录
-- ❌ 把 API key 写进 `.env.example`
 - ❌ 在业务代码中 `if provider_type == ...` 分支 —— 协议差异必须收敛在 provider 层
-- ❌ 默认 `active_profile` 挂真实模型 —— 默认应是 fake，真实模型需用户显式配置
+- ❌ 把测试替身或历史配置兼容字段重新写成普通用户主路径
 - ❌ 把 prompt 全文或 LLM 返回文本作为 `error_message`

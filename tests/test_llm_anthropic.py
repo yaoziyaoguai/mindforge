@@ -16,6 +16,7 @@ from mindforge.llm.anthropic_compatible import (
     _extract_text_from_content_blocks,
 )
 from mindforge.llm.base import LLMRequest, ProviderError
+from mindforge.llm.openai_compatible import OpenAICompatibleProvider
 
 
 @dataclass
@@ -62,8 +63,9 @@ def test_missing_api_key_raises_safe_error(monkeypatch: pytest.MonkeyPatch) -> N
         AnthropicCompatibleProvider.from_model_config(mc)
     msg = str(exc.value)
     assert "API key" in msg
-    # 不应回显环境变量值（这里 base_url 不算 secret 但也不主动 echo）
-    assert "MINDFORGE_LLM_API_KEY" in msg  # 提示用户应设置哪个 env，可以出现 env name
+    # 用户主路径只提示 Web Setup / local secret store，不泄漏 env 字段名。
+    assert "MINDFORGE_LLM_API_KEY" not in msg
+    assert "env" not in msg.lower()
 
 
 def test_yaml_must_not_carry_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -72,6 +74,38 @@ def test_yaml_must_not_carry_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     mc = _ModelStub(api_key_env=None)
     with pytest.raises(ProviderError, match="API key"):
         AnthropicCompatibleProvider.from_model_config(mc)
+
+
+def test_anthropic_provider_defaults_timeout_when_config_value_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """timeout_seconds=None 时 provider 仍必须使用产品默认 timeout。
+
+    中文学习型说明：Web Setup 保存的模型配置可能省略 timeout 字段，真实 release
+    用户也不应理解 httpx 默认行为。provider 边界必须把 None 收敛成有限等待，
+    让 ReadTimeout 成为可控失败，而不是长时间 running。
+    """
+
+    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
+    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "test-key-DO-NOT-LEAK")
+    mc = _ModelStub(timeout_seconds=None)
+
+    provider = AnthropicCompatibleProvider.from_model_config(mc)
+
+    assert provider.timeout_seconds == 120
+
+
+def test_openai_provider_defaults_timeout_when_config_value_is_none() -> None:
+    """OpenAI-compatible provider 也不能把 None timeout 传给 httpx。"""
+
+    provider = OpenAICompatibleProvider(
+        name="openai",
+        base_url="https://fake.example.com/v1",
+        api_key="test-key-DO-NOT-LEAK",
+        timeout_seconds=None,
+    )
+
+    assert provider.timeout_seconds == 120
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +199,43 @@ def test_generate_http_error_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "\n\n" not in msg
 
 
+def test_openai_provider_http_error_body_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OpenAI-compatible 4xx body 可能回显 key，provider 边界必须先脱敏。"""
+
+    leaked_key = "sk-test-secret-DO-NOT-LEAK-1234567890"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401,
+            text=(
+                '{"error":{"message":"bad key sk-test-secret-DO-NOT-LEAK-1234567890",'
+                '"api_key":"sk-test-secret-DO-NOT-LEAK-1234567890"}}'
+            ),
+        )
+
+    real_client = httpx.Client
+
+    def _factory(*args, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr("mindforge.llm.openai_compatible.httpx.Client", _factory)
+    provider = OpenAICompatibleProvider(
+        name="openai",
+        base_url="https://fake.example.com/v1",
+        api_key=leaked_key,
+        timeout_seconds=5,
+    )
+
+    with pytest.raises(ProviderError) as exc:
+        provider.generate(LLMRequest(prompt="hi", stage="wiki_synthesis", model="gpt-test"))
+
+    msg = str(exc.value)
+    assert "401" in msg
+    assert leaked_key not in msg
+    assert "[REDACTED]" in msg
+
+
 def test_generate_network_error_does_not_leak(monkeypatch: pytest.MonkeyPatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("boom: api_key=test-key-DO-NOT-LEAK")
@@ -175,6 +246,26 @@ def test_generate_network_error_does_not_leak(monkeypatch: pytest.MonkeyPatch) -
     msg = str(exc.value)
     # 我们只暴露异常类名，不带原始 message（防止 message 含敏感 echo）
     assert "ConnectError" in msg
+    assert "test-key-DO-NOT-LEAK" not in msg
+
+
+def test_anthropic_read_timeout_error_is_friendly_and_secret_safe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ReadTimeout 要转成可行动提示，不输出 key/header/prompt。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow response with api_key=test-key-DO-NOT-LEAK")
+
+    p = _make_provider(monkeypatch, httpx.MockTransport(handler))
+
+    with pytest.raises(ProviderError) as exc:
+        p.generate(LLMRequest(prompt="hi", stage="triage", model="m"))
+
+    msg = str(exc.value)
+    assert "Provider timed out" in msg
+    assert "endpoint" in msg
+    assert "timeout_seconds" in msg
     assert "test-key-DO-NOT-LEAK" not in msg
 
 

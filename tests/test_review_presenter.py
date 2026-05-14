@@ -228,7 +228,8 @@ def test_render_weekly_review_markdown_empty_branch_includes_next_action() -> No
     md = review_presenter.render_weekly_review_markdown(result)
     assert "## Next action" in md
     assert "mindforge approve list" in md
-    assert "mindforge process" in md
+    assert "mindforge watch add" in md
+    assert "Web Sources" in md
     assert "mindforge recall" in md
 
 
@@ -290,7 +291,7 @@ def test_render_weekly_next_actions_no_work_returns_three_commands() -> None:
     actions = review_presenter.render_weekly_next_actions(False)
     assert len(actions) == 3
     assert any("approve list" in a for a in actions)
-    assert any("process" in a for a in actions)
+    assert any("watch add" in a and "Web Sources" in a for a in actions)
     assert any("recall" in a for a in actions)
 
 

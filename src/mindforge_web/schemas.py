@@ -49,6 +49,8 @@ class ProviderAliasStatus(BaseModel):
 class ProviderStatus(BaseModel):
     active_profile: str  # legacy: 现在使用 llm.models/default_model/routing 模型路由体系
     opt_in_state: str
+    model_setup: str = "needs_setup"
+    model_setup_label: str = "needs setup"
     can_run_real_smoke: bool
     aliases: list[ProviderAliasStatus]
     blockers: list[str] = Field(default_factory=list)
@@ -224,11 +226,31 @@ class EditableCuboxConfig(BaseModel):
     token_status: Literal["present", "missing", "hidden"]
 
 
+class EditableWikiConfig(BaseModel):
+    """Wiki 可编辑配置。
+
+    mode 为 deprecated/compatibility 字段。MindForge Web UI 只展示 LLM synthesis
+    作为主路径，deterministic 仅保留为内部 fallback / 测试路径，不在普通用户
+    可选项中暴露。此字段仍在 API response 中返回（兼容旧前端），但 Setup 页面
+    不再将其作为用户可选 generation mode。
+    """
+    mode: str = "deterministic"  # deprecated: compatibility fallback, not user-facing
+    model: str | None = None
+    auto_rebuild_on_approve: bool = False
+
+
+class WikiRebuildRequest(BaseModel):
+    """Wiki rebuild API body；前端按钮必须显式传 mode，避免回落到配置值。"""
+
+    mode: Literal["deterministic", "llm"] | None = None
+
+
 class SetupEditableConfigResponse(BaseModel):
     config_path: str
     normalized_on_save: bool
     vault: EditableVaultConfig
     llm: EditableLLMConfig
+    wiki: EditableWikiConfig | None = None
     cubox: EditableCuboxConfig
     watch_summary: StatusItem
 
@@ -263,6 +285,9 @@ class SetupConfigPatch(BaseModel):
     default_model: str | None = None
     models: dict[str, SetupModelPatch] = Field(default_factory=dict)
     routing: dict[str, str] = Field(default_factory=dict)
+    wiki_mode: str | None = Field(default=None, description="deprecated: compatibility fallback; Web UI no longer sets this field")
+    wiki_model: str | None = None
+    wiki_auto_rebuild_on_approve: bool | None = None
     cubox_export_path: str | None = None
     cubox_import_path: str | None = None
 
@@ -334,6 +359,15 @@ class WatchedSourceResponse(BaseModel):
     generated_card_count: int = 0
     generated_card_paths: list[str] = Field(default_factory=list)
     status_label: str = "Watching"
+    active_run_id: str | None = None
+    last_run_id: str | None = None
+    last_run_started_at: str | None = None
+    last_run_finished_at: str | None = None
+    processing_status: str | None = None
+    last_run_summary: dict[str, int] | None = None
+    last_message: str | None = None
+    last_error: str | None = None
+    generated_draft_count: int = 0
 
 
 class WatchSourcesResponse(BaseModel):
@@ -365,6 +399,29 @@ class IngestionActionResponse(BaseModel):
     watch_id: str | None = None
     source_deleted: bool = False
     cards_deleted: bool = False
+    next_actions: list[NextAction] = Field(default_factory=list)
+    run_id: str | None = None
+    processing_status: str | None = None
+    skip_reasons: list[str] = Field(default_factory=list)
+    error_message: str | None = None
+
+
+class ProcessingRunResponse(BaseModel):
+    run_id: str
+    source_ref: str
+    source_path: str | None = None
+    mode: str
+    status: Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
+    started_at: str
+    last_heartbeat_at: str | None = None
+    finished_at: str | None = None
+    current_step: str
+    summary: dict[str, int] = Field(default_factory=dict)
+    draft_ids: list[str] = Field(default_factory=list)
+    message: str
+    skip_reasons: list[str] = Field(default_factory=list)
+    error_type: str | None = None
+    error_message: str | None = None
     next_actions: list[NextAction] = Field(default_factory=list)
 
 

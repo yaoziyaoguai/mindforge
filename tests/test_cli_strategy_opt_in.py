@@ -189,18 +189,11 @@ def _common_process_args(cfg_path: Path) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_process_help_exposes_strategy_option() -> None:
-    """``mindforge process --help`` 文本必须列出 ``--strategy``。
-
-    Slice 3 contract：用户能从 ``--help`` 自助发现 opt-in 选项；不需要
-    阅读源码。当前 production 没有该选项 → 预期 Red。
-    """
+def test_process_direct_help_is_retired() -> None:
+    """legacy process 不再通过 direct help 暴露第二套处理入口。"""
     r = runner.invoke(app, ["process", "--help"])
-    assert r.exit_code == 0, r.output
-    assert "--strategy" in r.output, (
-        "process --help 必须暴露 --strategy 选项。"
-        f"实际 help 文本：\n{r.output}"
-    )
+    assert r.exit_code != 0
+    assert "--strategy" not in r.output
 
 
 def test_process_rejects_internal_default_knowledge_card_strategy(tmp_path: Path) -> None:

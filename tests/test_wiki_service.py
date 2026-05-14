@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import yaml
 
 from mindforge.config import load_mindforge_config
+from mindforge.llm.base import LLMResult
 from mindforge.trash_service import move_card_to_trash, restore_trashed_card
 from mindforge.wiki_service import (
+    WikiError,
     get_wiki_status,
+    llm_rebuild_wiki,
     read_main_wiki,
     rebuild_main_wiki,
 )
@@ -43,6 +47,40 @@ def _write_test_config(tmp_path: Path) -> Path:
     return cfg_path
 
 
+def _write_wiki_llm_config_without_processing_routing(tmp_path: Path) -> Path:
+    """写只有 wiki.model、没有 processing routing 的配置。
+
+    这个 fixture 锁住架构边界：Wiki LLM synthesis 不能依赖 triage/distill 等
+    processing stage routing，否则此配置会在调用时失败。
+    """
+
+    vault = tmp_path / "test-vault"
+    cards = vault / "20-Knowledge-Cards"
+    cards.mkdir(parents=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump({
+            "version": 0.7,
+            "vault": {
+                "root": str(vault),
+                "inbox_root": "00-Inbox",
+                "cards_dir": "20-Knowledge-Cards",
+                "archive_dir": "90-Archive/Skipped",
+            },
+            "llm": {
+                "default_model": None,
+                "models": {
+                    "wiki_model": {"type": "fake", "base_url": "fake://", "model": "fake-wiki"},
+                },
+                "routing": {},
+            },
+            "wiki": {"mode": "llm", "model": "wiki_model"},
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+    return cfg_path
+
+
 def _write_card(cards_dir: Path, filename: str, status: str = "human_approved", **extra) -> Path:
     """写一张测试 Knowledge Card。"""
     card = cards_dir / filename
@@ -69,6 +107,26 @@ def _write_card(cards_dir: Path, filename: str, status: str = "human_approved", 
     text = "---\n" + "\n".join(f"{k}: {v}" for k, v in fm.items()) + "\n---\n\n" + body
     card.write_text(text, encoding="utf-8")
     return card
+
+
+class _WikiSynthesisStubProvider:
+    """本地 stub provider：不联网，只验证 Wiki 调用契约。"""
+
+    def generate(self, request):
+        assert request.stage == "wiki_synthesis"
+        assert request.response_format == "json_object"
+        payload = {
+            "overview": "Synthesized from approved digests only.",
+            "sections": [
+                {
+                    "title": "Approved summary",
+                    "body": "Only approved card digest is used.",
+                    "card_ids": ["approved-one"],
+                }
+            ],
+            "open_questions": [],
+        }
+        return LLMResult(text=json.dumps(payload), raw=None)
 
 
 # ============================================================================
@@ -233,6 +291,43 @@ def test_atomic_write_preserves_old_on_failure(tmp_path: Path, monkeypatch) -> N
     # 旧 Wiki 应保持不变
     current = Path(result.wiki_path).read_text(encoding="utf-8")
     assert current == old_text
+
+
+def test_llm_rebuild_uses_wiki_model_without_processing_routing(tmp_path: Path, monkeypatch) -> None:
+    """LLM Wiki synthesis 走 wiki.model，不要求 processing routing 里存在 wiki_synthesis。"""
+    cfg_path = _write_wiki_llm_config_without_processing_routing(tmp_path)
+    cfg = load_mindforge_config(cfg_path)
+    _write_card(cfg.vault.cards_path, "approved-one.md")
+
+    monkeypatch.setattr(
+        "mindforge.llm.factory.build_provider_for_model",
+        lambda _model_config, **_: _WikiSynthesisStubProvider(),
+    )
+
+    result = llm_rebuild_wiki(cfg)
+
+    assert result.model_id == "wiki_model"
+    assert result.included_cards == 1
+    assert result.section_count == 1
+    wiki_text = Path(result.wiki_path).read_text(encoding="utf-8")
+    assert "Approved summary" in wiki_text
+    assert "Related approved cards" in wiki_text
+
+
+def test_llm_rebuild_requires_explicit_model_when_no_default(tmp_path: Path) -> None:
+    """llm 模式缺模型必须清晰失败，不能静默回落 deterministic。"""
+    cfg_path = _write_wiki_llm_config_without_processing_routing(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["wiki"]["model"] = None
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    cfg = load_mindforge_config(cfg_path)
+
+    try:
+        llm_rebuild_wiki(cfg)
+    except WikiError as exc:
+        assert "wiki.mode=llm" in str(exc)
+    else:
+        raise AssertionError("llm_rebuild_wiki 应该在无 wiki.model/default_model 时失败")
 
 
 # ============================================================================

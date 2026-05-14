@@ -176,13 +176,15 @@ def _approve_ref_entry(
     if not confirm:
         target = lookup.match
         label = target.short_ref if target is not None else str(lookup.card_path)
+        short_ref = str(target.number) if target is not None else None
+        show_arg = short_ref if short_ref is not None else str(lookup.card_path)
         console.print(
             "[red]approve requires --confirm before writing human_approved.[/red]"
         )
         console.print(
             f"Resolved target: {label} -> {lookup.card_path}\n"
             "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
-            f"Safe preview: mindforge approve show --card {lookup.card_path} --config {config}",
+            f"Safe preview: mindforge approve show --card {show_arg} --config {config}",
             markup=False,
         )
         raise typer.Exit(code=2)
@@ -244,13 +246,17 @@ def approve(
     # ── --card 主路径 ─────────────────────────────────────────────
     if card is not None:
         if not confirm:
+            # 尝试短 ref 解析以生成友好 safe preview 命令
+            from .approval_refs import resolve_pending_approval_ref as _resolve_ref
+            _ref_lookup = _resolve_ref(cfg, str(card))
+            _show_arg = str(_ref_lookup.match.number) if (_ref_lookup.ok and _ref_lookup.match) else str(card)
             console.print(
                 "[red]approve requires --confirm before writing human_approved.[/red]"
             )
             console.print(
                 f"Target: {card}\n"
                 "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
-                f"Safe preview: mindforge approve show --card {card} --config {config}",
+                f"Safe preview: mindforge approve show --card {_show_arg} --config {config}",
                 markup=False,
             )
             raise typer.Exit(code=2)
@@ -259,6 +265,7 @@ def approve(
 
     # ── --source-id：state.json 反查 card_path ───────────────────
     if source_id is not None:
+        from .approval_refs import resolve_pending_approval_ref as _resolve_ref
         from .approval_service import resolve_card_path_by_source_id
         from .approve_presenter import render_lookup_error
 
@@ -268,13 +275,15 @@ def approve(
             raise typer.Exit(code=lookup.error.exit_code)
         assert lookup.card_path is not None
         if not confirm:
+            _ref_lookup = _resolve_ref(cfg, str(lookup.card_path))
+            _show_arg = str(_ref_lookup.match.number) if (_ref_lookup.ok and _ref_lookup.match) else str(lookup.card_path)
             console.print(
                 "[red]approve requires --confirm before writing human_approved.[/red]"
             )
             console.print(
                 f"Resolved target: {lookup.card_path}\n"
                 "Why: approve means ai_draft → human_approved and affects recall/project context.\n"
-                f"Safe preview: mindforge approve show --card {lookup.card_path} --config {config}",
+                f"Safe preview: mindforge approve show --card {_show_arg} --config {config}",
                 markup=False,
             )
             raise typer.Exit(code=2)
@@ -412,7 +421,7 @@ def approve_list(
 
 @approve_app.command("show")
 def approve_show(
-    card: Path = typer.Option(..., "--card", help="要查看的 ai_draft / card 路径"),
+    card: Path = typer.Option(..., "--card", help="要查看的 ai_draft / card 路径（支持数字 ref、short_ref、完整路径）"),
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"), "--config", "-c", help="mindforge.yaml 路径"
     ),
@@ -424,22 +433,46 @@ def approve_show(
 ) -> None:
     """查看待 approve 卡片的安全摘要；不读取正文、不改变状态。
 
+    --card 支持三种引用方式：
+      - 数字 ref：approve show --card 1
+      - short_ref：approve show --card <slug>
+      - 完整路径 / vault-relative 路径
+
     v0.6.5 dogfooding 需要用户在 approve 前多看一步，但这里仍守住边界：
     只读 frontmatter 白名单字段，不打印 source raw text，也不把 ai_draft 自动晋升。
     """
+    from .approval_refs import resolve_pending_approval_ref
     from .approval_service import preview_approval_card
     from .approve_presenter import (
         render_approval_show,
         render_approval_show_error,
+        render_ref_lookup_error,
     )
 
     cfg = load_cfg(config, read_env=False)
     render_active_vault_resolution_notice(cfg)
-    preview = preview_approval_card(cfg, card)
+
+    # 先尝试短 ref 解析；失败时回退到 path 解析，保留完整 path 兼容。
+    raw_ref = str(card)
+    short_ref: str | None = None
+    ref_lookup = resolve_pending_approval_ref(cfg, raw_ref)
+    if ref_lookup.ok and ref_lookup.match is not None:
+        resolved_card: Path = ref_lookup.card_path  # type: ignore[assignment]
+        short_ref = str(ref_lookup.match.number)
+    elif raw_ref.isdigit() and ref_lookup.error is not None:
+        # 数字 ref 无法解析时直接展示友好错误，不回退到 path 解析。
+        # 数字 ref 仅适用于 approve list 中的待审批项；回退 path 解析
+        # 只会得到 "card path could not be resolved: 1" 这种误导性错误。
+        render_ref_lookup_error(console, ref_lookup)
+        raise typer.Exit(code=ref_lookup.error.exit_code)
+    else:
+        resolved_card = card
+
+    preview = preview_approval_card(cfg, resolved_card)
     if preview.error is not None:
         render_approval_show_error(console, preview)
         raise typer.Exit(code=preview.error.exit_code)
-    render_approval_show(console, preview, card)
+    render_approval_show(console, preview, resolved_card, short_ref=short_ref)
     if show_content and preview.card_path is not None:
         from .cards import read_card_body
 

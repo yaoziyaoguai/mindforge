@@ -40,6 +40,7 @@ from typing import Any, TextIO
 EVENT_RUN_STARTED = "run_started"
 EVENT_RUN_FINISHED = "run_finished"
 EVENT_RUN_FAILED = "run_failed"
+EVENT_LLM_CALL_STARTED = "llm_call_started"
 EVENT_SOURCE_SEEN = "source_seen"
 EVENT_SOURCE_SKIPPED_OR_UNCHANGED = "source_skipped_or_unchanged"
 EVENT_SOURCE_ERROR = "source_error"
@@ -222,6 +223,7 @@ __all__ = [
     "EVENT_RUN_STARTED",
     "EVENT_RUN_FINISHED",
     "EVENT_RUN_FAILED",
+    "EVENT_LLM_CALL_STARTED",
     "EVENT_SOURCE_SEEN",
     "EVENT_SOURCE_SKIPPED_OR_UNCHANGED",
     "EVENT_SOURCE_ERROR",

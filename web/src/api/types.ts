@@ -25,6 +25,8 @@ export interface EnvKeyStatus {
 export interface ProviderStatus {
   active_profile: string;
   opt_in_state: string;
+  model_setup: "ready" | "needs_setup" | string;
+  model_setup_label: string;
   can_run_real_smoke: boolean;
   aliases: Array<{
     alias: string;
@@ -172,6 +174,12 @@ export interface ProcessingWorkflowConfig {
   workflow_steps: ProcessingWorkflowStep[];
 }
 
+export interface EditableWikiConfig {
+  mode: string;
+  model?: string | null;
+  auto_rebuild_on_approve: boolean;
+}
+
 export interface SetupEditableConfigResponse {
   config_path: string;
   normalized_on_save: boolean;
@@ -182,6 +190,7 @@ export interface SetupEditableConfigResponse {
     cards_exists: boolean;
     projects_exists: boolean;
   };
+  wiki?: EditableWikiConfig | null;
   llm: {
     active_provider: string;
     available_providers: string[];
@@ -230,6 +239,9 @@ export interface SetupConfigPatch {
     api_key_action?: "keep" | "clear" | "update" | null;
   }>;
   routing?: Record<string, string>;
+  wiki_mode?: string | null;
+  wiki_model?: string | null;
+  wiki_auto_rebuild_on_approve?: boolean | null;
   cubox_export_path?: string | null;
   cubox_import_path?: string | null;
 }
@@ -267,6 +279,25 @@ export interface SourceStatus {
   next_action?: NextAction | null;
 }
 
+export interface ProcessingRunResponse {
+  run_id: string;
+  source_ref: string;
+  source_path?: string | null;
+  mode: string;
+  status: "queued" | "running" | "succeeded" | "skipped" | "failed" | "partial_failed";
+  started_at: string;
+  last_heartbeat_at?: string | null;
+  finished_at?: string | null;
+  current_step: string;
+  summary: Record<string, number>;
+  draft_ids: string[];
+  message: string;
+  skip_reasons: string[];
+  error_type?: string | null;
+  error_message?: string | null;
+  next_actions: NextAction[];
+}
+
 export interface WatchedSourceResponse {
   id: string;
   path: string;
@@ -295,6 +326,15 @@ export interface WatchedSourceResponse {
   generated_card_count: number;
   generated_card_paths: string[];
   status_label: string;
+  active_run_id?: string | null;
+  last_run_id?: string | null;
+  last_run_started_at?: string | null;
+  last_run_finished_at?: string | null;
+  processing_status?: ProcessingRunResponse["status"] | null;
+  last_run_summary?: Record<string, number> | null;
+  last_message?: string | null;
+  last_error?: string | null;
+  generated_draft_count: number;
 }
 
 export interface WatchSourcesResponse {
@@ -316,6 +356,10 @@ export interface IngestionActionResponse {
   source_deleted: boolean;
   cards_deleted: boolean;
   next_actions: NextAction[];
+  run_id?: string | null;
+  processing_status?: ProcessingRunResponse["status"] | null;
+  skip_reasons: string[];
+  error_message?: string | null;
 }
 
 export interface SourcesResponse {

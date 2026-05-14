@@ -1,8 +1,8 @@
 """Secret-safe Web configuration status.
 
-中文学习型说明：Web 需要告诉用户“哪些 key 已配置”，但绝不能泄露 key 的值。
-因此本模块只做 `.env` 文件的 key presence 解析，并且不把 value 写入
-`os.environ`。provider readiness 仍复用 `mindforge.provider_readiness`。
+中文学习型说明：Web 需要告诉用户“model setup 是否可用”，但绝不能泄露 key
+的值。普通用户主路径以 Web Setup / local secret store 为准；legacy key
+presence 兼容只保留给 advanced diagnostics，不进入 Home/Setup 主判断。
 """
 
 from __future__ import annotations
@@ -14,10 +14,14 @@ from typing import Any
 
 import yaml
 
-from mindforge.config import MindForgeConfig
+from mindforge.config import REQUIRED_STAGES, MindForgeConfig
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
+from mindforge.model_setup_readiness import model_setup_readiness
+from mindforge.provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 from mindforge.provider_readiness import build_readiness_report
+from mindforge.secret_store import resolve_project_root_from_config
 from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
+from mindforge_web.services.web_config_secret_manager import WebConfigSecretManager, mask_secret
 
 from mindforge_web.schemas import (
     EditableCuboxConfig,
@@ -25,6 +29,7 @@ from mindforge_web.schemas import (
     EditableModelConfig,
     EditableProviderConfig,
     EditableVaultConfig,
+    EditableWikiConfig,
     EnvKeyStatus,
     NextAction,
     ProcessingWorkflowConfig,
@@ -37,8 +42,6 @@ from mindforge_web.schemas import (
     SetupValidationResponse,
     StatusItem,
 )
-from mindforge.secret_store import SecretStore
-
 
 @dataclass(frozen=True)
 class DotenvPresence:
@@ -59,11 +62,19 @@ class WebConfigService:
         self.cfg = cfg
         self.config_path = config_path
         self.cwd = cwd or Path.cwd()
-        # .mindforge/ 目录在项目根（configs/ 的父目录的父目录，或 cwd）
-        project_root = config_path.resolve().parent.parent
-        if not (project_root / ".mindforge").exists():
-            project_root = self.cwd
-        self.secrets = SecretStore(project_root / ".mindforge" / "secrets.json")
+        # 优先使用已解析的 workspace/config metadata 中的 project_root，
+        # 确保 Web Setup 写入的 secrets 与 processing provider 读取的
+        # secrets 在同一个 workspace。仅 metadata 缺失时从 config_path 推导。
+        project_root = resolve_project_root_from_config(cfg)
+        if project_root is None:
+            config_dir = config_path.resolve().parent
+            if config_dir.name == "configs":
+                project_root = config_dir.parent
+            else:
+                project_root = config_dir
+        mindforge_dir = project_root / ".mindforge"
+        mindforge_dir.mkdir(parents=True, exist_ok=True)
+        self.secrets = WebConfigSecretManager(mindforge_dir / "secrets.json")
 
     def env_key_statuses(self) -> list[EnvKeyStatus]:
         dotenv = self._read_dotenv_presence()
@@ -84,9 +95,12 @@ class WebConfigService:
         report = build_readiness_report(self.cfg.llm)
         provider = report["provider"]
         opt_in = report["opt_in"]
+        readiness = model_setup_readiness(self.cfg)
         return ProviderStatus(
             active_profile=provider["active_profile"],
             opt_in_state=opt_in["opt_in_state"],
+            model_setup=readiness.status,
+            model_setup_label=readiness.label,
             can_run_real_smoke=opt_in["can_run_real_smoke"],
             aliases=[
                 ProviderAliasStatus(
@@ -107,15 +121,15 @@ class WebConfigService:
         classification = classify_cubox_real_opt_in(report, allow_real=False)
         token_present = bool(report.get("token_present", False))
         return StatusItem(
-            key="cubox",
-            label="Cubox JSON export",
+            key="external_import",
+            label="External import",
             status="ok" if token_present else "info",
-            value="token configured" if token_present else "JSON export path available",
+            value="future-gated",
             detail=str(classification.get("next_action", "")),
             next_action=NextAction(
-                label="Use JSON export",
-                description="真实 Cubox HTTP ingestion 尚未开放；先使用本地 JSON export。",
-                command="mindforge cubox dry-run --export <file.json>",
+                label="Use local sources",
+                description="第一阶段请添加本地文件或文件夹 source；外部账号同步尚未开放。",
+                href="/sources",
             ),
         )
 
@@ -158,6 +172,11 @@ class WebConfigService:
                 validation_errors=self._llm_validation_errors(raw),
                 warnings=self._llm_warnings(raw),
             ),
+            wiki=EditableWikiConfig(
+                mode=self.cfg.wiki.mode if hasattr(self.cfg, 'wiki') else "deterministic",
+                model=self.cfg.wiki.model if hasattr(self.cfg, 'wiki') else None,
+                auto_rebuild_on_approve=self.cfg.wiki.auto_rebuild_on_approve if hasattr(self.cfg, 'wiki') else False,
+            ),
             cubox=EditableCuboxConfig(
                 export_path=cubox_export,
                 import_path=cubox_import,
@@ -193,10 +212,8 @@ class WebConfigService:
             else:
                 if _is_dangerous_vault_path(resolved):
                     errors.append(f"Vault path is dangerous and cannot be used: {resolved}")
-                elif not resolved.exists() and not patch.create_vault:
-                    errors.append(
-                        "Vault path does not exist. Create it first or enable create_vault."
-                    )
+                elif not resolved.exists():
+                    warnings.append("Vault directory will be created automatically on save.")
                 elif resolved.exists() and not resolved.is_dir():
                     errors.append("Vault path must be a directory.")
 
@@ -215,7 +232,7 @@ class WebConfigService:
                 f"Change default_model before deleting."
             )
 
-        if patch.default_model is not None and patch.default_model not in after_models:
+        if patch.default_model and patch.default_model not in after_models:
             errors.append(
                 f"Default model {patch.default_model!r} is not in configured models: {sorted(after_models)}"
             )
@@ -256,7 +273,7 @@ class WebConfigService:
         patch: SetupConfigPatch,
     ) -> set[str]:
         """计算 patch 应用后的 model id 集合。"""
-        if patch.models is not None:
+        if patch.models:
             return set(patch.models.keys())
         return self._all_model_ids(raw)
 
@@ -268,8 +285,10 @@ class WebConfigService:
         raw = self._read_config_raw()
         if patch.vault_root is not None:
             resolved = Path(patch.vault_root).expanduser().resolve(strict=False)
-            if patch.create_vault:
-                self._create_vault_dirs(resolved)
+            # 中文学习型说明：Vault 目录是 first-run 工作区的一部分，不是用户在
+            # Setup 主路径里需要理解的内部开关。保存模型时如果目录还不存在，
+            # Web 自动创建标准子目录；只有创建失败才返回 friendly error。
+            self._create_vault_dirs(resolved)
             vault = raw.setdefault("vault", {})
             if not isinstance(vault, dict):
                 raise ConfigUpdateError(["vault must be a YAML object"])
@@ -289,6 +308,15 @@ class WebConfigService:
 
         if patch.default_model is not None or patch.models or patch.routing:
             self._apply_llm_model_routing_patch(raw, patch)
+        # Save wiki config
+        if any(getattr(patch, f) is not None for f in ("wiki_mode", "wiki_model", "wiki_auto_rebuild_on_approve")):
+            wiki = raw.setdefault("wiki", {})
+            if patch.wiki_mode is not None:
+                wiki["mode"] = patch.wiki_mode
+            if patch.wiki_model is not None:
+                wiki["model"] = patch.wiki_model if patch.wiki_model else None
+            if patch.wiki_auto_rebuild_on_approve is not None:
+                wiki["auto_rebuild_on_approve"] = patch.wiki_auto_rebuild_on_approve
 
         self.config_path.write_text(
             yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
@@ -359,9 +387,9 @@ class WebConfigService:
     def _configured_model_ids(self, raw: dict[str, Any]) -> list[str]:
         """返回 Setup UI 可展示的模型 id 列表。
 
-        如果有真实模型（非 fake/demo），只展示真实模型，不污染下拉选项。
-        如果只有 demo/fake 模型，也展示它们并标注 is_demo_model，让用户知道
-        当前用的是内置 demo，需要添加真实模型。
+        中文学习型说明：普通用户主路径必须配置真实模型。fake/demo/test 模型
+        只属于自动化测试或开发内部 fixture，即使 YAML 中存在，也不能作为
+        Setup 的产品能力展示出来。
         """
         llm = raw.get("llm")
         if not isinstance(llm, dict) or "default_model" not in llm:
@@ -374,8 +402,7 @@ class WebConfigService:
             for model_id, model_raw in models.items()
             if isinstance(model_raw, dict)
         )
-        product_ids = [mid for mid in all_ids if _is_product_model(models.get(mid))]
-        return sorted(product_ids) if product_ids else all_ids
+        return [mid for mid in all_ids if _is_product_model(models.get(mid))]
 
     def _editable_models(self, raw: dict[str, Any]) -> dict[str, EditableModelConfig]:
         llm = raw.get("llm")
@@ -406,10 +433,12 @@ class WebConfigService:
             env_name=model_env,
             default_value=model_value,
         )
-        # API key 来源优先级：local secret store > env var > missing/demo
-        api_key_source = self._api_key_source(model_id, model_type, api_key_env)
+        # API key 来源优先级：local secret store > env var > missing/demo。
+        # Secret 细节收敛在 WebConfigSecretManager，避免 WebConfigService
+        # 同时承担 config view/write 和 secret store 实现。
+        api_key_source = self.secrets.api_key_source(model_id, model_type, api_key_env)
         api_key_present = api_key_source in ("local_secret", "env")
-        masked_value = self._masked_api_key_value(model_id, api_key_env, api_key_source)
+        masked_value = self.secrets.masked_api_key_value(model_id, api_key_env, api_key_source)
         return EditableModelConfig(
             model_id=model_id,
             type=model_type,
@@ -564,9 +593,12 @@ class WebConfigService:
         models = llm.get("models")
         if not isinstance(models, dict):
             return ["llm.models missing"]
+        # 无模型首次状态：default_model=null + models={} 合法，不报错
+        if not models:
+            return errors
         default_model = _str_or_none(llm.get("default_model"))
         if default_model is None or default_model not in models:
-            errors.append(f"llm.default_model={default_model!r} is not defined in llm.models")
+            errors.append("Please choose a default model from the configured models.")
         routing = llm.get("routing") or {}
         if isinstance(routing, dict):
             for stage, model_id in routing.items():
@@ -624,7 +656,7 @@ class WebConfigService:
             api_key_status="present" if api_key_present else "missing",
             api_key_env_configured=bool(api_key_env),
             api_key_secret_present=api_key_present,
-            api_key_masked_value=_masked_secret(os.environ.get(api_key_env, ""))
+            api_key_masked_value=mask_secret(os.environ.get(api_key_env, ""))
             if api_key_present and api_key_env
             else None,
             api_key_status_label=_api_key_status_label(api_key_env, api_key_present),
@@ -740,7 +772,7 @@ class WebConfigService:
         llm = raw.setdefault("llm", {})
         if not isinstance(llm, dict):
             raise ConfigUpdateError(["llm must be a YAML object"])
-        if patch.default_model is not None:
+        if patch.default_model:
             llm["default_model"] = patch.default_model
         if patch.models:
             # 检测被删除的 model_id，清理对应的 secret store 条目
@@ -760,6 +792,11 @@ class WebConfigService:
             _assign_if_present(item, "type", model_patch.type)
             _assign_if_present(item, "base_url", model_patch.base_url)
             _assign_if_present(item, "model", model_patch.model)
+            # timeout/retry 是真实 provider 调用的用户体验边界。Web 主路径不暴露
+            # 复杂高级设置，但保存时写出有限默认值，避免 workspace YAML 看起来
+            # 像是无限等待或不可控 retry。
+            item.setdefault("timeout_seconds", DEFAULT_PROVIDER_TIMEOUT_SECONDS)
+            item.setdefault("max_retries", DEFAULT_PROVIDER_MAX_RETRIES)
             if model_patch.api_key_optional is not None:
                 item["api_key_optional"] = model_patch.api_key_optional
             # env var name 字段不写回 YAML；仅 Advanced env mode 显式开关时保留
@@ -767,8 +804,21 @@ class WebConfigService:
             for env_key in ("api_key_env", "base_url_env", "model_env", "version_env"):
                 item.pop(env_key, None)
             # 处理 API key：写入/清除/保留 secret store
-            self._apply_api_key_patch(model_id, model_patch)
+            self.secrets.apply_api_key_patch(model_id, model_patch)
+        routing_raw = llm.get("routing")
+        existing_routing = routing_raw if isinstance(routing_raw, dict) else {}
+        explicit_routing = dict(existing_routing)
         if patch.routing:
+            explicit_routing.update(patch.routing)
+        default_model = _str_or_none(llm.get("default_model"))
+        if default_model:
+            # 中文学习型说明：Setup 保存时把五段 routing 写完整，便于用户审计
+            # YAML；runtime 仍会 fallback 到 default_model，以兼容旧 dogfood 配置。
+            llm["routing"] = {
+                stage: str(explicit_routing.get(stage) or default_model)
+                for stage in REQUIRED_STAGES
+            }
+        elif patch.routing:
             llm["routing"] = dict(patch.routing)
         elif "routing" in llm:
             llm.pop("routing", None)
@@ -785,47 +835,6 @@ class WebConfigService:
             return set()
         return {str(k) for k, v in models.items() if isinstance(v, dict)}
 
-    def _apply_api_key_patch(self, model_id: str, model_patch) -> None:
-        """根据 api_key_action 处理 secret store 写入。"""
-        action = model_patch.api_key_action or "keep"
-        if action == "clear":
-            self.secrets.remove(model_id)
-        elif action == "update" and model_patch.api_key:
-            self.secrets.set(model_id, model_patch.api_key)
-        # "keep" — 不触碰 secret store
-
-    def _api_key_source(
-        self,
-        model_id: str,
-        model_type: str,
-        api_key_env: str | None,
-    ) -> str:
-        """判断 API key 来源：local_secret > env > demo > missing。"""
-        # demo/fake 模型不需要真实 API key
-        if model_type == "fake":
-            return "demo"
-        # secret store 是最直接的用户输入
-        if self.secrets.present(model_id):
-            return "local_secret"
-        # env var 是部署模式
-        if api_key_env and api_key_env in os.environ and os.environ[api_key_env]:
-            return "env"
-        return "missing"
-
-    def _masked_api_key_value(
-        self,
-        model_id: str,
-        api_key_env: str | None,
-        api_key_source: str,
-    ) -> str | None:
-        """生成脱敏 key 供前端展示，不返回 raw value。"""
-        if api_key_source == "local_secret":
-            return self.secrets.masked(model_id)
-        if api_key_source == "env" and api_key_env:
-            raw = os.environ.get(api_key_env, "")
-            return _masked_secret(raw) if raw else None
-        return None
-
     def _deleted_model_ids(
         self,
         raw: dict[str, Any],
@@ -839,10 +848,13 @@ class WebConfigService:
         return existing - new
 
     def _create_vault_dirs(self, root: Path) -> None:
-        root.mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.inbox_root).mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.cards_dir).mkdir(parents=True, exist_ok=True)
-        (root / self.cfg.vault.projects_dir).mkdir(parents=True, exist_ok=True)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.inbox_root).mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.cards_dir).mkdir(parents=True, exist_ok=True)
+            (root / self.cfg.vault.projects_dir).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ConfigUpdateError([f"Cannot create vault directory: {root}"]) from exc
 
     def _read_dotenv_presence(self) -> DotenvPresence:
         path = self._find_dotenv(self.cwd)
@@ -896,16 +908,10 @@ def _assign_if_present(target: dict[str, Any], key: str, value: str | None) -> N
         target[key] = value
 
 
-def _masked_secret(value: str) -> str:
-    suffix = value[-4:] if len(value) >= 4 else value
-    prefix = "sk-" if value.startswith("sk-") else ""
-    return f"{prefix}****{suffix}"
-
-
 def _api_key_status_label(env_name: str | None, present: bool) -> str:
     if present:
         raw = os.environ.get(env_name or "", "")
-        return f"present ({_masked_secret(raw)})"
+        return f"present ({mask_secret(raw)})"
     if env_name:
         return "env name configured, value missing"
     return "env name missing"
@@ -920,9 +926,8 @@ def _is_product_provider(name: str, provider_type: Any) -> bool:
 def _is_product_model(model: Any) -> bool:
     """模型是否应作为产品模型出现在主 UI（非 fake/test/demo/default 内部模型）。
 
-    当模型 type 为 "fake" 且 provider 包含 blocked token 时，视为内部替身，
-    不应污染 Setup 主 UI 的下拉选项。只有当没有真实模型时，才让 fake/demo 模型
-    出现在列表中（由 _configured_model_ids 控制）。
+    fake/mock/demo 模型仍可被测试直接构造，但不能作为普通用户 Web Setup
+    下拉和卡片暴露出来。
     """
     if not isinstance(model, dict):
         return False

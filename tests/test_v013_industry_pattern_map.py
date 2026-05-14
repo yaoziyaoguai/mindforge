@@ -19,16 +19,15 @@ REQUIRED_TOKENS = [
     "local-first",
     "single-user",
     "SourceAdapter",
-    "Cubox",
     "Obsidian",
     "BM25",
     "not RAG",
     "not embedding",
     "explicit approval",
     "human_approved",
-    "fake provider",
-    "real provider",
-    "opt-in",
+    "Test doubles",
+    "real provider opt-in",
+    "local secret store",
 ]
 
 

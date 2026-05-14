@@ -139,7 +139,7 @@ def test_process_profile_override_unknown_fails(tmp_path: Path) -> None:
 
 def test_process_profile_override_works(tmp_path: Path) -> None:
     cfg_path, _ = _build_minimal_cfg(tmp_path)
-    # fake 默认；显式切回 fake 应当也能工作
+    # 兼容旧 fixture 输入，但用户可见输出必须落在真实模型配置语义上。
     r = runner.invoke(
         app,
         [
@@ -151,7 +151,8 @@ def test_process_profile_override_works(tmp_path: Path) -> None:
         ],
     )
     assert r.exit_code == 0, r.output
-    assert "active_profile = fake" in r.output
+    assert "model setup =" in r.output
+    assert "active_profile" not in r.output
 
 
 # ---------------------------------------------------------------------------
@@ -182,67 +183,15 @@ def test_process_dry_run_does_not_write(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# llm ping — 不发 HTTP
+# removed llm CLI surface
 # ---------------------------------------------------------------------------
 
 
-def test_llm_ping_fake_profile_always_ok(tmp_path: Path) -> None:
-    cfg_path, _ = _build_minimal_cfg(tmp_path)
-    r = runner.invoke(app, ["llm", "ping", "--config", str(cfg_path)])
-    assert r.exit_code == 0, r.output
-    assert "active_profile = fake" in r.output
-
-
-def test_llm_ping_missing_required_env_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg_path, _ = _build_minimal_cfg(tmp_path)
-    # 切到 tmp_path 避免 cwd 的 .env 被加载（项目根可能有真实 .env）
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MINDFORGE_LLM_BASE_URL", raising=False)
-    monkeypatch.delenv("MINDFORGE_LLM_API_KEY", raising=False)
-    r = runner.invoke(
-        app,
-        ["llm", "ping", "--config", str(cfg_path), "--profile", "anthropic_coding_plan"],
-    )
-    assert r.exit_code == 1
-    assert "MISSING" in r.output
-
-
-def test_llm_ping_with_envs_set_passes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    cfg_path, _ = _build_minimal_cfg(tmp_path)
-    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
-    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "fake-key-PLACEHOLDER")
-    r = runner.invoke(
-        app,
-        ["llm", "ping", "--config", str(cfg_path), "--profile", "anthropic_coding_plan"],
-    )
-    assert r.exit_code == 0, r.output
-    # 关键安全：不能把 api_key 值打印出来
-    assert "fake-key-PLACEHOLDER" not in r.output
-
-
-def test_llm_ping_does_not_send_http(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """证明 ping 不触发 HTTP：把 httpx.Client.post 替换成会爆炸的 mock。"""
-    cfg_path, _ = _build_minimal_cfg(tmp_path)
-    monkeypatch.setenv("MINDFORGE_LLM_BASE_URL", "https://fake.example.com")
-    monkeypatch.setenv("MINDFORGE_LLM_API_KEY", "fake-key-PLACEHOLDER")
-
-    import httpx
-
-    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("llm ping 不应触发任何 HTTP 调用")
-
-    monkeypatch.setattr(httpx.Client, "post", boom)
-    r = runner.invoke(
-        app,
-        ["llm", "ping", "--config", str(cfg_path), "--profile", "anthropic_coding_plan"],
-    )
-    assert r.exit_code == 0, r.output
+def test_llm_ping_command_is_removed_from_typer_surface() -> None:
+    """旧 profile/env driven ``llm ping`` 不再是产品 CLI surface。"""
+    r = runner.invoke(app, ["llm", "ping"])
+    assert r.exit_code != 0
+    assert "No such command" in r.output
 
 
 # ---------------------------------------------------------------------------

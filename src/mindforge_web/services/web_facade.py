@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi import HTTPException
+
 from mindforge.app_context import build_app_context
 from mindforge.cards import iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
@@ -46,6 +48,7 @@ from mindforge_web.schemas import (
     SetupEditableConfigResponse,
     SetupValidationResponse,
     PathActionResponse,
+    ProcessingRunResponse,
     SourcesResponse,
     StatusItem,
     VaultStatus,
@@ -54,6 +57,7 @@ from mindforge_web.schemas import (
     WorkflowSummaryResponse,
 )
 from mindforge_web.services.web_config_service import ConfigUpdateError, WebConfigService
+from mindforge_web.services.processing_run_service import get_processing_run, processing_run_response
 from mindforge_web.services.web_path_action_service import WebPathActionService
 from mindforge_web.services.web_review_service import WebReviewService
 from mindforge_web.services.web_source_service import WebSourceService
@@ -98,14 +102,13 @@ class WebFacade:
         workspace = self.workspace_status()
         vault = self.vault_status(status_counts=status_counts, scan_error_count=len(cards_scan.errors))
         provider = self.config_service.provider_status()
-        env_keys = self.config_service.env_key_statuses()
         recall = self.recall_status(approved_count=status_counts.get("human_approved", 0))
         return HomeStatusResponse(
             safety=safety,
             workspace=workspace,
             vault=vault,
             provider=provider,
-            env_keys=env_keys,
+            env_keys=[],
             recall=recall,
             cards_by_status=status_counts,
             next_actions=self._next_actions(vault, safety, recall),
@@ -136,10 +139,10 @@ class WebFacade:
             ),
             StatusItem(
                 key="provider",
-                label="LLM provider",
-                status="ok" if provider.opt_in_state == "fake_default" else "warn",
-                value=provider.opt_in_state,
-                detail="Provider readiness 只检查 key presence，不调用真实 LLM。",
+                label="Model setup",
+                status="ok" if provider.model_setup == "ready" else "warn",
+                value=provider.model_setup_label,
+                detail="Model setup 只检查 metadata 与 local secret store presence，不调用真实 LLM。",
             ),
             StatusItem(
                 key="env",
@@ -238,15 +241,31 @@ class WebFacade:
         recursive: bool | None = None,
         process_now: bool = True,
     ) -> IngestionActionResponse:
-        return self.source_service.watch_add(
-            path,
-            frequency=frequency,
-            recursive=recursive,
-            process_now=process_now,
-        )
+        try:
+            return self.source_service.watch_add(
+                path,
+                frequency=frequency,
+                recursive=recursive,
+                process_now=process_now,
+            )
+        except ValueError as exc:
+            raise _http_error(400, str(exc)) from exc
+        except RuntimeError as exc:
+            raise _http_error(500, str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
-        return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
+        try:
+            return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
+        except ValueError as exc:
+            raise _http_error(400, str(exc)) from exc
+        except RuntimeError as exc:
+            raise _http_error(500, str(exc)) from exc
+
+    def processing_run(self, run_id: str) -> ProcessingRunResponse | None:
+        record = get_processing_run(self.cfg, run_id)
+        if record is None:
+            return None
+        return processing_run_response(record)
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)
@@ -255,7 +274,12 @@ class WebFacade:
         return self.source_service.watch_frequency(ref, frequency)
 
     def import_source(self, path: Path) -> IngestionActionResponse:
-        return self.source_service.import_source(path)
+        try:
+            return self.source_service.import_source(path)
+        except ValueError as exc:
+            raise _http_error(400, str(exc)) from exc
+        except RuntimeError as exc:
+            raise _http_error(500, str(exc)) from exc
 
     def copy_path(self, path: Path) -> PathActionResponse:
         return self.path_action_service.copy_path(path)
@@ -431,20 +455,19 @@ class WebFacade:
     def safety_summary(self, *, status_counts: dict[str, int] | None = None) -> SafetySummary:
         status_counts = status_counts or self._card_status_counts()
         provider = self.config_service.provider_status()
-        env_keys = self.config_service.env_key_statuses()
         vault_real = self._is_real_environment()
         warnings: list[str] = []
         if vault_real:
             warnings.append("Real-looking vault is active; writes require explicit user action.")
-        if provider.opt_in_state not in {"fake_default", "env_only"}:
-            warnings.append("Real provider profile may be active; no hidden provider calls are made.")
+        if provider.model_setup != "ready":
+            warnings.append("Model setup needs attention; no hidden provider calls are made.")
         return SafetySummary(
             local_only=self.host in {"127.0.0.1", "localhost"},
             host=self.host,
             vault_path=str(self.cfg.vault.root),
             vault_status="warn" if vault_real else "ok",
-            provider_state=provider.opt_in_state,
-            env_status="ok" if any(item.configured for item in env_keys) else "info",
+            provider_state=provider.model_setup,
+            env_status="ok" if provider.model_setup == "ready" else "info",
             write_mode="explicit_approval_required",
             pending_drafts_count=status_counts.get("ai_draft", 0),
             warnings=warnings,
@@ -498,11 +521,12 @@ class WebFacade:
 
     def _resolve_library_card_path(self, card_ref: str) -> Path:
         """根据 card_ref 解析 approved 卡片路径。"""
-        from mindforge.library_service import show_library_card, LibraryLookupError
-        detail = show_library_card(self.cfg, card_ref, show_content=False)
-        if isinstance(detail, LibraryLookupError):
-            raise FileNotFoundError(f"card {card_ref} not found")
-        return self.cfg.vault.cards_path / detail.card.summary.rel_path
+        from mindforge.cards import iter_cards
+        scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        for c in scan.cards:
+            if c.id == card_ref or card_ref in str(c.rel_path) or c.rel_path.endswith(card_ref):
+                return self.cfg.vault.root / c.rel_path
+        raise FileNotFoundError(f"card {card_ref} not found")
 
     def _card_status_counts(self) -> dict[str, int]:
         scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
@@ -572,6 +596,17 @@ def _library_stats_response(stats) -> LibraryStatsResponse:
         index_exists=stats.index_exists,
         next_action=stats.next_action,
     )
+
+
+def _http_error(status_code: int, message: str) -> HTTPException:
+    """把用户主路径错误保持为前端可读的 `{detail:{message}}`。
+
+    中文学习型说明：Add Source / Process Now 是普通用户第一阶段主链路。
+    后端拒绝相对路径、缺模型或其它用户可修复错误时，不能只返回字符串
+    detail，否则 Web fetch helper 会退化成浏览器的 `Bad Request` 文案。
+    """
+
+    return HTTPException(status_code=status_code, detail={"message": message})
 
 
 def _library_card_response(card) -> LibraryCardResponse:

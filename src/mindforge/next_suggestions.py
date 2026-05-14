@@ -3,10 +3,10 @@
 中文学习型说明：
 - 这一层是 ``mindforge next`` / ``mindforge today`` / ``mindforge start`` 共用
   的“下一步推荐”引擎。它只接收一个 ``MindForgeConfig`` 和文件系统的可观察
-  事实（vault / inbox / state.json / 卡片 frontmatter / index 文件），返回一
+  事实（vault / inbox / state.json / processing runs / 卡片 frontmatter / index 文件），返回一
   组带优先级的 ``NextSuggestion``。
 - 设计边界：
-  * 不读 ``.env``，不调任何 LLM / Cubox / 网络。
+  * 不读 secret，不调任何 LLM / 网络。
   * 不调用 Typer / Rich / ``console`` —— 输出格式化由 CLI 层的 presenter
     负责，本模块严禁出现 ``from .cli import …``。
   * 不修改任何文件，全部读路径。
@@ -35,8 +35,8 @@ __all__ = [
 
 
 # ``next``/``today``/``start`` 与 doctor Action items 共用同一套优先级排序。
-# ``try_first`` 是 v0.7.x UX completion 引入的最高优先级，专门留给“零配置
-# safe demo 入口”这种新用户友好建议；它必须排在 ``critical`` 前面。
+# ``try_first`` 是最高优先级，专门留给“下一条最短主路径”建议；它必须排在
+# ``critical`` 前面。
 PRIORITY_ORDER: dict[str, int] = {
     "try_first": -1,
     "critical": 0,
@@ -98,17 +98,17 @@ def next_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
 
 
 def _missing_vault_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
-    """vault 缺失时给 demo + init，两条建议必须保持原顺序。"""
+    """vault 缺失时只指向真实初始化路径。"""
 
     return [
         NextSuggestion(
-            "mindforge demo",
-            "60 秒零配置 tour（不需要 API key、不联网、不写 vault）",
+            "mindforge web",
+            "打开 Web Setup 配置真实模型与本地知识库",
             "recommended",
         ),
         NextSuggestion(
-            f"mindforge init --vault {cfg.vault.root}",
-            "vault 根目录不存在，先一键铺骨架",
+            "mindforge init",
+            "vault 根目录不存在，运行 init 重建骨架",
             "critical",
         ),
     ]
@@ -138,7 +138,7 @@ def _inbox_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSugge
         return []
     return [
         NextSuggestion(
-            f"# 把 markdown 放到 {cfg.vault.inbox_path}/ManualNotes/ 或 Cubox/ 等子目录",
+            f"# 把本地 markdown/txt 文件放到 {cfg.vault.inbox_path}/ 等 source 目录",
             "inbox 当前为空，没有可加工的原料",
             "info",
         )
@@ -151,16 +151,21 @@ def _state_suggestions(cfg: MindForgeConfig, inbox_files: int) -> list[NextSugge
     if inbox_files > 0 and raw_or_triaged == 0 and not state_path.exists():
         return [
             NextSuggestion(
-                _vault_command(cfg, "mindforge scan"),
-                "inbox 有文件但 state.json 还没建立",
+                _vault_command(cfg, "mindforge watch add <file-or-folder>"),
+                "已有 source 文件；注册 source 会创建后台 processing run",
+                "critical",
+            ),
+            NextSuggestion(
+                _vault_command(cfg, "mindforge runs list"),
+                "用 runs 查看后台 processing 进度",
                 "critical",
             )
         ]
     if raw_or_triaged > 0:
         return [
             NextSuggestion(
-                _vault_command(cfg, "mindforge process --limit 10"),
-                f"state 中有 {raw_or_triaged} 条未跑完 pipeline",
+                _vault_command(cfg, "mindforge import <file-or-folder>"),
+                f"发现 {raw_or_triaged} 条旧待处理记录；新主路径请重新导入 source 创建后台 run",
                 "critical",
             )
         ]
@@ -280,11 +285,11 @@ def _project_suggestions(cfg: MindForgeConfig) -> list[NextSuggestion]:
 
 
 def _vault_command(cfg: MindForgeConfig, command: str) -> str:
-    """把建议命令绑定到当前 vault，保证复制后仍在同一个 dogfood 目标上运行。
+    """把建议命令绑定到当前 vault，保证复制后仍在同一个目标上运行。
 
     中文学习型说明：``next`` / ``start`` 是产品入口，输出的每条命令都应该
-    可以直接复制。真实 dogfood 时用户常传入 demo 或 ``/tmp`` disposable
-    vault；如果建议命令丢掉 ``--vault``，下一步就会回到配置里的默认私人
+    可以直接复制。真实验收时用户常传入临时 disposable vault；如果建议命令
+    丢掉 ``--vault``，下一步就会回到配置里的默认私人
     vault，既卡顿也有安全风险。这里仍是纯字符串策略，不依赖 CLI/Rich。
     """
 

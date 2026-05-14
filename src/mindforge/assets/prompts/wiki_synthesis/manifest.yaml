@@ -1,0 +1,35 @@
+stage: wiki_synthesis
+version: v1
+description: >
+  从 approved knowledge card digests 合成连贯的 Main Wiki。
+  输入：已审批卡片的摘要列表。
+  输出：结构化 JSON（overview + sections + open_questions）。
+  不读取 raw source 全文，不写入 provenance link（由代码生成）。
+input_variables:
+  - approved_cards
+  - card_count
+expected_output_schema:
+  type: object
+  required: [overview, sections]
+  properties:
+    overview:
+      type: string
+    sections:
+      type: array
+      items:
+        type: object
+        required: [title, body, card_ids]
+        properties:
+          title: { type: string }
+          body: { type: string }
+          card_ids: { type: array, items: { type: string } }
+    open_questions:
+      type: array
+      items:
+        type: object
+        required: [question]
+        properties:
+          question: { type: string }
+          card_ids: { type: array, items: { type: string } }
+notes: >
+  Immutable. 任何修改必须创建 v2.md 并更新此 manifest。

@@ -13,18 +13,32 @@ from pathlib import Path
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
 from mindforge.assets_runtime import bundled_asset_path_for_process
+from mindforge.cli import app
 from mindforge.config import (
     ConfigError,
+    DEFAULT_PROVIDER_MAX_RETRIES,
+    DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+    LLMConfig,
+    ModelConfig,
     REQUIRED_STAGES,
     load_learning_tracks,
     load_mindforge_config,
 )
 from mindforge.init_cmd import build_plan, execute_plan
+from mindforge.first_run_config import maybe_bootstrap_local_config
+from mindforge.provider_defaults import (
+    DEFAULT_PROVIDER_MAX_RETRIES as PROVIDER_DEFAULT_MAX_RETRIES,
+)
+from mindforge.provider_defaults import (
+    DEFAULT_PROVIDER_TIMEOUT_SECONDS as PROVIDER_DEFAULT_TIMEOUT_SECONDS,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
+runner = CliRunner()
 
 
 # ---------------------------------------------------------------------------
@@ -36,19 +50,13 @@ def test_real_mindforge_yaml_loads() -> None:
     cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     # vault
     assert cfg.vault.inbox_root == "00-Inbox"
-    # sources
-    assert "cubox_markdown" in cfg.sources.enabled
+    # sources：v0.7.21 起默认只启用 plain_markdown。
+    # 其余 adapter 是 optional/advanced，默认不在 enabled 列表中。
     assert "plain_markdown" in cfg.sources.enabled
     active = {e.source_type for e in cfg.sources.active_entries()}
-    # v0.2.4 起 webclip_markdown / chat_export 默认启用；本 milestone 增加
-    # common_document 作为通用本地文档入口，不把 Cubox 当核心配置项。
-    assert active == {
-        "cubox_markdown",
-        "plain_markdown",
-        "webclip_markdown",
-        "chat_export",
-        "common_document",
-    }
+    assert active == {"plain_markdown"}, (
+        "默认只启用 plain_markdown；其他 adapter 为 optional，需用户显式启用"
+    )
     # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
     assert cfg.llm.active_profile == "__model_routing__"
     assert cfg.llm.default_model == "main"
@@ -60,7 +68,8 @@ def test_real_mindforge_yaml_loads() -> None:
     # 真实路径模型一律不允许把 secret 写进 yaml
     main = cfg.llm.models["main"]
     assert main.type == "openai_compatible"
-    assert main.api_key_env == "MINDFORGE_LLM_API_KEY"
+    # API key 不进 YAML；通过 Web Setup 保存到 local secret store
+    assert main.api_key_env is None
     assert main.model == "your-model-name"
     assert main.base_url == "https://your-router.example.com/v1"  # endpoint 不是 secret
     # prompts
@@ -68,12 +77,25 @@ def test_real_mindforge_yaml_loads() -> None:
     assert cfg.prompts.for_stage("link_suggestion") == "v1"
 
 
+def test_provider_runtime_defaults_live_outside_config_schema() -> None:
+    """provider 默认运行边界由 provider_defaults 统一定义。
+
+    中文学习型说明：config.py 可以为了兼容旧 import 继续 re-export 常量，
+    但真实 provider timeout/retry 的源头应在 provider_defaults，避免配置
+    schema 文件继续吞入 provider runtime 语义。
+    """
+
+    assert DEFAULT_PROVIDER_TIMEOUT_SECONDS == PROVIDER_DEFAULT_TIMEOUT_SECONDS == 120
+    assert DEFAULT_PROVIDER_MAX_RETRIES == PROVIDER_DEFAULT_MAX_RETRIES == 1
+
+
 def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     """init 输出的是用户 override，而不是 internal full config dump。
 
     中文学习型说明：运行时仍需要 sources/state/search/prompts 等系统默认值，
     但这些属于 MindForge 内置 defaults。新用户第一天看到的 YAML 只应该承载
-    vault、provider env 映射和 telemetry 这类用户决策。
+    workspace、model setup 占位和 telemetry 这类用户决策；provider key 通过
+    Web Setup / local secret store 完成，不创建 env 模板来分叉 first-run 主路径。
     """
 
     project_root = tmp_path / "project"
@@ -90,7 +112,6 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     parsed = yaml.safe_load(text)
 
     assert sorted(p.relative_to(project_root).as_posix() for p in project_root.rglob("*") if p.is_file()) == [
-        ".env.example",
         "configs/mindforge.yaml",
     ]
     assert set(parsed) == {"version", "vault", "llm", "telemetry"}
@@ -102,7 +123,7 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
     assert "active" not in parsed["llm"]
     assert "providers" not in parsed["llm"]
     assert parsed["llm"]["models"]["main"]["type"] == "openai_compatible"
-    assert parsed["llm"]["models"]["main"]["api_key_env"] == "MINDFORGE_LLM_API_KEY"
+    # api_key_env 不再是 init 默认内容；API key 通过 Web Setup 填写
     assert parsed["llm"]["models"]["main"]["base_url"] == "https://your-router.example.com/v1"
     assert parsed["llm"]["models"]["main"]["model"] == "your-model-name"
     assert parsed["telemetry"]["local_only"] is True
@@ -134,7 +155,9 @@ def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:
         assert marker not in text
 
 
-def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
+def test_init_does_not_create_env_example_on_first_run(tmp_path: Path) -> None:
+    """first-run init 不创建 env 模板，避免把 advanced 兼容路径变成用户主路径。"""
+
     project_root = tmp_path / "project"
     vault = tmp_path / "vault"
     plan = build_plan(
@@ -144,19 +167,43 @@ def test_init_generates_current_safe_env_example(tmp_path: Path) -> None:
     )
     execute_plan(plan)
 
-    text = (project_root / ".env.example").read_text(encoding="utf-8")
+    assert not (project_root / ".env.example").exists()
+    assert all(item.target.name != ".env.example" for item in plan.items)
 
-    for marker in (
-        "MINDFORGE_OPENAI_API_KEY",
-        "MINDFORGE_OPENAI_BASE_URL",
-        "MINDFORGE_OPENAI_MODEL",
-        "MINDFORGE_ANTHROPIC_API_KEY",
-        "MINDFORGE_ANTHROPIC_BASE_URL",
-        "MINDFORGE_ANTHROPIC_MODEL",
-    ):
-        assert marker in text
-    assert "sk-" not in text
-    assert "MINDFORGE_LLM_API_KEY" not in text
+
+def test_init_default_skeleton_uses_local_sources_not_cubox(tmp_path: Path) -> None:
+    """first-run 默认骨架只能表达本地文件/文件夹 source 主路径。
+
+    中文学习型说明：Cubox 仍可作为 adapter/test fixture 存在，但不能在
+    ``mindforge init`` 的新用户默认目录里出现，避免把第一阶段误解成
+    Cubox-first workflow。
+    """
+
+    project_root = tmp_path / "project"
+    vault = project_root / "vault"
+    plan = build_plan(
+        vault,
+        project_root=project_root,
+        repo_root=bundled_asset_path_for_process(),
+    )
+    execute_plan(plan)
+
+    assert (vault / "00-Inbox").is_dir()
+    assert not (vault / "00-Inbox" / "Cubox").exists()
+    # first-run 不预建分类子目录（ManualNotes/WebClips/ChatExports/PDFs/Docs）
+    for sub in ("ManualNotes", "WebClips", "ChatExports", "PDFs", "Docs"):
+        assert not (vault / "00-Inbox" / sub).exists()
+
+
+def test_init_help_uses_model_setup_language_not_legacy_env_modes() -> None:
+    """init help 是 first-run surface，不能继续把 env/fake/demo/profile 当主路径。"""
+
+    res = runner.invoke(app, ["init", "--help"])
+
+    assert res.exit_code == 0, res.output
+    assert "configs/" in res.output
+    for token in (".env", "env", "environment variable", "fake", "demo", "profile fake", "Cubox"):
+        assert token not in res.output
 
 
 def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:
@@ -176,6 +223,85 @@ def test_init_default_vault_root_is_project_relative(tmp_path: Path) -> None:
 
     assert parsed["vault"]["root"] == "vault"
     assert load_mindforge_config(generated).vault.root == vault.resolve()
+
+
+def test_clean_clone_web_bootstrap_creates_safe_local_runtime_config(tmp_path: Path) -> None:
+    """clean clone 只有 example 时，Web 首次启动应创建安全本地 runtime config。
+
+    中文学习型说明：`configs/mindforge.yaml` 是本地运行时文件，不能提交到 Git；
+    因此 GitHub clone 后的 `mindforge web` 必须能自己生成无 secret、无模型的
+    初始配置，让用户进入 Web Setup 再添加真实模型。
+    """
+
+    workspace = tmp_path / "mindforge"
+    (workspace / "configs").mkdir(parents=True)
+    (workspace / "configs" / "mindforge_example.yaml").write_text(
+        (REPO_ROOT / "configs" / "mindforge_example.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+
+    result = maybe_bootstrap_local_config(Path("configs/mindforge.yaml"), cwd=workspace)
+    generated = workspace / "configs" / "mindforge.yaml"
+    raw_text = generated.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(raw_text)
+
+    assert result.created is True
+    assert result.config_path == generated
+    assert parsed["vault"]["root"] == "vault"
+    assert parsed["llm"]["default_model"] is None
+    assert parsed["llm"]["models"] == {}
+    assert parsed["llm"]["routing"] == {}
+    assert parsed["wiki"] == {
+        "mode": "deterministic",
+        "model": None,
+        "auto_rebuild_on_approve": False,
+    }
+    assert load_mindforge_config(generated).llm.models == {}
+
+    forbidden = (
+        "api_key",
+        "active_profile",
+        "profiles",
+        "fake",
+        "fake_fast",
+        "fake_strong",
+        "api_key_env",
+        "base_url_env",
+        "model_env",
+    )
+    for token in forbidden:
+        assert token not in raw_text
+
+
+def test_clean_clone_web_bootstrap_does_not_overwrite_existing_config(tmp_path: Path) -> None:
+    workspace = tmp_path / "mindforge"
+    config_dir = workspace / "configs"
+    config_dir.mkdir(parents=True)
+    (config_dir / "mindforge_example.yaml").write_text("version: 0.7\n", encoding="utf-8")
+    existing = config_dir / "mindforge.yaml"
+    existing.write_text("version: 0.7\nvault:\n  root: custom-vault\n", encoding="utf-8")
+
+    result = maybe_bootstrap_local_config(workspace / "configs" / "mindforge.yaml", cwd=workspace)
+
+    assert result.created is False
+    assert existing.read_text(encoding="utf-8") == "version: 0.7\nvault:\n  root: custom-vault\n"
+
+
+def test_clean_clone_web_bootstrap_does_not_modify_example_template(tmp_path: Path) -> None:
+    workspace = tmp_path / "mindforge"
+    config_dir = workspace / "configs"
+    config_dir.mkdir(parents=True)
+    example = config_dir / "mindforge_example.yaml"
+    original = "version: 0.7\n# example stays immutable\n"
+    example.write_text(original, encoding="utf-8")
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+
+    maybe_bootstrap_local_config(Path("configs/mindforge.yaml"), cwd=workspace)
+
+    assert example.read_text(encoding="utf-8") == original
 
 
 def test_minimal_user_override_merges_with_internal_defaults(tmp_path: Path) -> None:
@@ -211,6 +337,24 @@ telemetry:
     assert cfg.prompts.for_stage("distill") == "v1"
     assert cfg.search.bm25.enabled is True
     assert cfg.llm.active_profile == "fake"
+
+
+def test_explicit_null_provider_runtime_fields_use_product_defaults(tmp_path: Path) -> None:
+    """用户 YAML 显式写 null 时，provider timeout/retry 仍回到产品默认值。
+
+    中文学习型说明：Web Setup 普通用户不需要配置 timeout/retry；release 主路径
+    必须把缺失或 null 都收敛成有限等待和有限重试，不能把 None 传给 provider
+    底层库或 retry loop。
+    """
+
+    data = _minimal_valid_config()
+    model = data["llm"]["models"]["m1"]
+    model["timeout_seconds"] = None
+    model["max_retries"] = None
+    cfg = load_mindforge_config(_write_yaml(tmp_path, data))
+
+    assert cfg.llm.models["m1"].timeout_seconds == 120
+    assert cfg.llm.models["m1"].max_retries == 1
 
 
 def test_new_active_wins_over_legacy_active_profile(tmp_path: Path) -> None:
@@ -431,6 +575,93 @@ def test_partial_llm_routing_falls_back_to_default_model(tmp_path: Path) -> None
     assert cfg.llm.routing["action_extraction"] == "strong"
 
 
+def _model_config(alias: str) -> ModelConfig:
+    return ModelConfig(
+        alias=alias,
+        provider="test",
+        type="fake",
+        base_url="fake://",
+        model=f"{alias}-model",
+        timeout_seconds=5,
+        max_retries=0,
+    )
+
+
+def test_resolve_stage_falls_back_to_default_model_when_routing_is_missing() -> None:
+    """执行边界也要做 default_model fallback，不能依赖 YAML parse 已经补齐。
+
+    中文学习型说明：clean clone 后 Web Setup 可能产生只有 default_model 的新格式
+    配置；pipeline runtime 必须在最后一道解析边界兜住缺失 stage，避免旧
+    profile[stage] 语义重新抛出 KeyError。
+    """
+
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={"main": _model_config("main")},
+        default_model="main",
+        routing={},
+    )
+
+    assert llm.resolve_stage("triage").alias == "main"
+
+
+def test_resolve_stage_without_routing_or_default_model_fails_clearly() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={},
+        default_model=None,
+        routing={},
+    )
+
+    with pytest.raises(ConfigError, match="No model configured for stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_resolve_stage_bad_model_reference_fails_clearly() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {"triage": "ghost"}},
+        models={"main": _model_config("main")},
+        default_model=None,
+        routing={"triage": "ghost"},
+    )
+
+    with pytest.raises(ConfigError, match="Model 'ghost' referenced by stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_legacy_profile_missing_stage_does_not_raise_key_error() -> None:
+    """旧 profiles 兼容路径也必须收敛成 ConfigError，而不是 KeyError。"""
+
+    llm = LLMConfig(
+        active_profile="legacy",
+        profiles={"legacy": {"distill": "main"}},
+        models={"main": _model_config("main")},
+        default_model=None,
+        routing={"distill": "main"},
+        legacy_config_detected=True,
+    )
+
+    with pytest.raises(ConfigError, match="No model configured for stage 'triage'"):
+        llm.resolve_stage("triage")
+
+
+def test_resolve_all_required_stages_use_default_without_key_error() -> None:
+    llm = LLMConfig(
+        active_profile="__model_routing__",
+        profiles={"__model_routing__": {}},
+        models={"main": _model_config("main")},
+        default_model="main",
+        routing={},
+    )
+
+    assert {stage: llm.resolve_stage(stage).alias for stage in REQUIRED_STAGES} == {
+        stage: "main" for stage in REQUIRED_STAGES
+    }
+
+
 def test_llm_routing_missing_model_fails_clearly(tmp_path: Path) -> None:
     p = _write_yaml(
         tmp_path,
@@ -521,11 +752,17 @@ def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) 
                         "base_url": "http://localhost:11434/v1",
                         "model": "qwen2.5:14b",
                     },
+                    "official_openai": {
+                        "type": "openai",
+                        "api_key_env": "OPENAI_API_KEY",
+                        "model": "gpt-4o-mini",
+                    },
                 },
                 "routing": {
                     "triage": "local",
                     "distill": "anthropic_native",
                     "review_questions": "anthropic_router",
+                    "action_extraction": "official_openai",
                 },
             }
         ),
@@ -536,6 +773,8 @@ def test_llm_supported_types_and_local_openai_compatible_config(tmp_path: Path) 
     assert cfg.llm.models["anthropic_native"].type == "anthropic"
     assert cfg.llm.models["anthropic_router"].type == "anthropic_compatible"
     assert cfg.llm.models["local"].type == "openai_compatible"
+    assert cfg.llm.models["official_openai"].type == "openai"
+    assert cfg.llm.models["official_openai"].base_url == ""
     assert cfg.llm.models["local"].api_key_optional is True
 
 

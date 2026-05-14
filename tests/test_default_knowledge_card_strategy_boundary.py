@@ -55,7 +55,6 @@ _FORBIDDEN_FOR_DEFAULT_KCS: frozenset[str] = frozenset({
     # source domain（strategy 必须 source-agnostic）
     "mindforge.cubox_cli",
     "mindforge.cubox_dryrun_presenter",
-    "mindforge.cubox_preview_presenter",
     "mindforge.source_mux",
     "mindforge.scanner",
     "mindforge.sources.cubox_api",

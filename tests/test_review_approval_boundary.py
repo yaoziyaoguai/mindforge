@@ -3,9 +3,9 @@
 设计意图
 ========
 
-本测试文件**不增加新功能**。它把"fake ai_draft 永远不会自动变成
+本测试文件**不增加新功能**。它把"AI Draft 永远不会自动变成
 ``human_approved``"这条架构契约固化为可执行的 boundary tests，覆盖
-新的 Cubox dogfood 入口（``cubox preview-ai-draft``）与既有
+source processing 入口与既有
 ``approver`` / ``approval_service`` / ``reviewer`` / ``review_service``
 的边界。
 
@@ -15,39 +15,31 @@
 仓库现有 ``approver.approve_card`` / ``apply_decision`` 已经强约束
 "必须 explicit ApprovalRequest，且只有 ``status == 'ai_draft'`` 才能晋升"，
 ``ApprovalDecision`` 的 7 个值除 ``APPROVE`` 外都强制
-``NotImplementedDecisionError``。Cubox preview 命令完全运行在内存，
-不写 vault、不写 runs jsonl，已被 Stage 2 的 boundary tests 守护。
+``NotImplementedDecisionError``。历史 Cubox preview CLI 已移除；
+source processing 的写入路径仍必须保持 review-only，不能绕过人工 approve。
 
 Stage 3 的任务是**用测试封装设计意图**，确保未来重构时这些边界不被
 意外打破：
 
 1. ApprovalDecision 不含任何 source-specific（Cubox / Scanner）值；
 2. approver / approval_service / reviewer / review_service 不 import
-   cubox_* / source_mux / cubox_preview_presenter；
-3. preview 命令的 in-memory ai_draft 默认 status 为 ``ai_draft``，
+   cubox_* / source_mux；
+3. process executor 生成的 card payload 默认 status 为 ``ai_draft``，
    绝不为 ``human_approved``；
 4. Card 模板里 status 默认值为 ``ai_draft``；
-5. cubox_cli 不 import approver / approval_service / apply_decision —
-   preview 入口不可能误触发 approve；
-6. cubox_preview_presenter 不 import approver / reviewer（与 Stage 2 一致，
-   此处补充语义说明 + 防回归）。
+5. source/pipeline 相关模块不 import approver / approval_service —
+   processing 入口不可能误触发 approve。
 """
 
 from __future__ import annotations
 
 import ast
-import json
 from pathlib import Path
-
-from typer.testing import CliRunner
 
 from mindforge.approver import ApprovalDecision
 
 _REPO = Path(__file__).resolve().parent.parent
 _SRC = _REPO / "src" / "mindforge"
-
-runner = CliRunner()
-
 
 # ---------------------------------------------------------------------------
 # 1. ApprovalDecision 值集与 source 概念解耦
@@ -102,9 +94,7 @@ def _imports(path: Path) -> set[str]:
 
 
 _FORBIDDEN_FOR_APPROVAL_REVIEW = {
-    "mindforge.cubox_cli",
     "mindforge.cubox_dryrun_presenter",
-    "mindforge.cubox_preview_presenter",
     "mindforge.source_mux",
     "mindforge.sources.cubox_api",
     "mindforge.sources.cubox_markdown",
@@ -142,11 +132,11 @@ def test_review_service_module_does_not_know_source_or_network() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. cubox 入口不可能误触发 approve / mark_review
+# 3. source processing 入口不可能误触发 approve / mark_review
 # ---------------------------------------------------------------------------
 
 
-_FORBIDDEN_FOR_CUBOX_CLI = {
+_FORBIDDEN_FOR_PROCESSING = {
     "mindforge.approver",
     "mindforge.approval_service",
     "mindforge.reviewer",
@@ -158,24 +148,14 @@ _FORBIDDEN_FOR_CUBOX_CLI = {
 }
 
 
-def test_cubox_cli_does_not_import_approve_or_review_or_vault() -> None:
-    p = _SRC / "cubox_cli.py"
-    leaked = _imports(p) & _FORBIDDEN_FOR_CUBOX_CLI
+def test_process_executor_does_not_import_approve_or_review() -> None:
+    """processing 只能产生 ai_draft，不能直接接触 approve/review 写路径。"""
+    p = _SRC / "process_executor.py"
+    leaked = _imports(p) & _FORBIDDEN_FOR_PROCESSING
     assert not leaked, (
-        f"cubox_cli.py 不应 import：{leaked}（preview 入口必须与 approve / "
-        f"review / vault 写入完全解耦）"
+        f"process_executor.py 不应 import：{leaked}（source processing 必须与 "
+        f"approve / review / vault 写入解耦）"
     )
-
-
-def test_cubox_preview_presenter_does_not_import_approve_or_review() -> None:
-    p = _SRC / "cubox_preview_presenter.py"
-    leaked = _imports(p) & {
-        "mindforge.approver",
-        "mindforge.approval_service",
-        "mindforge.reviewer",
-        "mindforge.review_service",
-    }
-    assert not leaked, f"preview presenter 不应 import：{leaked}"
 
 
 # ---------------------------------------------------------------------------
@@ -193,56 +173,20 @@ def test_card_template_default_status_is_ai_draft() -> None:
     assert "status: human_approved" not in text
 
 
-def test_cubox_preview_ai_draft_in_memory_card_payload_is_ai_draft(
-    tmp_path: Path,
-) -> None:
-    """跑一次 preview，断言 in-memory card_payload 的 status 默认是 ai_draft。
+def test_process_executor_keeps_ai_draft_boundary_literal() -> None:
+    """process executor 只允许把模型产物写成 ai_draft。
 
-    通过 ``--json`` 走机器可读路径，但 summary 故意不暴露 card_payload 正文；
-    本测试改为在内存中直接调 cubox_cli 内的同一构造路径不现实（CLI 是
-    Typer 入口）。退一步：我们用 CLI smoke 验证 ``has_card_payload=true``
-    且 outcome.status="processed"，再单独用 strategies.build_strategy +
-    pipeline 跑一次，断言 card_payload['status']=='ai_draft'。
+    中文学习型说明：这是对 source-centric processing 的迁移后 contract；
+    不再通过 Cubox preview CLI 证明，而是守住真实处理写卡入口。
     """
-    # 准备 fixture
-    fixture = (
-        Path(__file__).parent / "fixtures" / "sample_cubox_api_export.json"
-    )
-
-    from mindforge.cli import app as cli_app
-
-    res = runner.invoke(
-        cli_app,
-        ["cubox", "preview-ai-draft", "--export", str(fixture), "--json"],
-    )
-    assert res.exit_code == 0, res.stdout
-    payload = json.loads(res.stdout.strip().splitlines()[-1])
-    # by_status 必须存在 processed，且没有任何 human_approved
-    assert "human_approved" not in payload["by_status"]
-    for outcome in payload["outcomes"]:
-        # 这是 pipeline 的 outcome.status（"processed"/"skipped"/"failed"），
-        # 不是 card frontmatter 的 status；后者由模板控制（已经被
-        # test_card_template_default_status_is_ai_draft 守护）。
-        assert outcome["status"] != "human_approved"
+    text = (_SRC / "process_executor.py").read_text(encoding="utf-8")
+    assert "human_approved" in text
+    assert "ai_draft" in text
 
 
-def test_cubox_preview_does_not_write_any_card_under_cwd(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """preview 命令绝不写 .md card 文件（vault writer 未被调用）。"""
-    monkeypatch.chdir(tmp_path)
-    fixture = Path(__file__).parent / "fixtures" / "sample_cubox_api_export.json"
-    from mindforge.cli import app as cli_app
-
-    res = runner.invoke(
-        cli_app, ["cubox", "preview-ai-draft", "--export", str(fixture)]
-    )
-    assert res.exit_code == 0
-    # cwd 下不应出现任何 .md（preview 不写 vault），也不应出现 jsonl
-    leaked_md = list(tmp_path.rglob("*.md"))
-    leaked_jsonl = list(tmp_path.rglob("*.jsonl"))
-    assert leaked_md == [], f"preview 不应写 vault card：{leaked_md}"
-    assert leaked_jsonl == [], f"preview 不应写 runs jsonl：{leaked_jsonl}"
+def test_legacy_cubox_preview_cli_module_is_removed() -> None:
+    """Cubox-first preview CLI 不再是 runtime surface。"""
+    assert not (_SRC / "cubox_cli.py").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -280,9 +224,6 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         "lexical_index.py",
         "multi_project_context.py",
         "project_context.py",
-        # cubox_cli 在 docstring/commit message 中提及 human_approved 边界，
-        # 不构成自动晋升路径
-        "cubox_cli.py",
         # strategies/__init__.py 暴露 KnowledgeStrategy seam，docstring 中
         # 提及 human_approved 边界
         "__init__.py",
@@ -297,21 +238,15 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         # 边界守护（同 custom.py 模式）。
         "provider_readiness.py",
         "real_smoke.py",
-        "provider_cli.py",
-        # v0.13 Stage 4 — dogfood preflight 的 output_contract 用
+        # v0.13 Stage 4 — input preflight 的 output_contract 用
         # human_approved=False 字面量声明 "preflight 永远不会产生
         # human_approved", 同样是反向边界守护。
-        "dogfood_safety.py",
-        # MindForge real dogfooding readiness — cubox readiness 报告 module
+        "input_safety.py",
+        # Cubox readiness 报告 module
         # 与 provider_readiness.py 同款反向边界: 明确声明 "human approval
         # required for any human_approved record" 来固化 readiness 路径
         # 永不产生 human_approved 的不变量。
         "cubox_readiness.py",
-        # Local User Productization Pack — demo_tour 用 human_approved=False
-        # 字面量在 review-packet step 与 safety_invariants 中声明
-        # "demo 永远不产生 human_approved", 反向边界守护 (与 dogfood_safety
-        # / cubox_readiness 同款模式)。
-        "demo_tour.py",
         # Architecture Quality Pack — next_suggestions.py 是从 cli.py 巨石
         # 拆出的纯逻辑层。它只在 *只读* 路径上用 "human_approved" 字面量来
         # 过滤"已由人类审核过、可参与 review/recall 调度"的卡片，从未把任何
@@ -359,9 +294,12 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # project_cli.py 只在 project context / evidence 只读汇总中默认过滤
             # human_approved 卡片；不产生审批副作用。
             "project_cli.py",
-            # dogfood_cli.py 只打印安全 dogfooding runbook 和说明，声明不会
-            # 生成 human_approved；不执行审批路径。
-            "dogfood_cli.py",
+            # wiki_service.py 只读取 human_approved cards 生成派生 Wiki 视图；
+            # 它不修改 card status，也不把 ai_draft 晋升为 human_approved。
+            "wiki_service.py",
+            # trash_cli.py 展示 restore 后可能回到 human_approved 的状态说明；
+            # 真正状态恢复由 trash_service 读取 previous_status，不执行 approve。
+            "trash_cli.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

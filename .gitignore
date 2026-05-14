@@ -1,5 +1,9 @@
 # MindForge .gitignore
 
+# Local runtime config written by Web Setup. Use configs/mindforge_example.yaml
+# as the committed template. Do NOT commit local model configuration.
+configs/mindforge.yaml
+
 # 运行时产物（M1+ 才会出现，但提前纳入忽略）
 # .mindforge/ 整目录默认不入库：
 #   - .mindforge/state.json     是本地 checkpoint，含个人知识库的扫描状态
@@ -49,6 +53,9 @@ scratch/
 local/
 *.local.*
 
+# Local Claude Code / agent environment file. Never commit.
+claude-code-agent-env
+
 # Secrets：本地 .env（含 API key、base_url 等）严禁入库
 # 例外：.env.example 仅含变量名 + 中文注释，可入库
 .env
@@ -61,3 +68,9 @@ vault_template/20-Knowledge-Cards/**/!(.gitkeep|README.md)
 
 # v0.4.2: demo vault 跑 smoke 时会产生的本地状态（不入仓库）
 examples/demo-vault/.mindforge/
+
+# vault/ 是本地运行时知识库目录，每台机器独立，严禁入库。
+# 模板在 vault_template/，包含 README 和 .gitkeep 占位文件。
+# 用户运行 mindforge init 后会在本地创建 vault/，不应被 git track。
+vault/
+vault/**/.mindforge/

@@ -1,16 +1,11 @@
-# MindForge LLM routing examples.
+# MindForge LLM routing examples (Advanced / deployment reference).
 #
-# Most users only need one model in configs/mindforge.yaml:
+# 普通用户主路径是 Web Setup + configs/mindforge_example.yaml；API key 进入
+# .mindforge/secrets.json，不写 YAML。本文件仅展示需要环境变量部署、CI 或
+# 多模型 routing 时的完整 YAML 形状。env var 字段是 advanced/legacy fallback。
 #
-# llm:
-#   default_model: main
-#   models:
-#     main:
-#       type: openai_compatible
-#       api_key_env: MINDFORGE_LLM_API_KEY
-#       base_url: "https://your-router.example.com/v1"
-#       model: "your-model-name"
-#
+# type 是 API 协议类型，不是模型品牌：
+#   anthropic / anthropic_compatible / openai / openai_compatible
 # If llm.routing is omitted, every workflow step uses default_model.
 
 llm:
@@ -18,10 +13,9 @@ llm:
 
   models:
     cheap:
-      type: openai_compatible
+      type: openai
       api_key_env: MINDFORGE_LLM_API_KEY
-      base_url: "https://router.example.com/v1"
-      model: "cheap-model"
+      model: "gpt-4o-mini"
       timeout_seconds: 90
       max_retries: 2
 

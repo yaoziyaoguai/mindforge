@@ -30,7 +30,7 @@ def _read(p: Path) -> str:
 def test_closure_ledger_lists_all_state_buckets():
     text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
     for bucket in (
-        "available", "fake-only", "real-opt-in",
+        "available", "real-opt-in",
         "review-only", "future-gated", "forbidden",
     ):
         assert f"`{bucket}`" in text, f"closure ledger missing bucket: {bucket}"
@@ -38,7 +38,7 @@ def test_closure_ledger_lists_all_state_buckets():
 
 def test_closure_ledger_marks_v013_stage_complete():
     text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
-    assert "clean enough for long-term local dogfood" in text
+    assert "clean enough for long-term local use" in text
     # 必须明确说明 NO tag / NO release
     assert "No tag" in text or "no tag" in text
     assert "No release" in text or "no release" in text
@@ -48,7 +48,7 @@ def test_closure_ledger_keeps_dangerous_capabilities_gated():
     text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
     # 这些能力必须显式标注 future-gated 或 forbidden, 不能漏
     for cap in (
-        "Real Cubox ingestion",
+        "External account ingestion",
         "Real Obsidian formal-note write",
         "Custom executable strategy runtime",
         "Auto-approve",
@@ -77,7 +77,7 @@ def test_release_readiness_says_no_tag_no_release():
 def test_release_readiness_records_future_gates():
     text = _read(Path("README.md"))
     for gate in (
-        "Real Cubox ingestion",
+        "External account ingestion",
         "Real Obsidian",
         "Custom executable strategy runtime",
         "RAG / embedding / semantic merge",
@@ -90,13 +90,10 @@ def test_release_readiness_records_future_gates():
 
 def test_real_safe_journey_documents_both_paths():
     text = _read(Path("README.md"))
-    # fake-safe 默认必须出现
-    assert "fake" in text.lower()
-    assert "fake" in text.lower()
-    # real opt-in 必须出现
-    assert "--allow-real" in text
-    # 警告必须出现 (billing 风险)
-    assert "opt-in" in text.lower()
+    # 本轮产品语义已迁移到 real model setup + local secret store。
+    assert "Web Setup" in text
+    assert "local secret store" in text
+    assert "Real model calls require explicit model configuration" in text
     # human_approved 路径必须明确说明只能由 approve 命令产生
     assert "mindforge approve" in text
 
@@ -105,8 +102,8 @@ def test_real_safe_journey_lists_what_user_did_not_do():
     text = _read(Path("README.md"))
     for negative in (
         "does not call a real LLM",
-        "does not call the real Cubox API",
-        "does not print `.env` secret values",
+        "No secret file or real model call is used without explicit opt-in",
+        "Keep API keys in the local secret store",
         "does not automatically modify a real private vault",
         "does not auto-approve",
     ):
@@ -143,8 +140,9 @@ def test_bundled_llm_config_uses_model_routing_not_profiles():
     assert "fake_fast" not in yaml_text
 
 
-def test_dogfood_safety_output_contract_keeps_human_approved_false():
-    text = (SRC / "dogfood_safety.py").read_text(encoding="utf-8")
+def test_input_safety_output_contract_keeps_human_approved_false():
+    """input preflight 是只读 safety boundary，不产生审批副作用。"""
+    text = (SRC / "input_safety.py").read_text(encoding="utf-8")
     # 静态断言: source 中明确写有 human_approved=False / human_approved": False
     # 字面量, 防止后续误改成 True 或可变。
     assert '"human_approved": False' in text

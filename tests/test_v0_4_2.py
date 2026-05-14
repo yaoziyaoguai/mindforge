@@ -20,7 +20,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from mindforge.cli import app, _dogfood_command_snippets, _normalize_post_command_global_options
+from mindforge.cli import app, _normalize_post_command_global_options
 from mindforge.config import load_mindforge_config
 from mindforge.scanner import Scanner
 from mindforge.sources.base import SourceAdapter, SourceDocument, compute_content_hash
@@ -116,22 +116,19 @@ def test_commands_lists_key_groups() -> None:
         "审批 ai_draft",
         "Recall",
         "Review",
-        "Obsidian dry-run",
         "Backup / Doctor",
         "Debug / Safety",
     ]:
         assert kw in out, f"commands 输出缺少 group: {kw}"
-    # 至少包含 init / scan / approve / index / recall / review / project
-    for cmd in ["mindforge start", "mindforge init", "mindforge scan", "mindforge approve",
+    # 第一阶段命令地图不再展示 legacy scan/project/Obsidian 主路径
+    for cmd in ["mindforge web", "mindforge watch add", "mindforge approve",
                 "mindforge index", "mindforge recall", "mindforge review"]:
         assert cmd in out
-    assert "[[wikilinks]]" in out
-    assert "mindforge obsidian next --vault PATH" in out
-    assert "mindforge dogfood readiness --vault PATH" in out
-    assert "mindforge obsidian preflight --manifest PATH" in out
-    assert "--staged-export" in out
-    assert "--write" in out
-    assert "--confirm" in out
+    assert "mindforge scan" not in out
+    assert "mindforge obsidian" not in out
+    assert "mindforge wiki" in out
+    assert "--staged-export" not in out
+    assert "--write" not in out
 
 
 def test_commands_does_not_leak_secrets() -> None:
@@ -147,10 +144,14 @@ def test_commands_does_not_leak_secrets() -> None:
 # `mindforge next`
 # ===========================================================================
 def test_next_without_config_suggests_init(tmp_path: Path) -> None:
-    """配置不存在时 next 应当建议 init，且不抛错。"""
+    """配置不存在时 next 应当给出友好的 workspace 指引，且不抛错。"""
     res = runner.invoke(app, ["next", "--config", str(tmp_path / "missing.yaml")])
     assert res.exit_code == 0
+    assert "尚未找到配置" in res.output
     assert "mindforge init" in res.output
+    assert "mindforge workspace use" in res.output
+    assert "--workspace" in res.output
+    assert "--config" in res.output
 
 
 def test_next_empty_vault_suggests_inbox_or_index(tmp_path: Path) -> None:
@@ -203,7 +204,8 @@ def test_next_after_scan_uses_configured_state_path(tmp_path: Path) -> None:
     assert scan.exit_code == 0, scan.output
     assert res.exit_code == 0, res.output
     assert "state.json 还没建立" not in res.output
-    assert "process --limit" in res.output
+    assert "mindforge import" in res.output
+    assert "process --limit" not in res.output
 
 
 def test_next_json_format_is_parseable(tmp_path: Path) -> None:
@@ -257,7 +259,11 @@ def test_today_outputs_daily_loop_status_and_next_action(tmp_path: Path) -> None
 
 
 def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
-    """v0.6.1: start 是第一天入口，只读展示状态和安全边界。"""
+    """v0.6.1: start 是第一天入口，只读展示状态和安全边界。
+
+    中文学习型说明：first-run 主路径只解释“本地状态检查”和“model setup”，
+    不再把 .env/fake/demo/profile 作为普通用户需要理解的产品语义。
+    """
     cfg = _make_vault(tmp_path)
     cards = tmp_path / "vault" / "20-Knowledge-Cards"
     _write_card(cards, "approved", {
@@ -267,10 +273,31 @@ def test_start_outputs_onboarding_state_and_safety(tmp_path: Path) -> None:
     res = runner.invoke(app, ["start", "--config", str(cfg)])
     assert res.exit_code == 0, res.output
     assert "MindForge start" in res.output
-    assert "Onboarding status" in res.output
-    assert "human_approved" in res.output
-    assert "Next actions" in res.output
-    assert "不读 .env" in res.output
+    assert "First-run checklist" in res.output
+    assert "Drafts:" in res.output
+    assert "Next action:" in res.output
+    assert "只做本地状态检查" in res.output
+    for legacy_term in (".env", "fake", "demo", "profile"):
+        assert legacy_term not in res.output
+
+
+def test_start_checklist_matches_first_run_product_path(tmp_path: Path) -> None:
+    """start checklist 只展示 workspace/model/source/processing/draft 五个产品状态。
+
+    中文学习型说明：start 是第一天入口，不是 doctor 的长诊断输出。这里锁住
+    async processing 心智：用户看见 run 状态，再去 runs/status/watch status
+    继续观察，而不是回到同步 scan/process。
+    """
+
+    cfg = _make_vault(tmp_path)
+
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    for label in ("Workspace:", "Model setup:", "Sources:", "Processing:", "Drafts:", "Next action:"):
+        assert label in res.output
+    for forbidden in ("mindforge scan", "mindforge process", "fake", ".env", " env", "demo", "profile"):
+        assert forbidden not in res.output
 
 
 def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
@@ -287,10 +314,14 @@ def test_start_suggestions_keep_current_vault(tmp_path: Path) -> None:
 
 
 def test_start_missing_config_suggests_init(tmp_path: Path) -> None:
-    """未 init 场景要直接指向 init，而不是抛 Python traceback。"""
+    """未 init 场景要给出友好的 workspace 指引，而不是抛 Python traceback。"""
     res = runner.invoke(app, ["start", "--config", str(tmp_path / "missing.yaml")])
     assert res.exit_code == 0, res.output
-    assert "mindforge init --interactive" in res.output
+    assert "尚未找到配置" in res.output
+    assert "mindforge init" in res.output
+    assert "mindforge workspace use" in res.output
+    assert "--workspace" in res.output
+    assert "--config" in res.output
 
 
 def test_start_json_from_non_repo_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -349,6 +380,35 @@ def test_start_does_not_read_env_or_network_or_write_obsidian(
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
+def test_start_first_run_copy_uses_model_setup_language_not_legacy_modes(tmp_path: Path) -> None:
+    """start 是 first-run read path，不应把 fake/env/profile 讲成产品语义。"""
+
+    cfg = _make_vault(tmp_path)
+
+    res = runner.invoke(app, ["start", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "model setup" in res.output.lower()
+    for token in ("fake provider", ".env", " env", "demo", "profile fake"):
+        assert token not in res.output.lower()
+
+
+def test_next_does_not_recommend_scan_or_process_for_first_run_sources(tmp_path: Path) -> None:
+    """有 source 但没有 state 时，推荐 async run 主路径而不是旧同步路径。"""
+
+    cfg = _make_vault(tmp_path)
+    inbox = tmp_path / "vault" / "00-Inbox" / "ManualNotes"
+    (inbox / "first.md").write_text("# First\n\nbody\n", encoding="utf-8")
+
+    res = runner.invoke(app, ["next", "--config", str(cfg)])
+
+    assert res.exit_code == 0, res.output
+    assert "mindforge watch add" in res.output or "mindforge import" in res.output
+    assert "mindforge runs list" in res.output or "runs show" in res.output
+    assert "mindforge scan" not in res.output
+    assert "mindforge process" not in res.output
+
+
 def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
     """空状态也要像产品：告诉用户下一步，而不是只输出 no match。"""
     cfg = _make_vault(tmp_path)
@@ -356,7 +416,10 @@ def test_daily_loop_empty_states_have_next_action_hints(tmp_path: Path) -> None:
     approve = runner.invoke(app, ["approve", "list", "--config", str(cfg)])
     assert approve.exit_code == 0, approve.output
     assert "没有待 approve" in approve.output
-    assert "profile fake" in approve.output
+    assert "mindforge watch add" in approve.output
+    assert "mindforge runs list" in approve.output
+    assert "profile fake" not in approve.output
+    assert "demo/testing" not in approve.output
 
     recall = runner.invoke(app, ["recall", "--config", str(cfg), "--query", "missing"])
     assert recall.exit_code == 0, recall.output
@@ -679,14 +742,15 @@ def test_config_show_and_doctor_report_paths_and_safety(tmp_path: Path) -> None:
     assert show.exit_code == 0, show.output
     assert "MindForge config show" in show.output
     assert "vault.root" in show.output
-    assert "active_provider: fake" in show.output
+    assert "model setup" in show.output
+    assert "active_provider" not in show.output
     assert "calls_real_llm" in show.output
     assert "False" in show.output
 
     doctor = runner.invoke(app, ["config", "doctor", "--config", str(cfg)])
     assert doctor.exit_code == 0, doctor.output
     assert "package assets" in doctor.output
-    assert "env policy" in doctor.output
+    assert "llm policy" in doctor.output
     assert "config looks safe" in doctor.output
 
 
@@ -754,24 +818,18 @@ def test_setup_dry_run_and_config_show_from_non_repo_cwd_no_env(
 
     setup = runner.invoke(app, ["setup", "--config", str(run_dir / "new.yaml"), "--vault", str(tmp_path / "vault"), "--dry-run"])
     assert setup.exit_code == 0, setup.output
-    assert "secrets stay in env/.env" in setup.output
+    assert "provider keys stay in Web Setup" in setup.output
+    assert "local secret" in setup.output
     assert "no LLM call" in setup.output
     assert not (run_dir / "new.yaml").exists()
     assert not (tmp_path / "vault" / "90-System" / "MindForge" / "Staging").exists()
 
 
-def test_dogfood_plan_lists_safe_copyable_loop() -> None:
-    """v0.6.5: dogfood plan 是只读命令地图，不是自动 runner。"""
-    res = runner.invoke(app, ["dogfood", "plan", "--vault", "/tmp/disposable-vault"])
-    assert res.exit_code == 0, res.output
-    for command, _note in _dogfood_command_snippets(Path("/tmp/disposable-vault")):
-        assert command in res.output
-    assert "disposable non-sensitive copy" in res.output
-    assert "no .env" in res.output
-    assert "no real LLM" in res.output
-    assert "no Obsidian formal-note writes" in res.output
-    assert "RAG enabled" not in res.output
-    assert "plugin enabled" not in res.output
+def test_legacy_runbook_command_is_not_registered() -> None:
+    """旧 runbook command 已迁移为进程入口 redirect，不再是 Typer 命令组。"""
+    res = runner.invoke(app, ["removed-local-runbook", "plan", "--vault", "/tmp/disposable-vault"])
+    assert res.exit_code != 0
+    assert "No such command" in res.output
 
 
 def test_approve_show_previews_frontmatter_without_approving_or_env(
@@ -805,20 +863,19 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
     assert 'status: "ai_draft"' in card.read_text(encoding="utf-8")
 
 
-def test_dogfooding_docs_and_checklist_exist_and_keep_boundaries() -> None:
-    """README-first 文档必须强调非敏感、安全边界。"""
+def test_readme_primary_path_keeps_safety_boundaries() -> None:
+    """README-first 文档必须强调真实本地主路径和安全边界。"""
     root = Path(__file__).resolve().parent.parent
     doc = root / "README.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
     for required in [
         "non-sensitive",
-        "真实 LLM 只在你配置 `MINDFORGE_LLM_API_KEY`",
-        "No RAG / embedding",
-        "No Obsidian plugin",
+        "真实模型",
+        "No RAG",
         "No automatic approve",
         "mindforge status",
-        "mindforge obsidian stage",
+        "mindforge web",
     ]:
         assert required in text
 
@@ -831,7 +888,7 @@ def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
     text = doc.read_text(encoding="utf-8")
     for boundary in (
         "Real LLM enabled by default",
-        "does not print `.env` secret values",
+        "Keep API keys in the local secret store",
         "No formal Obsidian note writes",
         "RAG / embedding",
         "Obsidian plugin",
@@ -1025,10 +1082,10 @@ def test_source_document_is_immutable_contract() -> None:
         doc.raw_text = "tampered"  # type: ignore[misc]
 
 
-def test_demo_vault_exists_and_has_minimum_assets() -> None:
-    """examples/demo-vault/ 必须存在且包含最小资产，供文档与 smoke 引用。"""
-    root = Path(__file__).resolve().parent.parent / "examples" / "demo-vault"
-    assert root.exists(), "examples/demo-vault/ 必须存在"
+def test_fixture_vault_exists_and_has_minimum_assets() -> None:
+    """examples/fixture-vault/ 是测试 fixture，不是用户主路径。"""
+    root = Path(__file__).resolve().parent.parent / "examples" / "fixture-vault"
+    assert root.exists(), "examples/fixture-vault/ 必须存在"
     assert (root / "README.md").exists()
     assert (root / "00-Inbox" / "Cubox").is_dir()
     assert (root / "00-Inbox" / "WebClips").is_dir()
@@ -1038,15 +1095,15 @@ def test_demo_vault_exists_and_has_minimum_assets() -> None:
     assert len(cards) >= 2
 
 
-def test_demo_vault_does_not_contain_secrets() -> None:
-    """demo vault 必须不含任何 secret 关键字 / 真实 token / .env。"""
-    root = Path(__file__).resolve().parent.parent / "examples" / "demo-vault"
+def test_fixture_vault_does_not_contain_secrets() -> None:
+    """fixture vault 必须不含任何 secret 关键字 / 真实 token / .env。"""
+    root = Path(__file__).resolve().parent.parent / "examples" / "fixture-vault"
     forbidden = ["sk-ant-", "sk-proj-", "Bearer ", "ANTHROPIC_API_KEY=", "OPENAI_API_KEY="]
     for p in root.rglob("*"):
         if not p.is_file():
             continue
         if p.name == ".env":
-            raise AssertionError("demo vault 不能含 .env")
+            raise AssertionError("fixture vault 不能含 .env")
         text = p.read_text(encoding="utf-8", errors="ignore")
         for f in forbidden:
             assert f not in text, f"{p} 含敏感片段 {f!r}"

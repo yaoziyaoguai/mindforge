@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,7 +24,7 @@ from mindforge.approval_service import (
     resolve_candidate_by_card_id,
 )
 from mindforge.approval_refs import resolve_pending_approval_ref
-from mindforge.config import MindForgeConfig, load_mindforge_config
+from mindforge.config import MindForgeConfig, WikiConfig, load_mindforge_config
 
 
 def _write_card(cards_dir: Path, name: str, frontmatter: dict[str, object], body: str = "body") -> Path:
@@ -198,6 +199,78 @@ def test_approve_requires_explicit_target_and_promotes_only_that_card(tmp_path: 
     assert "status: human_approved" in target.read_text(encoding="utf-8")
     assert other.read_text(encoding="utf-8") == other_before
     assert formal_note.read_text(encoding="utf-8") == note_before
+
+
+def test_approve_does_not_rebuild_wiki_when_auto_rebuild_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cfg.wiki.auto_rebuild_on_approve=false 时 approve 不触发 Wiki 写入。"""
+
+    cfg, cards, _note = _make_cfg(tmp_path)
+    cfg = replace(
+        cfg,
+        wiki=WikiConfig(mode="deterministic", model=None, auto_rebuild_on_approve=False),
+    )
+    target = _write_card(cards, "draft", {"id": "draft", "status": "ai_draft"})
+
+    def _unexpected_rebuild(_cfg: MindForgeConfig):
+        raise AssertionError("auto_rebuild_on_approve=false 不应触发 Wiki rebuild")
+
+    monkeypatch.setattr("mindforge.wiki_service.rebuild_main_wiki", _unexpected_rebuild)
+
+    result = approve_explicit_card(cfg, target)
+
+    assert result.error is None
+    assert result.wiki_rebuild_error is None
+    assert "status: human_approved" in target.read_text(encoding="utf-8")
+    assert not (cfg.vault.root / "30-Wiki" / "Main-Wiki.md").exists()
+
+
+def test_approve_rebuilds_deterministic_wiki_when_auto_rebuild_enabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """approve 自动 rebuild 只能调用 deterministic rebuild，不走 LLM synthesis。"""
+
+    cfg, cards, _note = _make_cfg(tmp_path)
+    target = _write_card(cards, "draft", {"id": "draft", "status": "ai_draft"})
+    calls = {"deterministic": 0, "llm": 0}
+
+    def _fake_deterministic_rebuild(_cfg: MindForgeConfig):
+        calls["deterministic"] += 1
+
+    def _fake_llm_rebuild(_cfg: MindForgeConfig):
+        calls["llm"] += 1
+
+    monkeypatch.setattr("mindforge.wiki_service.rebuild_main_wiki", _fake_deterministic_rebuild)
+    monkeypatch.setattr("mindforge.wiki_service.llm_rebuild_wiki", _fake_llm_rebuild)
+
+    result = approve_explicit_card(cfg, target)
+
+    assert result.error is None
+    assert calls == {"deterministic": 1, "llm": 0}
+
+
+def test_approve_keeps_approval_when_auto_wiki_rebuild_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wiki rebuild 失败不回滚 approve；错误只进入结构化结果。"""
+
+    cfg, cards, _note = _make_cfg(tmp_path)
+    target = _write_card(cards, "draft", {"id": "draft", "status": "ai_draft"})
+
+    def _boom(_cfg: MindForgeConfig):
+        raise RuntimeError("simulated wiki failure")
+
+    monkeypatch.setattr("mindforge.wiki_service.rebuild_main_wiki", _boom)
+
+    result = approve_explicit_card(cfg, target)
+
+    assert result.error is None
+    assert "status: human_approved" in target.read_text(encoding="utf-8")
+    assert result.wiki_rebuild_error == "simulated wiki failure"
 
 
 def test_human_approved_card_is_idempotent_not_reapproved(tmp_path: Path) -> None:

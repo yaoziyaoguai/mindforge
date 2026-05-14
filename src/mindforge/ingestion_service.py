@@ -56,17 +56,41 @@ from .watch_registry import (
 )
 
 
+class SourcePathError(ValueError):
+    """用户级 source path 错误 —— 文件不存在/不可读等。
+
+    Web 层可安全转为 HTTP 400；CLI 输出友好消息不打印 traceback。
+    与内部 RuntimeError（bug/strategy error）严格区分。
+    """
+
+
 @dataclass(frozen=True)
 class IngestionSummary:
     mode: str
     target: Path
     counts: dict[str, int]
     skipped: tuple[SkippedDocumentDetail, ...] = ()
+    errors: tuple[str, ...] = ()
     provider_failure: ProviderFailureDetail | None = None
     registry_result: AddWatchResult | None = None
     registry_path: Path | None = None
     strategy: StrategySelection | None = None
     diff_counts: dict[str, int] | None = None
+
+
+@dataclass(frozen=True)
+class WatchScanSourceDetail:
+    """单个 watched source 的 scan 结果，供 CLI 创建 background processing run。
+
+    中文学习型说明：CLI watch scan 命令需要知道每个 source 是否有新增/变更文件，
+    才能为有变更的 source 创建 background processing run。这个 dataclass 是
+    watch_scan_sources() 的 per-source 输出，不包含 processing 结果。
+    """
+
+    source_id: str
+    path: Path
+    has_changes: bool
+    diff_counts: dict[str, int]
 
 
 @dataclass(frozen=True)
@@ -77,6 +101,10 @@ class WatchScanSummary:
     counts: dict[str, int]
     diff_counts: dict[str, int]
     source_ids: tuple[str, ...]
+    source_details: tuple[WatchScanSourceDetail, ...] = ()
+    skipped: tuple[SkippedDocumentDetail, ...] = ()
+    errors: tuple[str, ...] = ()
+    provider_failure: ProviderFailureDetail | None = None
 
 
 def import_sources(
@@ -114,14 +142,15 @@ def watch_add_source(
     frequency: str = "manual",
     recursive: bool | None = None,
 ) -> IngestionSummary:
-    """注册 watched source，并立即处理当前内容。
+    """注册 watched source，并同步处理当前内容的底层服务。
 
-    第一版 watch add 不是后台监听：它只登记来源 + 做一次当前内容 ingestion。
-    未来 polling/hook 可以复用 registry 中的 fingerprint/last_seen 字段。
+    中文学习型说明：CLI/Web 用户主路径不直接调用这个函数作为产品体验，
+    而是先创建 durable processing run，再由后台 worker 复用这段同步逻辑。
+    这样 source registration 与 processing lifecycle 可以分开表达。
     """
 
     if not target.exists():
-        raise RuntimeError(f"File not found: {target}")
+        raise SourcePathError(f"File or folder not found: {target}. Please verify the path exists.")
     selected_strategy = strategy or resolve_strategy_selection(cfg)
     registry_path = registry_path_for_vault(cfg.vault.root)
     registry_result = add_watch_source(
@@ -186,19 +215,24 @@ def watch_scan_sources(
     ref: str | None = None,
     all_sources: bool = False,
     strategy: StrategySelection | None = None,
+    process_changes: bool = True,
 ) -> WatchScanSummary:
-    """扫描已保存 watched sources，并按 baseline diff 决定是否进入 ingestion。
+    """扫描已保存 watched sources, 并按 baseline diff 决定是否进入 ingestion.
 
-    中文学习型说明：schedule/baseline 只决定“哪个顶层 source due、哪些文件新增
-    或变化”。它不生成卡片、不删除知识；真正生成 ai_draft 仍委托现有
-    ingestion pipeline。Source deletion never deletes approved knowledge.
+    schedule/baseline 只决定"哪个顶层 source due, 哪些文件新增或变化".
+    当 process_changes=True (worker 路径) 时, 变更文件直接进入 ingestion pipeline
+    同步处理. 当 process_changes=False (CLI 路径) 时, 只做 scan + diff + registry
+    更新, 不调用 _ingest_targets_summary(); CLI 调用方负责为有变更的 source
+    创建 background ProcessingRun.
+
+    Source deletion never deletes approved knowledge.
     Knowledge reduction is always manual. Watch is additive by default.
     """
 
     registry_path = registry_path_for_vault(cfg.vault.root)
     if ref:
         source = find_watch_source(cfg.vault.root, registry_path, ref)
-        candidates = [source] if source is not None and not source.is_default else []
+        candidates = [source] if source is not None else []
     else:
         candidates = [
             source
@@ -211,6 +245,10 @@ def watch_scan_sources(
     not_due = 0
     missing = 0
     scanned_ids: list[str] = []
+    source_details: list[WatchScanSourceDetail] = []
+    skipped_details: list[SkippedDocumentDetail] = []
+    error_details: list[str] = []
+    provider_failure: ProviderFailureDetail | None = None
 
     for source in candidates:
         if source is None:
@@ -247,6 +285,12 @@ def watch_scan_sources(
                 "skipped": 0,
             }
             _merge_counts(diff_totals, source_diff)
+            source_details.append(WatchScanSourceDetail(
+                source_id=source.id,
+                path=source.path,
+                has_changes=False,
+                diff_counts=source_diff,
+            ))
             update_watch_source(
                 cfg.vault.root,
                 registry_path,
@@ -263,7 +307,11 @@ def watch_scan_sources(
         baseline, source_diff = _build_source_baseline(cfg, source)
         _merge_counts(diff_totals, source_diff)
         changed_targets = _changed_targets_from_baseline(baseline, source_diff)
-        if changed_targets:
+        has_changes = bool(changed_targets)
+        source_failed = False
+
+        if process_changes and changed_targets:
+            # worker 路径：同步处理变更文件
             effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
             summary = _ingest_targets_summary(
                 cfg,
@@ -273,19 +321,68 @@ def watch_scan_sources(
                 strategy=effective_strategy,
             )
             _merge_counts(totals, summary.counts)
-        update_watch_source(
-            cfg.vault.root,
-            registry_path,
-            source.id,
-            last_seen_at=_now(),
-            last_processed_at=_now() if changed_targets else source.last_processed_at,
-            last_scan_at=_now(),
-            next_scan_at=next_scan_after(_now(), source.frequency),
-            status="active",
-            error=None,
-            baseline=baseline,
+            skipped_details.extend(summary.skipped)
+            error_details.extend(summary.errors)
+            if summary.provider_failure is not None:
+                provider_failure = summary.provider_failure
+            source_failed = bool(summary.counts.get("failed"))
+
+        source_details.append(WatchScanSourceDetail(
+            source_id=source.id,
+            path=source.path,
+            has_changes=has_changes,
             diff_counts=source_diff,
-        )
+        ))
+
+        # registry 更新：process_changes=False 时只更新 scan 时间戳和 diff_counts，
+        # 不更新 baseline（留给 worker 处理完后再更新），避免 worker 找不到变更。
+        if process_changes:
+            # watch retry 边界：source-level last_processed_at 只在真正成功时更新。
+            # 如果 run failed（LLM error / model setup incomplete），保持旧值或 null，
+            # 确保下次 scan 可以 retry。baseline item last_processed_at 同理：
+            # 成功处理的文件标记 now，失败的保持 null 以便下次 retry。
+            source_processed_ok = bool(changed_targets) and not source_failed
+            source_last_processed = (
+                _now() if source_processed_ok else source.last_processed_at
+            )
+            if source_processed_ok:
+                changed_set = {p.resolve() for p in changed_targets}
+                for key, item in baseline.items():
+                    if item.path.resolve() in changed_set:
+                        baseline[key] = WatchFileSnapshot(
+                            relative_path=item.relative_path,
+                            path=item.path,
+                            content_hash=item.content_hash,
+                            size=item.size,
+                            mtime=item.mtime,
+                            last_seen_at=item.last_seen_at,
+                            last_processed_at=_now(),
+                            status=item.status,
+                            skipped_reason=item.skipped_reason,
+                        )
+            update_watch_source(
+                cfg.vault.root,
+                registry_path,
+                source.id,
+                last_seen_at=_now(),
+                last_processed_at=source_last_processed,
+                last_scan_at=_now(),
+                next_scan_at=next_scan_after(_now(), source.frequency),
+                status="error" if source_failed else "active",
+                error="one or more sources failed" if source_failed else None,
+                baseline=baseline,
+                diff_counts=source_diff,
+            )
+        else:
+            update_watch_source(
+                cfg.vault.root,
+                registry_path,
+                source.id,
+                last_seen_at=_now(),
+                last_scan_at=_now(),
+                next_scan_at=next_scan_after(_now(), source.frequency),
+                diff_counts=source_diff,
+            )
 
     return WatchScanSummary(
         scanned=scanned,
@@ -294,6 +391,10 @@ def watch_scan_sources(
         counts=totals,
         diff_counts=diff_totals,
         source_ids=tuple(scanned_ids),
+        source_details=tuple(source_details),
+        skipped=tuple(skipped_details),
+        errors=tuple(error_details),
+        provider_failure=provider_failure,
     )
 
 
@@ -323,7 +424,7 @@ def _ingest_targets_summary(
 ) -> IngestionSummary:
     target_exists = all(path.exists() for path in target) if isinstance(target, list) else target.exists()
     if not target_exists:
-        raise RuntimeError(f"File not found: {target}")
+        raise SourcePathError(f"File or folder not found: {target}. Please verify the path exists.")
     counts = {"processed": 0, "skipped": 0, "failed": 0, "seen": 0}
     mux = SourceMux()
     results: list = []
@@ -362,9 +463,11 @@ def _ingest_targets_summary(
             strategy=strategy.strategy_id,
         )
     except ProviderError as exc:
+        error_details = []
         for result in results:
             counts["seen"] += 1
             counts["failed"] += 1
+            error_details.append(str(exc))
         skipped_details = []
         for _result, doc in duplicate_skips:
             counts["seen"] += 1
@@ -379,6 +482,7 @@ def _ingest_targets_summary(
             target=target,
             counts=counts,
             skipped=tuple(skipped_details),
+            errors=tuple(error_details),
             provider_failure=provider_failure_detail(cfg, str(exc)),
             strategy=strategy,
         )
@@ -390,6 +494,7 @@ def _ingest_targets_summary(
     processed_sources = _build_processed_source_index(parts.checkpoint)
     processed_content_hashes = _build_processed_content_hash_index(parts.checkpoint)
     skipped_details: list[SkippedDocumentDetail] = []
+    error_details: list[str] = []
     with RunLogger(cfg.state.runs_path, command=command) as logger:
         parts.pipeline.logger = logger
         for result, doc in duplicate_skips:
@@ -410,6 +515,8 @@ def _ingest_targets_summary(
             counts["seen"] += 1
             if not result.ok:
                 emit_source_error(result=result, logger=logger, counts=counts)
+                if result.error:
+                    error_details.append(result.error)
                 continue
             doc = result.document
             assert doc is not None
@@ -480,6 +587,8 @@ def _ingest_targets_summary(
                         reason=message or "pipeline_skipped",
                         matched_record=None,
                     ))
+                elif status == "failed" and message:
+                    error_details.append(message)
             except ProviderError as exc:
                 friendly = friendly_missing_key_error(str(exc))
                 if friendly:
@@ -497,6 +606,7 @@ def _ingest_targets_summary(
         target=target,
         counts=counts,
         skipped=tuple(skipped_details),
+        errors=tuple(error_details),
         strategy=strategy,
     )
 
@@ -595,13 +705,22 @@ def _changed_targets_from_baseline(
     baseline: dict[str, WatchFileSnapshot],
     diff_counts: dict[str, int],
 ) -> list[Path]:
-    if not diff_counts.get("added") and not diff_counts.get("changed"):
-        return []
-    return [
-        item.path
-        for item in baseline.values()
-        if item.status in {"added", "changed"} and item.path.exists()
+    """返回需要进入 processing 的文件路径。
+
+    中文学习型说明：watch retry 边界——文件 unchanged 但 last_processed_at=null
+    说明之前从未成功处理过（上次 run failed / model error），必须重新处理。
+    否则用户修正模型配置后 retry 同一个 watched folder 会伪成功 no-output。
+    """
+    # 标准变更：added / changed
+    standard = [item for item in baseline.values() if item.status in {"added", "changed"}]
+    if standard:
+        return [item.path for item in standard if item.path.exists()]
+    # retry：unchanged 但从未成功处理过
+    retry = [
+        item for item in baseline.values()
+        if item.status == "unchanged" and item.last_processed_at is None
     ]
+    return [item.path for item in retry if item.path.exists()]
 
 
 def _relative_to_source(source: WatchedSource, path: Path) -> str:
@@ -661,7 +780,7 @@ def _build_processed_content_hash_index(checkpoint) -> dict[str, ProcessedSource
 
     中文学习型说明：同一个 source 的 unchanged 文件优先走 already_processed，
     不同路径但相同 parser content_hash 的文件走 duplicate_content_hash。
-    这样用户能区分“这个文件没变”和“这个内容已经从别处生成过知识”。
+    这样用户能区分"这个文件没变"和"这个内容已经从别处生成过知识"。
     """
 
     keys: dict[str, ProcessedSourceMatch] = {}
@@ -733,6 +852,7 @@ def _now() -> str:
 
 __all__ = [
     "IngestionSummary",
+    "WatchScanSourceDetail",
     "WatchScanSummary",
     "import_sources",
     "watch_scan_sources",

@@ -109,8 +109,12 @@ def build_pipeline(
     metadata = get_strategy_metadata(strategy)
     if client is None and metadata.provider_mode != "deterministic":
         from .llm import LLMClient, build_providers
+        from .secret_store import resolve_project_root_from_config
 
-        providers = build_providers(cfg.llm)
+        providers = build_providers(
+            cfg.llm,
+            project_root=resolve_project_root_from_config(cfg),
+        )
         client = LLMClient(llm_config=cfg.llm, providers=providers)
     strategy_ctx = StrategyContext(
         client=client,

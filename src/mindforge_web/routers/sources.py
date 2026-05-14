@@ -113,10 +113,10 @@ def import_local(_facade: WebFacade = Depends(get_facade)) -> UnavailableRespons
 @router.post("/import-cubox-json", response_model=UnavailableResponse)
 def import_cubox_json(_facade: WebFacade = Depends(get_facade)) -> UnavailableResponse:
     return UnavailableResponse(
-        reason="Cubox JSON Web import 尚未开放；当前只提供 honest unavailable，不伪造成功。",
+        reason="External account import 尚未开放；当前只提供 honest unavailable，不伪造成功。",
         next_action=NextAction(
-            label="Use Cubox dry-run",
-            description="用现有 CLI 验证 JSON export；不会联网或自动 approve。",
-            command="mindforge cubox dry-run --export <file.json>",
+            label="Use local source",
+            description="请先添加本地文件或文件夹 source；不会联网或自动 approve。",
+            href="/sources",
         ),
     )

@@ -232,7 +232,8 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
     assert "default_model: main" in cfg
     assert "models:" in cfg
     assert "routing:" in cfg
-    assert "MINDFORGE_LLM_API_KEY" in cfg
+    assert "local secret store" in cfg
+    assert "api_key_env:" not in cfg
     assert "active_profile:" not in cfg
     assert "profiles:" not in cfg
     assert "fake_fast" not in cfg
@@ -253,5 +254,5 @@ def test_completion_ledger_doc_exists_with_required_buckets():
         "`forbidden`",
     ):
         assert bucket in text, f"completion ledger missing bucket: {bucket}"
-    for gate in ("Real Cubox ingestion", "Real Obsidian", "RAG / embedding", "Public release"):
+    for gate in ("External account ingestion", "Real Obsidian", "RAG / embedding", "Public release"):
         assert gate in text

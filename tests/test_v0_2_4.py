@@ -199,8 +199,10 @@ def test_help_works() -> None:
     res = runner.invoke(app, ["--help"])
     assert res.exit_code == 0
     assert "MindForge" in res.output
-    for sub in ("scan", "process", "version", "telemetry", "project"):
+    for sub in ("web", "status", "doctor", "watch", "import", "approve", "library", "wiki", "version"):
         assert sub in res.output
+    for hidden in ("scan", " process ", "telemetry"):
+        assert hidden not in res.output
 
 
 def test_debug_flag_accepted(tmp_path: Path) -> None:

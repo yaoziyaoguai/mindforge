@@ -1,6 +1,6 @@
 """v0.7.14 — Obsidian workflow / next-action service 测试。
 
-学习要点：obsidian_workflow 只生成 dogfooding 导航 plan，不执行命令、不写
+学习要点：obsidian_workflow 只生成 staged workflow 导航 plan，不执行命令、不写
 正式 notes。CLI 负责展示，stage/preflight service 负责各自业务边界。
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 import socket
 from pathlib import Path
 
-from mindforge.obsidian_workflow import build_obsidian_next_plan, obsidian_dogfood_command_snippets
+from mindforge.obsidian_workflow import build_obsidian_next_plan, obsidian_workflow_command_snippets
 
 
 def test_obsidian_workflow_empty_vault_recommends_stage_path(tmp_path: Path) -> None:
@@ -67,13 +67,13 @@ def test_obsidian_workflow_demo_source_hint_and_checklist_order(tmp_path: Path) 
     assert plan.manual_inspection_steps == (
         "Inspect staged markdown and manifest by hand.",
         "Confirm backup expectations before any future write gate.",
-        "Record unclear output in a local dogfood note; see README.md.",
+        "Record unclear output in a local troubleshooting note; see README.md.",
     )
 
 
 def test_obsidian_workflow_command_snippets_stop_at_preflight(tmp_path: Path) -> None:
-    """dogfooding snippets 不包含 apply/write-back/plugin/RAG 已实现暗示。"""
-    commands = obsidian_dogfood_command_snippets(tmp_path / "vault", "note.md", tmp_path / "staged")
+    """workflow snippets 不包含 apply/write-back/plugin/RAG 已实现暗示。"""
+    commands = obsidian_workflow_command_snippets(tmp_path / "vault", "note.md", tmp_path / "staged")
     joined = "\n".join(f"{item.command}\n{item.note}" for item in commands)
 
     assert "obsidian preflight" in joined

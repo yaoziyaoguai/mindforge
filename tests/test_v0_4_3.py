@@ -27,7 +27,10 @@ def test_init_interactive_creates_vault_and_rewrites_choices(tmp_path: Path) -> 
         input=f"{target}\ny\nmain\n",
     )
     assert res.exit_code == 0, res.output
-    assert (target / "00-Inbox" / "ManualNotes").is_dir()
+    assert (target / "00-Inbox").is_dir()
+    # first-run 不预建分类子目录
+    for sub in ("ManualNotes", "WebClips", "ChatExports", "PDFs", "Docs"):
+        assert not (target / "00-Inbox" / sub).exists()
     assert not (tmp_path / ".env").exists()
 
     cfg_path = tmp_path / "configs" / "mindforge.yaml"

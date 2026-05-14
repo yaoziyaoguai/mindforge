@@ -159,7 +159,7 @@ def test_cli_scan_then_status(tmp_path: Path) -> None:
     assert r3.exit_code == 0, r3.output
     assert "items 总数：2" in r3.output
     assert "raw" in r3.output
-    assert "cubox_markdown" in r3.output
+    assert "imported_file" in r3.output
     assert "plain_markdown" in r3.output
     # M1.5 新增：runs dir 与最近一次 run 摘要必须出现
     assert "runs dir" in r3.output
@@ -223,24 +223,21 @@ def test_cli_scan_writes_run_jsonl(tmp_path: Path) -> None:
     assert by_event2.count("source_seen") == 0
 
 
-def test_cli_status_writes_run_jsonl(tmp_path: Path) -> None:
+def test_cli_status_does_not_write_run_jsonl(tmp_path: Path) -> None:
+    """status 是 read/query path，不应污染 processing/latest run。
+
+    中文学习型说明：scan/process 这类 command path 可以写 run events；
+    status 只能读取已有状态，否则用户会看到查询命令成为“最近一次 run”。
+    """
+
     cfg_path, _ = _build_vault(tmp_path)
     runs_dir = tmp_path / ".mindforge" / "runs"
 
     runner.invoke(app, ["scan", "--config", str(cfg_path)])
+    before = {path.name: path.read_text("utf-8") for path in runs_dir.glob("*.jsonl")}
     r = runner.invoke(app, ["status", "--config", str(cfg_path)])
     assert r.exit_code == 0, r.output
 
-    # 找出 command=status 的那份 jsonl（同秒生成时不能依赖排序）
-    status_events: list[dict] | None = None
-    for f in runs_dir.glob("*.jsonl"):
-        events = [json.loads(line) for line in f.read_text("utf-8").splitlines() if line.strip()]
-        if events and events[0].get("command") == "status":
-            status_events = events
-            break
-    assert status_events is not None, "no status run jsonl found"
-    statuses = [e for e in status_events if e["event"] == "status_reported"]
-    assert len(statuses) == 1
-    assert statuses[0]["items_count"] == 2
-    assert "by_status" in statuses[0]["counts"]
-    assert "by_source_type" in statuses[0]["counts"]
+    after = {path.name: path.read_text("utf-8") for path in runs_dir.glob("*.jsonl")}
+    assert after == before
+    assert all('"command": "status"' not in content for content in after.values())

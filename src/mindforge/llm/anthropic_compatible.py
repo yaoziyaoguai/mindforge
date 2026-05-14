@@ -46,21 +46,21 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 
-from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
+from mindforge.provider_defaults import DEFAULT_PROVIDER_TIMEOUT_SECONDS
+
+from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 _DEFAULT_VERSION = "2023-06-01"
 
 
 def _redact(s: str) -> str:
     """避免把可疑 secret 写到错误信息里。粗粒度脱敏：长度 > 12 的字母数字串视作可疑。"""
-    if not s:
-        return s
-    # 只做最小处理：去掉 Authorization / x-api-key 这种 header value
-    return s.replace("\n", " ")[:300]
+    return redact_provider_error_text(s)
 
 
 class AnthropicCompatibleProvider(LLMProvider):
@@ -81,7 +81,7 @@ class AnthropicCompatibleProvider(LLMProvider):
         self.base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._anthropic_version = anthropic_version or _DEFAULT_VERSION
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout_seconds or DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __repr__(self) -> str:
         # 主动安全 repr：只暴露 name 与 credential_present 标记，
@@ -97,7 +97,7 @@ class AnthropicCompatibleProvider(LLMProvider):
     # 工厂
     # ------------------------------------------------------------------
     @classmethod
-    def from_model_config(cls, mc: Any) -> AnthropicCompatibleProvider:
+    def from_model_config(cls, mc: Any, *, project_root: Path | None = None) -> AnthropicCompatibleProvider:
         # base_url：优先 env，再回落 yaml 中的 base_url
         base_url = ""
         if mc.base_url_env:
@@ -110,14 +110,15 @@ class AnthropicCompatibleProvider(LLMProvider):
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key 解析优先级：env var > local secret store > missing
+        # api_key 解析优先级：env var > workspace secret store > CWD fallback
         # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
         # env var mode 是 legacy/advanced deployment mode，仍可读取。
-        api_key = _resolve_api_key(mc.alias, mc.api_key_env)
+        # project_root 是 P0-2 修复的关键参数：provider 不再从 CWD 猜 secrets path。
+        api_key = _resolve_api_key(mc.alias, mc.api_key_env, project_root=project_root)
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
-                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
-                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
+                "Model setup is incomplete. Add a provider API key in Web Setup "
+                "or the local secret store, then retry processing."
             )
 
         # anthropic-version：可选，默认 2023-06-01
@@ -161,6 +162,8 @@ class AnthropicCompatibleProvider(LLMProvider):
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 resp = client.post(url, headers=headers, json=body)
+        except httpx.ReadTimeout:
+            raise ProviderError(_timeout_error_message()) from None
         except httpx.HTTPError as e:
             # 不打印 body（含 prompt） / 不打印 headers（含 api_key）
             raise ProviderError(f"HTTP 错误：{type(e).__name__}") from None
@@ -206,37 +209,39 @@ def _extract_text_from_content_blocks(data: dict[str, Any]) -> str | None:
     return "".join(parts)
 
 
-def _resolve_api_key(alias: str, api_key_env: str | None) -> str | None:
-    """API key 解析：env var > local secret store > None。
+def _timeout_error_message() -> str:
+    return (
+        "Provider timed out while waiting for the model endpoint. "
+        "Check the model endpoint, network/proxy, or increase timeout_seconds, then retry."
+    )
+
+
+def _resolve_api_key(
+    alias: str,
+    api_key_env: str | None,
+    *,
+    project_root: Path | None = None,
+) -> str | None:
+    """API key 解析：env var > workspace secret store > CWD fallback > None。
 
     中文学习型说明：Web 用户通过 Setup 输入的 key 存在 .mindforge/secrets.json；
     env var mode 是 legacy/advanced deployment mode。
 
-    Secret store 路径从 CWD 向上查找（与 env_loader 查找 .env 逻辑一致），
-    避免硬编码相对路径导致的跨目录 CLI 失败。
+    当 ``project_root`` 提供时，优先使用 workspace 锚定的 secrets path；
+    不再仅依赖 CWD 向上查找。这是 P0-2 修复的关键：processing worker 即使
+    CWD 在别的目录，也能找到正确 workspace 的 secrets。
     """
     # 1) env var（legacy/advanced mode）
     if api_key_env:
         value = os.environ.get(api_key_env)
         if value:
             return value
-    # 2) local secret store — 从 CWD 向上查找 .mindforge/secrets.json
-    from mindforge.secret_store import SecretStore
-    secrets_path = _find_secrets_store()
+    # 2) local secret store — 优先 workspace 锚点，fallback CWD 向上查找
+    from mindforge.secret_store import SecretStore, find_secret_store_path
+    secrets_path = find_secret_store_path(project_root=project_root)
     if secrets_path is not None:
         store = SecretStore(secrets_path)
         return store.get(alias)
-    return None
-
-
-def _find_secrets_store():
-    """从 CWD 向上查找 .mindforge/secrets.json，与 env_loader 模式一致。"""
-    from pathlib import Path
-    cur = Path.cwd().resolve()
-    for directory in (cur, *cur.parents):
-        candidate = directory / ".mindforge" / "secrets.json"
-        if candidate.is_file():
-            return candidate
     return None
 
 

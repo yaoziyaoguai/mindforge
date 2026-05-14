@@ -2,15 +2,15 @@
 
 中文学习型说明：
 - 本模块是 CLI/Web 之间可共享的本地状态 use-case 层；它复用 config、
-  provider_readiness、cubox_readiness、cards、checkpoint 等 core 能力。
-- 它不依赖 Typer/Rich/React/FastAPI，不读取 secret value，不调用 LLM/Cubox
-  API，也不写 vault。CLI 只负责参数和展示，避免 `cli.py` 变成新巨石。
-- `.env` 只做 key presence 解析：返回 key name 与来源，不返回等号右侧内容。
+  cards、checkpoint、model setup readiness 等 core 能力。
+- 它不依赖 Typer/Rich/React/FastAPI，不读取 secret value，不调用 LLM 或外部 API，
+  也不写 vault。CLI 只负责参数和展示，避免 `cli.py` 变成新巨石。
+- first-run status 只展示 model setup / local secret store 的产品语义，不把
+  legacy provider 诊断字段重新暴露成普通用户主路径。
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,9 +19,9 @@ from ..app_context import AppContext, build_app_context
 from ..cards import iter_cards
 from ..checkpoint import Checkpoint, CheckpointError
 from ..config import MindForgeConfig
-from ..cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from ..lexical_index import default_index_path
-from ..provider_readiness import build_readiness_report
+from ..model_setup_readiness import model_setup_readiness
+from mindforge_web.services.processing_run_service import list_processing_runs
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,6 @@ class LocalStatusSnapshot:
             "workspace": self.workspace,
             "provider": self.provider,
             "cubox": self.cubox,
-            "env_keys": self.env_keys,
             "sources": self.sources,
             "cards": self.cards,
             "recall": self.recall,
@@ -88,34 +87,26 @@ def build_local_status_snapshot(
     card_counts: dict[str, int] = {}
     for card in cards_scan.cards:
         card_counts[card.status] = card_counts.get(card.status, 0) + 1
-    env_keys = _env_key_statuses(cfg, cwd=cwd)
-    provider_report = build_readiness_report(cfg.llm)
-    cubox_report = inspect_cubox_config()
-    cubox_classification = classify_cubox_real_opt_in(cubox_report, allow_real=False)
+    model_readiness = model_setup_readiness(cfg)
     vault = _vault_status(cfg)
     workspace = _workspace_status(context)
     recall = _recall_status(cfg, approved_count=card_counts.get("human_approved", 0))
     safety = _safety_summary(
         cfg,
-        provider_report=provider_report,
-        env_keys=env_keys,
+        model_readiness=model_readiness,
         pending_drafts=card_counts.get("ai_draft", 0),
     )
-    warnings = _warnings(vault=vault, safety=safety, provider_report=provider_report)
+    sources = _source_statuses(cfg)
+    processing = _processing_status(cfg)
+    warnings = _warnings(vault=vault, safety=safety)
     return LocalStatusSnapshot(
         config_path=str(config_path),
         vault=vault,
         workspace=workspace,
-        provider=_provider_status(provider_report),
-        cubox={
-            "token_env_var": cubox_report.get("token_env_var"),
-            "token_present": bool(cubox_report.get("token_present", False)),
-            "opt_in_state": cubox_classification.get("opt_in_state"),
-            "next_action": cubox_classification.get("next_action"),
-            "network_called": False,
-        },
-        env_keys=env_keys,
-        sources=_source_statuses(cfg),
+        provider=_provider_status(model_readiness),
+        cubox={},
+        env_keys=[],
+        sources=sources,
         cards={
             "total": len(cards_scan.cards),
             "by_status": card_counts,
@@ -123,13 +114,23 @@ def build_local_status_snapshot(
         },
         recall=recall,
         safety=safety,
-        next_actions=_next_actions(vault=vault, card_counts=card_counts, recall=recall),
+        next_actions=_next_actions(
+            vault=vault,
+            sources=sources,
+            card_counts=card_counts,
+            processing=processing,
+            model_ready=model_readiness.ready,
+        ),
         warnings=warnings,
     )
 
 
 def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
-    """把 config/path 错误转成人能看懂的四段式解释。"""
+    """把 config/path 错误转成人能看懂的四段式解释。
+
+    中文学习型说明：错误提示只涉及 workspace path、config path，不含 API key、
+    token 或 secret。workspace 概念是用户唯一需要理解的产品概念。
+    """
 
     return FriendlyError(
         what_happened=f"MindForge 无法加载配置文件：{config_path}。{message}",
@@ -137,8 +138,13 @@ def friendly_config_error(config_path: Path, message: str) -> FriendlyError:
             "真实数据 CLI 需要先知道 vault、state 和 provider 配置在哪里；"
             "在配置未确认前继续执行容易误读或误写错误 workspace。"
         ),
-        how_to_fix="检查 --config 路径，或用安全模板生成一份本地配置。",
-        safe_next_command="mindforge config init --output configs/mindforge.yaml --vault <vault>",
+        how_to_fix=(
+            "1. 创建新 workspace：mindforge init\n"
+            "2. 切换到已有 workspace：mindforge workspace use /path/to/workspace\n"
+            "3. 临时指定 workspace：mindforge status --workspace /path/to/workspace\n"
+            "4. 高级方式指定配置：mindforge status --config /path/to/configs/mindforge.yaml"
+        ),
+        safe_next_command="mindforge init --interactive",
     )
 
 
@@ -157,14 +163,14 @@ def _vault_status(cfg: MindForgeConfig) -> dict[str, Any]:
     return {
         "path": str(root),
         "exists": root.exists(),
-        "readable": os.access(root, os.R_OK) if root.exists() else False,
+        "readable": root.exists(),
         "looks_like_mindforge": all(path.exists() and path.is_dir() for path in required.values()),
         "paths": {name: str(path) for name, path in required.items()},
         "path_states": {
             name: {
                 "exists": path.exists(),
                 "is_dir": path.is_dir(),
-                "readable": os.access(path, os.R_OK) if path.exists() else False,
+                "readable": path.exists(),
             }
             for name, path in required.items()
         },
@@ -209,25 +215,18 @@ def _workspace_status(context: AppContext) -> dict[str, Any]:
     }
 
 
-def _provider_status(report: dict[str, Any]) -> dict[str, Any]:
-    provider = report["provider"]
-    opt_in = report["opt_in"]
+def _provider_status(model_readiness) -> dict[str, Any]:
+    """返回 first-run 可见的 model setup 状态。
+
+    中文学习型说明：status/start/doctor 必须共用 ``model_setup_readiness``。
+    这里刻意不返回 legacy provider 兼容字段或 source-adapter 诊断字段，
+    避免 JSON 消费者再把它们渲染回用户主路径。
+    """
+
     return {
-        "active_profile": provider["active_profile"],
-        "opt_in_state": opt_in["opt_in_state"],
-        "can_run_real_smoke": opt_in["can_run_real_smoke"],
-        "blockers": list(opt_in["blockers"]),
-        "aliases": [
-            {
-                "alias": alias["alias"],
-                "type": alias["type"],
-                "in_active_profile": alias["in_active_profile"],
-                "api_key_env": alias.get("api_key_env"),
-                "api_key_present": bool(alias.get("api_key_present")),
-                "base_url_env_present": bool(alias.get("base_url_env_present")),
-            }
-            for alias in provider["aliases"]
-        ],
+        "model_setup_status": model_readiness.status,
+        "model_setup_label": model_readiness.label,
+        "missing_model_ids": list(model_readiness.missing_model_ids),
         "network_called": False,
     }
 
@@ -269,15 +268,13 @@ def _recall_status(cfg: MindForgeConfig, *, approved_count: int) -> dict[str, An
 def _safety_summary(
     cfg: MindForgeConfig,
     *,
-    provider_report: dict[str, Any],
-    env_keys: list[dict[str, Any]],
+    model_readiness,
     pending_drafts: int,
 ) -> dict[str, Any]:
     return {
         "local_only": True,
         "vault_path": str(cfg.vault.root),
-        "provider_state": provider_report["opt_in"]["opt_in_state"],
-        "env_status": "configured" if any(item["configured"] for item in env_keys) else "missing",
+        "model_setup": model_readiness.status,
         "write_mode": "explicit_approval_required",
         "pending_drafts": pending_drafts,
         "real_provider_calls": False,
@@ -289,13 +286,12 @@ def _warnings(
     *,
     vault: dict[str, Any],
     safety: dict[str, Any],
-    provider_report: dict[str, Any],
 ) -> list[str]:
     warnings: list[str] = []
     if vault["is_real_environment"]:
         warnings.append("Real-looking vault is active; writes require explicit user action.")
-    if provider_report["opt_in"]["opt_in_state"] not in {"fake_default", "env_only"}:
-        warnings.append("Real provider profile may be active; status checks still do not call LLM.")
+    if safety["model_setup"] != "ready":
+        warnings.append("Model setup needs attention; status checks still do not call LLM.")
     if safety["pending_drafts"]:
         warnings.append("ai_draft cards are pending review; approval requires explicit confirmation.")
     return warnings
@@ -304,77 +300,42 @@ def _warnings(
 def _next_actions(
     *,
     vault: dict[str, Any],
+    sources: list[dict[str, Any]],
     card_counts: dict[str, int],
-    recall: dict[str, Any],
+    processing: dict[str, Any],
+    model_ready: bool,
 ) -> list[str]:
     actions: list[str] = []
     if not vault["exists"]:
         actions.append("mindforge init --interactive")
+        return actions
+    if not model_ready:
+        actions.append("mindforge web  # complete model setup with a provider key")
+    if not sources or not any(int(item.get("file_count", 0)) > 0 for item in sources):
+        actions.append("mindforge watch add <file-or-folder> or mindforge import <file-or-folder>")
+    if processing.get("failed_or_blocked"):
+        actions.append("mindforge runs list, then mindforge runs show <run_id>")
+        actions.append("retry processing after model setup or source issues are fixed")
     if card_counts.get("ai_draft", 0):
         actions.append("mindforge approve list")
-    if recall["approved_card_count"] == 0:
-        actions.append("mindforge approve show --card <draft> --show-content")
+    if not card_counts.get("ai_draft", 0) and not card_counts.get("human_approved", 0):
+        if processing.get("count", 0) > 0:
+            actions.append("mindforge runs list")
+        else:
+            actions.append("mindforge watch add <file-or-folder> or mindforge import <file-or-folder>")
     if not actions:
         actions.append("mindforge recall --query <keyword>")
-    return actions
+    return list(dict.fromkeys(actions))
 
 
-def _env_key_statuses(cfg: MindForgeConfig, *, cwd: Path) -> list[dict[str, Any]]:
-    dotenv = _read_dotenv_keys(cwd)
-    names = sorted(_interesting_env_names(cfg))
-    rows: list[dict[str, Any]] = []
-    for name in names:
-        sources: list[str] = []
-        if name in os.environ:
-            sources.append("process")
-        if name in dotenv:
-            sources.append(".env")
-        rows.append({"name": name, "configured": bool(sources), "sources": sources})
-    return rows
+def _processing_status(cfg: MindForgeConfig) -> dict[str, Any]:
+    """只读 processing run 摘要；不创建 run，也不修复 abandoned 状态到磁盘。"""
 
-
-def _interesting_env_names(cfg: MindForgeConfig) -> set[str]:
-    names = {"MINDFORGE_CUBOX_TOKEN"}
-    for model in cfg.llm.models.values():
-        for value in (model.api_key_env, model.base_url_env, model.version_env, model.model_env):
-            if value:
-                names.add(value)
-    return names
-
-
-def _read_dotenv_keys(start: Path) -> frozenset[str]:
-    path = _find_dotenv(start)
-    if path is None:
-        return frozenset()
-    keys: set[str] = set()
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                key = _parse_env_key_presence_only(line)
-                if key:
-                    keys.add(key)
-    except OSError:
-        return frozenset()
-    return frozenset(keys)
-
-
-def _find_dotenv(start: Path) -> Path | None:
-    cur = start.resolve()
-    for path in (cur, *cur.parents):
-        candidate = path / ".env"
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def _parse_env_key_presence_only(line: str) -> str | None:
-    """只解析等号左侧 key；调用方不得保存或展示 RHS secret value。"""
-
-    stripped = line.strip()
-    if not stripped or stripped.startswith("#") or "=" not in stripped:
-        return None
-    key = stripped.split("=", 1)[0].removeprefix("export ").strip()
-    return key if key.isidentifier() else None
+    records = list_processing_runs(cfg)
+    return {
+        "count": len(records),
+        "failed_or_blocked": any(record.status in {"failed", "partial_failed"} for record in records),
+    }
 
 
 def _is_real_environment(root: Path) -> bool:

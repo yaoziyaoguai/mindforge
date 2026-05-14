@@ -162,25 +162,24 @@ def test_init_creates_vault_and_configs(tmp_path: Path) -> None:
         ["init", "--vault", str(target), "--project-root", str(tmp_path)],
     )
     assert res.exit_code == 0, res.output
-    # vault 必备目录
+    # vault 必备目录 — first-run 只创建通用 inbox 入口，不预建分类子目录。
     for d in (
-        "00-Inbox/Cubox",
-        "00-Inbox/WebClips",
-        "00-Inbox/ChatExports",
-        "00-Inbox/PDFs",
-        "00-Inbox/Docs",
+        "00-Inbox",
         "20-Knowledge-Cards",
         "30-Projects",
         "80-Reviews",
         "90-System",
     ):
         assert (target / d).is_dir(), f"missing {d}"
+    assert not (target / "00-Inbox" / "Cubox").exists()
+    for sub in ("ManualNotes", "WebClips", "ChatExports", "PDFs", "Docs"):
+        assert not (target / "00-Inbox" / sub).exists(), f"unexpected {sub}"
     # configs
     assert (tmp_path / "configs" / "mindforge.yaml").exists()
     assert not (tmp_path / "configs" / "learning_tracks.yaml").exists()
     assert not (tmp_path / "configs" / "llm.example.yaml").exists()
-    # .env.example 而非 .env
-    assert (tmp_path / ".env.example").exists()
+    # first-run 不创建 shell key 模板，provider key 走 Web Setup / local secret store。
+    assert not (tmp_path / ".env.example").exists()
     assert not (tmp_path / ".env").exists()
     # next steps 提示
     assert "Next steps" in res.output
@@ -209,7 +208,8 @@ def test_init_mindforge_yaml_is_comment_preserving_real_dogfood_config(
     assert "models:" in text
     assert "active_profile:" not in text
     assert "profiles:" not in text
-    assert "api_key_env: MINDFORGE_LLM_API_KEY" in text
+    assert "API keys are stored in local secret store" in text
+    assert "api_key_env:" not in text
     assert "https://your-router.example.com/v1" in text
     assert "Do not put API keys in this YAML" in text
     assert "fake_fast" not in text

@@ -8,14 +8,20 @@ API 可以读取真实本地状态，但不能泄露 secret；approve 必须二�
 from __future__ import annotations
 
 from pathlib import Path
+import threading
+import time
 
 import yaml
 import pytest
 from fastapi.testclient import TestClient
 
 from mindforge.app_context import AppContextError
+from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
+from mindforge.ingestion_service import IngestionSummary
+from mindforge_web.services.processing_run_service import ProcessingRunRecord, _now, _run_worker, _safe_error_message
+from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 
 
 def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -143,6 +149,103 @@ This is safe draft body.
     return card
 
 
+def _write_approved_card(cards: Path, *, name: str = "approved.md") -> Path:
+    """写一张 Web API 测试用 approved card；不含 source 正文或 secret。"""
+
+    card = cards / name
+    card.write_text(
+        """---
+id: approved-web-1
+title: Approved Web Card
+status: human_approved
+track: agent-runtime
+tags:
+  - web
+source_type: manual_note
+source_path: 00-Inbox/ManualNotes/source-note.md
+source_title: Safe source
+value_score: 8
+created_at: 2026-05-08
+---
+
+## AI Summary
+
+Approved summary.
+""",
+        encoding="utf-8",
+    )
+    return card
+
+
+def test_wiki_rebuild_json_mode_overrides_config_mode_for_deterministic(tmp_path: Path) -> None:
+    """Web rebuild 按 JSON body 的 mode 执行，不能因 config wiki.mode=llm 回落误跑 LLM。"""
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["wiki"] = {"mode": "llm", "model": "missing"}
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    _write_approved_card(cards)
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/wiki/rebuild", json={"mode": "deterministic"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["mode"] == "deterministic"
+    assert data["included_cards"] == 1
+
+
+def test_wiki_rebuild_json_mode_runs_llm_branch(tmp_path: Path, monkeypatch) -> None:
+    """Web LLM 按钮传 JSON mode=llm 时后端必须进入 LLM rebuild 分支。"""
+
+    from mindforge.wiki_service import LLMWikiResult
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    called = {"value": False}
+
+    def _fake_llm_rebuild(_cfg):
+        called["value"] = True
+        return LLMWikiResult(
+            wiki_path=str(tmp_path / "Main-Wiki.md"),
+            included_cards=1,
+            section_count=1,
+            additional_cards=0,
+            warnings=[],
+            model_id="main",
+            last_rebuilt_at="2026-05-08T00:00:00+0800",
+        )
+
+    monkeypatch.setattr("mindforge.wiki_service.llm_rebuild_wiki", _fake_llm_rebuild)
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/wiki/rebuild", json={"mode": "llm"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert called["value"] is True
+    assert data["ok"] is True
+    assert data["mode"] == "llm"
+    assert data["model_id"] == "main"
+
+
+def test_setup_save_preserves_wiki_auto_rebuild_false(tmp_path: Path) -> None:
+    """Setup PATCH 中的 false 是显式用户选择，不能被当成未设置丢弃。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={"wiki_mode": "deterministic", "wiki_auto_rebuild_on_approve": False},
+    )
+
+    assert response.status_code == 200
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert raw["wiki"]["mode"] == "deterministic"
+    assert raw["wiki"]["auto_rebuild_on_approve"] is False
+
+
 def _write_approved(cards: Path) -> Path:
     card = cards / "approved.md"
     card.write_text(
@@ -216,6 +319,30 @@ def _client(tmp_path: Path, monkeypatch) -> tuple[TestClient, Path]:
     return TestClient(app), cards
 
 
+def _wait_for_processing_run(
+    client: TestClient,
+    run_id: str,
+    *,
+    timeout: float = 5.0,
+) -> dict:
+    """轮询后台 processing run，避免测试重新把 HTTP 请求变成同步等待。
+
+    中文学习型说明：Web 请求只负责启动后台任务；测试通过独立 status API
+    观察最终结果，锁定“启动边界”和“完成反馈边界”是两条不同链路。
+    """
+
+    deadline = time.monotonic() + timeout
+    latest: dict | None = None
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/processing/runs/{run_id}")
+        assert response.status_code == 200
+        latest = response.json()
+        if latest["status"] not in {"queued", "running"}:
+            return latest
+        time.sleep(0.05)
+    raise AssertionError(f"processing run {run_id} did not finish; latest={latest}")
+
+
 def test_web_workflow_library_and_source_visibility_return_card_content_not_source_raw(
     tmp_path: Path,
     monkeypatch,
@@ -269,6 +396,7 @@ def test_sources_api_exposes_frequency_due_and_baseline_counts(tmp_path: Path, m
     source.write_text("# Watched\n\nbody\n", encoding="utf-8")
 
     added = client.post("/api/sources/watch", json={"path": str(source), "frequency": "daily"})
+    _wait_for_processing_run(client, added.json()["run_id"])
     sources = client.get("/api/sources").json()
 
     assert added.status_code == 200
@@ -278,6 +406,653 @@ def test_sources_api_exposes_frequency_due_and_baseline_counts(tmp_path: Path, m
     assert watched["next_scan_at"]
     assert watched["due_status"] in {"Due", "Not due", "Manual"}
     assert "added" in watched["diff_counts"]
+
+
+def test_add_and_process_now_starts_background_run_and_draft_becomes_reviewable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Add and process now 只启动后台 run；draft 完成后才出现在 Review。"""
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "watched.md"
+    source.write_text("# Background Source\n\nbody worth keeping\n", encoding="utf-8")
+
+    response = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    )
+
+    assert response.status_code == 200
+    started = response.json()
+    assert started["run_id"]
+    assert started["processing_status"] in {"queued", "running"}
+    assert "background" in started["message"].lower()
+    assert "You can keep using MindForge." in started["message"]
+    assert "processed as ai_draft" not in started["message"]
+    assert all(action.get("href") != "/drafts" for action in started["next_actions"])
+
+    finished = _wait_for_processing_run(client, started["run_id"])
+    assert finished["status"] == "succeeded"
+    assert finished["summary"]["drafts"] == 1
+    assert finished["draft_ids"]
+    assert any(action.get("href") == "/drafts" for action in finished["next_actions"])
+
+    drafts = client.get("/api/drafts").json()
+    assert len(drafts["drafts"]) == 1
+    assert drafts["drafts"][0]["status"] == "ai_draft"
+    library = client.get("/api/library/cards").json()
+    assert library["stats"]["by_status"].get("human_approved", 0) == 0
+    assert not (tmp_path / "dogfood-vault" / "40-Wiki" / "Main-Wiki.md").exists()
+
+
+def test_process_now_starts_background_run_and_sources_expose_last_run_summary(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Sources 页 Process now 返回 run_id，刷新后能看到 last run summary。"""
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "watched.md"
+    source.write_text("# Existing Watch\n\nbody worth keeping\n", encoding="utf-8")
+    added = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+
+    response = client.post("/api/sources/watch/scan", params={"ref": added["watch_id"]})
+
+    assert response.status_code == 200
+    started = response.json()
+    assert started["run_id"]
+    assert started["processing_status"] in {"queued", "running"}
+    assert "background" in started["message"].lower()
+    assert "You can keep using MindForge." in started["message"]
+
+    finished = _wait_for_processing_run(client, started["run_id"])
+    assert finished["status"] == "succeeded"
+
+    sources = client.get("/api/sources").json()
+    watched = [item for item in sources["watched_sources"] if item["id"] == added["watch_id"]][0]
+    assert watched["last_run_summary"]["drafts"] == 1
+    assert watched["last_message"] == "Generated 1 AI draft."
+    assert watched["generated_draft_count"] == 1
+    assert watched["processing_status"] == "succeeded"
+
+
+def test_process_now_returns_existing_active_run_instead_of_spawning_duplicate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """重复点击同一个 source 不应制造多个并发 active run。
+
+    中文学习型说明：当前 Web async 是 request-spawn，不是 durable queue。
+    因此最小产品边界是“同一 source 已有 active run 时复用它”，避免旧 run 和
+    新 run 互相覆盖用户可见状态，也避免重复消耗模型调用。
+    """
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "slow-source.md"
+    source.write_text("# Slow Source\n\nbody worth keeping\n", encoding="utf-8")
+    gate = threading.Event()
+    calls = 0
+
+    from mindforge_web.services import web_source_service as source_service
+
+    original_scan = source_service.watch_scan_sources
+
+    def slow_scan(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        gate.wait(timeout=3)
+        return original_scan(*args, **kwargs)
+
+    monkeypatch.setattr(source_service, "watch_scan_sources", slow_scan)
+
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+    first = client.post("/api/sources/watch/scan", params={"ref": registered["watch_id"]}).json()
+    second = client.post("/api/sources/watch/scan", params={"ref": registered["watch_id"]}).json()
+    gate.set()
+    finished = _wait_for_processing_run(client, first["run_id"])
+
+    assert first["run_id"] == second["run_id"]
+    assert second["processing_status"] in {"queued", "running"}
+    assert "already running" in second["message"].lower()
+    assert calls == 1
+    assert finished["status"] == "succeeded"
+
+
+def test_stale_running_run_is_visible_as_failed_after_reload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """服务重启后的 orphan running run 必须变成用户可见失败。
+
+    中文学习型说明：daemon thread 不会跨进程恢复。与其让 Sources 永远显示
+    running，不如把超过阈值的 active run 标记为 abandoned failed，并给出
+    retry action。这样用户能理解状态并重新 Process now。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    source = tmp_path / "stale.md"
+    source.write_text("# Stale\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    stale = ProcessingRunRecord(
+        run_id="pr_stale_reload",
+        source_ref=registered["watch_id"],
+        source_path=str(source.resolve()),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        current_step="processing source",
+        message="Processing started in the background. You can keep using MindForge.",
+    )
+    _save_processing_run_record(cfg, stale)
+
+    run = client.get("/api/processing/runs/pr_stale_reload").json()
+    sources = client.get("/api/sources").json()
+    watched = next(item for item in sources["watched_sources"] if item["id"] == registered["watch_id"])
+
+    assert run["status"] == "failed"
+    assert run["current_step"] == "abandoned"
+    assert "did not finish" in run["message"]
+    assert any(action["label"] == "Retry processing" for action in run["next_actions"])
+    assert watched["processing_status"] == "failed"
+    assert watched["active_run_id"] is None
+    assert watched["last_error"]
+
+
+def test_worker_completion_does_not_overwrite_finalized_run(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """worker 最终完成不能覆盖已经 finalized 的 run。
+
+    中文学习型说明：Mina 审计指出过真实竞态：normalizer 先把 stale running
+    标为 failed，随后 worker 完成又写 succeeded。run lifecycle 必须单调：
+    一旦离开 queued/running，后台 worker 只能停止写最终状态，不能反向覆盖。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    entered_work = threading.Event()
+    release_work = threading.Event()
+    record = ProcessingRunRecord(
+        run_id="pr_finalized_guard",
+        source_ref="source-finalized",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="queued",
+        started_at=_now(),
+    )
+    _save_processing_run_record(cfg, record)
+
+    def slow_success() -> IngestionSummary:
+        entered_work.set()
+        release_work.wait(timeout=10)
+        return IngestionSummary(
+            mode="watch_scan",
+            target=tmp_path / "source.md",
+            counts={"seen": 1, "processed": 1, "skipped": 0, "failed": 0},
+        )
+
+    worker = threading.Thread(target=_run_worker, args=(cfg, record.run_id, slow_success))
+    worker.start()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        running = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.processing_run(record.run_id)
+        if running is not None and running.status == "running":
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("worker did not enter running state")
+    assert entered_work.wait(timeout=3)
+
+    finalized = ProcessingRunRecord(
+        run_id=record.run_id,
+        source_ref=record.source_ref,
+        source_path=record.source_path,
+        mode=record.mode,
+        status="failed",
+        started_at=record.started_at,
+        finished_at=_now(),
+        current_step="abandoned",
+        summary={"discovered": 0, "processed": 0, "drafts": 0, "skipped": 0, "errors": 1},
+        message="Processing did not finish.",
+        error_type="AbandonedProcessingRun",
+        error_message="abandoned by normalizer",
+    )
+    _save_processing_run_record(cfg, finalized)
+
+    release_work.set()
+    worker.join(timeout=3)
+    latest = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.processing_run(record.run_id)
+
+    assert latest is not None
+    assert latest.status == "failed"
+    assert latest.current_step == "abandoned"
+    assert latest.summary["errors"] == 1
+    assert latest.summary["drafts"] == 0
+    assert latest.error_message == "abandoned by normalizer"
+
+
+def test_fresh_heartbeat_prevents_long_running_false_abandoned(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """长时间运行但 heartbeat 新鲜的 run 不能被误判 abandoned。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_fresh_heartbeat",
+        source_ref="source-heartbeat",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at=_now(),
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_fresh_heartbeat"
+    ).json()
+
+    assert run["status"] == "running"
+    assert run["last_heartbeat_at"]
+    assert run["error_type"] is None
+
+
+def test_running_processing_run_response_exposes_step_and_heartbeat(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """running run 要展示当前 step/heartbeat，不能只显示 discovered=0。
+
+    中文学习型说明：真实 provider 调用可能持续几十秒。用户在 release 主路径
+    看到 running 时，至少要知道 worker 仍在处理模型调用附近的阶段，而不是
+    误以为系统卡在空扫描或伪成功。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_running_visible",
+        source_ref="source-visible",
+        source_path=str(tmp_path / "source.md"),
+        mode="import",
+        status="running",
+        started_at=_now(),
+        last_heartbeat_at=_now(),
+        current_step="calling model: triage",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_running_visible"
+    ).json()
+
+    assert run["status"] == "running"
+    assert run["current_step"] == "calling model: triage"
+    assert run["last_heartbeat_at"]
+    assert "calling model" in run["message"].lower()
+
+
+def test_stale_heartbeat_marks_run_abandoned(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """heartbeat stale 才能把 active run 收敛为 abandoned failed。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_stale_heartbeat",
+        source_ref="source-heartbeat",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+
+    run = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_stale_heartbeat"
+    ).json()
+
+    assert run["status"] == "failed"
+    assert run["current_step"] == "abandoned"
+    assert run["error_type"] == "AbandonedProcessingRun"
+
+
+def test_processing_run_get_normalizes_stale_run_without_writing_disk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """GET run 只能返回 normalized view，不能在 read path 写磁盘。
+
+    中文学习型说明：stale/orphan visibility 是用户体验需求，但 GET/read path
+    仍应遵守 CQS。这里锁定行为：API 返回 failed/abandoned 视图，但 JSON 文件
+    仍保持原始 running 状态，真正状态推进只由 worker 或显式 command path 写盘。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_get_no_write",
+        source_ref="source-get",
+        source_path=str(tmp_path / "source.md"),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+    run_path = tmp_path / ".mindforge" / "processing_runs" / "pr_get_no_write.json"
+    before = run_path.read_text(encoding="utf-8")
+
+    response = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_get_no_write"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["current_step"] == "abandoned"
+    assert run_path.read_text(encoding="utf-8") == before
+
+
+def test_sources_normalizes_stale_run_without_writing_disk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Sources read path 展示 abandoned，但不能顺手 repair run JSON。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    source = tmp_path / "source-for-sources.md"
+    source.write_text("# Source For Sources\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_sources_no_write",
+        source_ref=registered["watch_id"],
+        source_path=str(source.resolve()),
+        mode="watch_scan",
+        status="running",
+        started_at="2000-01-01T00:00:00.000000+00:00",
+        last_heartbeat_at="2000-01-01T00:00:10.000000+00:00",
+        current_step="processing source",
+    )
+    _save_processing_run_record(cfg, record)
+    run_path = tmp_path / ".mindforge" / "processing_runs" / "pr_sources_no_write.json"
+    before = run_path.read_text(encoding="utf-8")
+
+    sources = client.get("/api/sources").json()
+    watched = next(item for item in sources["watched_sources"] if item["id"] == registered["watch_id"])
+
+    assert watched["processing_status"] == "failed"
+    assert watched["last_error"]
+    assert run_path.read_text(encoding="utf-8") == before
+
+
+def test_sources_uses_newest_run_when_older_run_finishes_later(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Sources last run summary 必须以最新 run 为权威状态。
+
+    中文学习型说明：并发或重试场景下旧 run 可能更晚写盘。Sources 面向用户展示
+    “最近一次操作”的 lifecycle，不能被较早 started_at 的完成结果倒灌覆盖。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    source = tmp_path / "newest.md"
+    source.write_text("# Newest\n\nbody\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": False},
+    ).json()
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    older = ProcessingRunRecord(
+        run_id="pr_older",
+        source_ref=registered["watch_id"],
+        source_path=str(source.resolve()),
+        mode="watch_scan",
+        status="failed",
+        started_at="2026-05-11T10:00:00.000000+00:00",
+        finished_at="2026-05-11T10:05:00.000000+00:00",
+        current_step="failed",
+        summary={"discovered": 1, "processed": 0, "drafts": 0, "skipped": 0, "errors": 1},
+        message="Processing failed for 1 item(s). Reason: old failure",
+        error_type="ProcessingError",
+        error_message="old failure",
+    )
+    newer = ProcessingRunRecord(
+        run_id="pr_newer",
+        source_ref=registered["watch_id"],
+        source_path=str(source.resolve()),
+        mode="watch_scan",
+        status="succeeded",
+        started_at="2026-05-11T10:00:01.000000+00:00",
+        finished_at="2026-05-11T10:00:02.000000+00:00",
+        current_step="completed",
+        summary={"discovered": 1, "processed": 1, "drafts": 1, "skipped": 0, "errors": 0},
+        draft_ids=["draft-newer"],
+        message="Generated 1 AI draft.",
+    )
+    _save_processing_run_record(cfg, newer)
+    _save_processing_run_record(cfg, older)
+
+    sources = client.get("/api/sources").json()
+    watched = next(item for item in sources["watched_sources"] if item["id"] == registered["watch_id"])
+
+    assert watched["processing_status"] == "succeeded"
+    assert watched["last_run_id"] == "pr_newer"
+    assert watched["last_run_summary"]["drafts"] == 1
+    assert watched["last_run_summary"]["errors"] == 0
+
+
+def test_run_summary_persists_across_app_reload(tmp_path: Path, monkeypatch) -> None:
+    """完成后的 run summary 必须刷新 app 后仍可查询。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    source = tmp_path / "persisted.md"
+    source.write_text("# Persisted\n\nbody worth keeping\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+    reloaded = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    after_reload = reloaded.get(f"/api/processing/runs/{started['run_id']}").json()
+
+    assert after_reload["status"] == finished["status"]
+    assert after_reload["summary"] == finished["summary"]
+    assert after_reload["draft_ids"] == finished["draft_ids"]
+
+
+def test_processing_run_reports_triage_skip_reason_without_review_next_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Triage skipped 时必须告诉用户原因，不能指向空 Review。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["triage"]["value_score_threshold"] = 9
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "low-value.md"
+    source.write_text("# Low Value\n\nshort note\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    assert finished["summary"]["skipped"] == 1
+    assert "value_score=7" in finished["message"]
+    assert "threshold=9" in finished["message"]
+    assert finished["skip_reasons"]
+    assert all(action.get("href") != "/drafts" for action in finished["next_actions"])
+    assert client.get("/api/drafts").json()["drafts"] == []
+
+
+def test_processing_run_failure_is_persisted_and_secret_safe(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Provider/config error 进入 failed run，不泄露 API key，也不无限 loading。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"]["models"]["fake_alias"]["type"] = "openai_compatible"
+    raw["llm"]["models"]["fake_alias"]["provider"] = "openai_compatible"
+    raw["llm"]["models"]["fake_alias"]["api_key_env"] = "MINDFORGE_FAKE_SECRET"
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    (tmp_path / ".env").write_text("MINDFORGE_FAKE_SECRET=secret-must-not-leak\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MINDFORGE_FAKE_SECRET", raising=False)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "provider-error.md"
+    source.write_text("# Provider Error\n\nbody\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+    sources = client.get("/api/sources").json()
+    run_record = (
+        tmp_path / ".mindforge" / "processing_runs" / f"{started['run_id']}.json"
+    ).read_text(encoding="utf-8")
+    combined = f"{started} {finished} {sources}"
+
+    assert finished["status"] == "failed"
+    assert finished["summary"]["errors"] >= 1
+    assert finished["error_message"]
+    watched = next(item for item in sources["watched_sources"] if item["path"] == str(source.resolve()))
+    assert watched["processing_status"] == "failed"
+    assert watched["last_run_summary"]["errors"] >= 1
+    assert watched["last_message"]
+    assert watched["last_error"]
+    assert "secret-must-not-leak" not in combined
+    assert "secret-must-not-leak" not in run_record
+    assert "processed as ai_draft" not in combined
+    assert all(action.get("href") != "/drafts" for action in finished["next_actions"])
+
+
+def test_processing_run_json_parse_failure_finishes_as_failed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """LLM JSON parse failure 必须结束为 failed run，不能让 UI 一直 loading。"""
+
+    from mindforge.llm.base import LLMResult
+    from mindforge.llm.fake import FakeProvider
+
+    original_generate = FakeProvider.generate
+
+    def invalid_distill_json(self, request):
+        if request.stage == "distill":
+            return LLMResult(
+                text="{not valid json",
+                tokens_in=1,
+                tokens_out=1,
+                latency_ms=0,
+                raw={"fake": True},
+            )
+        return original_generate(self, request)
+
+    monkeypatch.setattr(FakeProvider, "generate", invalid_distill_json)
+    client, _cards = _client(tmp_path, monkeypatch)
+    source = tmp_path / "bad-json.md"
+    source.write_text("# Bad JSON\n\nbody worth processing\n", encoding="utf-8")
+
+    started = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "frequency": "manual", "process_now": True},
+    ).json()
+    finished = _wait_for_processing_run(client, started["run_id"])
+
+    assert finished["status"] == "failed"
+    assert finished["summary"]["errors"] == 1
+    assert finished["error_message"] or finished["message"]
+    assert "processed as ai_draft" not in f"{finished}"
+
+
+def test_processing_run_provider_html_error_is_user_friendly() -> None:
+    """Provider HTML 错误页不能原样进入 run record / Sources 文案。
+
+    中文学习型说明：真实模型配置仍是用户主路径，但代理、网关、base_url
+    配错时常返回 HTML。用户需要可行动的错误，不需要看到整页 HTML。
+    """
+
+    message = "LLM 调用失败：HTTP 503: <!DOCTYPE html><html><title>ERROR</title>"
+
+    cleaned = _safe_error_message(message)
+
+    assert "Provider returned an HTML error page (HTTP 503)." in cleaned
+    assert "<html" not in cleaned.lower()
+    assert "<!DOCTYPE" not in cleaned
+
+
+def test_processing_run_missing_model_key_error_uses_product_language() -> None:
+    """Web Sources 也不能把 env/api_key_env/fake/demo/profile 泄漏给普通用户。"""
+
+    message = "模型 main 没有可用的 API key。请在 Web Setup 中添加 key，或设置环境变量 TEST_KEY。"
+
+    cleaned = _safe_error_message(message)
+
+    assert "Model setup is incomplete" in cleaned
+    for token in ("env", "environment variable", "api_key_env", "TEST_KEY", "fake", "demo", "profile"):
+        assert token.lower() not in cleaned.lower()
+
+
+def test_processing_run_started_at_uses_subsecond_precision() -> None:
+    """重复点击 Process Now 时，run 排序需要亚秒级 started_at。
+
+    中文学习型说明：当前不引入队列/锁等大架构，只先守住状态归属边界：
+    同一 source 的多个后台 run 至少要有可排序的高精度 started_at，避免
+    Sources last run summary 在同一秒内随机指向旧 run。
+    """
+
+    timestamp = _now()
+
+    assert "." in timestamp
+    assert len(timestamp.split(".", 1)[1].split("+", 1)[0]) == 6
 
 
 def test_web_health_home_config_do_not_expose_secret_values(tmp_path: Path, monkeypatch) -> None:
@@ -367,7 +1142,7 @@ def test_setup_editor_validates_paths_and_never_writes_api_key_values(
     refused = client.patch(
         "/api/config/editable",
         json={
-            "vault_root": str(tmp_path / "missing-vault"),
+            "vault_root": "/",
             "create_vault": False,
             "providers": {"fake": {"api_key_value": "must-not-be-written"}},
         },
@@ -708,7 +1483,13 @@ def test_setup_save_writes_new_llm_format_without_legacy_profiles(
     assert response.status_code == 200
     assert raw["llm"]["default_model"] == "main"
     assert sorted(raw["llm"]["models"]) == ["main", "strong"]
-    assert raw["llm"]["routing"] == {"distill": "strong"}
+    assert raw["llm"]["routing"] == {
+        "triage": "main",
+        "distill": "strong",
+        "link_suggestion": "main",
+        "review_questions": "main",
+        "action_extraction": "main",
+    }
     assert "active_profile" not in raw["llm"]
     assert "profiles" not in raw["llm"]
     assert "providers" not in raw["llm"]
@@ -983,11 +1764,15 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
 
     assert added_file["ok"] is True
     assert added_file["mode"] == "watch_add"
-    assert added_file["counts"]["processed"] == 1
+    assert added_file["run_id"]
+    assert added_file["counts"]["processed"] == 0
     assert added_file["added_to_registry"] is True
-    assert added_folder["counts"]["processed"] == 1
+    assert added_folder["run_id"]
+    assert added_folder["counts"]["processed"] == 0
     assert registered_only["added_to_registry"] is True
     assert registered_only["counts"]["processed"] == 0
+    _wait_for_processing_run(client, added_file["run_id"])
+    _wait_for_processing_run(client, added_folder["run_id"])
 
     frequency_update = client.patch(
         f"/api/sources/watch/{registered_only['watch_id']}/frequency",
@@ -1027,9 +1812,102 @@ def test_web_watch_list_add_delete_and_import_align_with_cli_ingestion(
     combined = f"{listed} {added_file} {imported} {after}"
     assert "WATCH_BODY_MUST_NOT_LEAK" not in combined
     assert "IMPORT_BODY_MUST_NOT_LEAK" not in combined
-    assert "human_approved 必须显式确认" in combined
+    assert "自动化只生成 ai_draft" in combined
     assert after["ingestion"]["primary_entry"] == "watch/import"
     assert "advanced" in after["ingestion"]["advanced_note"].lower()
+
+
+def test_web_process_uses_default_model_when_routing_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Process now 兼容只有 default_model 的新格式配置。
+
+    中文学习型说明：Setup 主路径会补齐 routing，但 runtime 仍要接受旧 dogfood
+    clone 中可能已有的“default_model + models、无 routing”配置，不能退回旧
+    profile[stage] 导致 KeyError。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {
+        "default_model": "main",
+        "models": {
+            "main": {
+                "provider": "fake",
+                "type": "fake",
+                "base_url": "fake://",
+                "model": "fake",
+                "timeout_seconds": 5,
+                "max_retries": 0,
+                "api_key_optional": True,
+            }
+        },
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    source = tmp_path / "default-model-only.md"
+    source.write_text("# Default Model Only\n\nbody\n", encoding="utf-8")
+
+    response = client.post("/api/sources/watch", json={"path": str(source)})
+
+    assert response.status_code == 200, response.text
+    finished = _wait_for_processing_run(client, response.json()["run_id"])
+    assert finished["summary"]["drafts"] == 1
+    assert len(list(cards.rglob("*.md"))) == 1
+
+
+def test_web_process_without_model_returns_friendly_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+    source = tmp_path / "no-model.md"
+    source.write_text("# No Model\n\nbody\n", encoding="utf-8")
+
+    response = client.post("/api/sources/watch", json={"path": str(source)})
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]["message"]
+    assert "No model configured for stage 'triage'" in detail
+    assert "Add a model in Web Setup" in detail
+    assert "Traceback" not in response.text
+
+
+def test_web_watch_scan_without_model_returns_friendly_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
+    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+    source = tmp_path / "scan-no-model.md"
+    source.write_text("# Scan No Model\n\nbody\n", encoding="utf-8")
+    registered = client.post(
+        "/api/sources/watch",
+        json={"path": str(source), "process_now": False},
+    ).json()
+
+    response = client.post(f"/api/sources/watch/scan?ref={registered['watch_id']}")
+
+    assert response.status_code == 400
+    assert "No model configured for stage 'triage'" in response.json()["detail"]["message"]
+    assert "Traceback" not in response.text
 
 
 def test_sources_api_returns_recursive_folder_watch_diagnostics(
@@ -1055,6 +1933,7 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
         path.write_text(body, encoding="utf-8")
 
     added = client.post("/api/sources/watch", json={"path": str(watch_folder)}).json()
+    _wait_for_processing_run(client, added["run_id"])
     response = client.get("/api/sources").json()
     watched = next(item for item in response["watched_sources"] if item["path"] == str(watch_folder.resolve()))
     combined = f"{added} {response}"
@@ -1068,7 +1947,7 @@ def test_sources_api_returns_recursive_folder_watch_diagnostics(
     assert watched["skipped_reason_summary"]["unsupported_extension"] == 1
     assert watched["skipped_reason_summary"]["temp_file"] == 1
     assert watched["skipped_reason_summary"]["hidden_file"] == 1
-    assert watched["status_label"] in {"Watching", "Processed"}
+    assert watched["status_label"] in {"Watching", "Processed", "Succeeded"}
     assert len(list(cards.rglob("*.md"))) == 1
     assert watched["status_label"] != "ready"
     assert watched["status"] != "ready"
@@ -1216,6 +2095,7 @@ def test_setup_add_model_writes_new_llm_models_entry(tmp_path: Path, monkeypatch
     assert raw["llm"]["default_model"] == "main"
     assert "main" in raw["llm"]["models"]
     assert raw["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert raw["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
     # YAML 里不应有 API key
     assert "api_key" not in raw["llm"]["models"]["main"]
     assert "sk-test" not in str(raw)
@@ -1226,6 +2106,29 @@ def test_setup_add_model_writes_new_llm_models_entry(tmp_path: Path, monkeypatch
     assert secrets_path.is_file()
     secrets = json.loads(secrets_path.read_text(encoding="utf-8"))
     assert secrets["main"] == "sk-test-key-1234"
+
+
+def test_clean_clone_setup_api_bootstraps_no_model_config(tmp_path: Path, monkeypatch) -> None:
+    """Web app 在 clean clone 缺本地 config 时应进入 No model configured 状态。"""
+
+    workspace = tmp_path / "mindforge"
+    (workspace / "configs").mkdir(parents=True)
+    (workspace / "configs" / "mindforge_example.yaml").write_text("version: 0.7\n", encoding="utf-8")
+    (workspace / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+    (workspace / "src" / "mindforge").mkdir(parents=True)
+    monkeypatch.chdir(workspace)
+
+    cfg_path = workspace / "configs" / "mindforge.yaml"
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/config/editable")
+
+    assert response.status_code == 200
+    assert cfg_path.is_file()
+    llm = response.json()["llm"]
+    assert llm["configured_model_ids"] == []
+    assert llm["configured_models"] == {}
+    assert llm["default_model"] is None
+    assert llm["validation_errors"] == []
 
 
 def test_setup_edit_model_preserves_secret_when_empty_key(tmp_path: Path, monkeypatch) -> None:
@@ -1471,8 +2374,8 @@ def test_setup_api_key_never_returned_raw(tmp_path: Path, monkeypatch) -> None:
     assert "very-secret" not in combined
 
 
-def test_setup_demo_model_labeled_correctly(tmp_path: Path, monkeypatch) -> None:
-    """type=fake 的模型标记为 is_demo_model，api_key_source=demo。"""
+def test_setup_hides_fake_model_from_user_config_surface(tmp_path: Path, monkeypatch) -> None:
+    """type=fake 只能作为内部测试替身，不能进入普通用户 Setup 列表。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)
 
     # 写入只有 fake 模型的 config
@@ -1493,9 +2396,7 @@ def test_setup_demo_model_labeled_correctly(tmp_path: Path, monkeypatch) -> None
 
     editable = client.get("/api/config/editable").json()
     model = editable["llm"]["configured_models"].get("demo")
-    assert model is not None, "demo model should appear when it is the only model"
-    assert model["is_demo_model"] is True
-    assert model["api_key_source"] == "demo"
+    assert model is None
 
 
 def test_setup_default_model_dropdown_only_configured_models(tmp_path: Path, monkeypatch) -> None:
@@ -1543,7 +2444,7 @@ def test_setup_routing_dropdown_only_configured_models(tmp_path: Path, monkeypat
 
 
 def test_setup_routing_omitted_uses_default_model(tmp_path: Path, monkeypatch) -> None:
-    """routing 省略时所有 workflow step 使用 default_model。"""
+    """Setup 保存时补齐 routing；runtime 仍保留 default_model fallback。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)
     monkeypatch.chdir(tmp_path)
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
@@ -1559,9 +2460,10 @@ def test_setup_routing_omitted_uses_default_model(tmp_path: Path, monkeypatch) -
     )
 
     editable = client.get("/api/config/editable").json()
-    assert editable["llm"]["routing_is_explicit"] is False
-    for _stage, model_id in editable["llm"]["routing"].items():
-        assert model_id == "main"
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert editable["llm"]["routing_is_explicit"] is True
+    assert editable["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
+    assert raw["llm"]["routing"] == {stage: "main" for stage in REQUIRED_STAGES}
 
 
 def test_setup_type_must_be_explicit_no_guessing(tmp_path: Path, monkeypatch) -> None:
@@ -2037,47 +2939,664 @@ def test_review_route_serves_drafts_page(tmp_path: Path, monkeypatch) -> None:
 def test_dogfood_command_hidden_from_main_help() -> None:
     """dogfood 命令不出现在主 help 中。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     # dogfood 不应出现在主 help 输出中
     assert "dogfood" not in result.stdout
 
 
-def test_setup_cli_shows_deprecation_warning() -> None:
-    """CLI setup 命令显示废弃警告。"""
+def test_setup_cli_direct_help_is_retired() -> None:
+    """旧 setup help 不再作为第二套配置入口暴露。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "setup", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
-    assert "DEPRECATED" in result.stdout
+    assert result.returncode != 0
+    assert result.stdout == ""
 
 
-def test_scan_help_marks_advanced() -> None:
-    """scan 命令 help 标注 [Advanced]。"""
+def test_scan_direct_help_is_retired() -> None:
+    """旧 scan help 不再作为第二套 source 入口暴露。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "scan", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
-    assert "[Advanced]" in result.stdout
+    assert result.returncode != 0
+    assert result.stdout == ""
 
 
 def test_watch_add_frequency_alias(tmp_path: Path) -> None:
     """/watch add --frequency 作为 --every 的别名。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "watch", "add", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     assert "--frequency" in result.stdout
+
+
+# ============================================================================
+# clean clone first-run + Web Setup save 回归测试
+# ============================================================================
+
+
+def _write_clean_clone_config(
+    tmp_path: Path,
+    *,
+    create_vault: bool = True,
+) -> tuple[Path, Path]:
+    """模拟 clean clone first_run_config 生成的新格式配置（无模型、无 legacy）。"""
+    vault = tmp_path / "vault"
+    if create_vault:
+        (vault / "00-Inbox").mkdir(parents=True, exist_ok=True)
+        (vault / "20-Knowledge-Cards").mkdir(parents=True, exist_ok=True)
+        (vault / "30-Projects").mkdir(parents=True, exist_ok=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {
+                    "root": "vault",
+                    "inbox_root": "00-Inbox",
+                    "cards_dir": "20-Knowledge-Cards",
+                    "archive_dir": "90-Archive/Skipped",
+                    "projects_dir": "30-Projects",
+                },
+                "llm": {
+                    "default_model": None,
+                    "models": {},
+                    "routing": {},
+                },
+                "wiki": {
+                    "mode": "deterministic",
+                    "model": None,
+                    "auto_rebuild_on_approve": False,
+                },
+                "telemetry": {"enabled": True, "local_only": True},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return cfg_path, vault
+
+
+def test_clean_clone_editable_config_200(tmp_path: Path, monkeypatch) -> None:
+    """clean clone first_run_config → GET /api/config/editable 返回 200。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.get("/api/config/editable")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["llm"]["default_model"] is None
+    assert data["llm"]["configured_models"] == {}
+    assert data["llm"]["routing"] == {}
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+
+
+def test_clean_clone_save_first_model_default_model_none(tmp_path: Path, monkeypatch) -> None:
+    """clean clone 添加第一个模型、default_model=None → PATCH 200。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": None,
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key": "sk-test-1234",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    # 模型写入了 YAML
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert "main" in data["llm"]["models"]
+    # API key 不写 YAML
+    assert "sk-test" not in yaml_text
+    assert "1234" not in yaml_text
+
+
+def test_clean_clone_save_empty_string_default_model_now_200(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：clean clone 前端空字符串 default_model="" → 不再 400（已修复）。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 模拟前端 patchFromForm 发送 default_model="" 的行为
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o-mini",
+                    "api_key": "sk-openai-test",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.json()}"
+
+    # 模型被保存
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert "main" in data["llm"]["models"]
+    # default_model 保持 null（因为空字符串被当作未设置）
+    assert data["llm"]["default_model"] is None
+    # API key 不写 YAML
+    assert "sk-openai" not in yaml_text
+
+
+def test_clean_clone_save_with_default_model_writes_routing(tmp_path: Path, monkeypatch) -> None:
+    """clean clone 设置 default_model → 写 routing 五个 stage。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["default_model"] == "main"
+    routing = data.get("llm", {}).get("routing", {})
+    from mindforge.config import REQUIRED_STAGES
+    for stage in REQUIRED_STAGES:
+        assert routing.get(stage) == "main", f"routing.{stage} missing"
+
+
+def test_clean_clone_save_first_model_creates_missing_vault(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：first-run vault 目录不存在时，保存模型不能被内部目录状态阻塞。
+
+    中文学习型说明：Setup 的主任务是保存模型配置。first-run 生成的 vault path
+    是用户可见的工作区位置；如果目录尚不存在，Web save 应自动创建，而不是要求
+    普通用户理解 ``create_vault`` 这种内部开关。
+    """
+    cfg_path, vault = _write_clean_clone_config(tmp_path, create_vault=False)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    payload = {
+        "vault_root": str(vault),
+        "create_vault": False,
+        "default_model": "main",
+        "models": {
+            "main": {
+                "type": "openai_compatible",
+                "base_url": "https://example.com/api",
+                "model": "test-model",
+                "api_key": "sk-clean-clone-test",
+                "api_key_action": "update",
+            },
+        },
+        "routing": {},
+        "wiki_mode": "deterministic",
+        "wiki_model": None,
+        "wiki_auto_rebuild_on_approve": False,
+    }
+
+    validate = client.post("/api/config/validate", json=payload)
+    assert validate.status_code == 200
+    assert validate.json()["ok"] is True
+
+    resp = client.patch("/api/config/editable", json=payload)
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["main"]["type"] == "openai_compatible"
+    assert data["llm"]["default_model"] == "main"
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+    for stage in REQUIRED_STAGES:
+        assert data["llm"]["routing"][stage] == "main"
+    assert vault.is_dir()
+    assert (vault / "00-Inbox").is_dir()
+    assert (vault / "20-Knowledge-Cards").is_dir()
+    assert (vault / "30-Projects").is_dir()
+    assert "sk-clean-clone-test" not in yaml_text
+
+    from mindforge.secret_store import SecretStore
+
+    assert SecretStore(tmp_path / ".mindforge" / "secrets.json").present("main")
+
+
+def test_web_source_path_error_returns_frontend_readable_detail(tmp_path: Path, monkeypatch) -> None:
+    """Source 400 必须给前端可读 message，不能让 UI 退化成 ``Bad Request``。
+
+    中文学习型说明：用户主路径是 Add Source / Add and process now。后端可以
+    拒绝相对路径或缺模型，但 response body 必须是稳定的 `{detail:{message}}`
+    形状，前端才能显示真正原因。
+    """
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"), raise_server_exceptions=False)
+
+    resp = client.post(
+        "/api/sources/watch",
+        json={"path": "relative.md", "frequency": "manual", "recursive": True, "process_now": False},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["message"].startswith("Please use an absolute path")
+
+
+def test_setup_save_reports_friendly_error_when_vault_auto_create_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """自动创建 vault 失败时返回可理解错误，不退回内部 traceback。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path, create_vault=False)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    original_mkdir = Path.mkdir
+
+    def fail_vault_mkdir(self: Path, *args, **kwargs) -> None:
+        if self == vault:
+            raise OSError("permission denied")
+        original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", fail_vault_mkdir)
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "vault_root": str(vault),
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["errors"] == [f"Cannot create vault directory: {vault}"]
+
+
+def test_clean_clone_save_api_key_in_secret_store_not_yaml(tmp_path: Path, monkeypatch) -> None:
+    """API key 写 .mindforge/secrets.json，不写 YAML。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o",
+                    "api_key": "sk-sensitive-9999",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    assert "sk-sensitive" not in yaml_text
+
+    # secret store 存在
+    from mindforge.secret_store import SecretStore
+    store = SecretStore(vault.parent / ".mindforge" / "secrets.json")
+    assert store.present("main")
+    assert store.get("main") == "sk-sensitive-9999"
+
+
+def test_clean_clone_wiki_deterministic_null_model_ok(tmp_path: Path, monkeypatch) -> None:
+    """wiki.mode=deterministic + wiki.model=null 不阻塞保存。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "wiki_mode": "deterministic",
+            "wiki_model": None,
+            "wiki_auto_rebuild_on_approve": False,
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+            "default_model": "main",
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["wiki"]["mode"] == "deterministic"
+    assert data["wiki"]["model"] is None
+
+
+def test_clean_clone_wiki_llm_mode_with_model_saves(tmp_path: Path, monkeypatch) -> None:
+    """wiki.mode=llm + wiki.model 存在 → 保存成功。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 需要先有模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "wiki_mode": "llm",
+            "wiki_model": "main",
+            "wiki_auto_rebuild_on_approve": True,
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["wiki"]["mode"] == "llm"
+    assert data["wiki"]["model"] == "main"
+
+
+def test_clean_clone_api_key_missing_does_not_block_save(tmp_path: Path, monkeypatch) -> None:
+    """API key missing 不阻塞保存模型 metadata。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"Response: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["main"]["type"] == "openai_compatible"
+
+
+@pytest.mark.parametrize("model_type", [
+    "anthropic",
+    "anthropic_compatible",
+    "openai",
+    "openai_compatible",
+])
+def test_clean_clone_all_model_types_save(tmp_path: Path, monkeypatch, model_type: str) -> None:
+    """四种 model type 均可保存。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "demo",
+            "models": {
+                "demo": {
+                    "type": model_type,
+                    "base_url": "https://example.com/api",
+                    "model": "demo-model",
+                    "api_key_action": "keep",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, f"type={model_type}: {resp.json()}"
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    assert data["llm"]["models"]["demo"]["type"] == model_type
+
+
+def test_clean_clone_save_does_not_write_legacy_fields(tmp_path: Path, monkeypatch) -> None:
+    """保存后不写 active_profile/profiles/fake/env 字段。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-4o-mini",
+                    "api_key": "sk-legacy-test",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_text)
+    llm = data.get("llm", {})
+    for legacy_key in ("active_profile", "profiles", "active", "providers"):
+        assert legacy_key not in llm, f"legacy field {legacy_key} found in YAML"
+    # 模型下不应有 env 字段
+    for mid, mconf in llm.get("models", {}).items():
+        for env_key in ("api_key_env", "base_url_env", "model_env"):
+            assert env_key not in mconf, f"env field {env_key} found in model {mid}"
+
+
+def test_clean_clone_refresh_after_save_keeps_model(tmp_path: Path, monkeypatch) -> None:
+    """保存后刷新 Setup → 模型仍存在，key 只显示 masked。"""
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 保存模型
+    client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://example.com/api",
+                    "model": "test-model",
+                    "api_key": "sk-sensitive-key-8888",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    # 刷新（重新 GET）
+    resp = client.get("/api/config/editable")
+    assert resp.status_code == 200
+    data = resp.json()
+    models = data["llm"]["configured_models"]
+    assert "main" in models
+    model = models["main"]
+    assert model["type"] == "anthropic_compatible"
+    assert model["model"] == "test-model"
+    assert model["api_key_source"] == "local_secret"
+    assert model["api_key_secret_present"] is True
+    # masked 值显示脱敏前缀+后4位，不包含完整 raw key
+    masked = str(model.get("api_key_masked_value", ""))
+    assert "sk-sensitive" not in masked
+    assert masked != "sk-sensitive-key-8888"  # 不是完整 raw key
+
+
+def test_setup_save_anchors_config_and_secret_to_current_workspace(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Setup 保存链路必须锚定当前 workspace，而不是启动命令所在 CWD。
+
+    中文学习型说明：release dogfood 暴露的问题看起来像“保存成功但 CLI
+    仍 needs setup”。这个测试把 Web server CWD 放到另一个目录，只通过
+    config_path 指向目标 workspace，验证 config、secret presence 和
+    readiness 使用同一个 workspace anchor；测试只检查 secret 文件存在，
+    不读取或输出 secret 内容。
+    """
+
+    workspace = tmp_path / "workspace"
+    repo_cwd = tmp_path / "repo-cwd"
+    repo_cwd.mkdir()
+    cfg_path, _vault = _write_clean_clone_config(workspace)
+    monkeypatch.chdir(repo_cwd)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "openai_compatible",
+                    "base_url": "https://provider.example.test/v1",
+                    "model": "release-test-model",
+                    "api_key": "dummy-test-key-not-real",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.json()
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    saved = yaml.safe_load(yaml_text)
+    assert saved["llm"]["models"]["main"]["base_url"] == "https://provider.example.test/v1"
+    assert saved["llm"]["models"]["main"]["model"] == "release-test-model"
+    assert "dummy-test-key-not-real" not in yaml_text
+    assert (workspace / ".mindforge" / "secrets.json").exists()
+    assert not (repo_cwd / ".mindforge" / "secrets.json").exists()
+
+    status = client.get("/api/config/status").json()
+    assert status["provider"]["model_setup"] == "ready"
+
+
+def test_setup_save_writes_provider_timeout_and_retry_defaults(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Web Setup 保存模型时显式写入 timeout/retry 默认值。
+
+    中文学习型说明：真实用户看到的是 workspace config，而不是 Python loader
+    里的隐式默认。保存时写出有限 timeout/retry，能让 release dogfood 中的
+    ReadTimeout 变成可解释、可调整的用户体验边界；API key 仍只写 secret store。
+    """
+
+    cfg_path, _vault = _write_clean_clone_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.patch(
+        "/api/config/editable",
+        json={
+            "default_model": "main",
+            "models": {
+                "main": {
+                    "type": "anthropic_compatible",
+                    "base_url": "https://provider.example.test/v1",
+                    "model": "release-test-model",
+                    "api_key": "dummy-test-key-not-real",
+                    "api_key_action": "update",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.json()
+    yaml_text = cfg_path.read_text(encoding="utf-8")
+    saved = yaml.safe_load(yaml_text)
+    model = saved["llm"]["models"]["main"]
+    assert model["timeout_seconds"] == 120
+    assert model["max_retries"] == 1
+    assert "dummy-test-key-not-real" not in yaml_text

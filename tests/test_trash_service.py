@@ -336,6 +336,80 @@ def test_restore_rejects_path_traversal(tmp_path: Path) -> None:
         restore_trashed_card(cfg, "../../etc/passwd")
 
 
+def test_restore_rejects_tampered_original_path_traversal(tmp_path: Path) -> None:
+    """restore 不信任 trash frontmatter 的 original_path，拒绝写出 cards_dir。"""
+
+    cfg_path = _write_test_config(tmp_path)
+    cfg = load_mindforge_config(cfg_path)
+    card = _write_draft(cfg.vault.cards_path, "restore-escape.md")
+    result = move_card_to_trash(cfg, card)
+    trash_path = cfg.vault.root / result.trash_rel_path
+    trash_path.write_text(
+        trash_path.read_text(encoding="utf-8").replace(
+            f'original_path: "{result.original_path}"',
+            'original_path: "../outside.md"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TrashError, match="original_path"):
+        restore_trashed_card(cfg, result.trash_rel_path)
+
+    assert not (cfg.vault.root.parent / "outside.md").exists()
+    assert trash_path.exists()
+
+
+def test_restore_rejects_absolute_original_path(tmp_path: Path) -> None:
+    """absolute original_path 不能把 restore 目标改到 vault 外。"""
+
+    cfg_path = _write_test_config(tmp_path)
+    cfg = load_mindforge_config(cfg_path)
+    card = _write_draft(cfg.vault.cards_path, "restore-absolute.md")
+    result = move_card_to_trash(cfg, card)
+    trash_path = cfg.vault.root / result.trash_rel_path
+    outside = tmp_path / "outside.md"
+    trash_path.write_text(
+        trash_path.read_text(encoding="utf-8").replace(
+            f'original_path: "{result.original_path}"',
+            f'original_path: "{outside}"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TrashError, match="vault-relative"):
+        restore_trashed_card(cfg, result.trash_rel_path)
+
+    assert not outside.exists()
+    assert trash_path.exists()
+
+
+def test_restore_rejects_original_path_symlink_escape(tmp_path: Path) -> None:
+    """cards_dir 内的软链接如果指向外部，restore 也不能跟随写出 vault。"""
+
+    cfg_path = _write_test_config(tmp_path)
+    cfg = load_mindforge_config(cfg_path)
+    outside_dir = tmp_path / "outside-dir"
+    outside_dir.mkdir()
+    link_dir = cfg.vault.cards_path / "linked-out"
+    link_dir.symlink_to(outside_dir, target_is_directory=True)
+    card = _write_draft(cfg.vault.cards_path, "restore-symlink.md")
+    result = move_card_to_trash(cfg, card)
+    trash_path = cfg.vault.root / result.trash_rel_path
+    trash_path.write_text(
+        trash_path.read_text(encoding="utf-8").replace(
+            f'original_path: "{result.original_path}"',
+            'original_path: "20-Knowledge-Cards/linked-out/escaped.md"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TrashError, match="cards_dir"):
+        restore_trashed_card(cfg, result.trash_rel_path)
+
+    assert not (outside_dir / "escaped.md").exists()
+    assert trash_path.exists()
+
+
 def test_source_file_always_preserved(tmp_path: Path) -> None:
     """全程不删除 source 文件。"""
     cfg_path = _write_test_config(tmp_path)

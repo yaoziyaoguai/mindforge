@@ -164,8 +164,10 @@ def render_approval_list(
         console.print("[yellow]没有待 approve 的卡片。[/yellow]")
         console.print(
             "[dim]下一步：如果有新资料，运行 `mindforge watch add <file-or-folder>` "
-            "或 `mindforge import <file-or-folder>` 生成 ai_draft；"
-            "缺真实 provider key 时可显式加 `--profile fake` 跑离线 demo/testing；"
+            "或 `mindforge import <file-or-folder>` 启动后台 processing；"
+            "如果暂无草稿，请用 `mindforge watch status` 或 `mindforge runs list` "
+            "检查 processing 状态。模型设置未完成时，请先在 Web Setup 或本地 "
+            "secret store 添加 provider key 后重试；"
             "MindForge 不会自动 approve。[/dim]",
             soft_wrap=True,
         )
@@ -200,8 +202,15 @@ def render_approval_list(
         console.print(
             f"- [{ref.number}] {c.title or '?'} · short_ref={ref.short_ref} · "
             f"source={format_card_source_hint(c)} · created={format_card_created_at(c)} · "
-            f"next=`mindforge approve {ref.number} --confirm` · "
             f"full_path={c.rel_path}",
+            markup=False,
+        )
+        console.print(
+            f"  view:    mindforge approve show --card {ref.number} --show-content",
+            markup=False,
+        )
+        console.print(
+            f"  approve: mindforge approve {ref.number} --confirm",
             markup=False,
         )
     console.print(
@@ -219,6 +228,8 @@ def render_approval_show(
     console: Console,
     preview: ApprovalPreviewResult,
     fallback_card_path: Any,
+    *,
+    short_ref: str | None = None,
 ) -> None:
     """渲染 ``approve show`` 安全字段摘要。
 
@@ -227,17 +238,30 @@ def render_approval_show(
 
     ``fallback_card_path`` 用于 preview.card_path 缺失时显示原始
     用户传入路径，与 v0.7.20 的 ``card_path = preview.card_path or card`` 一致。
+
+    ``short_ref`` 是可选的数字 ref（如 "1"），存在时 Next 命令优先使用短命令
+    ``mindforge approve <short_ref> --confirm``，不优先展示超长绝对路径。
     """
     card_path = preview.card_path or fallback_card_path
     console.print("[bold]Approve preview[/bold]")
     for key in APPROVAL_PREVIEW_FIELDS:
         console.print(f"{key:<12}: {preview.fields.get(key, '-')}")
     console.print(f"path        : {card_path}")
+
+    # Next 命令优先短 ref，其次 short_ref slug，最后完整路径
+    if short_ref is not None:
+        next_cmd = f"mindforge approve {short_ref} --confirm"
+        next_show = f"mindforge approve show --card {short_ref} --show-content"
+    else:
+        next_cmd = f"mindforge approve --card {card_path} --confirm"
+        next_show = f"mindforge approve show --card {card_path} --show-content"
+
     console.print(
         "Boundary: preview only; no auto approve, no .env, no LLM, no source body.",
         markup=False,
     )
-    console.print(f"Next: mindforge approve --card {card_path} --confirm", markup=False)
+    console.print(f"Next (view):  {next_show}", markup=False)
+    console.print(f"Next (approve): {next_cmd}", markup=False)
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +425,11 @@ def render_routing_hint(console: Console) -> None:
 
 
 def render_ref_lookup_error(console: Console, lookup: ApprovalRefLookupResult) -> None:
-    """渲染短 ref 解析失败；模糊时列出候选，绝不默认选择。"""
+    """渲染短 ref 解析失败；模糊时列出候选，绝不默认选择。
+
+    v0.7.21 起针对 number_not_found 给出更友好的下一步建议，
+    包括 library list（已批准卡片）和 approve list（重新获取待审批列表）。
+    """
     assert lookup.error is not None
     console.print(f"[red]✗ {lookup.error.message}[/red]")
     if lookup.matches:
@@ -412,10 +440,17 @@ def render_ref_lookup_error(console: Console, lookup: ApprovalRefLookupResult) -
                 f"short_ref={match.short_ref} · path={match.rel_path}",
                 markup=False,
             )
-    console.print(
-        "Next: mindforge approve list; then run `mindforge approve <ref> --confirm`",
-        markup=False,
-    )
+    if lookup.error.kind == "number_not_found":
+        console.print(
+            "数字编号仅适用于当前 pending approve list 中的 ai_draft 卡片。\n"
+            "如果该卡片已 approve，请使用 `mindforge library list` 查看已批准卡片。",
+            markup=False,
+        )
+    else:
+        console.print(
+            "Next: mindforge approve list; then run `mindforge approve <ref> --confirm`",
+            markup=False,
+        )
 
 
 # ---------------------------------------------------------------------------

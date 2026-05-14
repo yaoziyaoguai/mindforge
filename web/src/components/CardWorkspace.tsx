@@ -141,7 +141,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
           <Meta label="Schema version" value={card.schema_version} />
           <Meta label="Source id" value={card.source_id} />
           <Meta label="Source content hash" value={card.source_content_hash} />
-          <Meta label="Model run" value={card.profile ?? card.provider} />
+          <Meta label="Model run" value={card.provider} />
           <Meta label="Run id" value={card.run_id} />
           <Meta label="Prompt versions" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
           <Meta label="Model routing" value={JSON.stringify(card.stage_models ?? {})} />

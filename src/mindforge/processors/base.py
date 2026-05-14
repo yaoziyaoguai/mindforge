@@ -10,7 +10,7 @@ from typing import Any
 
 from ..llm import LLMClient, ProviderError
 from ..prompts_runtime import load_prompt, render
-from ..run_logger import RunLogger
+from ..run_logger import EVENT_LLM_CALL_STARTED, RunLogger
 
 
 class StageError(RuntimeError):
@@ -89,6 +89,20 @@ def run_stage(
     prompt_text = load_prompt(prompts_dir, stage, prompt_version)
     rendered = render(prompt_text, variables)
     prompt_version_tag = f"{stage}@{prompt_version}"
+    resolved_before_call = client.resolve_model_for_stage(stage)
+    # provider 调用可能持续几十秒。先写 started 事件，runs jsonl 就能证明
+    # worker 已进入模型调用边界，而不是卡在空扫描或伪成功状态。
+    logger.emit(
+        EVENT_LLM_CALL_STARTED,
+        stage=stage,
+        model_alias=resolved_before_call.model_alias,
+        provider=resolved_before_call.provider,
+        provider_type=resolved_before_call.type,
+        actual_model=resolved_before_call.actual_model,
+        prompt_version=prompt_version_tag,
+        input_file_hash=input_file_hash,
+        status="started",
+    )
 
     try:
         call = client.generate(
@@ -97,15 +111,13 @@ def run_stage(
             options={"response_format": response_format} if response_format else None,
         )
     except ProviderError as e:
-        # 解析路由信息以便日志归因
-        resolved = client.resolve_model_for_stage(stage)
         logger.emit(
             "llm_call",
             stage=stage,
-            model_alias=resolved.model_alias,
-            provider=resolved.provider,
-            provider_type=resolved.type,
-            actual_model=resolved.actual_model,
+            model_alias=resolved_before_call.model_alias,
+            provider=resolved_before_call.provider,
+            provider_type=resolved_before_call.type,
+            actual_model=resolved_before_call.actual_model,
             prompt_version=prompt_version_tag,
             input_file_hash=input_file_hash,
             status="failed",

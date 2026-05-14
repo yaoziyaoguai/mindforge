@@ -74,11 +74,21 @@ def test_setup_copy_uses_model_and_secret_safe_language() -> None:
     safety = _read("components/SafetyBar.tsx")
     combined = "\n".join([setup, checklist, safety])
 
-    assert "Model provider" in combined
+    assert "Model setup" in combined
     assert "API key" in combined
-    assert "present/missing" in combined
+    assert "configured, missing, or hidden" in combined
     assert "Provider status only reports" not in combined
     assert "Provider:" not in combined
+
+
+def test_home_model_setup_copy_does_not_depend_on_env_state() -> None:
+    """Home 的 model setup readiness 必须用产品语义，不再把 env_only 当 ready。"""
+
+    home = _read("pages/HomePage.tsx")
+
+    assert "model_setup" in home
+    assert "env_only" not in home
+    assert "fake_default" not in home
 
 
 def test_setup_page_exposes_safe_editor_controls() -> None:
@@ -88,7 +98,7 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "Validate" in setup
     assert "Revert" in setup
     assert "Unsaved changes" in setup
-    assert "Vault path" in setup
+    assert "Knowledge vault" in setup
     assert "Configured models" in setup
     assert "Default model" in setup
     assert "Processing workflow" in setup
@@ -98,16 +108,92 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     assert "api_key_value" not in setup
 
 
-def test_setup_page_uses_effective_env_config_language() -> None:
+def test_setup_save_and_validate_use_current_ui_draft() -> None:
+    """Save/Validate 必须包含正在编辑的 model 草稿，而不是旧 config 快照。"""
+
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "const draftForm = useMemo(() => formWithEditing(form, editing)" in setup
+    assert "JSON.stringify(draftForm) !== JSON.stringify(savedForm)" in setup
+    assert "validateSetupConfig(patchFromForm(current))" in setup
+    assert "saveSetupConfig(patchFromForm(current))" in setup
+    assert "api_key_action: \"clear\"" in setup
+    assert "api_key_action: event.target.value ? \"update\" : \"keep\"" in setup
+
+
+def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
+    setup = _read("pages/SetupPage.tsx")
+    main_ui = setup.split("Diagnostics for advanced users", 1)[0]
+
+    for forbidden in (
+        "Environment variable overrides",
+        "API key env",
+        "Base URL env",
+        "Model env",
+        "Technical internal route",
+        "Provider readiness",
+        "Raw config path",
+        "Config file",
+        "Token status",
+        "Process environment diagnostics",
+        "Environment variable presence",
+        "data.config_path",
+        "active_profile",
+        "profiles",
+        "Create missing vault directories on save",
+        "missing directories",
+        "internal directory state",
+    ):
+        assert forbidden not in main_ui
+
+    assert "Knowledge vault" in main_ui
+    assert "Created automatically" in main_ui
+    assert "Configured models" in main_ui
+    assert "Default model" in main_ui
+    assert "Processing workflow" in main_ui
+    assert "Wiki generation" in main_ui
+    assert "View prompt" in main_ui
+
+
+def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
+    """Advanced diagnostics 也不能重新暴露测试/legacy/internal 主路径。
+
+    中文学习型说明：Setup 主 UI 是普通用户配置真实模型和来源的地方；
+    Diagnostics 只能保留用户能理解的只读状态，不能把 env/Cubox/profile/raw
+    config 这些开发和历史兼容语义重新变成产品配置入口。
+    """
+
     setup = _read("pages/SetupPage.tsx")
     checklist = _read("components/ConfigChecklist.tsx")
     combined = "\n".join([setup, checklist])
+    advanced = setup.split("Diagnostics for advanced users", 1)[1]
 
-    assert "source = config" in setup
-    assert "source = env" in setup
-    assert "source = missing" in setup
     assert "Default base URL" not in setup
-    # Effective base URL / model 仅在 Advanced section 展示，不在主 UI
+    assert "Diagnostics for advanced users" in setup
+    assert "read-only diagnostics" in advanced
+    for forbidden in (
+        "Environment variable overrides",
+        "Provider readiness",
+        "Raw config path",
+        "Token status",
+        "Configuration checklist",
+        "Environment variable presence",
+        "Process environment diagnostics",
+        "Technical internal route",
+        "Cubox",
+        "cubox",
+        "api_key_env",
+        "base_url_env",
+        "model_env",
+        "active_profile",
+        "profiles",
+        "__model_routing__",
+    ):
+        assert forbidden not in advanced
+    assert "Create missing vault directories on save" not in setup
+    assert "Environment variable presence" not in combined
+    assert "Process environment diagnostics" not in combined
+    # Effective base URL / model 仅在 Advanced diagnostics 展示，不在主 UI
     assert "Copy base URL" not in setup
     assert "Copy model" not in setup
     assert "Copy API key env name" not in setup  # 主 UI 不再展示 env var name copy；移至 Advanced
@@ -117,12 +203,9 @@ def test_setup_page_uses_effective_env_config_language() -> None:
     assert "Add a model to generate AI drafts." in setup
     assert "You can still add and monitor sources" in setup
     assert "fake-fast" not in setup
-    assert "Built-in demo" in setup
+    assert "Built-in demo" not in setup
     assert "fake://" not in setup
     assert "fake_default" not in setup
-    assert "Environment variable overrides" in setup  # Advanced section 只读诊断
-    assert "Environment variable presence" in checklist
-    assert "Process environment diagnostics" in checklist
     assert "Env keys" not in checklist
     assert "0 configured" not in combined
 
@@ -209,7 +292,14 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Process now" in sources
     assert "Edit frequency" in sources
     assert "Processing..." in sources
+    assert "You can keep using MindForge." in combined
     assert "Last run summary" in sources
+    assert "Last updated" in sources
+    assert "Processing in the background. You can keep using MindForge." in sources
+    assert "Try Process now again after fixing the issue." in sources
+    assert "No draft was generated. Sources shows the reason." in sources
+    assert "source.last_run_summary?.skipped ?? source.skipped_count" in sources
+    assert "source.last_run_summary?.errors ?? source.failed_count" in sources
     assert "SummaryMetric" in sources
     assert "Diagnostics" in sources
     assert "Source details" in sources
@@ -237,3 +327,18 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Has generated knowledge" not in sources
     assert "\"ready\"" not in source_list
     assert "Approved" not in source_list
+
+
+def test_web_client_parses_string_and_object_error_detail() -> None:
+    """前端必须同时兼容 FastAPI string detail 与 object detail。
+
+    中文学习型说明：Add Source / Process Now 是用户主链路。后端历史上既有
+    ``detail: "message"``，也有 ``detail: {message}``；前端必须提取可行动
+    文案，不能退化成浏览器的 ``Bad Request``。
+    """
+
+    client = _read("api/client.ts")
+
+    assert 'typeof payload?.detail === "string"' in client
+    assert "payload?.detail?.message" in client
+    assert "response.statusText" in client

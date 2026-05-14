@@ -162,24 +162,19 @@ def test_downstream_module_does_not_import_llm_provider(rel_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_layer_is_allowed_to_import_concrete_adapters() -> None:
-    """CLI 子模块本身是 adapter 集成层；本测试**反向**钉住"CLI 可以"。
+def test_source_specific_legacy_cli_is_removed_but_obsidian_adapter_layer_remains() -> None:
+    """source adapter 仍可存在，但 Cubox-first CLI surface 已迁移删除。
 
-    这条不是限制，是**反向 contract**：避免有人误把 Slice 5 规则推广
-    到 CLI 层导致 cubox_cli.py / obsidian_cli.py 被迫绕路。
+    中文学习型说明：过去的反向 contract 允许 ``cubox_cli.py`` 持有具体
+    Cubox adapter。产品语义迁移后，Cubox 不能再作为用户主命令层存在；
+    这里改守新边界：root/CLI 不再依赖 Cubox adapter，但现有 Obsidian
+    adapter CLI 仍是隐藏的内部集成层。
     """
     cubox_cli = _module_path("cubox_cli.py")
     obsidian_cli = _module_path("obsidian_cli.py")
-    assert cubox_cli.exists()
+    assert not cubox_cli.exists()
     assert obsidian_cli.exists()
-    cubox_imports = {".".join(p) for p in _from_imports(cubox_cli)}
     obsidian_imports = {".".join(p) for p in _from_imports(obsidian_cli)}
-    # 这两条具体 import 是 v0.9 当下事实；任何重构如果把它们藏到
-    # 反射 / registry-only，请同时更新这条测试并解释为什么 CLI 不再
-    # 是 adapter 集成层。
-    assert any("sources.cubox_api" in s for s in cubox_imports), (
-        "cubox_cli.py 应直接 import CuboxApiAdapter（CLI = adapter 集成层）"
-    )
     assert any("sources.obsidian_vault" in s for s in obsidian_imports), (
         "obsidian_cli.py 应直接 import ObsidianVaultSourceAdapter"
     )

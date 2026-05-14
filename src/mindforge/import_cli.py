@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
-
 from .cli_runtime import (
     apply_provider_selection,
     console,
@@ -13,10 +12,7 @@ from .cli_runtime import (
     render_active_vault_resolution_notice,
     resolve_source_path_for_cli,
 )
-from .env_loader import load_dotenv_silently
-from .ingestion_diagnostics import print_ingestion_diagnostics
-from .ingestion_service import import_sources
-from .process_service import FAKE_PROFILE
+from .cli_processing_runtime import config_path_from_cfg, start_cli_processing_run
 from .strategy_selection import StrategySelectionError, resolve_strategy_selection
 
 
@@ -27,12 +23,14 @@ def import_cmd(
         None,
         "--profile",
         "-p",
-        help="Legacy alias for --provider；临时覆盖 provider，不修改 YAML。",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     provider: str | None = typer.Option(
         None,
         "--provider",
-        help="[Advanced/Legacy] 临时覆盖 provider/profile（不修改 YAML）。当前已使用 llm.models/routing 模型路由；此 flag 仅对 legacy profiles 生效。",
+        hidden=True,
+        help="Internal compatibility option.",
     ),
     force: bool = typer.Option(
         False,
@@ -49,7 +47,7 @@ def import_cmd(
         help="临时覆盖 strategy.active；只影响本次 import，不修改 YAML。",
     ),
 ) -> None:
-    """一次性处理当前内容，不加入 watched source registry。"""
+    """一次性导入 source，并启动后台 processing。"""
 
     cfg = load_cfg(config, read_env=False)
     cfg = apply_provider_selection(cfg, provider=provider, legacy_profile=profile)
@@ -64,33 +62,46 @@ def import_cmd(
         markup=False,
     )
     source_path = resolve_source_path_for_cli(cfg, target)
-    if cfg.llm.active_profile != FAKE_PROFILE and selected_strategy.metadata.provider_mode != "deterministic":
-        # CLI adapter 是读取 .env 的边界；service 只编排 ingestion，不持有 IO 副作用。
-        load_dotenv_silently(Path.cwd())
-    try:
-        summary = import_sources(
-            cfg,
-            source_path,
-            bypass_triage_gate=force,
-            strategy=selected_strategy,
-        )
-    except RuntimeError as exc:
-        console.print(str(exc), markup=False, soft_wrap=True)
-        raise typer.Exit(code=2) from exc
-    console.print("[bold]imported[/bold]")
-    console.print(f"target: {summary.target}", markup=False, soft_wrap=True)
-    console.print(
-        "processed={processed} skipped={skipped} failed={failed} seen={seen}".format(
-            processed=summary.counts.get("processed", 0),
-            skipped=summary.counts.get("skipped", 0),
-            failed=summary.counts.get("failed", 0),
-            seen=summary.counts.get("seen", 0),
-        ),
-        markup=False,
+    run = start_cli_processing_run(
+        cfg,
+        config_path=config_path_from_cfg(cfg, config),
+        source_ref=str(source_path.resolve()),
+        source_path=source_path,
+        mode="import",
+        worker_args=[
+            "--mode",
+            "import",
+            "--target",
+            str(source_path.resolve()),
+            *(["--provider", provider] if provider else []),
+            *(["--profile", profile] if profile else []),
+            *([] if not force else ["--force"]),
+            *([] if selected_strategy.strategy_id is None else ["--strategy", selected_strategy.strategy_id]),
+        ],
     )
-    print_ingestion_diagnostics(console, summary)
+    console.print("[bold]Source import registered[/bold]")
+    console.print(f"target: {source_path}", markup=False, soft_wrap=True)
     console.print("Registry: not added to watched sources.", markup=False)
-    console.print("Next: mindforge approve list", markup=False)
     console.print("Boundary: generated cards remain ai_draft until explicit approve --confirm.", markup=False)
+    _print_background_run_hint(run.record.run_id, reused_existing=run.reused_existing)
+
+
+def _print_background_run_hint(run_id: str, *, reused_existing: bool = False) -> None:
+    """CLI import 主路径只启动后台 run，不同步等待 pipeline。"""
+
+    if reused_existing:
+        console.print("Background processing is already active.", markup=False)
+    else:
+        console.print("Background processing started.", markup=False)
+    console.print(f"run_id: {run_id}", markup=False)
+    console.print("You can continue using MindForge.", markup=False)
+    console.print(f"Check progress: mindforge runs show {run_id}", markup=False)
+    console.print("Or: mindforge status", markup=False)
+    console.print("Drafts appear in: mindforge approve list after processing succeeds.", markup=False)
+    console.print(
+        "If model setup is incomplete, this run will fail with next actions; retry after setup is fixed.",
+        markup=False,
+        soft_wrap=True,
+    )
 
 __all__ = ["import_cmd"]

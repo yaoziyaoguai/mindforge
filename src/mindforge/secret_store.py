@@ -13,6 +13,57 @@ from pathlib import Path
 from typing import Any
 
 
+# 默认 secrets 文件相对路径
+_SECRETS_RELATIVE = Path(".mindforge") / "secrets.json"
+
+
+def resolve_project_root_from_config(cfg: Any) -> Path | None:
+    """从 MindForgeConfig metadata 提取已解析的 project_root。
+
+    project_root 由 load_mindforge_config 或 build_app_context 注入到 cfg.raw
+    的 metadata 字段中。本函数只提取路径，不读文件、不返回 secret。
+    """
+    raw = cfg.raw if isinstance(cfg.raw, dict) else {}
+    project_meta = raw.get("_mindforge_project")
+    if isinstance(project_meta, dict) and project_meta.get("root"):
+        return Path(str(project_meta["root"]))
+    config_meta = raw.get("_mindforge_config")
+    if isinstance(config_meta, dict) and config_meta.get("project_root"):
+        return Path(str(config_meta["project_root"]))
+    return None
+
+
+def find_secret_store_path(project_root: Path | None = None) -> Path | None:
+    """查找 .mindforge/secrets.json 的统一入口。
+
+    优先级：
+    1. ``project_root/.mindforge/secrets.json``（基于已解析的 workspace/config）
+    2. 从 CWD 向上查找（**仅** project_root 为 None 时的 legacy fallback）
+
+    中文学习型说明：这条函数是 P0-2 修复的核心——provider 不再从 CWD 重新猜
+    secrets path，而是接受已解析的 project_root 作为锚点。model_setup_readiness
+    和实际 processing pipeline 都通过这个入口获得一致的 secrets path。
+
+    当 project_root 已解析但 secrets 文件尚不存在（用户未 Web Setup）时，
+    返回 None，不 fallback 到 CWD。这确保 provider / readiness 不会误读
+    错误 workspace 的 secrets，也不会把 CWD 下的无关 secrets 当作已配置。
+
+    不读取文件内容，只返回路径（或 None）。
+    """
+    if project_root is not None:
+        candidate = project_root.expanduser().resolve() / _SECRETS_RELATIVE
+        if candidate.is_file():
+            return candidate
+        return None
+    # fallback：从 CWD 向上查找（仅 project_root 为 None 时）
+    cur = Path.cwd().resolve()
+    for directory in (cur, *cur.parents):
+        candidate = directory / _SECRETS_RELATIVE
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 class SecretStore:
     """按 model_id 索引的本地 API key 存储。
 

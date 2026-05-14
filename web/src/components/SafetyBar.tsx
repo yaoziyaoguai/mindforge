@@ -15,10 +15,9 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
           {safety.local_only ? "Local only" : "Host warning"}
         </span>
         <span className="text-muted">Vault: {truncateMiddle(safety.vault_path, 58)}</span>
-        <span className={safety.provider_state === "env_only" ? "text-safe" : "text-warn"}>
-          Model setup: {safety.provider_state === "env_only" ? "ready" : "check"}
+        <span className={safety.provider_state === "ready" ? "text-safe" : "text-warn"}>
+          Model setup: {safety.provider_state === "ready" ? "ready" : "check"}
         </span>
-        <span className="text-muted">.env: {safety.env_status}</span>
         <span className="inline-flex items-center gap-1 text-warn">
           <Lock className="h-4 w-4" aria-hidden="true" />
           {safety.write_mode === "explicit_approval_required" ? "Explicit approval required" : "Read-only"}

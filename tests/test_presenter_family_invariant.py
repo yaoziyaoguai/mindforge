@@ -9,12 +9,10 @@
 - ``review_presenter.py``
 - ``recall_presenter.py``
 - ``cubox_dryrun_presenter.py``
-- ``cubox_preview_presenter.py``
 
 它们都遵循同一组架构契约：**只做展示**。各自已有局部 boundary 测试
 （``test_review_presenter.py`` 22 条、``test_approve_presenter.py`` 系列、
-``test_cli_cubox_dry_run.py`` 与 ``test_cli_cubox_preview_ai_draft.py``
-分别守护两个 cubox presenter）。
+``test_cli_cubox_dry_run.py`` 守护 cubox presenter）。
 
 Stage 6 在**家族级**统一断言所有 presenter 文件遵守同一组 forbidden
 imports，避免未来新增 presenter 时再分别复制粘贴局部测试。
@@ -59,7 +57,6 @@ _PRESENTER_FILES = [
     _SRC / "review_presenter.py",
     _SRC / "recall_presenter.py",
     _SRC / "cubox_dryrun_presenter.py",
-    _SRC / "cubox_preview_presenter.py",
     # CLI Monolith Decomposition Pack 2 — process / init 命令的展示层
     # 已经从 cli.py 抽出。它们必须遵守家族契约：不依赖 service / processor /
     # provider / vault writer / dotenv / RunLogger / 网络。

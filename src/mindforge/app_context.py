@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .assets_runtime import bundled_asset_path_for_process
 from .config import ConfigError, MindForgeConfig, load_mindforge_config
 
 
@@ -80,18 +79,32 @@ def load_app_config(
     *,
     vault_override: Path | None = None,
     cwd: Path | None = None,
+    config_explicit: bool = False,
 ) -> MindForgeConfig:
     """加载 config 并应用本次命令的 vault override；不读 `.env`。
 
     中文学习型说明：是否加载 `.env` 仍由 CLI 入口显式决定。这里保持纯
     config/path resolution，避免 service/context 层悄悄改变 provider 环境。
+
+    ``--config`` / ``--workspace`` 都意味着用户显式选择了 workspace；
+    ``config_explicit`` 为 True 时 cwd vault 不应覆盖 config 的 configured vault。
+    这与 ``--workspace`` 通过 env var 传递的效果一致：用户指定了 workspace，
+    vault 就应该来自那个 workspace，而不是被当前目录的 vault 意外覆盖。
     """
     config_path = resolve_config_path(config_path, cwd=cwd)
     try:
         cfg = load_mindforge_config(config_path)
     except ConfigError as e:
         raise AppContextError("invalid_config", str(e)) from e
-    decision = resolve_active_vault(cfg, vault_override=vault_override, cwd=cwd)
+    from .workspace_resolver import global_workspace_override
+    workspace_override = global_workspace_override()
+    decision = resolve_active_vault(
+        cfg,
+        vault_override=vault_override,
+        cwd=cwd,
+        workspace_override=workspace_override,
+        config_explicit=config_explicit,
+    )
     return apply_active_vault(cfg, decision)
 
 
@@ -100,24 +113,34 @@ def resolve_config_path(config_path: Path, *, cwd: Path | None = None) -> Path:
 
 
 def _resolve_config_path(config_path: Path, *, cwd: Path | None) -> Path:
-    """解析 CLI config path，默认配置缺失时回退到 package asset。
+    """解析 CLI config path，按统一优先级查找 workspace。
 
-    中文学习型说明：安装态用户经常在任意目录运行 ``mindforge demo`` /
-    ``dogfood readiness`` / ``doctor``，当前目录没有 ``configs/mindforge.yaml``
-    是正常状态。默认路径会先从 cwd 向上寻找 MindForge project root，再
-    回退到包内配置；如果用户显式传了其它 ``--config``，仍严格报错，避免把
-    拼错的路径静默吞掉。
+    中文学习型说明：用户只需理解 workspace，不需要每天关心 config file path。
+    解析优先级：
+    1. 显式 --config（文件存在）
+    2. 显式 --workspace（通过 env var 传递）
+    3. cwd 向上查找 configs/mindforge.yaml
+    4. 全局 active workspace（~/.mindforge/current_workspace.json）
+    5. 友好错误提示
+
+    不在错误目录静默创建 config，不把 secret 写进全局配置。
     """
 
-    if config_path.exists():
-        return config_path
-    default = Path("configs/mindforge.yaml")
-    if config_path == default:
-        project_root = find_project_root(cwd)
-        if project_root is not None:
-            return project_root / "configs" / "mindforge.yaml"
-        return bundled_asset_path_for_process("configs", "mindforge.yaml")
-    raise AppContextError("missing_config", f"配置文件不存在：{config_path}")
+    from .workspace_resolver import (
+        WorkspaceResolutionError,
+        global_workspace_override,
+        resolve_workspace_config,
+    )
+
+    workspace_override = global_workspace_override()
+    try:
+        return resolve_workspace_config(
+            config_path,
+            workspace_override=workspace_override,
+            cwd=cwd,
+        )
+    except WorkspaceResolutionError as exc:
+        raise AppContextError(exc.kind, str(exc)) from exc
 
 
 def build_app_context(
@@ -126,9 +149,23 @@ def build_app_context(
     vault_override: Path | None = None,
     cwd: Path | None = None,
 ) -> AppContext:
-    """构建 console-independent AppContext；不创建目录、不写文件。"""
+    """构建 console-independent AppContext；不创建目录、不写文件。
+
+    中文学习型说明：当 cwd 未显式传递时，以 config 文件所在目录为基准，
+    避免 process cwd 意外影响 vault 检测（如 home 目录的 .mindforge 被误判为 vault）。
+
+    ``--config`` / ``--workspace`` 通过 env var 传递；本函数内部已通过 ``load_app_config``
+    自动传播到 vault resolution，无需调用方显式处理。
+    """
     resolved_config = _resolve_config_path(config_path, cwd=cwd)
-    cfg = load_app_config(resolved_config, vault_override=vault_override, cwd=cwd)
+    effective_cwd = cwd or resolved_config.parent
+    config_explicit = (config_path != Path("configs/mindforge.yaml"))
+    cfg = load_app_config(
+        resolved_config,
+        vault_override=vault_override,
+        cwd=effective_cwd,
+        config_explicit=config_explicit,
+    )
     return AppContext(
         config=cfg,
         paths=AppPaths(
@@ -146,16 +183,31 @@ def build_app_context(
 def find_project_root(start: Path | None = None) -> Path | None:
     """从 start 向上寻找 MindForge project root。
 
-    规则很窄：包含 ``configs/mindforge.yaml`` 的目录就是 project root。
-    这对应产品语义：用户在哪里运行 ``mindforge init``，哪里就是项目根；
-    默认 ``vault.root``、本地 ``.env``、用户相对 source path 都围绕它解释。
+    规则：按优先级匹配多个标记 ——
+    1. ``configs/mindforge.yaml``（最可靠的产品标记）
+    2. ``.mindforge/`` 目录（排除 vault 内部目录 —— vault 内也可能有 .mindforge）
+    3. ``vault/`` 目录（常见于 GitHub clone 后的初始状态）
+    4. ``pyproject.toml`` + ``src/mindforge``（开发者 clone 的源码仓库）
     """
 
     current = (start or Path.cwd()).expanduser().resolve()
     for candidate in (current, *current.parents):
         if (candidate / "configs" / "mindforge.yaml").is_file():
             return candidate
+        # .mindforge/ 同时存在于 project root 和 vault root（state.workdir）
+        # 只有不包含 00-Inbox 或 20-Knowledge-Cards 的目录才是 project root
+        if (candidate / ".mindforge").is_dir() and not _looks_like_vault(candidate):
+            return candidate
+        if (candidate / "vault").is_dir():
+            return candidate
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "mindforge").is_dir():
+            return candidate
     return None
+
+
+def _looks_like_vault(path: Path) -> bool:
+    """一个目录包含 Inbox 或 Knowledge-Cards 子目录时大概率是 vault。"""
+    return (path / "00-Inbox").is_dir() or (path / "20-Knowledge-Cards").is_dir()
 
 
 def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
@@ -176,6 +228,7 @@ def detect_cwd_vault(cwd: Path | None = None) -> Path | None:
             or (
                 (candidate / ".mindforge").is_dir()
                 and not (candidate / "configs" / "mindforge.yaml").exists()
+                and not (candidate / "mindforge.yaml").exists()
             )
         ):
             return candidate
@@ -187,12 +240,23 @@ def resolve_active_vault(
     *,
     vault_override: Path | None = None,
     cwd: Path | None = None,
+    workspace_override: Path | None = None,
+    config_explicit: bool = False,
 ) -> ActiveVaultDecision:
     """按统一优先级选择 active vault。
 
-    优先级：explicit ``--vault`` > cwd/ancestor vault > configured vault。
-    这个规则保证用户在 vault root 内运行 ``mindforge scan`` 时，scanner、
-    state/index、next command 全部指向同一个 vault。
+    优先级：
+    1. explicit ``--vault``（始终最高）
+    2. cwd/ancestor vault（仅在未显式提供 ``--config`` 或 ``--workspace`` 时）
+    3. configured vault（来自已解析的 config）
+
+    当 ``--config`` 或 ``--workspace`` 显式提供时，跳过 cwd vault 检测。
+    用户指定了 config/workspace 意味着"使用这个 config/workspace 的 vault"，
+    cwd 附近的 vault 不应意外覆盖用户选择。
+
+    中文学习型说明：cwd vault 是便利特性，只在用户没有显式选择
+    config/workspace 时才生效。一旦用户说了"用这个 config"或"用这个
+    workspace"，cwd 就不再参与 vault 选择。
     """
 
     project_root = _project_root_from_raw(cfg)
@@ -203,13 +267,16 @@ def resolve_active_vault(
             reason="explicit --vault",
             configured_root=configured,
         )
-    cwd_vault = detect_cwd_vault(cwd)
-    if cwd_vault is not None:
-        return ActiveVaultDecision(
-            root=cwd_vault,
-            reason="cwd vault",
-            configured_root=configured,
-        )
+    # --config 或 --workspace 显式提供时，跳过 cwd vault。
+    # cwd vault 只在用户没有任何显式选择时才参与优先级。
+    if workspace_override is None and not config_explicit:
+        cwd_vault = detect_cwd_vault(cwd)
+        if cwd_vault is not None:
+            return ActiveVaultDecision(
+                root=cwd_vault,
+                reason="cwd vault",
+                configured_root=configured,
+            )
     return ActiveVaultDecision(
         root=configured,
         reason="configured vault",

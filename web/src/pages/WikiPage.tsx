@@ -6,11 +6,26 @@ interface WikiStatus {
   last_rebuilt_at: string | null;
   approved_card_count: number;
   wiki_card_count: number;
+  model_ready: boolean;
+  model_ready_label: string;
 }
 
 interface WikiContent {
   content: string | null;
   exists: boolean;
+}
+
+interface WikiRebuildResult {
+  ok: boolean;
+  mode?: string;
+  wiki_path?: string;
+  included_cards?: number;
+  section_count?: number;
+  additional_cards?: number;
+  model_id?: string;
+  warnings?: string[];
+  last_rebuilt_at?: string;
+  error?: string;
 }
 
 export function WikiPage() {
@@ -36,14 +51,34 @@ export function WikiPage() {
     }
   }
 
-  async function rebuild() {
+  async function rebuild(mode: string) {
     setBusy(true);
+    setMessage(null);
     try {
-      const resp = await fetch("/api/wiki/rebuild", { method: "POST" });
-      const data = await resp.json();
+      const resp = await fetch(`/api/wiki/rebuild`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const data: WikiRebuildResult = await resp.json();
       if (data.ok) {
-        setMessage(`Wiki rebuilt: ${data.included_cards} cards included`);
+        const parts: string[] = [`Wiki rebuilt (${data.mode}): ${data.included_cards} cards`];
+        if (data.section_count) parts.push(`${data.section_count} sections`);
+        if (data.model_id) parts.push(`model: ${data.model_id}`);
+        setMessage(parts.join(", "));
+        if (data.warnings?.length) {
+          setMessage(prev => (prev ?? "") + " — Warnings: " + data.warnings!.join("; "));
+        }
+        // 中文学习型说明：rebuild 响应中已携带 last_rebuilt_at，先立即更新 status
+        // 避免用户看到旧时间戳；同时仍调用 load() 从服务端拉取 status + content 完整刷新。
+        if (data.last_rebuilt_at) {
+          setStatus(prev => prev ? { ...prev, last_rebuilt_at: data.last_rebuilt_at ?? null, wiki_card_count: data.included_cards ?? prev.wiki_card_count } : prev);
+        }
+      } else {
+        setMessage(`Rebuild failed: ${data.error ?? "unknown error"}`);
       }
+      // 重建后双重刷新：先立即用响应中的 last_rebuilt_at 更新 status，再 fetch
+      // /api/wiki/status 和 /api/wiki/content 确保 UI 与服务端一致。
       await load();
     } catch {
       setMessage("Wiki rebuild failed");
@@ -56,14 +91,14 @@ export function WikiPage() {
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-        <p className="mt-1 text-sm text-muted">Main Wiki is generated from approved knowledge cards. Source files are not copied or deleted. Run mindforge wiki rebuild to regenerate.</p>
+        <p className="mt-1 text-sm text-muted">Main Wiki is generated from approved knowledge cards. Source files are not copied or deleted.</p>
       </header>
 
       {message ? <p className="text-sm text-primary">{message}</p> : null}
 
       {/* Status */}
       {status ? (
-        <div className="flex flex-wrap gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <div className="rounded-md border border-line bg-panel px-3 py-2">
             <span className="text-muted">Status: </span>
             <span className={status.exists ? "text-safe" : "text-warn"}>{status.exists ? "Exists" : "Missing"}</span>
@@ -78,13 +113,13 @@ export function WikiPage() {
                 <span className="text-muted">Cards in Wiki: </span>
                 <span className="text-ink">{status.wiki_card_count}</span>
               </div>
-              <div className="rounded-md border border-line bg-panel px-3 py-2">
-                <span className="text-muted">Approved cards available: </span>
-                <span className="text-ink">{status.approved_card_count}</span>
-              </div>
             </>
           ) : null}
-          <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy} onClick={rebuild} type="button">
+          <div className="rounded-md border border-line bg-panel px-3 py-2">
+            <span className="text-muted">Approved cards: </span>
+            <span className="text-ink">{status.approved_card_count}</span>
+          </div>
+          <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !status.model_ready} onClick={() => rebuild("llm")} type="button" title={status.model_ready ? "Rebuild Wiki with LLM synthesis" : status.model_ready_label}>
             Rebuild Wiki
           </button>
         </div>
@@ -95,9 +130,23 @@ export function WikiPage() {
         {content?.content ? (
           <pre className="whitespace-pre-wrap font-sans text-sm text-ink leading-relaxed">{content.content}</pre>
         ) : (
-          <p className="text-sm text-muted">Wiki has not been generated yet. Click Rebuild Wiki or run mindforge wiki rebuild.</p>
+          <div>
+            <p className="text-sm text-muted">Wiki has not been generated yet. Click Rebuild Wiki or run mindforge wiki rebuild.</p>
+            {!status?.model_ready && <p className="text-sm text-warn">Model setup required for Wiki generation. Complete model setup first.</p>}
+          </div>
         )}
       </div>
+
+      {/* Advanced: deterministic template rebuild fallback */}
+      <details className="rounded-md border border-line p-3">
+        <summary className="cursor-pointer text-sm font-medium text-muted">Advanced</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted">Template rebuild is a troubleshooting fallback. It does not require a model and produces a structured summary from approved cards without LLM synthesis. This is not the recommended Wiki generation path.</p>
+          <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy} onClick={() => rebuild("deterministic")} type="button">
+            Template rebuild (no model)
+          </button>
+        </div>
+      </details>
     </div>
   );
 }

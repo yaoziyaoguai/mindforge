@@ -136,9 +136,11 @@ def test_format_next_steps_starts_with_bold_heading() -> None:
     assert any("mindforge doctor" in line for line in indented)
 
 
-def test_format_safety_footer_reaffirms_no_env_no_llm() -> None:
-    """init 安全 footer 必须复述 ``不创建/不读 .env`` 与 ``不调 LLM``。"""
+def test_format_safety_footer_uses_model_setup_language() -> None:
+    """init footer 是 first-run 文案，不能继续引导用户理解 env/fake/demo。"""
 
     line = format_safety_footer()
-    assert ".env" in line
-    assert "LLM" in line
+    assert "Web Setup" in line
+    assert "模型调用" in line
+    for legacy_term in (".env", "fake", "demo", "profile"):
+        assert legacy_term not in line

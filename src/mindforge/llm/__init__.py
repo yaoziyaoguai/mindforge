@@ -17,14 +17,15 @@
 2. **可观察性**：每次调用统一打 ``llm_call`` 事件（stage / model_alias /
    provider / actual_model / prompt_version / input_file_hash / tokens /
    latency / status），由 ``run_logger`` 一份白名单字段托底，不会泄漏原文。
-3. **v0.1 克制**：**不**做 fallback、投票、智能路由、token-aware routing。
-   只做"按 active_profile 把 stage 静态映射成一个 ModelConfig"。
+3. **v0.1 克制**：不做投票、智能路由、token-aware routing。
+   新配置只做"按 llm.routing 把 stage 静态映射成一个 ModelConfig"；
+   routing 缺省时回退到 default_model，旧 active_profile/profiles 仅兼容读取。
 """
 
 from .anthropic_compatible import AnthropicCompatibleProvider
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
 from .client import LLMClient, ResolvedModel, StageCallResult
-from .factory import build_providers
+from .factory import build_provider_for_model, build_providers
 from .fake import FakeProvider
 from .openai_compatible import OpenAICompatibleProvider
 
@@ -37,6 +38,7 @@ __all__ = [
     "OpenAICompatibleProvider",
     "AnthropicCompatibleProvider",
     "build_providers",
+    "build_provider_for_model",
     "LLMClient",
     "ResolvedModel",
     "StageCallResult",

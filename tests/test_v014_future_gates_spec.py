@@ -24,7 +24,7 @@ def _read(name: str) -> str:
 def test_roadmap_exists_with_all_future_gates():
     text = _read("README.md")
     for gate in (
-        "G1 Real Cubox ingestion",
+        "G1 External account ingestion",
         "G2 Real Obsidian formal-note write",
         "G3 Approval UX",
         "G4 Custom executable strategy runtime",
@@ -52,8 +52,7 @@ def test_usage_and_testing_list_required_evidence_sections():
     text = _read("README.md") + "\n" + _read("TESTING.md")
     for section in (
         "First Status Commands",
-        "Real Provider Opt-In",
-        "Safe Real Dogfood",
+        "Local workflow safety notes",
         "Approval",
         "Standard Quality Gate",
     ):
@@ -63,8 +62,8 @@ def test_usage_and_testing_list_required_evidence_sections():
 def test_evidence_cookbook_documents_what_it_does_not_do():
     text = _read("README.md")
     for negative in (
-        "does not print `.env` secret values",
-        "does not call the real Cubox API",
+        "Keep API keys in the local secret store",
+        "No secret file or real model call is used without explicit opt-in",
         "does not automatically modify a real private vault",
         "does not auto-approve",
     ):
@@ -98,16 +97,23 @@ def test_evidence_cookbook_does_not_teach_forbidden_actions():
 
 # ---------- preflight UX hint ----------
 
-def test_preflight_render_suggests_fake_safe_next_command_when_allowed():
-    """allowed 路径必须 hint fake-safe 下一步, 不能 hint real provider。"""
-    src = (SRC / "dogfood_safety.py").read_text(encoding="utf-8")
-    assert "Suggested next (manual, fake-safe)" in src
-    assert "--profile fake" in src
+def test_preflight_render_suggests_source_centric_next_command_when_allowed():
+    """allowed 路径必须 hint source-centric 下一步, 不能 hint real provider。
+
+    中文学习型说明：input preflight 已从历史 runbook 迁移到真实本地
+    source 工作流；它只建议 Web Setup 和 watch add，不再教学 fake/demo。
+    """
+    src = (SRC / "input_safety.py").read_text(encoding="utf-8")
+    assert "Suggested next:" in src
+    assert "mindforge web" in src
+    assert "mindforge watch add" in src
+    assert "--profile fake" not in src
     # 反例: 不能默认教用户跑 --allow-real
     assert "--allow-real" not in src
 
 
-def test_preflight_render_offers_safe_alternatives_when_refused():
-    src = (SRC / "dogfood_safety.py").read_text(encoding="utf-8")
-    assert "Refused. Safe alternatives" in src
-    assert "examples/demo-vault" in src
+def test_preflight_render_offers_source_alternatives_when_refused():
+    src = (SRC / "input_safety.py").read_text(encoding="utf-8")
+    assert "Fix first:" in src
+    assert "choose a local non-sensitive source folder" in src
+    assert "examples/demo-vault" not in src

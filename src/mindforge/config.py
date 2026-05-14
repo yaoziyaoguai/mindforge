@@ -3,9 +3,11 @@
 设计原则
 ========
 
-1. **fail-fast**
-   - 配置错误（active_profile 找不到、source_type 不在 enum、stage 缺失）
-     必须在启动时立即报错，不允许进入处理循环后再炸。
+1. **fail-fast + runtime-friendly**
+   - 旧 profile 配置错误（active_profile 找不到、source_type 不在 enum）
+     必须在启动时立即报错。
+   - 新 ``llm.models/default_model/routing`` 允许 clean clone 初始无模型；
+     需要 LLM 的运行边界再给出可操作错误，不能抛 ``KeyError``。
 
 2. **配置层面开放、执行层面克制**
    - 允许用户列任意多个 profile / model；
@@ -26,6 +28,7 @@ from typing import Any
 import yaml
 
 from .assets_runtime import bundled_text
+from .provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
 # v0.1 固定的 5 个 stage（与 prompts/ 下子目录一一对应）
 REQUIRED_STAGES: tuple[str, ...] = (
@@ -177,11 +180,40 @@ class LLMConfig:
     routing: dict[str, str] = field(default_factory=dict)
     legacy_config_detected: bool = False
 
+    def resolve_stage_alias(self, stage: str) -> str:
+        """解析 processing stage 使用的 model id，统一新旧配置边界。
+
+        中文学习型说明：新格式主路径是 ``llm.routing``，缺省时回退到
+        ``llm.default_model``；旧 ``profiles`` 只作为兼容来源。所有路径都在
+        这里收敛成 ConfigError，避免 pipeline/runtime 再出现 ``KeyError``。
+        """
+
+        if stage not in REQUIRED_STAGES:
+            raise ConfigError(
+                f"Unknown processing stage {stage!r}. Known stages: {list(REQUIRED_STAGES)}"
+            )
+        profile = self.profiles.get(self.active_profile, {})
+        # 新格式以 llm.routing 为主；legacy 配置可能被 CLI --provider 临时切换
+        # active_profile，因此必须先看当前 profile，不能让加载时的 routing 快照
+        # 抢走用户显式选择。
+        if self.legacy_config_detected:
+            alias = profile.get(stage) or self.routing.get(stage)
+        else:
+            alias = self.routing.get(stage) or profile.get(stage)
+        if alias is None:
+            alias = self.default_model
+        if not alias:
+            raise ConfigError(
+                f"No model configured for stage {stage!r}. Add a model in Web Setup."
+            )
+        if alias not in self.models:
+            raise ConfigError(
+                f"Model {alias!r} referenced by stage {stage!r} is not configured."
+            )
+        return alias
+
     def resolve_stage(self, stage: str) -> ModelConfig:
-        """按当前 active_profile 把 stage 解析为 ModelConfig。"""
-        profile = self.profiles[self.active_profile]
-        alias = profile[stage]
-        return self.models[alias]
+        return self.models[self.resolve_stage_alias(stage)]
 
 
 def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
@@ -189,9 +221,17 @@ def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
 
     中文学习型说明：用户默认配置和 package defaults 不再暴露 fake/profile 语义；
     但老的 smoke、preview 和 ``--profile fake`` 仍需要 deterministic 本地替身。
-    这里在内存中派生 fake profile，不写回 YAML，也不污染 Setup 主 UI。
+    这里在内存中派生 fake profile，并同步 runtime routing，不写回 YAML，也
+    不污染 Setup 主 UI。
     """
 
+    fake_routing = {
+        "triage": "fake_fast",
+        "distill": "fake_strong",
+        "link_suggestion": "fake_fast",
+        "review_questions": "fake_strong",
+        "action_extraction": "fake_strong",
+    }
     fake_models = {
         "fake_fast": ModelConfig(
             alias="fake_fast",
@@ -216,17 +256,11 @@ def with_fake_llm_profile(llm: LLMConfig) -> LLMConfig:
         active_profile="fake",
         profiles={
             **llm.profiles,
-            "fake": {
-                "triage": "fake_fast",
-                "distill": "fake_strong",
-                "link_suggestion": "fake_fast",
-                "review_questions": "fake_strong",
-                "action_extraction": "fake_strong",
-            },
+            "fake": fake_routing,
         },
         models={**llm.models, **fake_models},
         default_model=llm.default_model,
-        routing=dict(llm.routing),
+        routing=dict(fake_routing),
         legacy_config_detected=llm.legacy_config_detected,
     )
 
@@ -341,6 +375,20 @@ class StrategyConfig:
 
 
 @dataclass(frozen=True)
+class WikiConfig:
+    """Wiki 生成配置。
+
+    mode 字段为 deprecated/compatibility fallback。MindForge 是 LLM-first 工具，
+    Wiki 主路径走 llm synthesis。deterministic 模式仅保留作为内部回退和测试路径，
+    不在 Web UI 中作为普通用户可选模式暴露。
+    """
+
+    mode: str = "llm"
+    model: str | None = None
+    auto_rebuild_on_approve: bool = True
+
+
+@dataclass
 class MindForgeConfig:
     """整份配置的不可变快照。其他模块只依赖这个对象。"""
 
@@ -357,6 +405,7 @@ class MindForgeConfig:
     obsidian: ObsidianConfig = field(default_factory=ObsidianConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
+    wiki: WikiConfig = field(default_factory=WikiConfig)
     raw: dict[str, Any] = field(default_factory=dict)  # 便于调试
 
 
@@ -763,6 +812,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
     obsidian_cfg = _parse_obsidian(raw.get("obsidian") or {})
     search_cfg = _parse_search(raw.get("search") or {})
     strategy_cfg = _parse_strategy(raw.get("strategy") or {})
+    wiki_cfg = _parse_wiki(raw.get("wiki") or {})
 
     return MindForgeConfig(
         version=float(raw.get("version", 0.1)),
@@ -778,6 +828,7 @@ def load_mindforge_config(path: str | Path) -> MindForgeConfig:
         obsidian=obsidian_cfg,
         search=search_cfg,
         strategy=strategy_cfg,
+        wiki=wiki_cfg,
         raw=raw,
     )
 
@@ -796,6 +847,25 @@ def _parse_strategy(raw: Any) -> StrategyConfig:
     if not active:
         raise ConfigError("strategy.active 不能为空")
     return StrategyConfig(active=active)
+
+
+def _parse_wiki(raw: Any) -> WikiConfig:
+    """解析 ``wiki.mode`` / ``wiki.model``，默认 LLM-first synthesis。
+
+    deterministic 模式仅保留作为内部兼容回退和测试路径，不在 Web UI 或 CLI 帮助中
+    作为普通用户可选项暴露。
+    """
+    if not isinstance(raw, dict):
+        return WikiConfig()
+    mode = str(raw.get("mode") or "llm").strip()
+    if mode not in {"llm", "deterministic"}:
+        raise ConfigError(f"wiki.mode 必须是 llm 或 deterministic（deprecated），得到 {mode!r}")
+    model = raw.get("model")
+    return WikiConfig(
+        mode=mode,
+        model=str(model).strip() if model else None,
+        auto_rebuild_on_approve=bool(raw.get("auto_rebuild_on_approve", True)),
+    )
 
 
 def _parse_obsidian(raw: Any) -> "ObsidianConfig":
@@ -941,6 +1011,8 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             base_url = ""  # 运行时由 provider 从 env 读取
         elif mraw.get("type") == "fake":
             base_url = "fake://"
+        elif mraw.get("type") == "openai":
+            base_url = ""
         else:
             raise ConfigError(
                 f"llm.models.{alias} 必须提供 base_url 或 base_url_env 之一"
@@ -958,8 +1030,14 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
             type=_require(mraw, "type", str, ctx=f"llm.models.{alias}"),
             base_url=base_url,
             model=str(model_str or ""),
-            timeout_seconds=int(mraw.get("timeout_seconds", 120)),
-            max_retries=int(mraw.get("max_retries", 1)),
+            timeout_seconds=_int_with_default(
+                mraw.get("timeout_seconds"),
+                DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+            ),
+            max_retries=_int_with_default(
+                mraw.get("max_retries"),
+                DEFAULT_PROVIDER_MAX_RETRIES,
+            ),
             api_key_env=mraw.get("api_key_env"),
             api_key_optional=bool(mraw.get("api_key_optional", False)),
             base_url_env=base_url_env,
@@ -1008,14 +1086,19 @@ def _parse_llm(raw: dict[str, Any]) -> LLMConfig:
 def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
     """解析用户可见的新 LLM 语义，并生成现有执行层可消费的 routing plan。
 
-    ``LLMClient`` / provider factory 当前仍消费 ``active_profile/profiles``。
-    这里把新格式转换成单个内部 profile，保持执行链稳定；对用户和 Setup 暴露
-    的 source of truth 仍是 ``default_model/models/routing``。
+    中文学习型说明：首次安装可以没有模型（default_model=None, models={}）。
+    无模型时 Web/CLI 启动不受影响，需要 LLM 的动作（process/import/LLM wiki）
+    在 runtime 给出清晰错误。default_model 非空时必须引用 models 中存在的 id。
     """
 
-    default_model = _require(raw, "default_model", str, ctx="llm")
+    default_model = raw.get("default_model")  # 允许 None（首次无模型安装）
+    if default_model is not None and not isinstance(default_model, str):
+        raise ConfigError(
+            f"llm.default_model 必须是 str 或 null，得到 {type(default_model).__name__}"
+        )
     models_raw = _require(raw, "models", dict, ctx="llm")
-    if default_model not in models_raw:
+    # 无模型配置：default_model=None + models={} 合法
+    if default_model is not None and default_model not in models_raw:
         raise ConfigError(
             f"llm.default_model={default_model!r} 不在 llm.models 中；"
             f"已知：{sorted(models_raw)}"
@@ -1029,15 +1112,20 @@ def _parse_model_routing_llm(raw: dict[str, Any]) -> LLMConfig:
         )
     routing: dict[str, str] = {}
     for stage in REQUIRED_STAGES:
-        value = routing_raw.get(stage, default_model)
-        if not isinstance(value, str):
-            raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
-        if value not in models:
-            raise ConfigError(
-                f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
-                f"已知：{sorted(models)}"
-            )
-        routing[stage] = value
+        # 无 default_model 时 routing key 必须显式提供
+        if default_model is not None:
+            value = routing_raw.get(stage, default_model)
+        else:
+            value = routing_raw.get(stage)
+        if value is not None:
+            if not isinstance(value, str):
+                raise ConfigError(f"llm.routing.{stage} 必须是 model id 字符串")
+            if value not in models:
+                raise ConfigError(
+                    f"llm.routing.{stage}={value!r} 不在 llm.models 中；"
+                    f"已知：{sorted(models)}"
+                )
+            routing[stage] = value
     for stage in routing_raw:
         if stage not in REQUIRED_STAGES:
             raise ConfigError(
@@ -1069,13 +1157,13 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
     if "type" not in mraw:
         raise ConfigError(
             f"llm.models.{model_id}.type 缺失；必须显式配置为 "
-            "anthropic, anthropic_compatible 或 openai_compatible，不能从 base_url/model 自动猜协议"
+            "anthropic, anthropic_compatible, openai 或 openai_compatible，不能从 base_url/model 自动猜协议"
         )
     model_type = _require(mraw, "type", str, ctx=f"llm.models.{model_id}")
-    if model_type not in {"anthropic", "anthropic_compatible", "openai_compatible", "fake"}:
+    if model_type not in {"anthropic", "anthropic_compatible", "openai", "openai_compatible", "fake"}:
         raise ConfigError(
             f"llm.models.{model_id}.type={model_type!r} 不支持；"
-            "支持：anthropic, anthropic_compatible, openai_compatible"
+            "支持：anthropic, anthropic_compatible, openai, openai_compatible"
         )
 
     base_url_env = mraw.get("base_url_env")
@@ -1085,6 +1173,8 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
         base_url = ""
     elif model_type == "fake":
         base_url = "fake://"
+    elif model_type == "openai":
+        base_url = ""
     else:
         raise ConfigError(
             f"llm.models.{model_id} 必须提供 base_url 或 base_url_env 之一"
@@ -1103,8 +1193,14 @@ def _parse_llm_model(model_id: str, mraw: dict[str, Any]) -> ModelConfig:
         type=model_type,
         base_url=base_url,
         model=str(model_str or ""),
-        timeout_seconds=int(mraw.get("timeout_seconds", 120)),
-        max_retries=int(mraw.get("max_retries", 1)),
+        timeout_seconds=_int_with_default(
+            mraw.get("timeout_seconds"),
+            DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+        ),
+        max_retries=_int_with_default(
+            mraw.get("max_retries"),
+            DEFAULT_PROVIDER_MAX_RETRIES,
+        ),
         api_key_env=mraw.get("api_key_env"),
         api_key_optional=bool(mraw.get("api_key_optional", False)),
         base_url_env=base_url_env,
@@ -1155,8 +1251,24 @@ def _require(d: dict[str, Any], key: str, expected_type: type, *, ctx: str) -> A
     return val
 
 
+def _int_with_default(value: Any, default: int) -> int:
+    """把缺失/null 的 provider 数值字段收敛到产品默认值。
+
+    中文学习型说明：timeout/retry 是 release 用户体验边界。普通用户通过 Web
+    Setup 配模型，不一定会看到这些字段；旧配置或迁移 YAML 也可能显式留下
+    null。这里把 null 当作“使用 MindForge 默认”，但其它非法类型仍按 Python
+    int 转换失败暴露配置问题。
+    """
+
+    if value is None:
+        return default
+    return int(value)
+
+
 __all__ = [
     "REQUIRED_STAGES",
+    "DEFAULT_PROVIDER_TIMEOUT_SECONDS",
+    "DEFAULT_PROVIDER_MAX_RETRIES",
     "KNOWN_SOURCE_TYPES",
     "ConfigError",
     "VaultConfig",

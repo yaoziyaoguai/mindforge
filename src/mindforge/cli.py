@@ -1,7 +1,7 @@
 """MindForge root Typer entrypoint.
 
 中文学习型说明：root ``cli.py`` 只负责全局参数、少量基础命令与命令族注册。
-历史上 4500+ 行的 approve/process/review/recall/project/dogfood 等命令族已
+历史上 4500+ 行的 approve/process/review/recall/project 等命令族已
 拆入各自 ``*_cli.py`` adapter；service / presenter / policy / source / strategy
 边界不再反向依赖 root CLI。
 """
@@ -30,7 +30,6 @@ from .cli_runtime import (
     override_active_profile as _override_active_profile,
     render_active_vault_resolution_notice,
 )
-from .cubox_cli import cubox_app
 from .daily_cli import (
     DailySnapshot,
     _compact_next_suggestions,
@@ -51,7 +50,6 @@ from .doctor_cli import (
     _ok_dir,
     doctor,
 )
-from .dogfood_cli import _dogfood_command_snippets, _dogfood_quickstart_steps, dogfood_app
 from .init_config_cli import (
     _available_profile_names,
     _build_config_init_plan,
@@ -66,19 +64,17 @@ from .init_config_cli import (
     setup_cmd,
 )
 from .import_cli import import_cmd
-from .llm_cli import llm_app
 from .llm import build_providers
 from .library_cli import library_app
 from .models import ItemState
 from .next_suggestions import NextSuggestion, compact_next_suggestions, next_suggestions
-from .obsidian_cli import _obsidian_dogfood_command_snippets, obsidian_app
+from .obsidian_cli import _obsidian_workflow_command_snippets, obsidian_app
 from .env_loader import load_dotenv_silently
 from .process_cli import _finalize_process_run, process
 from .processors import Pipeline  # noqa: F401 -- 保留向后兼容 re-export
 from .process_executor import process_one_result as _process_one_result
 from .project_cli import project_app
 from .prompt_cli import prompts_app
-from .provider_cli import provider_app
 from .recall_index_cli import (
     _do_bm25_recall,
     _do_index_status,
@@ -103,6 +99,7 @@ from .run_logger import (
     RunLogger,
     summarize_latest_run,
 )
+from .runs_cli import runs_app
 from .scanner import Scanner
 from .strategy_cli import strategies_app
 from .telemetry_cli import telemetry_app
@@ -139,9 +136,7 @@ __all__ = [
     "_doctor_icon",
     "_dir_state",
     "_ok_dir",
-    "_dogfood_command_snippets",
-    "_dogfood_quickstart_steps",
-    "_obsidian_dogfood_command_snippets",
+    "_obsidian_workflow_command_snippets",
     "_available_profile_names",
     "_validate_interactive_vault_target",
     "_rewrite_init_config",
@@ -166,21 +161,26 @@ __all__ = [
 
 app = typer.Typer(
     add_completion=True,
+    invoke_without_command=True,
     help=(
         "MindForge — 多源接入的本地 AI 知识加工管线。\n\n"
-        "新用户先跑这条命令（零 secret / 零网络 / 零 vault 写入）：\n"
-        "  mindforge demo               — 60 秒 fake/safe tour，零配置即可看到端到端效果\n\n"
+        "第一阶段主路径：真实模型配置 → 本地文件/文件夹 Source → 后台 Process → "
+        "AI Draft → Human Review → Explicit Approve → Library / Wiki。\n\n"
         "常用命令：\n"
-        "  mindforge demo               — 60 秒新用户 tour，无需 API key / 网络 / vault\n"
-        "  watch add <path>             — 注册 watched source，并立即生成 ai_draft\n"
-        "  import <path>                — 一次性导入文件/文件夹，不加入 watch registry\n"
-        "  scan / process / status      — advanced/troubleshooting 底层 pipeline 命令\n"
-        "  approve list / approve 1    — 查看并显式确认 ai_draft，晋升为 human_approved\n"
-        "  recall / review due          — 检索与复习已审核卡片\n"
-        "  project context <name> [...] — 拼装可粘贴给编程助手的项目上下文包\n"
-        "  project update-evidence <n>  — 幂等写入 30-Projects/<n>.md 受控区块\n"
-        "  telemetry status / summary   — 查看本地命令使用统计（不上传）\n"
-        "  llm ping                     — 校验 LLM provider env（不发 HTTP）\n"
+        "  mindforge web                — 打开本地 Web 控制台并配置真实模型\n"
+        "  mindforge status             — 查看本地 workspace / draft / library 状态\n"
+        "  mindforge workspace current  — 查看当前 active workspace\n"
+        "  mindforge workspace use <path> — 设置 active workspace（之后可在任意目录运行）\n"
+        "  mindforge doctor             — 做本地安装与路径健康检查\n"
+        "  watch add <path>             — 注册 watched source，并启动后台 Process\n"
+        "  import <path>                — 一次性导入文件/文件夹，并启动后台 Process\n"
+        "  runs show <run_id>           — 查看后台 processing 进度或失败原因\n"
+        "  approve list / approve 1     — 查看并显式确认 AI Draft\n"
+        "  library list / show          — 浏览已审批知识\n"
+        "  trash list / move / restore  — 管理回收站\n"
+        "  wiki status / rebuild / show — 管理从 approved cards 派生的 Wiki\n"
+        "  prompts list / show          — 只读查看内置 prompt\n"
+        "  recall --query <text>        — 搜索已审批知识\n"
         "  version                      — 打印版本与运行配置摘要（不含 secret）\n"
     ),
     pretty_exceptions_enable=False,
@@ -203,15 +203,36 @@ def _global_options(
             "configured/bundled fallback。"
         ),
     ),
+    workspace: Path | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help=(
+            "指定 MindForge workspace 路径。自动推导 --config 为 "
+            "<workspace>/configs/mindforge.yaml。优先级：--config > --workspace > "
+            "cwd 向上查找 > 全局 active workspace。"
+        ),
+    ),
     obsidian_vault: Path | None = typer.Option(
         None,
         "--obsidian-vault",
         help="临时覆盖 obsidian.vault_path（仅 obsidian 子命令使用，不修改 yaml）。",
     ),
+    version_flag: bool = typer.Option(
+        False,
+        "--version",
+        help="打印 MindForge 版本并退出。",
+        is_eager=True,
+    ),
 ) -> None:
     """全局选项通过 env 透传，避免子命令与 Typer Context 紧耦合。"""
     import os
 
+    if version_flag:
+        from . import __version__
+
+        console.print(f"MindForge v{__version__}", markup=False)
+        raise typer.Exit()
     if debug:
         os.environ["MINDFORGE_DEBUG"] = "1"
     else:
@@ -220,6 +241,12 @@ def _global_options(
         os.environ["MINDFORGE_VAULT_OVERRIDE"] = str(vault.expanduser().resolve())
     else:
         os.environ.pop("MINDFORGE_VAULT_OVERRIDE", None)
+    if workspace is not None:
+        os.environ["MINDFORGE_WORKSPACE_OVERRIDE"] = str(
+            workspace.expanduser().resolve()
+        )
+    else:
+        os.environ.pop("MINDFORGE_WORKSPACE_OVERRIDE", None)
     if obsidian_vault is not None:
         os.environ["MINDFORGE_OBSIDIAN_VAULT_OVERRIDE"] = str(
             obsidian_vault.expanduser().resolve()
@@ -228,62 +255,7 @@ def _global_options(
         os.environ.pop("MINDFORGE_OBSIDIAN_VAULT_OVERRIDE", None)
 
 
-@app.command()
-def demo(
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="输出机器可读 JSON (供 tests / CI 消费); 默认输出新用户可读文本。",
-    ),
-) -> None:
-    """60 秒新用户 demo tour — 零 secret、零网络、零真实 vault 写入。
-
-    中文学习型说明: 这是 MindForge 的 "1 分钟看到效果" 入口。它编排
-    已有命令的 service 层 (CuboxApiAdapter / dogfood policy / vault
-    probe), 把 SourceDocument → 路径分类 → vault 健康检查 → review
-    packet 这条主链路跑给新用户看一眼。
-
-    安全契约:
-    - 不读取 ``.env`` 内容;
-    - 不调用真实 Cubox HTTP API (使用仓库自带 fixture);
-    - 不调用真实 LLM (走 fake-default 路径);
-    - 不写任何 Obsidian vault (包括 ``.obsidian/``);
-    - 不产生 ``human_approved`` 记录 (artifact_type=review_packet);
-    - 不启用 RAG / embedding / semantic merge;
-    - 不创建 tag, 不 release, 不 push。
-
-    实现委托给 ``demo_tour.run_demo_tour``; CLI 只做 thin adapter
-    (调用 + 渲染), 不持有业务规则。
-    """
-    from .demo_tour import render_demo_tour, run_demo_tour
-
-    report = run_demo_tour()
-    if json_output:
-        import json as _json
-
-        payload = {
-            "all_ok": report.all_ok,
-            "steps": [
-                {
-                    "name": s.name,
-                    "title": s.title,
-                    "ok": s.ok,
-                    "summary": s.summary,
-                    "detail": s.detail,
-                }
-                for s in report.steps
-            ],
-            "safety_invariants": list(report.safety_invariants),
-            "next_actions": list(report.next_actions),
-        }
-        print(_json.dumps(payload, ensure_ascii=False, indent=2))
-    else:
-        print(render_demo_tour(report))
-    if not report.all_ok:
-        raise typer.Exit(code=1)
-
-
-@app.command()
+@app.command(hidden=True, add_help_option=False)
 def scan(
     config: Path = typer.Option(
         Path("configs/mindforge.yaml"),
@@ -384,7 +356,7 @@ def scan(
             cp.save(active_profile=cfg.llm.active_profile)  # type: ignore[attr-defined]
             console.print(f"已写入 state.json → {cfg.state.state_path}", soft_wrap=True)  # type: ignore[attr-defined]
             console.print(
-                f"Next: mindforge process --profile fake --limit 1 --vault {cfg.vault.root}",
+                f"Next: mindforge web  # open Sources to process {cfg.vault.root}",
                 markup=False,
                 soft_wrap=True,
             )
@@ -433,18 +405,9 @@ def status(
     if as_json:
         render_status_json(snapshot)
         return
-    with RunLogger(Path(str(snapshot.workspace["runs_path"])), command="status") as logger:
-        logger.emit(
-            EVENT_STATUS_REPORTED,
-            path=snapshot.workspace["state_path"],
-            items_count=snapshot.workspace["state_item_count"],
-            counts={
-                "by_status": dict(snapshot.workspace["state_counts"]),
-                "by_source_type": dict(snapshot.workspace["source_counts"]),
-                "cards_by_status": dict(snapshot.cards["by_status"]),
-            },
-            active_profile=snapshot.provider["active_profile"],
-        )
+    # 中文学习型说明：status 是 read/query path，不能创建 RunLogger，也不能让
+    # “最近一次 processing/run”被查询命令污染。运行事件只能由 scan/process/
+    # background worker 这类 command path 写入。
     render_local_status(console, snapshot)
 
 
@@ -515,11 +478,11 @@ def _legacy_status(
 # Root command registration. We bind moved command callbacks directly so
 # tests, shell completion, and external introspection see stable command names
 # instead of Typer's anonymous flattened sub-app placeholders.
-app.command()(process)
+app.command(hidden=True, add_help_option=False)(process)
 app.command("import")(import_cmd)
 app.command()(recall)
 app.command()(init)
-app.command("setup")(setup_cmd)
+app.command("setup", hidden=True, add_help_option=False)(setup_cmd)
 app.command()(doctor)
 app.command()(version)
 app.command()(web)
@@ -527,26 +490,23 @@ app.command("commands")(commands_cmd)
 app.command("start")(start_cmd)
 app.command("today")(today_cmd)
 app.command("next")(next_cmd)
-app.add_typer(llm_app, name="llm")
 app.add_typer(library_app, name="library")
-app.add_typer(backup_app, name="backup")
-app.add_typer(config_app, name="config")
-app.add_typer(dogfood_app, name="dogfood", hidden=True)
-app.add_typer(obsidian_app, name="obsidian")
-app.add_typer(provider_app, name="provider")
+app.add_typer(backup_app, name="backup", hidden=True)
+app.add_typer(config_app, name="config", hidden=True)
+app.add_typer(obsidian_app, name="obsidian", hidden=True)
 app.add_typer(approve_app, name="approve")
 app.add_typer(review_app, name="review")
-app.add_typer(project_app, name="project")
-app.add_typer(strategies_app, name="strategies")
+app.add_typer(project_app, name="project", hidden=True)
+app.add_typer(strategies_app, name="strategies", hidden=True)
 app.add_typer(prompts_app, name="prompts")
 app.add_typer(index_app, name="index")
-app.add_typer(telemetry_app, name="telemetry")
-app.add_typer(vault_app, name="vault")
-app.add_typer(cubox_app, name="cubox")
+app.add_typer(telemetry_app, name="telemetry", hidden=True)
+app.add_typer(vault_app, name="vault", hidden=True)
 app.add_typer(workspace_app, name="workspace")
 app.add_typer(trash_app, name="trash")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(watch_app, name="watch")
+app.add_typer(runs_app, name="runs")
 
 
 def main() -> None:
@@ -555,6 +515,8 @@ def main() -> None:
     import sys
 
     sys.argv = _normalize_post_command_global_options(sys.argv)
+    if _render_legacy_command_redirect(sys.argv):
+        sys.exit(2)
     debug = os.environ.get("MINDFORGE_DEBUG") == "1" or "--debug" in sys.argv
     try:
         app()
@@ -566,6 +528,35 @@ def main() -> None:
         console.print(f"[red]✗ unexpected error: {type(e).__name__}: {e}[/red]")
         console.print("[dim]提示：加 --debug 查看完整 traceback。[/dim]")
         sys.exit(1)
+
+
+def _render_legacy_command_redirect(argv: list[str]) -> bool:
+    """把旧命令变成迁移提示，而不是继续暴露一套隐藏产品面。
+
+    中文学习型说明：这里刻意放在 ``main`` 的 argv 边界，而不是注册 Typer
+    hidden command。原因是 Typer hidden command 仍可通过 ``cmd --help`` 直达，
+    会把 demo/fake/Cubox/profile 等历史语义继续变成第二套用户手册。
+    """
+    if len(argv) < 2:
+        return False
+    command = argv[1]
+    redirects = {
+        "demo": "mindforge web",
+        "dogfood": "mindforge web",
+        "cubox": "mindforge watch add <local-file-or-folder>",
+        "provider": "mindforge web",
+        "llm": "mindforge web",
+    }
+    replacement = redirects.get(command)
+    if replacement is None:
+        return False
+    console.print("[yellow]This legacy command has been removed.[/yellow]")
+    console.print(
+        "MindForge now uses real model setup, local sources, background "
+        "processing, review, approve, library, and wiki."
+    )
+    console.print(f"Use: [bold]{replacement}[/bold]")
+    return True
 
 
 if __name__ == "__main__":  # pragma: no cover

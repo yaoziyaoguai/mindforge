@@ -7,10 +7,11 @@
 - ``--force`` 才允许覆写"由 MindForge 提供的模板配置"（不会覆写用户数据）。
 - ``--dry-run`` 只产出"我将要做什么"的 plan，不写任何文件。
 
-为什么 init 不创建真实 .env：
-- .env 里通常会塞 API key；自动创建会诱导用户在第一时间填入 secret，
-  风险大于便利。我们只发 ``.env.example`` 模板，提示用户自己填。
-- doctor 也只检查 ``.env`` 是否在 ``.gitignore``，绝不读其内容。
+为什么 init 不创建 shell key 模板：
+- first-run 产品主路径是 Web Setup / local secret store / provider key；
+  自动创建 shell key 模板会把 advanced 兼容路径误塑造成新用户必须理解的设置方式。
+- provider 运行时仍可保留 legacy/advanced 兼容，但 init 输出与文件副作用只服务
+  普通用户第一天能完成的主路径。
 """
 
 from __future__ import annotations
@@ -20,14 +21,12 @@ from pathlib import Path
 from typing import Literal
 
 # ── vault 必备子目录（与 vault_template/ 对齐）─────────────────────────────
+# 中文学习型说明：first-run 只创建一个通用 inbox 入口 00-Inbox/，
+# 不预建 ManualNotes/WebClips/ChatExports/PDFs/Docs 等分类子目录。
+# 用户通过 mindforge watch add <path> 或 mindforge import <path>
+# 直接接入任意本地文件/文件夹，不需要先学习分类体系。
 VAULT_DIRS: tuple[str, ...] = (
     "00-Inbox",
-    "00-Inbox/Cubox",
-    "00-Inbox/WebClips",
-    "00-Inbox/ChatExports",
-    "00-Inbox/PDFs",
-    "00-Inbox/Docs",
-    "00-Inbox/ManualNotes",
     "20-Knowledge-Cards",
     "30-Projects",
     "80-Reviews",
@@ -72,7 +71,7 @@ def build_plan(
 
     参数:
         vault_root: 目标 vault（用户的 Obsidian 库根）
-        project_root: MindForge 工作目录（``configs/`` 与 ``.env.example`` 落到这里）
+        project_root: MindForge 工作目录（``configs/`` 与本地运行状态落到这里）
         repo_root: MindForge 源码仓库根（用来拷贝 ``configs/`` / ``vault_template/``）
         force: 是否覆写 MindForge 提供的模板文件（**不**覆写用户数据）
 
@@ -110,28 +109,6 @@ def build_plan(
         else:
             items.append(PlanItem("copy_file", dst, src, note=note))
 
-    # 3) .env.example —— 不创建真实 .env
-    env_example_dst = project_root / ".env.example"
-    env_example_src = repo_root / "configs" / "env.example"
-    if env_example_dst.exists():
-        items.append(
-            PlanItem(
-                "overwrite_force" if force else "skip_exists",
-                env_example_dst,
-                env_example_src if env_example_src.exists() else None,
-                note=".env.example (use --force)" if not force else ".env.example",
-            )
-        )
-    else:
-        items.append(
-            PlanItem(
-                "copy_file",
-                env_example_dst,
-                env_example_src if env_example_src.exists() else None,
-                note=".env.example (inline default)" if not env_example_src.exists() else ".env.example",
-            )
-        )
-
     return InitPlan(
         items=tuple(items),
         vault_root=vault_root.resolve(),
@@ -165,7 +142,7 @@ def execute_plan(plan: InitPlan) -> list[str]:
                 else:
                     it.target.write_bytes(it.source.read_bytes())
             else:
-                # inline 默认（.env.example fallback）
+                # inline 默认（当前无 first-run fallback）
                 it.target.write_text(_inline_default_for(it.target), encoding="utf-8")
             actions.append(f"create {it.target}")
         elif it.action == "overwrite_force":
@@ -191,20 +168,6 @@ def execute_plan(plan: InitPlan) -> list[str]:
 
 
 def _inline_default_for(target: Path) -> str:
-    if target.name == ".env.example":
-        return (
-            "# MindForge local environment.\n"
-            "# Copy this file to .env or export these variables in your shell.\n"
-            "# Do not commit real API keys.\n\n"
-            "# OpenAI-compatible provider\n"
-            "MINDFORGE_OPENAI_API_KEY=your-openai-compatible-api-key\n"
-            "MINDFORGE_OPENAI_BASE_URL=https://api.openai.com/v1\n"
-            "MINDFORGE_OPENAI_MODEL=gpt-4o-mini\n\n"
-            "# Anthropic provider\n"
-            "MINDFORGE_ANTHROPIC_API_KEY=your-anthropic-api-key\n"
-            "MINDFORGE_ANTHROPIC_BASE_URL=https://api.anthropic.com\n"
-            "MINDFORGE_ANTHROPIC_MODEL=claude-3-5-haiku-latest\n"
-        )
     return ""
 
 
@@ -249,15 +212,12 @@ def is_initialized(vault_root: Path, project_root: Path) -> bool:
 
 def next_steps_hint() -> list[str]:
     return [
-        "1) 选择 real provider：configs/mindforge.yaml 里设置 llm.active=openai_compatible 或 anthropic",
-        "2) 设置对应 env：MINDFORGE_OPENAI_* 或 MINDFORGE_ANTHROPIC_*（不要写进 YAML）",
-        "3) mindforge llm ping  # 按 llm.active 检查 env presence，不发 HTTP",
-        "4) mindforge watch list    # 查看 default 00-Inbox watched source",
-        "5) mindforge watch add vault/00-Inbox/ManualNotes/<note>.md",
-        "6) mindforge import /path/to/file-or-folder             # 一次性导入，不加入 watch registry",
-        "7) mindforge approve list  # 看看产出哪些 ai_draft",
-        "8) mindforge approve 1 --confirm  # 用短编号显式人工 approve",
-        "9) mindforge recall --query <keyword>",
-        "10) scan/process 是 Advanced / Troubleshooting，不是普通 Quick Start 主路径",
-        "11) mindforge doctor       # 任何时刻自检",
+        "1) mindforge start  # 查看 first-run checklist",
+        "2) mindforge status  # 只读查看 workspace/model/source/draft 状态",
+        "3) mindforge web  # 打开 Web Setup，添加模型和 provider key",
+        "4) mindforge watch add vault/00-Inbox/<file>  # 注册 source 并启动后台 processing",
+        "5) mindforge import <file-or-folder>  # 或一次性导入 source",
+        "6) mindforge runs list  # 查看后台 processing runs",
+        "7) mindforge approve list  # 有 ai_draft 后再审核",
+        "8) mindforge library list  # 查看 approved knowledge",
     ]

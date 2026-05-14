@@ -190,7 +190,10 @@ def _resolve_number(
         matches=refs,
         error=ApprovalServiceError(
             "number_not_found",
-            f"pending 编号不存在：{raw}",
+            f"编号 {raw} 不在当前 approve list 中（可能已 approve）\n"
+            f"数字编号仅适用于 `mindforge approve list` 列出的待审批 ai_draft。\n"
+            f"查看已批准卡片：mindforge library list\n"
+            f"重新获取待审批列表：mindforge approve list",
             exit_code=2,
         ),
     )

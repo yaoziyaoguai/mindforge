@@ -49,6 +49,20 @@ _LLM_CALL_ALLOWED = {
     "latency_ms",
 }
 
+_LLM_CALL_STARTED_ALLOWED = {
+    "event",
+    "ts",
+    "run_id",
+    "stage",
+    "model_alias",
+    "provider",
+    "provider_type",
+    "actual_model",
+    "prompt_version",
+    "input_file_hash",
+    "status",
+}
+
 
 # ---------------------------------------------------------------------------
 # config / client level: 不存在的 alias / stage 必须安全失败
@@ -227,8 +241,16 @@ def test_invalid_llm_json_marks_failed_without_leakage(
     src_before = src.read_text("utf-8")
 
     # 让 factory 把 type=fake 路由到我们的 BadJson provider
-    import mindforge.llm.factory as factory_mod
-    monkeypatch.setitem(factory_mod._BUILDERS, "fake", lambda mc: _BadJsonProvider())
+    # 需同时 patch mindforge.llm（re-export 路径）和 mindforge.llm.factory（源定义）
+    bad = {"f": _BadJsonProvider()}
+    monkeypatch.setattr(
+        "mindforge.llm.build_providers",
+        lambda *a, **kw: bad,
+    )
+    monkeypatch.setattr(
+        "mindforge.llm.factory.build_providers",
+        lambda *a, **kw: bad,
+    )
 
     r = runner.invoke(
         app,
@@ -274,6 +296,12 @@ def test_invalid_llm_json_marks_failed_without_leakage(
         assert not extra, f"llm_call has unwhitelisted fields: {extra}"
     # 3) 至少一条 failed
     assert any(c["status"] == "failed" for c in llm_calls)
+    started_calls = [e for e in events if e["event"] == "llm_call_started"]
+    assert started_calls, "provider 调用开始前必须有可见事件，避免 running 阶段无进展"
+    for started in started_calls:
+        extra = set(started) - _LLM_CALL_STARTED_ALLOWED
+        assert not extra, f"llm_call_started has unwhitelisted fields: {extra}"
+        assert started["status"] == "started"
 
     # 4) 全局：所有事件字段必须在 run_logger 主白名单里（含 event/ts/run_id 这些）
     for e in events:

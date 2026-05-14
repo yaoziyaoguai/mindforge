@@ -1,10 +1,9 @@
 # =============================================================================
 # MindForge 主配置
 #
-# 普通用户只需要看这一份配置。API key / secret 不要写进 YAML；
-# use MINDFORGE_LLM_API_KEY from shell env
-# or local .env.
-# Do not put secrets in YAML.
+# 普通用户通过 Web Setup 配置模型与 API key；API key / secret 不要写进 YAML。
+# Web Setup 会把 key 存入本地 secret store（.mindforge/secrets.json，已 gitignore）。
+# 环境变量只作为 advanced/deployment/legacy fallback，不是普通用户主路径。
 #
 # 顶层结构：
 #   vault    — Obsidian Vault 的位置与子目录约定
@@ -23,8 +22,8 @@ version: 0.1
 # 注意：MindForge 对 inbox_root 下所有文件**只读**，永不改写、删除、重命名。
 # -----------------------------------------------------------------------------
 vault:
-  root: "/Users/jinkun.wang/Obsidian/MyVault"
-  inbox_root: "00-Inbox"            # 多源根目录；具体子目录由下面的 sources.registry 决定
+  root: "/path/to/your/vault"
+  inbox_root: "00-Inbox"            # 通用 inbox 根；用户通过 watch add/import 将文件接入
   cards_dir: "20-Knowledge-Cards"   # MindForge Writer 唯一写入区
   archive_dir: "90-Archive/Skipped" # value_score 不达标的源仅记录链接到这里
 
@@ -34,66 +33,71 @@ vault:
 # - enabled    — 白名单。只有列出的 source_type 才会被 Scanner 发现并处理。
 # - registry   — 每个 source_type 对应的 adapter 类、inbox 子目录、文件 glob。
 #
-# 学习提示：v0.1 默认只启用 cubox_markdown 与 plain_markdown。
-# 其余 adapter 在 registry 里以 enabled: false 占位，仅做类型与目录约定，
-# 防止以后乱放文件 / 给未来实现留住"标准位置"。
+# MindForge 是 LLM-first local knowledge workflow，不是按文件来源预分类的工具。
+# 默认只启用 plain_markdown，扫描整个 00-Inbox。用户通过 watch add/import 将
+# 任意本地 .md 接入 inbox 即可，无需关心子目录分类。
+#
+# 其他 adapter（Cubox / WebClip / ChatExport / CommonDocument / PDF / DOCX）
+# 属于 optional / advanced，默认禁用。需要时在 enabled 列表中加入对应 source_type
+# 即可启用。registry 中的条目仅作为 adapter → 子目录约定保留，不影响新用户。
 # -----------------------------------------------------------------------------
 sources:
   enabled:
-    - cubox_markdown
     - plain_markdown
-    - webclip_markdown
-    - chat_export
-    - common_document
 
   registry:
+    plain_markdown:
+      adapter: PlainMarkdownAdapter
+      inbox_subdir: "."
+      file_glob: "*.md"
+      enabled: true
+
+    # -------------------------------------------------------------------------
+    # Optional adapters（默认禁用，按需启用）
+    # 启用方式：将 source_type 加入上方 enabled 列表
+    # -------------------------------------------------------------------------
+
     cubox_markdown:
       adapter: CuboxMarkdownAdapter
       inbox_subdir: "Cubox"
       file_glob: "*.md"
-      enabled: true
-
-    plain_markdown:
-      adapter: PlainMarkdownAdapter
-      inbox_subdir: "ManualNotes"
-      file_glob: "*.md"
-      enabled: true
+      enabled: false                 # optional: Cubox 书签导出
 
     webclip_markdown:
       adapter: WebClipMarkdownAdapter
       inbox_subdir: "WebClips"
       file_glob: "*.md"
-      enabled: true                  # v0.2.4 起：真实 adapter，可吃 Web Clipper / MarkDownload
+      enabled: false                 # optional: Web Clipper / MarkDownload
 
     chat_export:
       adapter: ChatExportAdapter
       inbox_subdir: "ChatExports"
       file_glob: "*.md"
-      enabled: true                  # v0.2.4 起：真实 adapter，可吃 ChatGPT/Claude/Copilot 导出
-
-    obsidian_note:
-      adapter: ObsidianVaultSourceAdapter
-      inbox_subdir: "."
-      file_glob: "*.md"
-      enabled: false                 # v0.5：由 mindforge obsidian scan 只读扫描真实 vault，不走 00-Inbox 派发
-
-    pdf:
-      adapter: PdfAdapter
-      inbox_subdir: "PDFs"
-      file_glob: "*.pdf"
-      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[pdf]'`` 后再开启（详见 README.md）
-
-    docx:
-      adapter: DocxAdapter
-      inbox_subdir: "Docs"
-      file_glob: "*.docx"
-      enabled: false                 # 默认 OFF：需要 ``pip install 'mindforge[docx]'`` 后再开启
+      enabled: false                 # optional: ChatGPT/Claude/Copilot 导出
 
     common_document:
       adapter: CommonDocumentAdapter
       inbox_subdir: "Documents"
       file_glob: "*"
-      enabled: true                  # 通用本地文档：md/txt/html/json/csv/tsv/xml/url/webloc；不会联网 fetch
+      enabled: false                 # optional: 通用本地文档（md/txt/html/json/csv/tsv/xml/url/webloc）
+
+    obsidian_note:
+      adapter: ObsidianVaultSourceAdapter
+      inbox_subdir: "."
+      file_glob: "*.md"
+      enabled: false                 # optional: ``mindforge obsidian scan`` 只读扫描真实 vault
+
+    pdf:
+      adapter: PdfAdapter
+      inbox_subdir: "PDFs"
+      file_glob: "*.pdf"
+      enabled: false                 # optional: 需要 ``pip install 'mindforge[pdf]'``
+
+    docx:
+      adapter: DocxAdapter
+      inbox_subdir: "Docs"
+      file_glob: "*.docx"
+      enabled: false                 # optional: 需要 ``pip install 'mindforge[docx]'``
 
 # -----------------------------------------------------------------------------
 # 状态与日志
@@ -143,8 +147,9 @@ triage:
 #   routing        — workflow step → model id；可省略，缺失 step 回落到 default_model。
 #
 # type 必须显式配置，MindForge 不从 base_url/model 猜 OpenAI 或 Anthropic 协议。
-# 支持：anthropic、anthropic_compatible、openai_compatible。
-# API key / secret 只放 env 或本地 .env，不写进 YAML。
+# 支持：anthropic、anthropic_compatible、openai、openai_compatible。
+# API key 通过 Web Setup 保存到 local secret store (.mindforge/secrets.json, gitignored)。
+# 不要将 API key 写进此 YAML。
 # -----------------------------------------------------------------------------
 llm:
   default_model: main
@@ -152,7 +157,6 @@ llm:
   models:
     main:
       type: openai_compatible
-      api_key_env: MINDFORGE_LLM_API_KEY
       base_url: "https://your-router.example.com/v1"
       model: "your-model-name"
       timeout_seconds: 120

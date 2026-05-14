@@ -83,6 +83,8 @@ def inspect_provider_config(llm_config: Any) -> dict[str, Any]:
         api_key_env = getattr(mc, "api_key_env", None)
         base_url_env = getattr(mc, "base_url_env", None)
         # presence-only: 仅判断 env var 是否存在, 永不取值。
+        # presence-only：env 可以检查变量是否存在；secret store 不在本模块读取，
+        # 避免 readiness 诊断触碰 raw secret 文件内容。
         api_key_present = bool(api_key_env) and api_key_env in os.environ
         base_url_env_present = bool(base_url_env) and base_url_env in os.environ
         in_active = alias in active_aliases
@@ -98,7 +100,12 @@ def inspect_provider_config(llm_config: Any) -> dict[str, Any]:
             }
         )
 
-        if in_active and mc.type != "fake" and not api_key_present:
+        if (
+            in_active
+            and mc.type != "fake"
+            and not getattr(mc, "api_key_optional", False)
+            and not api_key_present
+        ):
             missing_in_active.append(alias)
 
     return {

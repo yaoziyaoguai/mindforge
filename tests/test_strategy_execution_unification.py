@@ -12,13 +12,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import yaml
 from typer.testing import CliRunner
 
 from mindforge.cli import app
+from mindforge.cli_runtime import load_cfg
 from mindforge.config import load_mindforge_config
 from mindforge.watch_registry import WatchRegistry
+from mindforge_web.services.processing_run_service import get_processing_run
 
 runner = CliRunner()
 
@@ -114,6 +117,33 @@ def _cards(vault: Path) -> list[Path]:
     return sorted((vault / "20-Knowledge-Cards").rglob("*.md"))
 
 
+def _run_id_from_output(output: str) -> str:
+    for line in output.splitlines():
+        if line.startswith("run_id: "):
+            return line.split("run_id: ", 1)[1].strip()
+    raise AssertionError(f"missing run_id in output:\n{output}")
+
+
+def _wait_for_background_run(cfg_path: Path, output: str, *, timeout: float = 5.0):
+    """CLI import/watch 是后台 run，策略测试必须通过 durable state 观察结果。
+
+    中文学习型说明：这里刻意不再从 command stdout 断言 processed counts，
+    因为 watch/import 的产品语义是“启动 processing lifecycle”，而不是同步
+    完成 pipeline。策略身份仍在最终 draft frontmatter 中验证。
+    """
+
+    run_id = _run_id_from_output(output)
+    cfg = load_cfg(cfg_path, read_env=False)
+    deadline = time.monotonic() + timeout
+    latest = None
+    while time.monotonic() < deadline:
+        latest = get_processing_run(cfg, run_id)
+        if latest is not None and latest.status not in {"queued", "running"}:
+            return latest
+        time.sleep(0.05)
+    raise AssertionError(f"processing run did not finish: {run_id}, latest={latest}")
+
+
 def test_config_defaults_active_strategy_to_knowledge_card(tmp_path: Path) -> None:
     cfg_path, _vault = _write_config(tmp_path)
 
@@ -135,7 +165,8 @@ def test_legacy_five_stage_active_strategy_resolves_to_knowledge_card(
     result = runner.invoke(app, ["import", str(note), "--config", str(cfg_path), "--force"])
 
     assert result.exit_code == 0, result.output
-    assert "processed=1 skipped=0 failed=0 seen=1" in result.output
+    run = _wait_for_background_run(cfg_path, result.output)
+    assert run.summary.get("drafts") == 1
     from mindforge.cards import read_card_frontmatter
 
     fm = read_card_frontmatter(_cards(vault)[0])
@@ -177,6 +208,7 @@ def test_import_strategy_option_accepts_knowledge_card_alias_and_does_not_change
     )
 
     assert result.exit_code == 0, result.output
+    _wait_for_background_run(cfg_path, result.output)
     from mindforge.cards import read_card_frontmatter
 
     fm = read_card_frontmatter(_cards(vault)[0])
@@ -202,7 +234,6 @@ def test_internal_strategy_does_not_hide_real_provider_missing_key(
     note = _write_note(vault)
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MINDFORGE_ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr("mindforge.import_cli.load_dotenv_silently", lambda *_a, **_k: 0)
 
     result = runner.invoke(app, ["import", str(note), "--config", str(cfg_path)])
 
@@ -278,6 +309,7 @@ def test_watch_add_strategy_persists_canonical_knowledge_card(tmp_path: Path, mo
     )
 
     assert result.exit_code == 0, result.output
+    _wait_for_background_run(cfg_path, result.output)
     registry = WatchRegistry.load(vault / ".mindforge" / "watched_sources.json")
     assert registry.sources[0].strategy_id == "knowledge_card"
     from mindforge.cards import read_card_frontmatter

@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 
-from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
+from mindforge.provider_defaults import DEFAULT_PROVIDER_TIMEOUT_SECONDS
+
+from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -36,7 +39,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self.name = name
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout_seconds or DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
     def __repr__(self) -> str:
         # 主动安全 repr：只暴露 name 与 credential_present 标记，
@@ -49,27 +52,34 @@ class OpenAICompatibleProvider(LLMProvider):
     __str__ = __repr__
 
     @classmethod
-    def from_model_config(cls, mc: Any) -> OpenAICompatibleProvider:
-        # base_url：优先 env，再回落 yaml；与 anthropic provider 对齐
+    def from_model_config(cls, mc: Any, *, project_root: Path | None = None) -> OpenAICompatibleProvider:
+        # base_url：优先 env，再回落 yaml；type=openai 默认使用 OpenAI 官方 API
         base_url = ""
         if getattr(mc, "base_url_env", None):
             base_url = os.environ.get(mc.base_url_env, "") or ""
         if not base_url:
             base_url = mc.base_url or ""
+        if not base_url and getattr(mc, "type", "") == "openai":
+            base_url = "https://api.openai.com/v1"
         if not base_url:
             raise ProviderError(
                 f"模型 {mc.alias} 未提供 base_url：请设置环境变量 "
                 f"{mc.base_url_env or '<base_url_env 未声明>'} 或在 yaml 写 base_url"
             )
 
-        # api_key 解析优先级：env var > local secret store > None
+        # api_key 解析优先级：env var > workspace secret store > CWD fallback
         # 普通 Web 用户不配置 api_key_env，key 存在 .mindforge/secrets.json。
+        # project_root 是 P0-2 修复的关键参数：provider 不再从 CWD 猜 secrets path。
         from mindforge.llm.anthropic_compatible import _resolve_api_key
-        api_key = _resolve_api_key(mc.alias, getattr(mc, "api_key_env", None))
+        api_key = _resolve_api_key(
+            mc.alias,
+            getattr(mc, "api_key_env", None),
+            project_root=project_root,
+        )
         if not api_key and not mc.api_key_optional:
             raise ProviderError(
-                f"模型 {mc.alias} 没有可用的 API key。请在 Web Setup 中添加 key，"
-                f"或设置环境变量 {mc.api_key_env or '<api_key_env>'}。"
+                "Model setup is incomplete. Add a provider API key in Web Setup "
+                "or the local secret store, then retry processing."
             )
         return cls(
             name=mc.provider,
@@ -99,12 +109,17 @@ class OpenAICompatibleProvider(LLMProvider):
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 resp = client.post(url, headers=headers, json=body)
+        except httpx.ReadTimeout:
+            raise ProviderError(
+                "Provider timed out while waiting for the model endpoint. "
+                "Check the model endpoint, network/proxy, or increase timeout_seconds, then retry."
+            ) from None
         except httpx.HTTPError as e:
-            raise ProviderError(f"HTTP 错误：{type(e).__name__}: {e}") from e
+            raise ProviderError(f"HTTP 错误：{type(e).__name__}") from None
         latency_ms = int((time.perf_counter() - start) * 1000)
 
         if resp.status_code >= 400:
-            snippet = resp.text[:500]
+            snippet = redact_provider_error_text(resp.text)
             raise ProviderError(f"HTTP {resp.status_code}: {snippet}")
 
         try:

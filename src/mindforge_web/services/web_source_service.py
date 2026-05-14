@@ -12,9 +12,11 @@ from pathlib import Path
 
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
+from mindforge.config import ConfigError
+from mindforge.config import REQUIRED_STAGES
 from mindforge.ingestion_service import (
+    SourcePathError,
     import_sources,
-    watch_add_source,
     watch_scan_sources,
     watch_sources_for_display,
 )
@@ -38,6 +40,12 @@ from mindforge_web.schemas import (
     StatusItem,
     WatchedSourceResponse,
     WatchSourcesResponse,
+)
+from mindforge_web.services.processing_run_service import (
+    latest_run_for_source,
+    next_actions_for_record,
+    processing_run_response,
+    start_processing_run,
 )
 
 
@@ -107,14 +115,9 @@ class WebSourceService:
                 NextAction(
                     label="Add watched source",
                     description=(
-                        "注册 file/folder 并立即处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
+                        "注册 file/folder 并在后台处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
                     ),
-                ),
-                NextAction(
-                    label="Review drafts",
-                    description="自动化不会 approve；human_approved 必须显式确认。",
-                    href="/drafts",
-                ),
+                )
             ],
         )
 
@@ -126,14 +129,32 @@ class WebSourceService:
         recursive: bool | None = None,
         process_now: bool = True,
     ) -> IngestionActionResponse:
-        # Web 顶部的 Add source 只表达“开始监控这个顶层 source”；
-        # 真正解析/生成 draft 仍必须通过现有 ingestion pipeline 显式触发。
+        # 中文学习型说明：Web Add Source 统一在这里校验路径，不管 process_now 是 true 还是 false。
+        # 相对路径、不存在路径都必须在 Web 边界被拒绝，不能进入 registry 或 pipeline。
+        # 这样避免了之前"不存在路径 silent ok:true"的问题。
+
+        # 1. 拒绝相对路径 —— 浏览器环境下无法可靠解析
+        if not path.is_absolute():
+            raise SourcePathError(
+                f"Please use an absolute path, such as /Users/you/Documents/note.md. "
+                f"Received relative path: {path}"
+            )
+
+        # 2. 拒绝不存在路径 —— 不允许注册或处理不存在的 source
+        resolved = path.expanduser().resolve()
+        if not resolved.exists():
+            raise SourcePathError(
+                f"File or folder not found: {resolved}. "
+                f"Please choose or paste an existing path."
+            )
+
+        # 3. 路径合法，继续正常流程
         if not process_now:
             registry_path = registry_path_for_vault(self.cfg.vault.root)
             registry_result = add_watch_source(
                 self.cfg.vault.root,
                 registry_path,
-                path,
+                resolved,
                 frequency=frequency or "manual",
                 recursive=recursive,
             )
@@ -150,47 +171,79 @@ class WebSourceService:
                 added_to_registry=registry_result.added,
                 registry_path=str(registry_path),
                 watch_id=registry_result.source.id,
-                next_actions=_ingestion_next_actions(),
+                next_actions=_ingestion_next_actions({"processed": 0}),
             )
-        summary = watch_add_source(
-            self.cfg,
-            path,
+        _ensure_processing_model_configured(self.cfg)
+        registry_path = registry_path_for_vault(self.cfg.vault.root)
+        from mindforge.strategy_selection import resolve_strategy_selection
+
+        selected_strategy = resolve_strategy_selection(self.cfg)
+        registry_result = add_watch_source(
+            self.cfg.vault.root,
+            registry_path,
+            resolved,
+            strategy_id=selected_strategy.strategy_id,
             frequency=frequency or "manual",
             recursive=recursive,
         )
-        registry_result = summary.registry_result
-        assert registry_result is not None
+        run = start_processing_run(
+            self.cfg,
+            source_ref=registry_result.source.id,
+            source_path=str(registry_result.source.path),
+            mode="watch_add",
+            work=lambda: watch_scan_sources(
+                self.cfg,
+                ref=registry_result.source.id,
+                all_sources=True,
+            ),
+        )
         return IngestionActionResponse(
             ok=True,
-            mode=summary.mode,
-            target=str(summary.target),
-            counts=summary.counts,
-            message=(
-                "watch source registered and current content processed as ai_draft"
-                if registry_result.added
-                else "watch source already registered; current content checked"
-            ),
+            mode="watch_add",
+            target=str(registry_result.source.path),
+            counts={"processed": 0, "skipped": 0, "failed": 0, "seen": 0},
+            message=run.message,
             added_to_registry=registry_result.added,
-            registry_path=str(summary.registry_path) if summary.registry_path else None,
+            registry_path=str(registry_path),
             watch_id=registry_result.source.id,
-            next_actions=_ingestion_next_actions(),
+            next_actions=next_actions_for_record(run),
+            run_id=run.run_id,
+            processing_status=run.status,
         )
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
-        summary = watch_scan_sources(self.cfg, ref=ref, all_sources=all_sources)
+        _ensure_processing_model_configured(self.cfg)
+        source_ref = ref or ("all" if all_sources else "due")
+        source_path = None
+        if ref:
+            source = find_watch_source(self.cfg.vault.root, registry_path_for_vault(self.cfg.vault.root), ref)
+            if source is not None:
+                source_path = str(source.path)
+        run = start_processing_run(
+            self.cfg,
+            source_ref=source_ref,
+            source_path=source_path,
+            mode="watch_scan",
+            work=lambda: watch_scan_sources(self.cfg, ref=ref, all_sources=all_sources),
+        )
         return IngestionActionResponse(
             ok=True,
             mode="watch_scan",
             target=ref or ("all watched sources" if all_sources else "due watched sources"),
             counts={
-                **summary.counts,
-                "scanned": summary.scanned,
-                "not_due": summary.not_due,
-                "missing": summary.missing,
+                "processed": 0,
+                "skipped": 0,
+                "failed": 0,
+                "seen": 0,
+                "scanned": 0,
+                "not_due": 0,
+                "missing": 0,
             },
-            message="watch scan completed; source deletion never deletes approved knowledge",
+            message=run.message,
             added_to_registry=False,
-            next_actions=_ingestion_next_actions(),
+            next_actions=next_actions_for_record(run),
+            run_id=run.run_id,
+            processing_status=run.status,
         )
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
@@ -246,11 +299,24 @@ class WebSourceService:
             added_to_registry=False,
             registry_path=str(registry_path),
             watch_id=updated.id,
-            next_actions=_ingestion_next_actions(),
+            next_actions=_ingestion_next_actions({"processed": 0}),
         )
 
     def import_source(self, path: Path) -> IngestionActionResponse:
-        summary = import_sources(self.cfg, path)
+        # 中文学习型说明：Web import_source 必须和 watch_add 一样在 Web 边界校验路径。
+        # 相对路径、不存在路径都必须在进入 ingestion pipeline 之前被拒绝，返回 400。
+        if not path.is_absolute():
+            raise SourcePathError(
+                f"Please use an absolute path, such as /Users/you/Documents/note.md. "
+                f"Received relative path: {path}"
+            )
+        resolved = path.expanduser().resolve()
+        if not resolved.exists():
+            raise SourcePathError(
+                f"File or folder not found: {resolved}. "
+                f"Please choose or paste an existing path."
+            )
+        summary = import_sources(self.cfg, resolved)
         return IngestionActionResponse(
             ok=True,
             mode=summary.mode,
@@ -258,7 +324,7 @@ class WebSourceService:
             counts=summary.counts,
             message="source imported once as ai_draft; not added to watched sources",
             added_to_registry=False,
-            next_actions=_ingestion_next_actions(),
+            next_actions=_ingestion_next_actions({"processed": 0}),
         )
 
     def ingestion_status(self) -> IngestionSummaryStatus:
@@ -297,8 +363,8 @@ class WebSourceService:
                 status="ok",
                 value="available",
                 detail=(
-                    "注册 watched source，并立即处理当前内容生成 ai_draft；folder 默认递归扫描。"
-                    "不会自动 approve。"
+                    "注册 watched source，并启动后台 processing；folder 默认递归扫描。"
+                    "ai_draft 只会在后台处理成功后出现，且不会自动 approve。"
                 ),
                 next_action=NextAction(
                     label="Add watch",
@@ -311,8 +377,8 @@ class WebSourceService:
                 status="ok",
                 value="available",
                 detail=(
-                    "一次性处理当前内容生成 ai_draft；folder 使用同一套递归扫描策略，"
-                    "不会加入 watched sources。"
+                    "一次性登记当前内容并启动后台 processing；folder 使用同一套递归扫描策略，"
+                    "ai_draft 只会在处理成功后出现，不会加入 watched sources。"
                 ),
                 next_action=NextAction(
                     label="Import once",
@@ -354,11 +420,26 @@ class WebSourceService:
             if _card_matches_watch_source(self.cfg, source.path, card.source_path)
         ]
         generated_status = "Has generated knowledge" if card_paths else "No generated knowledge"
+        latest_run = latest_run_for_source(
+            self.cfg,
+            source_ref=source.id,
+            source_path=str(source.path),
+        )
+        run_response = processing_run_response(latest_run) if latest_run is not None else None
+        active_run_id = (
+            run_response.run_id if run_response is not None and run_response.status in {"queued", "running"} else None
+        )
         status_label = _watch_status_label(
             raw_status=source.status,
             failed_count=failed_count,
             generated_card_count=len(card_paths),
             supported_count=supported_count,
+            processing_status=run_response.status if run_response is not None else None,
+        )
+        last_error = (
+            run_response.error_message
+            if run_response is not None and run_response.status in {"failed", "partial_failed"}
+            else source.error
         )
         return WatchedSourceResponse(
             id=source.id,
@@ -388,6 +469,15 @@ class WebSourceService:
             generated_card_count=len(card_paths),
             generated_card_paths=[_rel_to_vault(self.cfg, file) for file in card_paths],
             status_label=status_label,
+            active_run_id=active_run_id,
+            last_run_id=run_response.run_id if run_response is not None else None,
+            last_run_started_at=run_response.started_at if run_response is not None else None,
+            last_run_finished_at=run_response.finished_at if run_response is not None else None,
+            processing_status=run_response.status if run_response is not None else None,
+            last_run_summary=run_response.summary if run_response is not None else None,
+            last_message=run_response.message if run_response is not None else None,
+            last_error=last_error,
+            generated_draft_count=len(card_paths),
         )
 
     def _generated_cards_by_source_subdir(self) -> dict[str, list[Path]]:
@@ -482,7 +572,12 @@ def _watch_status_label(
     failed_count: int,
     generated_card_count: int,
     supported_count: int,
+    processing_status: str | None = None,
 ) -> str:
+    if processing_status in {"queued", "running"}:
+        return "Processing"
+    if processing_status in {"skipped", "failed", "partial_failed", "succeeded"}:
+        return processing_status.replace("_", " ").title()
     if raw_status == "missing":
         return "Missing"
     if raw_status == "error" or failed_count:
@@ -500,16 +595,30 @@ def _due_status(source) -> str:
     return "Due" if is_due(source) else "Not due"
 
 
-def _ingestion_next_actions() -> list[NextAction]:
-    return [
+def _ensure_processing_model_configured(cfg: MindForgeConfig) -> None:
+    try:
+        for stage in REQUIRED_STAGES:
+            cfg.llm.resolve_stage_alias(stage)
+    except ConfigError as exc:
+        raise SourcePathError(str(exc)) from exc
+
+
+def _ingestion_next_actions(counts: dict[str, int] | None = None) -> list[NextAction]:
+    counts = counts or {}
+    actions = [
         NextAction(
-            label="Review drafts",
-            description="新生成内容仍是 ai_draft；human_approved 必须显式 approve。",
-            href="/drafts",
-        ),
-        NextAction(
-            label="Open library",
-            description="查看 cards metadata 和 source provenance。",
-            href="/library",
-        ),
+            label="View source status",
+            description="查看 source processing 状态、skipped reason 或错误。",
+            href="/sources",
+        )
     ]
+    if counts.get("processed", 0) > 0:
+        actions.insert(
+            0,
+            NextAction(
+                label="Review drafts",
+                description="新生成内容仍是 ai_draft；human_approved 必须显式 approve。",
+                href="/drafts",
+            ),
+        )
+    return actions
