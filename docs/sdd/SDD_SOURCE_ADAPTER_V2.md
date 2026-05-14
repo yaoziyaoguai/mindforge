@@ -325,11 +325,24 @@ ProvenanceBlock
 1. resolve path → extension
 2. find_adapter_for_path(path)
 3. if adapter found:
-     adapter.load(path) → SourceDocument
-     if extraction_warnings: print warnings
-     continue to processing pipeline
-4. if no adapter:
-     print skip reason + suggestion
+     result = adapter.load(path) → AdapterResult
+
+     if result.status == "loaded":
+         if result.warnings: print warnings
+         pass result.document to processing pipeline
+
+     elif result.status == "skipped":
+         print "✗ Skipped: {result.skip_reason}"
+         record in run summary, continue to next file
+
+     elif result.status == "failed":
+         print "✗ Failed: {result.error_message}"
+         record in run summary, continue to next file
+
+     # 不得出现 loaded + document.raw_text="" 的静默空输出
+4. if no adapter found:
+     print "✗ Unsupported format: {extension}"
+     record in run summary
 ```
 
 `mindforge import` 增加 `--source-type` flag 用于手动指定 adapter（override auto-detection）。

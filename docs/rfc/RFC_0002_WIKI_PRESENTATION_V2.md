@@ -160,7 +160,7 @@ class WikiRenderOptions:
 └─────────────────────────────────────────────────────┘
 ```
 
-**渲染管线**：
+**渲染管线（v0.2 唯一默认路径）**：
 
 ```
 LLM Synthesis JSON
@@ -169,11 +169,18 @@ LLM Synthesis JSON
 WikiPageViewModel  (build from JSON + CardDigest index)
     │
     ▼
-WikiRenderer.render(view_model, options) → RenderedOutput
+API: GET /api/wiki/page → WikiPageViewModel (JSON)
+    │  section.body_markdown = canonical Markdown text (not HTML)
+    │  section.card_refs = [{card_id, source_type, ...}]
     │
-    ├── WikiMarkdownRenderer → Sanitized HTML (current)
+    ▼
+Frontend: Markdown library → HTML → DOMPurify → safe HTML → DOM
+    │  no unsafe innerHTML
+    │  CSP: default-src 'self'; script-src 'none'
     │
-    └── WikiGraphRenderer     → Graph data (future, only interface)
+    ├── WikiMarkdownRenderer (frontend, v0.2 active path)
+    │
+    └── WikiGraphRenderer     (future extension point, v0.2 raises NotImplementedError)
 ```
 
 ### 5.3 Rendering Boundary（默认唯一路径）
