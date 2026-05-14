@@ -46,6 +46,7 @@ CLASS_PATH_DOES_NOT_EXIST = "path_does_not_exist"
 
 _SYNTHETIC_PARENTS = ("examples/fixture-vault", "examples/custom-strategies")
 _DISPOSABLE_ROOT_MARKERS = ("/tmp/", "/private/tmp/")
+_DISPOSABLE_VAULT_PREFIXES = ("mindforge-test-", "mindforge-readiness-")
 
 
 def classify_input_path(
@@ -62,9 +63,10 @@ def classify_input_path(
     1. 路径不存在 → ``path_does_not_exist`` (refuse: 不能猜测意图);
     2. 路径解析后在 ``examples/fixture-vault`` 或 ``examples/custom-strategies``
        下 → ``synthetic`` (最安全);
-    3. 路径解析后在系统临时目录下，且用户显式声明 non-sensitive →
-       ``non_sensitive_local``。这是 README 推荐的 disposable vault 复制路径；
-       允许它避免用户被安全检查卡住，但仍不读取 vault 内容。
+    3. 路径解析后在专用 disposable vault 临时目录下，且用户显式声明
+       non-sensitive → ``non_sensitive_local``。这是测试/人工 smoke 使用的
+       窄白名单；普通 ``/tmp/pytest-*`` 或 home 模拟路径不能借此绕过
+       Obsidian/home 拒绝。
     4. 路径或其任意上级目录名 == ``.obsidian`` → ``obsidian_vault_forbidden``
        (Obsidian vault 标志目录, Stage 4 显式禁止);
     5. 路径解析后在用户 ``home`` 下且不在当前 ``cwd`` 下 →
@@ -94,9 +96,7 @@ def classify_input_path(
     # 临时目录下的 disposable project vault 可用于测试和人工安全检查。它会
     # 保留 .obsidian 形状，但目标是可删除副本，且 preflight 仍不读取内容、
     # 不写 vault；因此在用户显式声明 non-sensitive 时允许通过。
-    if declared_non_sensitive and any(
-        resolved_str.startswith(marker) for marker in _DISPOSABLE_ROOT_MARKERS
-    ):
+    if declared_non_sensitive and _is_disposable_vault_path(resolved):
         return CLASS_NON_SENSITIVE_LOCAL
 
     # 检测 .obsidian: 路径自身或任意 parent 是 .obsidian, 或任意 parent
@@ -124,6 +124,25 @@ def classify_input_path(
         return CLASS_NON_SENSITIVE_LOCAL
 
     return CLASS_PRIVATE_REAL_DATA_FORBIDDEN
+
+
+def _is_disposable_vault_path(path: Path) -> bool:
+    """只允许明确命名的临时 disposable vault 绕过 ``.obsidian`` 标记。
+
+    中文学习型说明：GitHub Linux runner 的 pytest 目录也在 ``/tmp`` 下。
+    如果把所有 ``/tmp`` 都当 disposable，会让带 ``.obsidian`` 的真实形状
+    和 home-scan 模拟路径被误判为安全。这里把白名单收窄到
+    ``/tmp/mindforge-test-*`` / ``/tmp/mindforge-readiness-*`` 这类
+    MindForge 自己创建、可删除的 smoke 副本。
+    """
+
+    resolved_str = str(path).replace("\\", "/")
+    if not any(resolved_str.startswith(marker) for marker in _DISPOSABLE_ROOT_MARKERS):
+        return False
+    return any(
+        parent.name.startswith(_DISPOSABLE_VAULT_PREFIXES)
+        for parent in (path, *path.parents)
+    )
 
 
 _REFUSING_CLASSES = {
