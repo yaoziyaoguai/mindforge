@@ -19,6 +19,8 @@ from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.cli import app
 from mindforge.config import (
     ConfigError,
+    DEFAULT_PROVIDER_MAX_RETRIES,
+    DEFAULT_PROVIDER_TIMEOUT_SECONDS,
     LLMConfig,
     ModelConfig,
     REQUIRED_STAGES,
@@ -27,6 +29,12 @@ from mindforge.config import (
 )
 from mindforge.init_cmd import build_plan, execute_plan
 from mindforge.first_run_config import maybe_bootstrap_local_config
+from mindforge.provider_defaults import (
+    DEFAULT_PROVIDER_MAX_RETRIES as PROVIDER_DEFAULT_MAX_RETRIES,
+)
+from mindforge.provider_defaults import (
+    DEFAULT_PROVIDER_TIMEOUT_SECONDS as PROVIDER_DEFAULT_TIMEOUT_SECONDS,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
@@ -67,6 +75,18 @@ def test_real_mindforge_yaml_loads() -> None:
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"
+
+
+def test_provider_runtime_defaults_live_outside_config_schema() -> None:
+    """provider 默认运行边界由 provider_defaults 统一定义。
+
+    中文学习型说明：config.py 可以为了兼容旧 import 继续 re-export 常量，
+    但真实 provider timeout/retry 的源头应在 provider_defaults，避免配置
+    schema 文件继续吞入 provider runtime 语义。
+    """
+
+    assert DEFAULT_PROVIDER_TIMEOUT_SECONDS == PROVIDER_DEFAULT_TIMEOUT_SECONDS == 120
+    assert DEFAULT_PROVIDER_MAX_RETRIES == PROVIDER_DEFAULT_MAX_RETRIES == 1
 
 
 def test_init_generates_minimal_user_override_config(tmp_path: Path) -> None:

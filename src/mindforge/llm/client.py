@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from mindforge.config import DEFAULT_PROVIDER_MAX_RETRIES
+from mindforge.provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES
 
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError
 

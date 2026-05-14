@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from mindforge.config import DEFAULT_PROVIDER_TIMEOUT_SECONDS
+from mindforge.provider_defaults import DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
 from .base import LLMProvider, LLMRequest, LLMResult, ProviderError, redact_provider_error_text
 

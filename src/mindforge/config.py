@@ -28,6 +28,7 @@ from typing import Any
 import yaml
 
 from .assets_runtime import bundled_text
+from .provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 
 # v0.1 固定的 5 个 stage（与 prompts/ 下子目录一一对应）
 REQUIRED_STAGES: tuple[str, ...] = (
@@ -37,11 +38,6 @@ REQUIRED_STAGES: tuple[str, ...] = (
     "review_questions",
     "action_extraction",
 )
-
-# 真实 provider 调用的产品默认边界。Web Setup 普通用户不需要理解这些字段，
-# 但 release 主路径必须有有限等待/有限重试，不能把 None 交给底层 HTTP 库。
-DEFAULT_PROVIDER_TIMEOUT_SECONDS = 120
-DEFAULT_PROVIDER_MAX_RETRIES = 1
 
 # v0.1 已知的 source_type，必须与 mindforge.sources.base.SourceType 同步
 KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
