@@ -10,26 +10,37 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
-      HOME: /tmp/mindforge-ci-home
+      COLUMNS: "160"
+      NO_COLOR: "1"
+      TERM: dumb
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install package and test tools
         run: |
+          python -m venv .venv
           python -m pip install -U pip
           python -m pip install --editable ".[dev]"
+          .venv/bin/python -m pip install -U pip
+          .venv/bin/python -m pip install --editable ".[dev]"
+
+      - name: Prepare CI test fixtures
+        run: |
+          cp src/mindforge/assets/configs/mindforge.yaml configs/mindforge.yaml
+          mkdir -p /tmp/mindforge-ci-home
 
       - name: Run ruff
         run: python -m ruff check src tests
 
       - name: Run pytest
+        env:
+          HOME: /tmp/mindforge-ci-home
         run: |
-          mkdir -p "$HOME"
           python -m pytest -q
