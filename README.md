@@ -253,6 +253,18 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 deterministic template rebuild 
 
 **不要将 API key 粘贴到聊天、issue、logs 或 README 中。**
 
+## 当前范围与已知限制
+
+第一版聚焦本地、单用户、显式审批的知识加工闭环：
+
+- 已支持：Web Setup 配置真实模型、`import` / `watch add` 处理本地 source、生成 `ai_draft`、显式 approve、Library / BM25 Recall / LLM-first Wiki。
+- 暂不支持：RAG、embedding、向量数据库、semantic merge、Obsidian plugin、自动审批、自动修改真实私人 vault。
+- 长文档或大目录建议先用非敏感资料小批量验证；如果 provider timed out，可拆分 source 或调高 `timeout_seconds` 后重新 import。
+- deterministic / template rebuild 只属于 Advanced / Troubleshooting 回退，不是普通用户主路径。
+- Custom strategy 当前是 declarative preview / review-only：preview packet 不是 ai_draft，不是 `human_approved`；preview to future implementation 需要 reviewed built-in implementation path、no arbitrary python、no shell，并仍然要求 explicit approval。
+
+未来工作会按单项设计和测试推进，不在第一版文档中展开 RFC/SDD。
+
 ---
 
 ## 开发者
@@ -314,12 +326,12 @@ cd web && npm run build
 - 不支持 not RAG / not embedding / no vector DB / semantic merge。
 - 不做 SaaS / 不上传。
 
-### Obsidian 边界声明
+### Obsidian 边界声明（future-gated）
 
 - No formal Obsidian notes are written. No Obsidian plugin.
-- Obsidian uses a staged workflow: staged export → diff preview → backup → explicit confirmation.
+- Obsidian staged workflow 是开发/维护边界，不是第一版普通用户主路径：staged export → diff preview → backup → explicit confirmation.
 - Supports include/exclude patterns for staged exports.
-- `mindforge obsidian next --vault /path/to/project-vault`, `mindforge obsidian doctor --vault /path/to/project-vault`, `mindforge obsidian scan --vault /path/to/project-vault --limit 20`, `mindforge obsidian links --vault /path/to/project-vault`, `mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run`, `mindforge obsidian preflight --vault /path/to/project-vault --manifest`.
+- 只读/预检命令示例：`mindforge obsidian next --vault /path/to/project-vault`, `mindforge obsidian doctor --vault /path/to/project-vault`, `mindforge obsidian scan --vault /path/to/project-vault --limit 20`, `mindforge obsidian links --vault /path/to/project-vault`, `mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run`, `mindforge obsidian preflight --vault /path/to/project-vault --manifest`.
 - `<export>.manifest.json` is the staged export manifest format.
 - No formal Obsidian note writes.
 - No secret file or real model call is used without explicit opt-in.
@@ -334,22 +346,19 @@ cd web && npm run build
 
 ### 相关文档
 
+- [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md): 第一版发布说明
 - [DESIGN.md](DESIGN.md): Web 设计系统
 - [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md): LLM provider 配置详情
 - [docs/TESTING.md](docs/TESTING.md): 测试指南
-- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md): 功能完成台账
+- [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md): 维护者功能完成台账（不是 first-run 文档）
 
 ---
 
-## 路线图
+## Future Work
 
-当前阶段：**first local MVP 接近首次 release**。
+当前阶段：**first local MVP 接近首次 release**。第一版只承诺上面已列出的本地 LLM-first 知识闭环。
 
-v0.13 stage closure：Web first slice, Real Data CLI Usability, Documentation cleanup。
-
-下一步计划：打包优化、真实非敏感数据 dogfood、Web 交互打磨、处理进度可见性。
-
-Future gates（当前不做）：
+Future gates（当前不做，打开前需要单独设计、测试和人工授权）：
 - G1 External account ingestion
 - G2 Real Obsidian formal-note write
 - G3 Approval UX
@@ -357,16 +366,7 @@ Future gates（当前不做）：
 - G5 RAG / embedding / semantic merge
 - G6 Public release / git tag
 
-**能力边界（what MindForge does not do）：**
-
-- does not call a real LLM（无显式 opt-in 时）
-- does not automatically modify a real private vault
-- does not auto-approve
-- no tag, no force push
-- Real LLM enabled by default: No. Hidden automatic approval: No.
-- No automatic approve. No tag and no release. Public release / git tag requires a separate named release authorization.
-- Real model calls require explicit model configuration and an explicit processing action.
-- 真实 LLM 只在你通过 Web Setup 配置模型和 API key 后，显式触发 source processing 或 Wiki LLM rebuild 时启用。
+能力边界：MindForge does not call a real LLM without explicit opt-in, does not automatically modify a real private vault, and does not auto-approve. No tag, no force push, and public release / git tag requires a separate named release authorization. Real model calls require explicit model configuration and an explicit processing action.
 
 不承诺未实现能力。
 

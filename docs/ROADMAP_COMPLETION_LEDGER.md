@@ -4,6 +4,9 @@ This compact guard ledger is intentionally the only retained roadmap-adjacent
 document besides `ROADMAP.md`. Tests keep it because it protects future-gate
 status buckets without requiring dozens of historical milestone files.
 
+This is a maintainer-facing guard ledger, not first-run documentation. First
+release users should start from `README.md` and `docs/RELEASE_NOTES.md`.
+
 ## Status Buckets
 
 | Bucket | Meaning | Who can move it |

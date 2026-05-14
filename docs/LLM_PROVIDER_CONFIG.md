@@ -20,6 +20,8 @@ llm:
       type: anthropic_compatible
       base_url: https://your-endpoint.example.com/anthropic
       model: your-model-name
+      timeout_seconds: 120
+      max_retries: 1
 
   routing:
     triage: main
@@ -41,6 +43,8 @@ wiki:
 | `llm.models` | 用户配置的可用模型池，每个 model id 对应一个 endpoint + 协议 + 模型名 |
 | `llm.default_model` | 所有 workflow step 默认使用的模型 |
 | `llm.routing` | 可选，workflow step → model id。省略时全部使用 default_model |
+| `timeout_seconds` | 单次 provider HTTP request timeout；省略时使用运行时默认值，不限制整个 import/watch run |
+| `max_retries` | 单次 provider call 的有限 retry 次数；省略时使用运行时默认值，不做 run-level 无限重试 |
 | routing 部分缺失 | 缺失 step fallback 到 default_model |
 | `wiki.model` | Wiki LLM synthesis 使用的 model id；必须引用 `llm.models` |
 | `wiki.auto_rebuild_on_approve` | 默认 false。开启后会在 approve 时自动触发 Wiki 重建（使用 `wiki.mode` 指定的方式，LLM synthesis 需要已配置模型和 API key）。不开启时 Wiki 需在 Web Wiki 页面或 CLI 手动触发 |
@@ -65,6 +69,14 @@ Web Setup 还支持：
 - **Default model** 选择
 - **Processing Workflow** 中每个 step 的模型分配
 - **Wiki generation mode / Wiki model** 配置；LLM synthesis 需要用户手动触发
+
+如果默认端口已被占用，换一个端口启动，避免误操作旧 server：
+
+```bash
+mindforge web --port 8766 --open
+```
+
+端口被占用时，CLI 会先失败并提示换端口，不会先打开浏览器。
 
 ---
 

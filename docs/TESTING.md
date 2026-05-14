@@ -6,13 +6,21 @@ Run from the repository root:
 
 ```bash
 ruff check src tests
-pytest
 git diff --check
 git status --short
 ```
 
-Run the full suite after documentation governance changes when tests or CLI help
-references are touched.
+Run the full suite with a temporary HOME so tests never reuse your real
+workspace, secret store, or private notes:
+
+```bash
+rm -rf /private/tmp/mindforge-test-home
+mkdir -p /private/tmp/mindforge-test-home
+HOME=/private/tmp/mindforge-test-home python -m pytest -q
+```
+
+Run the full suite after documentation governance changes when tests, CLI help,
+or product-surface contract docs are touched.
 
 ## First Status Commands
 
@@ -78,6 +86,8 @@ mindforge doctor --config /tmp/mindforge-smoke/configs/mindforge.yaml
 
 - Use local source files or folders that you are comfortable processing; start with non-sensitive material.
 - Keep API keys in the local secret store managed by Web Setup; do not put keys in YAML or docs.
+- Do not read or print `.env` or `.mindforge/secrets.json` while testing.
+- Do not use a real private vault for smoke tests.
 - Real model calls require explicit model configuration and an explicit processing action.
 - No automatic approve.
 
