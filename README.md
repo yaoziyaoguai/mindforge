@@ -262,6 +262,7 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 deterministic template rebuild 
 - 长文档或大目录建议先用非敏感资料小批量验证；如果 provider timed out，可拆分 source 或调高 `timeout_seconds` 后重新 import。
 - deterministic / template rebuild 只属于 Advanced / Troubleshooting 回退，不是普通用户主路径。
 - Custom strategy 当前是 declarative preview / review-only：preview packet 不是 ai_draft，不是 `human_approved`；preview to future implementation 需要 reviewed built-in implementation path、no arbitrary python、no shell，并仍然要求 explicit approval。
+- Safety contract markers: No automatic approve. Hidden automatic approval: No. Real LLM enabled by default: No; real model calls require Web Setup + API key + explicit processing action.
 
 未来工作会按单项设计和测试推进，不在第一版文档中展开 RFC/SDD。
 
@@ -357,6 +358,8 @@ cd web && npm run build
 ## Future Work
 
 当前阶段：**first local MVP 接近首次 release**。第一版只承诺上面已列出的本地 LLM-first 知识闭环。
+
+Completed release closure labels: Web first slice, Real Data CLI Usability, Documentation cleanup.
 
 Future gates（当前不做，打开前需要单独设计、测试和人工授权）：
 - G1 External account ingestion
