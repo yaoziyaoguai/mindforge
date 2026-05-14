@@ -2939,11 +2939,13 @@ def test_review_route_serves_drafts_page(tmp_path: Path, monkeypatch) -> None:
 def test_dogfood_command_hidden_from_main_help() -> None:
     """dogfood 命令不出现在主 help 中。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     # dogfood 不应出现在主 help 输出中
     assert "dogfood" not in result.stdout
@@ -2952,11 +2954,13 @@ def test_dogfood_command_hidden_from_main_help() -> None:
 def test_setup_cli_direct_help_is_retired() -> None:
     """旧 setup help 不再作为第二套配置入口暴露。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "setup", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     assert result.returncode != 0
     assert result.stdout == ""
@@ -2965,11 +2969,13 @@ def test_setup_cli_direct_help_is_retired() -> None:
 def test_scan_direct_help_is_retired() -> None:
     """旧 scan help 不再作为第二套 source 入口暴露。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "scan", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     assert result.returncode != 0
     assert result.stdout == ""
@@ -2978,11 +2984,13 @@ def test_scan_direct_help_is_retired() -> None:
 def test_watch_add_frequency_alias(tmp_path: Path) -> None:
     """/watch add --frequency 作为 --every 的别名。"""
     import subprocess
+    repo_root = Path(__file__).parent.parent
+
     result = subprocess.run(
         ["python", "-m", "mindforge", "watch", "add", "--help"],
         capture_output=True,
         text=True,
-        cwd="/Users/jinkun.wang/work_space/mindforge",
+        cwd=repo_root,
     )
     assert "--frequency" in result.stdout
 
