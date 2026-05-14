@@ -48,10 +48,10 @@ processing / Web UX 的产品语义。release 前只保留现有 characterizatio
 和边界说明；release 后必须按单项设计、单项测试、单项 PR 推进，不能混成
 一个大改。
 
-| Item | Why deferred | Release-after action |
+| Item | Release-preflight status | Release-after action |
 | --- | --- | --- |
-| `config.py` split | 当前文件承担 schema/default/loader/validation/legacy migration/provider default parsing 等多种职责，但没有造成 release-blocking bug；移动 dataclass 或 loader 会影响大量调用点。 | 先抽纯常量/validation helper，再拆 schema 与 loader；每一步保留 `tests/test_config.py` characterization coverage。 |
-| `web_config_service.py` split | 当前文件同时处理 config view/write、secret masking、readiness presenter、provider/model edit view；Web Setup 保存与 workspace anchor 已有回归测试，release 前大拆风险高。 | 拆为 `WebConfigReader` / `WebConfigWriter` / `WebConfigSecretManager` / `WebConfigReadinessPresenter`，保持 API response contract 不变。 |
+| `config.py` split | First low-risk slice done: provider timeout/retry defaults live outside config schema. Dataclass/schema/loader remain in place because moving them would touch many core imports. | Next split pure validation helpers, then schema vs loader; each step must preserve `tests/test_config.py` characterization coverage. |
+| `web_config_service.py` split | First low-risk slice done: Web Setup secret handling is isolated from config view/write. Reader/writer/readiness stay in the service to avoid a release-preflight Web Setup rewrite. | Split `WebConfigReader` / `WebConfigWriter` / `WebConfigReadinessPresenter` only after API response contract tests are in place. |
 | long document chunking | 会改变 source splitting、prompt budget、card provenance 与 merge 语义，是新 processing 能力。 | 先写设计文档和 fixtures，再实现 per-source chunk provenance 与用户可见说明。 |
 | per-source progress | 当前 run 已展示 provider call progress；完整 per-source progress 需要扩展 run event schema 和 Web/CLI 展示。 | 增加 source-level stage events 与 batch position metadata，先覆盖 CLI `runs show`，再扩展 Web。 |
 | partial success UI | 需要定义 batch succeeded-with-errors 的产品语义，避免误导成完全成功或完全失败。 | 先设计状态枚举和 copy，再用 fixture run logs 做 Web/CLI characterization tests。 |

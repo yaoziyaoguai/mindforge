@@ -244,9 +244,10 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 deterministic template rebuild 
 | 模型无法生成 draft | Web Setup 中为该 model 添加 API key |
 | run skipped by triage | source 内容被 triage 判定为低价值，检查 `runs show` |
 | running 持续几分钟 | 真实模型处理需要时间；检查 `runs show` 看当前 step |
+| provider timed out | 检查 endpoint / network / proxy；长文档可先拆分 source，或在配置中调高 `timeout_seconds` 后重新 import |
 | already processed / already approved | source 已处理过，不会重复生成 draft |
 | approve number ref expired | 审批后编号失效，重新 `approve list` |
-| Web port already in use | 检查是否已有 `mindforge web` 进程运行 |
+| Web port already in use | 检查是否已有 `mindforge web` 进程运行，或使用 `mindforge web --port 8766 --open` |
 | stale web process / wrong venv | 确认 venv 已激活且 `pip install -e .` 成功 |
 | `mindforge: command not found` | `source .venv/bin/activate && pip install -e .` |
 

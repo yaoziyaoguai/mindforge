@@ -15,11 +15,13 @@ from typing import Any
 import yaml
 
 from mindforge.config import REQUIRED_STAGES, MindForgeConfig
-from mindforge.config import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 from mindforge.cubox_readiness import classify_cubox_real_opt_in, inspect_cubox_config
 from mindforge.model_setup_readiness import model_setup_readiness
+from mindforge.provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PROVIDER_TIMEOUT_SECONDS
 from mindforge.provider_readiness import build_readiness_report
+from mindforge.secret_store import resolve_project_root_from_config
 from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
+from mindforge_web.services.web_config_secret_manager import WebConfigSecretManager, mask_secret
 
 from mindforge_web.schemas import (
     EditableCuboxConfig,
@@ -40,8 +42,6 @@ from mindforge_web.schemas import (
     SetupValidationResponse,
     StatusItem,
 )
-from mindforge.secret_store import SecretStore, resolve_project_root_from_config
-
 
 @dataclass(frozen=True)
 class DotenvPresence:
@@ -74,7 +74,7 @@ class WebConfigService:
                 project_root = config_dir
         mindforge_dir = project_root / ".mindforge"
         mindforge_dir.mkdir(parents=True, exist_ok=True)
-        self.secrets = SecretStore(mindforge_dir / "secrets.json")
+        self.secrets = WebConfigSecretManager(mindforge_dir / "secrets.json")
 
     def env_key_statuses(self) -> list[EnvKeyStatus]:
         dotenv = self._read_dotenv_presence()
@@ -433,10 +433,12 @@ class WebConfigService:
             env_name=model_env,
             default_value=model_value,
         )
-        # API key 来源优先级：local secret store > env var > missing/demo
-        api_key_source = self._api_key_source(model_id, model_type, api_key_env)
+        # API key 来源优先级：local secret store > env var > missing/demo。
+        # Secret 细节收敛在 WebConfigSecretManager，避免 WebConfigService
+        # 同时承担 config view/write 和 secret store 实现。
+        api_key_source = self.secrets.api_key_source(model_id, model_type, api_key_env)
         api_key_present = api_key_source in ("local_secret", "env")
-        masked_value = self._masked_api_key_value(model_id, api_key_env, api_key_source)
+        masked_value = self.secrets.masked_api_key_value(model_id, api_key_env, api_key_source)
         return EditableModelConfig(
             model_id=model_id,
             type=model_type,
@@ -654,7 +656,7 @@ class WebConfigService:
             api_key_status="present" if api_key_present else "missing",
             api_key_env_configured=bool(api_key_env),
             api_key_secret_present=api_key_present,
-            api_key_masked_value=_masked_secret(os.environ.get(api_key_env, ""))
+            api_key_masked_value=mask_secret(os.environ.get(api_key_env, ""))
             if api_key_present and api_key_env
             else None,
             api_key_status_label=_api_key_status_label(api_key_env, api_key_present),
@@ -802,7 +804,7 @@ class WebConfigService:
             for env_key in ("api_key_env", "base_url_env", "model_env", "version_env"):
                 item.pop(env_key, None)
             # 处理 API key：写入/清除/保留 secret store
-            self._apply_api_key_patch(model_id, model_patch)
+            self.secrets.apply_api_key_patch(model_id, model_patch)
         routing_raw = llm.get("routing")
         existing_routing = routing_raw if isinstance(routing_raw, dict) else {}
         explicit_routing = dict(existing_routing)
@@ -832,47 +834,6 @@ class WebConfigService:
         if not isinstance(models, dict):
             return set()
         return {str(k) for k, v in models.items() if isinstance(v, dict)}
-
-    def _apply_api_key_patch(self, model_id: str, model_patch) -> None:
-        """根据 api_key_action 处理 secret store 写入。"""
-        action = model_patch.api_key_action or "keep"
-        if action == "clear":
-            self.secrets.remove(model_id)
-        elif action == "update" and model_patch.api_key:
-            self.secrets.set(model_id, model_patch.api_key)
-        # "keep" — 不触碰 secret store
-
-    def _api_key_source(
-        self,
-        model_id: str,
-        model_type: str,
-        api_key_env: str | None,
-    ) -> str:
-        """判断 API key 来源：local_secret > env > demo > missing。"""
-        # demo/fake 模型不需要真实 API key
-        if model_type == "fake":
-            return "demo"
-        # secret store 是最直接的用户输入
-        if self.secrets.present(model_id):
-            return "local_secret"
-        # env var 是部署模式
-        if api_key_env and api_key_env in os.environ and os.environ[api_key_env]:
-            return "env"
-        return "missing"
-
-    def _masked_api_key_value(
-        self,
-        model_id: str,
-        api_key_env: str | None,
-        api_key_source: str,
-    ) -> str | None:
-        """生成脱敏 key 供前端展示，不返回 raw value。"""
-        if api_key_source == "local_secret":
-            return self.secrets.masked(model_id)
-        if api_key_source == "env" and api_key_env:
-            raw = os.environ.get(api_key_env, "")
-            return _masked_secret(raw) if raw else None
-        return None
 
     def _deleted_model_ids(
         self,
@@ -947,16 +908,10 @@ def _assign_if_present(target: dict[str, Any], key: str, value: str | None) -> N
         target[key] = value
 
 
-def _masked_secret(value: str) -> str:
-    suffix = value[-4:] if len(value) >= 4 else value
-    prefix = "sk-" if value.startswith("sk-") else ""
-    return f"{prefix}****{suffix}"
-
-
 def _api_key_status_label(env_name: str | None, present: bool) -> str:
     if present:
         raw = os.environ.get(env_name or "", "")
-        return f"present ({_masked_secret(raw)})"
+        return f"present ({mask_secret(raw)})"
     if env_name:
         return "env name configured, value missing"
     return "env name missing"
