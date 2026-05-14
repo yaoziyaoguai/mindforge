@@ -48,17 +48,23 @@ def _format_process_status(result, *, cfg, status: str, message: str | None, dry
     doc = result.document
     assert doc is not None
     if status == "skipped":
-        console.print(_pp.format_skipped(source_path=doc.source_path, skip_reason=message))
+        console.print(_pp.format_skipped(source_path=doc.source_path, skip_reason=message), soft_wrap=True)
     elif status == "failed":
-        console.print(_pp.format_failed(source_path=doc.source_path, error_stage=None, error_message=message))
+        console.print(
+            _pp.format_failed(source_path=doc.source_path, error_stage=None, error_message=message),
+            soft_wrap=True,
+        )
     elif dry_run and status == "processed":
-        console.print(_pp.format_processed_dry_run(source_path=doc.source_path, target_dir=cfg.vault.cards_path))
+        console.print(
+            _pp.format_processed_dry_run(source_path=doc.source_path, target_dir=cfg.vault.cards_path),
+            soft_wrap=True,
+        )
     else:
         console.print(_pp.format_processed_real(
             source_path=doc.source_path,
             output_path=Path(message or ""),
             conflict=(status == "conflict"),
-        ))
+        ), soft_wrap=True)
 
 
 def _finalize_process_run(*, cp, cfg, logger, console, counts, dry_run):
@@ -145,7 +151,7 @@ def _run_process_loop(*, cfg, parts: ProcessRuntimeParts, file, limit, dry_run) 
                 console.print(_pp.format_skipped(
                     source_path=doc.source_path,
                     skip_reason="already_approved",
-                ))
+                ), soft_wrap=True)
                 continue
 
             attempted += 1
