@@ -112,36 +112,21 @@ Processor 通过 `SourceDocument.raw_text` 获取内容，通过 `SourceDocument
 ### 4.1 `src/mindforge/sources/base.py` (modified)
 
 ```python
-# 新增 import
-from dataclasses import dataclass, field
-
-# 新增数据类
-@dataclass(frozen=True)
-class ProvenanceBlock:
-    """单块 provenance 记录。"""
-    source_type: str            # "pdf" / "docx" / "txt" / "html"
-    page: int | None = None     # PDF page number
-    section: str | None = None  # section heading
-    offset_start: int | None = None
-    offset_end: int | None = None
-    extracted_as: str = "text"
-
-@dataclass(frozen=True)
-class ExtractionWarning:
-    """解析过程中产生的 warning。"""
-    code: str                   # "encoding_fallback", "table_loss", "empty_file", etc.
-    message: str
-    location: str | None = None
-
-# 修改 SourceDocument — 增加两个字段（backward-compatible default）
+# 修改 SourceDocument — 增加两个 backward-compatible 字段
 @dataclass(frozen=True)
 class SourceDocument:
     # ... existing fields unchanged ...
-    extraction_warnings: list[ExtractionWarning] = field(default_factory=list)  # NEW
-    provenance_blocks: list[ProvenanceBlock] = field(default_factory=list)      # NEW
+    extraction_warnings: list = field(default_factory=list)  # NEW
+    provenance_blocks: list = field(default_factory=list)      # NEW
 ```
 
 > **不变**：`source_id`, `source_type`, `source_path`, `title`, `author`, `source_url`, `created_at`, `captured_at`, `tags`, `highlights`, `raw_text`, `metadata`, `content_hash`, `adapter_name` 保持原样。
+>
+> **设计说明**（v0.2 docs cleanup 修正）：
+> - `ExtractionWarning` 和 `ProvenanceBlock` **不在** `base.py` 中定义，它们在 `adapter_result.py`（§4.6）。
+> - `SourceDocument` 的 `extraction_warnings` / `provenance_blocks` 使用 `list` 类型（不标 `list[ExtractionWarning]` / `list[ProvenanceBlock]`），避免 `base.py` → `adapter_result.py` 的循环依赖。
+> - 这些 `list` 字段在运行时可以存放来自 `adapter_result.py` 的 `ExtractionWarning` / `ProvenanceBlock` 实例，但 `SourceDocument` 本身不强制依赖具体类型。
+> - 这符合"最上游层不应依赖下游类型"的架构原则。
 
 ### 4.2 `src/mindforge/sources/txt.py` (new)
 
@@ -228,6 +213,23 @@ HtmlAdapter(SourceAdapter)
 
 ```python
 @dataclass(frozen=True)
+class ExtractionWarning:
+    """解析过程中产生的 warning。"""
+    code: str                   # "encoding_fallback", "table_loss", "empty_file", etc.
+    message: str
+    location: str | None = None
+
+@dataclass(frozen=True)
+class ProvenanceBlock:
+    """单块 provenance 记录。"""
+    source_type: str            # "pdf" / "docx" / "txt" / "html"
+    page: int | None = None     # PDF page number
+    section: str | None = None  # section heading
+    offset_start: int | None = None
+    offset_end: int | None = None
+    extracted_as: str = "text"
+
+@dataclass(frozen=True)
 class AdapterResult:
     """Adapter.load() 的唯一返回类型。status 必填。"""
     status: str                          # "loaded" | "skipped" | "failed"
@@ -238,7 +240,12 @@ class AdapterResult:
 
 @dataclass(frozen=True)
 class SkipReason:
-    """预定义 skip reason 常量。在 AdapterResult.skip_reason 中使用。"""
+    """预定义 skip reason 常量。在 AdapterResult.skip_reason 中使用。
+
+    v0.2 实现注：SkipReason 是 optional future helper。
+    M1 Phase P4 优先实现上面三个类型；SkipReason 可作为 P4 的轻量额外项
+    或推迟到 P4+ 再实现，不阻塞 AdapterResult contract。
+    """
     UNSUPPORTED_LEGACY_DOC = "unsupported_legacy_doc"
     SCANNED_PDF_NO_TEXT = "scanned_pdf_no_text"
     ENCRYPTED_PDF = "encrypted_pdf"
@@ -280,8 +287,10 @@ class SkipReason:
 | 12 | metadata | dict | no | {} |
 | 13 | content_hash | str | yes | — |
 | 14 | adapter_name | str | no | "" |
-| 15 | extraction_warnings | list[ExtractionWarning] | **new** | [] |
-| 16 | provenance_blocks | list[ProvenanceBlock] | **new** | [] |
+| 15 | extraction_warnings | list | **new** | [] |
+| 16 | provenance_blocks | list | **new** | [] |
+
+> **类型注**：`extraction_warnings` 和 `provenance_blocks` 在 `SourceDocument` 中声明为 `list`（非 `list[ExtractionWarning]` / `list[ProvenanceBlock]`），避免 `base.py` → `adapter_result.py` 的循环依赖。运行时这些列表存放来自 `adapter_result.py` 的 `ExtractionWarning` / `ProvenanceBlock` 实例。
 
 ### 5.2 AdapterResult
 
