@@ -30,34 +30,36 @@ examples/fixture-vault/
 ## 用 fixture vault 跑一遍
 
 ```bash
-# 1) 复制 configs（一次性）
-cp configs/mindforge.yaml /tmp/mindforge-fixture.yaml
-# 然后用 --vault 临时指向 fixture vault（不改 yaml）
+# 1) 从 tracked 示例配置复制一份临时 config（一次性，不提交）
+cp configs/mindforge_example.yaml /tmp/mindforge-fixture.yaml
+export CONFIG=/tmp/mindforge-fixture.yaml
+
+# 2) 用 --vault 临时指向 fixture vault（不改 yaml）
 export FIXTURE=$(pwd)/examples/fixture-vault
 
-mindforge doctor --vault "$FIXTURE" --config configs/mindforge.yaml
+mindforge doctor --vault "$FIXTURE" --config "$CONFIG"
 mindforge commands
-mindforge next --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge scan --vault "$FIXTURE" --config configs/mindforge.yaml
-# process 需要你在 configs/mindforge.yaml 配好 llm.models/default_model；
+mindforge next --vault "$FIXTURE" --config "$CONFIG"
+mindforge scan --vault "$FIXTURE" --config "$CONFIG"
+# process 需要你在 Web Setup 配好真实模型和 local secret store；
 # 没有真实模型时可以跳过这一步，fixture vault 仍可用于 scan/recall/review。
-# mindforge process --limit 1 --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge approve list --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge index rebuild --vault "$FIXTURE" --config configs/mindforge.yaml
+# mindforge process --limit 1 --vault "$FIXTURE" --config "$CONFIG"
+mindforge approve list --vault "$FIXTURE" --config "$CONFIG"
+mindforge index rebuild --vault "$FIXTURE" --config "$CONFIG"
 mindforge recall --query "checkpoint runtime" \
-  --ranking hybrid --explain --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge review weekly --format markdown --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge review schedule --days 7 --format markdown --vault "$FIXTURE" --config configs/mindforge.yaml
+  --ranking hybrid --explain --vault "$FIXTURE" --config "$CONFIG"
+mindforge review weekly --format markdown --vault "$FIXTURE" --config "$CONFIG"
+mindforge review schedule --days 7 --format markdown --vault "$FIXTURE" --config "$CONFIG"
 mindforge project context my-first-agent \
-  --target claude-code --vault "$FIXTURE" --config configs/mindforge.yaml
+  --target claude-code --vault "$FIXTURE" --config "$CONFIG"
 
 # Obsidian Binding v0.5：只读扫描，不改正式 notes
-mindforge obsidian doctor --vault "$FIXTURE" --config configs/mindforge.yaml
-mindforge obsidian scan --vault "$FIXTURE" --limit 5 --config configs/mindforge.yaml
-mindforge obsidian links --vault "$FIXTURE" --config configs/mindforge.yaml
+mindforge obsidian doctor --vault "$FIXTURE" --config "$CONFIG"
+mindforge obsidian scan --vault "$FIXTURE" --limit 5 --config "$CONFIG"
+mindforge obsidian links --vault "$FIXTURE" --config "$CONFIG"
 mindforge obsidian stage --vault "$FIXTURE" \
   --source 02-Knowledge/agent-runtime-observer.md \
-  --dry-run --config configs/mindforge.yaml
+  --dry-run --config "$CONFIG"
 ```
 
 `process` 会写本地产物。想反复 smoke 时，建议先复制 fixture vault 到
@@ -66,8 +68,7 @@ mindforge obsidian stage --vault "$FIXTURE" \
 ## 安全契约
 
 - **不含 secrets**：fixture 不包含 API key 或 token；
-- **LLM opt-in**：fixture 不包含 API key；`process` 只在你显式配置
-  `llm.models/default_model` 和 local secret store 后运行；
+- **真实模型显式配置**：`process` 只在你配置模型和 local secret store 后运行；
 - **只读 inbox**：所有输入文件只读，pipeline 写产物到 `20-Knowledge-Cards/`；
 - **只读 Obsidian notes**：`obsidian scan/links/doctor` 不修改正式笔记；
 - **staging/review 隔离**：`obsidian stage` 默认 dry-run，写入需 `--write --confirm`；

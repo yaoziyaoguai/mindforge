@@ -46,16 +46,19 @@ pytest tests/test_onboarding_smoke.py
 Use only the fictional fixture vault:
 
 ```bash
-mindforge --vault examples/fixture-vault doctor
-mindforge --vault examples/fixture-vault next
-mindforge watch add examples/fixture-vault/00-Inbox --config configs/mindforge.yaml
-mindforge runs list --config configs/mindforge.yaml
-mindforge --vault examples/fixture-vault index rebuild
-mindforge --vault examples/fixture-vault recall --query "checkpoint runtime" --ranking hybrid
-mindforge --vault examples/fixture-vault project context my-first-agent --target claude-code
-mindforge obsidian doctor --vault examples/fixture-vault
-mindforge obsidian links --vault examples/fixture-vault
-mindforge obsidian stage --vault examples/fixture-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run
+cp configs/mindforge_example.yaml /tmp/mindforge-fixture.yaml
+export CONFIG=/tmp/mindforge-fixture.yaml
+
+mindforge --vault examples/fixture-vault doctor --config "$CONFIG"
+mindforge --vault examples/fixture-vault next --config "$CONFIG"
+mindforge watch add examples/fixture-vault/00-Inbox --config "$CONFIG"
+mindforge runs list --config "$CONFIG"
+mindforge --vault examples/fixture-vault index rebuild --config "$CONFIG"
+mindforge --vault examples/fixture-vault recall --query "checkpoint runtime" --ranking hybrid --config "$CONFIG"
+mindforge --vault examples/fixture-vault project context my-first-agent --target claude-code --config "$CONFIG"
+mindforge obsidian doctor --vault examples/fixture-vault --config "$CONFIG"
+mindforge obsidian links --vault examples/fixture-vault --config "$CONFIG"
+mindforge obsidian stage --vault examples/fixture-vault --source 02-Knowledge/agent-runtime-observer.md --dry-run --config "$CONFIG"
 ```
 
 Obsidian-specific regression coverage lives in `tests/test_v0_5_obsidian.py`.

@@ -52,6 +52,7 @@ mindforge status
 
 # 5. 启动 Web 配置模型
 mindforge web --open
+```
 
 `mindforge init` 创建 MindForge **workspace**：包含 vault 骨架和本地 runtime config。init 完成后会自动记住 workspace 路径（`~/.mindforge/current_workspace.json`），之后在任意目录运行 `mindforge status` / `mindforge start` 等命令都会自动找到它。用户只需理解 workspace 这一个概念，无需关心内部 config 文件路径。
 
