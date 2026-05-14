@@ -9,6 +9,30 @@
 
 ---
 
+## TL;DR for Coding Agents
+
+1. **Read** `docs/V0_2_DEVELOPMENT_RULES.md` first.
+2. **Implement M1 only** — no TXT / HTML / PDF / DOCX in M1.
+3. **Characterization tests first** — capture v0.1 behavior before touching production code.
+4. **Do NOT change** card schema, approval semantics, or processor logic.
+5. **All adapter output** goes through `AdapterResult` (loaded / skipped / failed) — no bare exceptions for normal skip.
+6. **SourceDocument fields** (v0.1 legacy): `source_path`, `raw_text`, `content_hash` — do NOT rename.
+7. **SourceDocument v0.2 additions**: `extraction_warnings: list[ExtractionWarning]` and `provenance_blocks: list[ProvenanceBlock]`.
+8. **Every commit** must reference the RFC/SDD section it implements.
+
+**First M1 prompt template:**
+
+```
+Implement M1 Phase P1 from docs/sdd/SDD_SOURCE_ADAPTER_V2.md §11.
+Write characterization tests for PlainMarkdownAdapter first, then
+contract tests for SourceDocument v2 fields. Do NOT modify base.py
+until tests are written and failing. Reference RFC_0001 §5.2.
+
+Scope: tests/ only. No production code changes.
+```
+
+---
+
 ## 1. v0.1 Baseline
 
 v0.1 已完成并作为 baseline 上线：
@@ -160,7 +184,7 @@ v0.1 已完成并作为 baseline 上线：
 
 **Acceptance criteria**:
 - `PdfAdapter` 输出 page-level provenance（`provenance_blocks`）
-- Scanned PDF 明确标记为 `unsupported_scanned_pdf`，输出 skip reason
+- Scanned PDF 明确标记为 `scanned_pdf_no_text`，输出 skip reason
 - File size guard：超过阈值（如 50MB）友好跳过
 - Page count guard：超过阈值（如 500 页）友好警告
 

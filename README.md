@@ -375,7 +375,7 @@ cd web && npm run build
 
 ## Future Work
 
-当前阶段：**first local MVP 接近首次 release**。第一版只承诺上面已列出的本地 LLM-first 知识闭环。
+当前阶段：**v0.1 已发布**（current stable release）。v0.2 规划中，详见 docs/roadmap/V0_2_ROADMAP.md。第一版只承诺上面已列出的本地 LLM-first 知识闭环。
 
 Completed release closure labels: Web first slice, Real Data CLI Usability, Documentation cleanup.
 

@@ -195,35 +195,14 @@ class WikiRenderOptions:
 
 ```python
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class RenderedOutput:
-    content_html: str                   # safe HTML
-    toc_html: str | None                # TOC HTML
-    metadata: dict                      # renderer-specific metadata
 
 class WikiRenderer(ABC):
-    """Wiki 渲染器抽象基类。"""
+    """Wiki 渲染器抽象基类。为未来多视图扩展留接口。"""
     name: str
-    
-    @abstractmethod
-    def render(
-        self,
-        view_model: "WikiPageViewModel",
-        options: "WikiRenderOptions | None" = None
-    ) -> RenderedOutput: ...
 
 class WikiMarkdownRenderer(WikiRenderer):
-    """Markdown → Safe HTML 渲染器（当前实现）。"""
+    """当前实现标记。v0.2 的 Markdown 渲染在前端完成（见 §7）。"""
     name = "markdown"
-    
-    def render(self, view_model, options=None) -> RenderedOutput:
-        # 1. Render overview as Markdown → sanitized HTML
-        # 2. Render each section as Markdown → sanitized HTML
-        # 3. Build TOC from sections
-        # 4. Apply sanitization
-        # 5. Return RenderedOutput
 
 class WikiGraphRenderer(WikiRenderer):
     """Graph visualization renderer（v0.2 only interface）。"""
@@ -233,36 +212,11 @@ class WikiGraphRenderer(WikiRenderer):
         raise NotImplementedError(
             "Graph renderer is not implemented in v0.2. "
             "This is a reserved extension point for future graph view support. "
-            "See docs/rfc/RFC_0002_WIKI_PRESENTATION_V2.md §5.7."
+            "See docs/rfc/RFC_0002_WIKI_PRESENTATION_V2.md §5.4."
         )
 ```
 
-**Sanitization Pipeline**：
-
-```
-Markdown text
-    │
-    ▼
-markdown.markdown() → HTML string
-    │
-    ▼
-bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
-    │
-    ▼
-safe HTML string
-```
-
-ALLOWED_TAGS: `h1-h6, p, ul, ol, li, a, strong, em, code, pre, blockquote, table, thead, tbody, tr, th, td, hr, br, img, details, summary`
-
-ALLOWED_ATTRS:
-- `a`: `href` (http/https/mailto/relative only), `title`
-- `img`: `src`, `alt`
-- `code`: `class` (for syntax highlighting)
-- `th`, `td`: `align`
-
-STRIP: `script, iframe, object, embed, form, input, button, style, link, meta, base, applet, audio, video, source, track, canvas, svg, math`
-
-STRIP ATTRS: `onclick, onerror, onload, onmouseover, onmouseout, onfocus, onblur, style (inline), class (except on code)`
+**v0.2 渲染路径**：后端不做 Markdown → HTML 渲染。API 返回 `WikiPageViewModel` JSON，前端负责 Markdown → sanitized HTML。详见 §7。
 
 ### 4.3 `src/mindforge/wiki_cli.py` (modified)
 
@@ -426,13 +380,14 @@ GET /api/wiki/references  → list[WikiReferenceView] (NEW, JSON)
 
 ---
 
-## 7. Markdown Sanitization
+## 7. Markdown Sanitization（前端唯一路径）
 
-**库选择**：Python 端推荐 `bleach`（成熟稳定）；前端推荐 `DOMPurify`。
+**v0.2 默认路径**：API 返回 `WikiPageViewModel` JSON（section body 为 canonical Markdown text）。前端使用 `DOMPurify` 做唯一 sanitization 点。
 
-**Python sanitization rules**：
-```python
-ALLOWED_TAGS = [
+**前端 sanitization 规则**（DOMPurify config）：
+```javascript
+const DOMPurifyConfig = {
+  ALLOWED_TAGS: [
     "h1", "h2", "h3", "h4", "h5", "h6",
     "p", "br", "hr",
     "ul", "ol", "li",
@@ -441,25 +396,26 @@ ALLOWED_TAGS = [
     "table", "thead", "tbody", "tr", "th", "td",
     "img",
     "details", "summary",
-]
+  ],
+  ALLOWED_ATTR: ["href", "title", "src", "alt", "align"],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|ftp):|[^:/?#]*(?:[/?#]|$))/i,
+  FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input"],
+  FORBID_ATTR: ["onclick", "onerror", "onload", "onmouseover", "style"],
+};
+```
 
-ALLOWED_ATTRIBUTES = {
-    "a": ["href", "title"],
-    "img": ["src", "alt"],
-    "code": ["class"],
-    "th": ["align"],
-    "td": ["align"],
-}
-
-ALLOWED_PROTOCOLS = ["http", "https", "mailto", "ftp"]
+**测试边界**：
+- ViewModel API tests：验证 JSON 响应中 section body 为 canonical Markdown text，非 HTML
+- Front-end rendering/sanitization tests：验证 DOMPurify 正确 strip XSS payload
+- No unsafe innerHTML：验证所有 dangerouslySetInnerHTML 调用点都经过 DOMPurify
 ```
 
 ---
 
 ## 8. HTML Safety
 
-- **Server-side**：bleach sanitization before API response
-- **Client-side**：DOMPurify sanitization before `innerHTML`（双重保险）
+- **前端唯一 sanitization**：DOMPurify sanitization before `innerHTML`（唯一 sanitization 点，避免双重 sanitizer 责任不清）
+- **API 层**：后端返回 JSON，section body 为 canonical Markdown text。后端不预渲染 HTML
 - **CSP header**：`Content-Security-Policy: default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'`
 - **No inline event handlers**：所有事件处理通过 React `onClick` 等，不通过 HTML attribute
 - **No raw HTML injection**：前端组件使用 React JSX，避免 `dangerouslySetInnerHTML` 除非经过 DOMPurify
@@ -636,8 +592,9 @@ tests/wiki/
 - [ ] `WikiPageViewModel.build()` correctly constructs from synthesis JSON
 - [ ] `WikiSectionView` contains anchor + card_refs
 - [ ] `WikiReferenceView` contains source_type + source_path + full provenance
-- [ ] `WikiMarkdownRenderer.render()` outputs sanitized HTML
-- [ ] XSS test suite passes
+- [ ] API returns `WikiPageViewModel` JSON（section body 为 canonical Markdown text，非 HTML）
+- [ ] 前端 DOMPurify 通过 XSS test suite
+- [ ] 不直接 `innerHTML` 未净化内容
 - [ ] TOC correctly generated with section anchors
 - [ ] Section navigation works (within-page jump)
 - [ ] Empty/error/loading states cover all conditions
@@ -646,6 +603,6 @@ tests/wiki/
 - [ ] Wiki renderer does not modify knowledge state
 - [ ] Wiki renderer does not call approval path
 - [ ] Wiki renderer only uses human_approved cards
-- [ ] No `innerHTML` of unsanitized content
+- [ ] 后端不输出预渲染 HTML
 - [ ] No secret exposure in rendered output
 - [ ] ruff + pytest pass

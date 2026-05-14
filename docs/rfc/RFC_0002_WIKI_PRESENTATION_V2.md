@@ -176,18 +176,44 @@ WikiRenderer.render(view_model, options) → RenderedOutput
     └── WikiGraphRenderer     → Graph data (future, only interface)
 ```
 
-### 5.3 Renderer Registry
+### 5.3 Rendering Boundary（默认唯一路径）
+
+**v0.2 默认路径**：API 返回结构化 JSON，前端负责 Markdown → safe HTML 渲染。后端不生成最终 HTML。
+
+```
+API: GET /api/wiki/page → WikiPageViewModel (JSON)
+    │
+    │  section.body_markdown = "# Section Title\n\nSection content..."
+    │  section.card_refs = [{card_id, card_title, source_type, ...}]
+    │
+    ▼
+Frontend: WikiPage.tsx
+    │
+    ├── 1. Markdown → HTML（前端 markdown library）
+    │
+    ├── 2. HTML Sanitizer（DOMPurify，前端唯一 sanitization 点）
+    │
+    ├── 3. Render sanitized HTML into DOM（React dangerouslySetInnerHTML + DOMPurify）
+    │
+    └── CSP: default-src 'self'; script-src 'none'
+```
+
+**为什么是前端渲染**：
+- 避免双重 sanitizer 责任不清（Python bleach + 前端 DOMPurify 同时存在）
+- Markdown 渲染本是前端展示关注点，由前端统一控制
+- 后端只负责 structured data + provenance metadata
+
+**CLI 路径**：`mindforge wiki show` 输出纯文本/原始 Markdown，不做 HTML 渲染。
+
+### 5.4 Renderer Abstraction（for future extension）
 
 ```python
 class WikiRenderer(ABC):
-    """Wiki 渲染器的抽象基类。"""
+    """Wiki 渲染器的抽象基类。为未来多视图扩展留接口。"""
     name: str
-    
-    @abstractmethod
-    def render(self, view_model: WikiPageViewModel, options: WikiRenderOptions) -> RenderedOutput: ...
 
 class WikiMarkdownRenderer(WikiRenderer):
-    """当前实现：Markdown → Sanitized HTML。"""
+    """当前实现标记。v0.2 的 Markdown 渲染在前端完成。"""
     name = "markdown"
 
 class WikiGraphRenderer(WikiRenderer):
@@ -196,32 +222,35 @@ class WikiGraphRenderer(WikiRenderer):
     # v0.2: raise NotImplementedError("Graph renderer is not implemented in v0.2")
 ```
 
-### 5.4 Rendering Safety
+### 5.5 Rendering Safety
+
+**Sanitization 规则**（前端 DOMPurify）：
 
 ```
-User Input (Wiki body Markdown)
+User Input (Wiki section body Markdown)
     │
     ▼
-Markdown Parser → HTML
+Markdown → HTML（前端 library，如 marked/react-markdown）
     │
     ▼
-HTML Sanitizer (bleach / nh3 / bleach-allowlist)
+DOMPurify.sanitize(html, config)
     │
-    ├── Allow: h1-h6, p, ul, ol, li, a, strong, em, code, pre, blockquote, table, thead, tbody, tr, th, td
-    ├── Strip: script, iframe, object, embed, form, input, button, style
-    ├── Strip attributes: onclick, onerror, onload, onmouseover, style (inline)
-    ├── Allow attributes on <a>: href (http/https/mailto only), title
-    └── Allow attributes on <img>: src (data: only if explicitly enabled), alt
+    ├── ALLOW: h1-h6, p, ul, ol, li, a, strong, em, code, pre, blockquote, table, thead, tbody, tr, th, td
+    ├── STRIP: script, iframe, object, embed, form, input, button, style
+    ├── STRIP ATTRS: onclick, onerror, onload, onmouseover, style (inline)
+    ├── ALLOW <a> href: http/https/mailto only
+    └── ALLOW <img>: src (data: only if explicitly enabled), alt
     │
     ▼
 Safe HTML → DOM
 ```
 
-**安全规则**：
-- 不直接 `innerHTML` 未净化内容
+**硬性规则**：
+- 不直接 `innerHTML` 未净化内容——所有 HTML 必须先经过 DOMPurify
 - 默认禁用 unsafe embedded HTML
 - CSP header: `Content-Security-Policy: default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'`
 - 如果未来支持 Mermaid：render 在 sandboxed iframe 中，strict CSP
+- 后端 API 返回的 JSON 中不包含预渲染的 HTML 字符串——只包含 canonical Markdown text
 
 ### 5.5 Provenance / References
 
@@ -390,7 +419,7 @@ Rebuilding Wiki via LLM synthesis...
 1. **Wiki page as separate view vs inline in current page**：推荐升级现有 Wiki 页面为结构化视图，而非新建页面。
 2. **TOC position**：sidebar (default) vs top inline？推荐 sidebar for desktop, top for mobile。
 3. **Reference panel default state**：collapsed vs expanded？推荐 collapsed（减少信息过载）。
-4. **Markdown sanitization library**：Python 端推荐 `bleach` 或 `nh3`, 前端推荐 `DOMPurify`。
+4. **Markdown sanitization library**：前端使用 `DOMPurify`（唯一 sanitization 点）。Python 端不做 HTML 渲染和 sanitize。
 5. **Wiki rebuild 是否需要 per-section 重建**：当前全量 rebuild。未来可考虑 incrementally update sections，但 v0.2 保持全量。
 6. **Graph view data model**：节点和边的 schema 是否应该在 v0.2 中定义具体字段？推荐只定义抽象接口 `WikiGraphData`，留具体 schema 给未来。
 
@@ -401,12 +430,13 @@ Rebuilding Wiki via LLM synthesis...
 - [ ] `WikiPageViewModel` 正确构建自 LLM synthesis JSON
 - [ ] `WikiSectionView` 包含 TOC anchor 和 card references
 - [ ] `WikiReferenceView` 包含 source_type 和 source_path
-- [ ] `WikiMarkdownRenderer` 输出 sanitized HTML
-- [ ] Sanitization 通过 XSS test suite
+- [ ] API 返回 `WikiPageViewModel` JSON，section body 为 canonical Markdown text（非预渲染 HTML）
+- [ ] 前端 DOMPurify sanitization 通过 XSS test suite
+- [ ] 不直接 `innerHTML` 未净化内容
 - [ ] TOC 正确生成，section 可导航
 - [ ] Empty/error/loading states 覆盖所有触发条件
-- [ ] `WikiGraphRenderer` 接口定义，`NotImplementedError` with clear message
+- [ ] `WikiGraphRenderer` 接口定义，`NotImplementedError` with clear v0.2 message
 - [ ] Wiki renderer 不修改任何 knowledge state
 - [ ] Wiki renderer 不调用 approval 路径
-- [ ] No `innerHTML` 直接使用未净化内容
+- [ ] 后端不输出预渲染 HTML——只输出 JSON 和 Markdown text
 - [ ] No secret exposure in rendered output

@@ -119,29 +119,28 @@ class SourceAdapter(ABC):
 
 ### 5.2 SourceDocument v2
 
-在现有 `SourceDocument`（frozen dataclass, 13 fields）基础上增加：
+在现有 `SourceDocument`（frozen dataclass, 13 fields）基础上增加两个 backward-compatible 字段。**不引入新别名**，保持 v0.1 字段语义不变。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `source_id` | `str` | 稳定主键（sha1 of path） |
 | `source_type` | `SourceType` | 来源类型枚举 |
-| `original_path` | `str` | 原始文件路径 |
+| `source_path` | `str` | 原始文件路径（v0.1 字段，不变） |
 | `title` | `str \| None` | 文档标题 |
-| `extracted_text` | `str` | 抽取的纯文本（body） |
-| `extracted_markdown` | `str \| None` | 可选：Markdown 格式抽取结果 |
-| `metadata` | `dict` | adapter 特有元信息 |
-| `provenance` | `list[ProvenanceBlock]` | **新增**：provenance 链 |
-| `content_fingerprint` | `str` | sha256 content hash |
-| `extraction_warnings` | `list[ExtractionWarning]` | **新增**：解析过程中的 warning |
-| `adapter_name` | `str` | adapter 类名 |
+| `raw_text` | `str` | LLM 真正读到的文本（v0.1 字段，不变） |
+| `metadata` | `dict` | adapter 特有元信息（v0.1 字段，不变） |
+| `content_hash` | `str` | sha256 content hash（v0.1 字段，不变） |
+| `adapter_name` | `str` | adapter 类名（v0.1 字段，不变） |
+| `extraction_warnings` | `list[ExtractionWarning]` | **v0.2 新增**：解析过程中的 warning |
+| `provenance_blocks` | `list[ProvenanceBlock]` | **v0.2 新增**：provenance 链 |
 
 **Backward-compatibility 策略**：
-- 新增字段 `provenance` 和 `extraction_warnings` 使用 `field(default_factory=list)`
-- 现有 `raw_text` 保持（内部映射到 `extracted_text` 或保留为 alias）
-- 现有 `content_hash` 保持（内部与 `content_fingerprint` 对齐）
-- 所有现有 adapter 无需立即修改（默认空 list）
+- v0.2 只新增 `extraction_warnings` 和 `provenance_blocks`，使用 `field(default_factory=list)`
+- v0.1 字段全部保留原语义：`source_path` / `raw_text` / `content_hash` 不重命名
+- 不引入 `original_path` / `extracted_text` / `content_fingerprint` / `provenance` 等别名字段——这些命名是 rejected alternatives
+- 所有现有 adapter 无需立即修改（两个新字段默认空 list）
 
-> **实现注意**：SDD 中决定是改现有 `SourceDocument` 还是新建 `SourceDocumentV2` 并做 adapter 迁移。原则是最小化对 v0.1 adapter 的影响。
+> **实现注意**：修改现有 `SourceDocument` dataclass（加两个 default-factory 字段），不新建 `SourceDocumentV2`。原则是最小化对 v0.1 adapter 的影响。
 
 ### 5.3 AdapterRegistry
 
@@ -159,16 +158,19 @@ Priority dispatch:
 2. 无匹配 → 尝试 `can_handle()` 逐个 adapter
 3. 仍无匹配 → 返回 UnsupportedSource skip
 
-### 5.4 AdapterResult
+### 5.4 AdapterResult — 统一 Adapter 输出 Contract
 
-Structure for structured adapter output (not just exception):
+`SourceAdapter.load()` 的唯一返回类型是 `AdapterResult`。不再通过 bare exception（如 `raise ValueError(skip_reason)`）表达正常 skip 路径。
 
 ```python
 @dataclass(frozen=True)
 class AdapterResult:
-    document: SourceDocument | None
-    skip_reason: str | None            # e.g. "unsupported_legacy_doc"
-    extraction_warnings: list[ExtractionWarning]
+    """Adapter.load() 的唯一返回类型。"""
+    status: str                          # "loaded" | "skipped" | "failed"
+    document: SourceDocument | None      # status == "loaded" 时非 None
+    skip_reason: str | None              # status == "skipped" 时：skip reason code
+    error_message: str | None            # status == "failed" 时：error message
+    warnings: list[ExtractionWarning]    # status == "loaded" 时的 extraction warnings
 
 @dataclass(frozen=True)
 class ExtractionWarning:
@@ -185,6 +187,16 @@ class ProvenanceBlock:
     offset_end: int | None
     extracted_as: str                  # "text" / "markdown_table" / "markdown_list"
 ```
+
+**status 语义**：
+- `loaded`：成功解析，`document` 非 None，`warnings` 可能非空
+- `skipped`：正常 skip（unsupported format / scanned PDF / binary file / decode error 等），`skip_reason` 必填，`document` 为 None
+- `failed`：解析异常（permission error / corrupt file / optional dep missing），`error_message` 必填，`document` 为 None
+
+**Contrast with v0.1**：
+- v0.1 用 `raise ValueError` / `raise PdfNoTextError` 表达 skip——scanner 必须 catch exception 来区分 skip 和 crash。
+- v0.2 `load()` 不抛 exception 来表达正常 skip/fail。只有真正的编程错误（如 `NotImplementedError`）才允许抛。
+- unsupported source / scanned PDF / decode error 必须走 `AdapterResult(status="skipped")` 或 `AdapterResult(status="failed")`，**不得**出现 `status="loaded"` + `document.raw_text=""` 的静默空输出。
 
 ### 5.5 Markdown Compatibility
 
@@ -205,7 +217,7 @@ class ProvenanceBlock:
 | 编码失败 | friendly skip, reason = `decode_error` |
 | 换行保留 | 保留原始换行，不做 normalize |
 | 二进制检测 | 文件头非文本 → skip, reason = `binary_file` |
-| 空文件 | 接受，`extracted_text = ""`, warning = `empty_file` |
+| 空文件 | 接受，`raw_text = ""`, warning = `empty_file` |
 | 大文件 | > 10MB 给出 warning，> 50MB friendly skip |
 | Line-based provenance | 可选：记录行数，不要求逐行 provenance |
 
@@ -335,16 +347,32 @@ class UnsupportedSourcePolicy:
 
 ### 5.14 Error Handling
 
+所有 adapter 返回 `AdapterResult`，不抛 exception 表达 skip/fail。Scanner 在 adapter 层统一处理：
+
 ```
-FileNotFoundError        → CLI/Web "文件不存在"
-PermissionError          → CLI/Web "无读取权限"
-OptionalDependencyError  → CLI/Web "可选依赖未安装，请 pip install mindforge[xxx]"
-PdfNoTextError           → AdapterResult(skip_reason="scanned_pdf_no_text")
-UnicodeDecodeError       → AdapterResult(skip_reason="decode_error")
-UnknownFormatError       → AdapterResult(skip_reason="unsupported_format")
+AdapterResult(status="loaded")  → 继续 pipeline（document 传给 processor）
+AdapterResult(status="skipped") → 记录 skip reason，继续下一个文件
+AdapterResult(status="failed")  → 记录 error message，继续下一个文件
 ```
 
-所有 adapter error 不应 crash 整个 scan/process pipeline。Single file failure → 记录 skip reason → 继续下一个文件。
+常见 status 映射：
+
+| 场景 | status | 字段 |
+|------|--------|------|
+| 解析成功 | `loaded` | `document` 非 None |
+| 不支持的格式 | `skipped` | `skip_reason="unsupported_format"` |
+| Legacy .doc | `skipped` | `skip_reason="unsupported_legacy_doc"` |
+| 扫描件 PDF 无文本 | `skipped` | `skip_reason="scanned_pdf_no_text"` |
+| 编码检测失败 | `skipped` | `skip_reason="decode_error"` |
+| 二进制文件 | `skipped` | `skip_reason="binary_file"` |
+| 文件过大 | `skipped` | `skip_reason="file_too_large"` |
+| 加密 PDF | `skipped` | `skip_reason="encrypted_pdf"` |
+| 文件不存在 | `failed` | `error_message="FileNotFoundError: ..."` |
+| 无读取权限 | `failed` | `error_message="PermissionError: ..."` |
+| 可选依赖未安装 | `failed` | `error_message="OptionalDependencyError: ..."` |
+| 文件损坏 / 解析异常 | `failed` | `error_message="..."` |
+
+所有 adapter error 不应 crash 整个 scan/process pipeline。Single file failure → 记录 skip/fail → 继续下一个文件。
 
 ---
 
@@ -431,7 +459,7 @@ $ mindforge import legacy.doc
 ## 11. Acceptance Criteria
 
 - [ ] 每个支持格式有独立 `SourceAdapter` 实现
-- [ ] `SourceDocument` 包含 `extraction_warnings` 和 `provenance` 字段
+- [ ] `SourceDocument` 包含 `extraction_warnings` 和 `provenance_blocks` 字段
 - [ ] Markdown characterization tests 全部 pass
 - [ ] TXT/HTML 不在 `CommonDocumentAdapter` 中处理
 - [ ] Processor 完全不 import 格式相关库

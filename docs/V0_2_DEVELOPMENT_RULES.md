@@ -8,6 +8,29 @@
 
 ---
 
+## How to start M1
+
+1. Read this document fully.
+2. Read `docs/rfc/RFC_0001_SOURCE_ADAPTER_V2.md` — especially §5.2 (SourceDocument v2) and §5.4 (AdapterResult).
+3. Read `docs/sdd/SDD_SOURCE_ADAPTER_V2.md` — especially §11 (Implementation Phases).
+4. **First action**: Write characterization tests for `PlainMarkdownAdapter` (SDD §11, Phase P1).
+   - `tests/test_source_adapter_v2_contract.py` — contract skeleton
+   - `tests/test_markdown_adapter_characterization.py` — capture v0.1 behavior baseline
+5. **DO NOT** modify `src/` until characterization tests are written and passing.
+6. **DO NOT** implement TXT/HTML/PDF/DOCX adapters in M1.
+7. **DO NOT** change card schema, approval semantics, or processor logic.
+8. Every commit references an RFC/SDD section number.
+
+**Step 1 prompt template:**
+
+```
+Implement M1 Phase P1: Write characterization tests for PlainMarkdownAdapter.
+Scope: tests/test_markdown_adapter_characterization.py only.
+Do NOT modify src/. Reference RFC_0001 §5.5.
+```
+
+---
+
 ## 1. 开发前置规则
 
 1. **每个 milestone 先写 characterization tests**。

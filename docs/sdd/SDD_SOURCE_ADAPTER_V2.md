@@ -57,7 +57,7 @@ configs/mindforge.yaml → SourcesConfig.active_entries()
 
 ```
 src/mindforge/sources/
-├── base.py              # ✏️ 修改：SourceDocument 增加 extraction_warnings + provenance
+├── base.py              # ✏️ 修改：SourceDocument 增加 extraction_warnings + provenance_blocks
 ├── plain_markdown.py    # ⚬ 不变：characterization tests pass
 ├── txt.py               # ✨ 新增：TxtAdapter
 ├── html_adapter.py      # ✨ 新增：HtmlAdapter（避免与 stdlib html 冲突）
@@ -138,7 +138,7 @@ class ExtractionWarning:
 class SourceDocument:
     # ... existing fields unchanged ...
     extraction_warnings: list[ExtractionWarning] = field(default_factory=list)  # NEW
-    provenance: list[ProvenanceBlock] = field(default_factory=list)              # NEW
+    provenance_blocks: list[ProvenanceBlock] = field(default_factory=list)      # NEW
 ```
 
 > **不变**：`source_id`, `source_type`, `source_path`, `title`, `author`, `source_url`, `created_at`, `captured_at`, `tags`, `highlights`, `raw_text`, `metadata`, `content_hash`, `adapter_name` 保持原样。
@@ -152,17 +152,20 @@ TxtAdapter(SourceAdapter)
   
   can_handle(path) → path.endswith(".txt")
   
-  load(path) → SourceDocument:
+  load(path) → AdapterResult:
     1. 检查文件存在 / 可读
+       - 不存在 → AdapterResult(status="failed", error_message="FileNotFoundError: ...")
+       - 无权限 → AdapterResult(status="failed", error_message="PermissionError: ...")
     2. 检测是否为二进制文件（null bytes in first 1024 bytes）
+       - 是二进制 → AdapterResult(status="skipped", skip_reason="binary_file")
     3. 编码检测：UTF-8 → chardet fallback（如果已安装）
-    4. 编码失败 → raise ValueError with skip_reason="decode_error"
-    5. 空文件 → 返回 SourceDocument(raw_text=""), warning code="empty_file"
-    6. 大文件 > 10MB → 返回 warning code="large_file"
-    7. 大文件 > 50MB → raise ValueError with skip_reason="file_too_large"
-    8. 构建 SourceDocument：
+    4. 编码失败 → AdapterResult(status="skipped", skip_reason="decode_error")
+    5. 空文件 → AdapterResult(status="loaded", document=SourceDocument(raw_text=""), warnings=[ExtractionWarning(code="empty_file")])
+    6. 大文件 > 10MB → 在 warnings 中附加 ExtractionWarning(code="large_file")
+    7. 大文件 > 50MB → AdapterResult(status="skipped", skip_reason="file_too_large")
+    8. 成功 → AdapterResult(status="loaded", document=SourceDocument(...))
        - title = first_line or filename stem
-       - provenance = [ProvenanceBlock(source_type="txt", offset_start=0, offset_end=len(text))]
+       - provenance_blocks = [ProvenanceBlock(source_type="txt", offset_start=0, offset_end=len(text))]
 ```
 
 ### 4.3 `src/mindforge/sources/html_adapter.py` (new)
@@ -174,8 +177,9 @@ HtmlAdapter(SourceAdapter)
   
   can_handle(path) → path.endswith((".html", ".htm"))
   
-  load(path) → SourceDocument:
+  load(path) → AdapterResult:
     1. 读取文件为 raw HTML
+       - 不存在 → AdapterResult(status="failed", error_message="FileNotFoundError: ...")
     2. Strip <script> / <style> tags and content
     3. Extract <title>
     4. Parse DOM (beautifulsoup4 if available, else stdlib html.parser)
@@ -187,25 +191,27 @@ HtmlAdapter(SourceAdapter)
        - <table> → Markdown table (simple)
        - <blockquote> → Markdown blockquote
     6. 不 fetch external resources
-    7. Noisy HTML detecting → warning code="noisy_html"
-    8. 构建 SourceDocument：
+    7. Noisy HTML detecting → 在 warnings 中附加 ExtractionWarning(code="noisy_html")
+    8. 成功 → AdapterResult(status="loaded", document=SourceDocument(...))
        - title = <title> text or first <h1> or filename stem
-       - provenance = [ProvenanceBlock(source_type="html")]
+       - provenance_blocks = [ProvenanceBlock(source_type="html")]
 ```
 
 ### 4.4 `src/mindforge/sources/pdf.py` (modified)
 
 现有 `PdfAdapter` 修改点：
-- `load()` 返回的 `SourceDocument` 增加 `provenance` 字段：
-  ```
-  provenance = [
-      ProvenanceBlock(source_type="pdf", page=i+1, extracted_as="text")
-      for i in range(len(reader.pages))
-  ]
-  ```
-- 增加 file size guard (>50MB → skip)
-- 增加 page count warning (>500 pages)
-- 保持现有 scanned PDF detection (PdfNoTextError)
+- `load()` 返回 `AdapterResult`：
+  - 成功 → `AdapterResult(status="loaded", document=SourceDocument(...))`
+  - `SourceDocument.provenance_blocks`：
+    ```
+    provenance_blocks = [
+        ProvenanceBlock(source_type="pdf", page=i+1, extracted_as="text")
+        for i in range(len(reader.pages))
+    ]
+    ```
+- 增加 file size guard (>50MB → `AdapterResult(status="skipped", skip_reason="file_too_large")`)
+- 增加 page count warning (>500 pages → 在 warnings 中附加 ExtractionWarning)
+- 保持现有 scanned PDF detection → `AdapterResult(status="skipped", skip_reason="scanned_pdf_no_text")`
 
 ### 4.5 `src/mindforge/sources/docx.py` (modified)
 
@@ -213,9 +219,9 @@ HtmlAdapter(SourceAdapter)
 - 在遍历 `Document.paragraphs` 时识别 style → heading level
 - 遍历 `Document.tables` 提取为 Markdown table
 - 识别 numbered/bullet lists
-- `load()` 返回的 `SourceDocument` 增加：
-  - `provenance`：每个 section/table 一个 ProvenanceBlock
-  - `extraction_warnings`：table_loss, smartart_skipped, embedded_object_skipped
+- `load()` 返回 `AdapterResult`：
+  - `provenance_blocks`：每个 section/table 一个 ProvenanceBlock
+  - `warnings`：table_loss, smartart_skipped, embedded_object_skipped
 - 保持不执行宏
 
 ### 4.6 `src/mindforge/sources/adapter_result.py` (new)
@@ -223,14 +229,16 @@ HtmlAdapter(SourceAdapter)
 ```python
 @dataclass(frozen=True)
 class AdapterResult:
-    """结构化 adapter 处理结果。"""
-    document: SourceDocument | None
-    skip_reason: str | None
-    extraction_warnings: list[ExtractionWarning]
+    """Adapter.load() 的唯一返回类型。status 必填。"""
+    status: str                          # "loaded" | "skipped" | "failed"
+    document: SourceDocument | None = None
+    skip_reason: str | None = None       # status == "skipped" 时必填
+    error_message: str | None = None     # status == "failed" 时必填
+    warnings: list[ExtractionWarning] = field(default_factory=list)
 
 @dataclass(frozen=True)
 class SkipReason:
-    """预定义 skip reason 常量。"""
+    """预定义 skip reason 常量。在 AdapterResult.skip_reason 中使用。"""
     UNSUPPORTED_LEGACY_DOC = "unsupported_legacy_doc"
     SCANNED_PDF_NO_TEXT = "scanned_pdf_no_text"
     ENCRYPTED_PDF = "encrypted_pdf"
@@ -273,15 +281,17 @@ class SkipReason:
 | 13 | content_hash | str | yes | — |
 | 14 | adapter_name | str | no | "" |
 | 15 | extraction_warnings | list[ExtractionWarning] | **new** | [] |
-| 16 | provenance | list[ProvenanceBlock] | **new** | [] |
+| 16 | provenance_blocks | list[ProvenanceBlock] | **new** | [] |
 
 ### 5.2 AdapterResult
 
 ```
 AdapterResult
-├── document: SourceDocument | None
-├── skip_reason: str | None    (e.g. "unsupported_legacy_doc")
-└── extraction_warnings: list[ExtractionWarning]
+├── status: str                            ("loaded" | "skipped" | "failed")
+├── document: SourceDocument | None        (status == "loaded" 时非 None)
+├── skip_reason: str | None                (status == "skipped" 时必填)
+├── error_message: str | None              (status == "failed" 时必填)
+└── warnings: list[ExtractionWarning]      (status == "loaded" 时的 extraction warnings)
 ```
 
 ### 5.3 ExtractionWarning
@@ -342,8 +352,9 @@ watch 添加时展示 detected source_type 和 adapter。
 
 不变。Processor 只通过 `SourceDocument` 消费。Pipeline 中的 scanner：
 1. 按 registry 派发 adapter
-2. adapter.load() 返回 SourceDocument
-3. 传给 processor
+2. adapter.load() 返回 AdapterResult
+3. status == "loaded" → 取 .document 传给 processor
+4. status != "loaded" → 记录 skip/fail reason
 
 Scanner 的变更：
 - 增加 `find_adapter_for_path()` dispatch
@@ -354,17 +365,24 @@ Scanner 的变更：
 
 ## 9. Error Handling
 
+`adapter.load(path)` 返回 `AdapterResult`，不抛 exception 表达 skip/fail：
+
 ```
-                    ┌─ FileNotFoundError → "文件不存在"
-                    ├─ PermissionError → "无读取权限"
-adapter.load(path) ─┼─ OptionalDependencyError → "请安装 mindforge[xxx]"
-                    ├─ PdfNoTextError → skip(scanned_pdf_no_text)
-                    ├─ UnicodeDecodeError → skip(decode_error)
-                    ├─ ValueError → skip(reason)
-                    └─ Unknown → skip(unsupported_format) + log
+adapter.load(path) → AdapterResult
+                        │
+                        ├─ status="loaded"   → document 传给 processor（warnings 记录但继续）
+                        ├─ status="skipped"  → 记录 skip_reason，继续下一个文件
+                        └─ status="failed"   → 记录 error_message，继续下一个文件
 ```
 
-Scanner 级处理：single file error → skip + continue next file。
+对应关系：
+- FileNotFound / PermissionError → `AdapterResult(status="failed", error_message=...)`
+- OptionalDependencyError → `AdapterResult(status="failed", error_message=...)`
+- PdfNoTextError → `AdapterResult(status="skipped", skip_reason="scanned_pdf_no_text")`
+- UnicodeDecodeError → `AdapterResult(status="skipped", skip_reason="decode_error")`
+- 未知格式 → `AdapterResult(status="skipped", skip_reason="unsupported_format")`
+
+Scanner 级处理：single file error → 记录 status → continue next file。不 crash。
 
 ---
 
@@ -418,16 +436,21 @@ tests/fixtures/
 
 ## 11. Implementation Phases
 
+**M1 关键原则**：先 characterization tests + contract tests，后 production code edits。第一个 coding prompt **不允许**直接改 `base.py`。
+
 | Phase | Content | Files |
 |-------|---------|-------|
-| P1 | SourceDocument v2 + AdapterResult + ExtractionWarning + ProvenanceBlock | base.py, adapter_result.py |
-| P2 | Markdown characterization tests | tests/ |
-| P3 | TxtAdapter | txt.py, tests/adapters/test_txt_adapter.py |
-| P4 | HtmlAdapter | html_adapter.py, tests/adapters/test_html_adapter.py |
-| P5 | PdfAdapter provenance | pdf.py, tests/adapters/test_pdf_provenance.py |
-| P6 | DocxAdapter structure | docx.py, tests/adapters/test_docx_structure.py |
-| P7 | Registry update | registry.py, tests/test_registry_dispatch.py |
-| P8 | CommonDocument boundary cleanup | common_document.py, tests/test_common_document_boundary.py |
+| P1 | Markdown characterization tests（捕获 v0.1 行为基线） | tests/test_source_adapter_v2_contract.py (skeleton) |
+| P2 | Contract tests：SourceDocument v2 fields + AdapterResult contract | tests/（contract validation only） |
+| P3 | SourceDocument v2 backward-compatible fields（`extraction_warnings` + `provenance_blocks`） | base.py |
+| P4 | AdapterResult + ExtractionWarning + ProvenanceBlock | adapter_result.py |
+| P5 | Registry update（TxtAdapter + HtmlAdapter registration, dispatch priority） | registry.py |
+| P6 | TxtAdapter | txt.py, tests/adapters/test_txt_adapter.py |
+| P7 | HtmlAdapter | html_adapter.py, tests/adapters/test_html_adapter.py |
+| P8 | PdfAdapter provenance_blocks | pdf.py, tests/adapters/test_pdf_provenance.py |
+| P9 | DocxAdapter structure | docx.py, tests/adapters/test_docx_structure.py |
+| P10 | CommonDocument boundary cleanup | common_document.py, tests/test_common_document_boundary.py |
+| P11 | Legacy DOC research | docs/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md |
 | P9 | Legacy DOC research | docs/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md |
 
 **推荐 adapter 实现顺序**：
@@ -452,7 +475,7 @@ tests/fixtures/
 ## 13. Done Criteria
 
 - [ ] 每个格式有独立 SourceAdapter 实现
-- [ ] SourceDocument v2 包含 extraction_warnings 和 provenance
+- [ ] SourceDocument v2 包含 extraction_warnings 和 provenance_blocks
 - [ ] PlainMarkdownAdapter characterization tests 全部通过
 - [ ] TXT/HTML 不再由 CommonDocumentAdapter 处理
 - [ ] Processor 不 import 任何 format-specific 库
