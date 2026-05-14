@@ -71,7 +71,8 @@ web/...                           # Wiki page React component
 src/mindforge/
 ├── wiki_service.py             # ⚬ 不变（synthesis 逻辑）
 ├── wiki_view_model.py          # ✨ 新增：WikiPageViewModel, WikiSectionView, WikiReferenceView, WikiRenderOptions
-├── wiki_renderer.py            # ✨ 新增：WikiRenderer ABC, WikiMarkdownRenderer, WikiGraphRenderer (interface only)
+├── wiki_renderer.py            # ✨ 新增：WikiRenderer ABC, WikiGraphRenderer (future interface only)
+│                               #     WikiMarkdownRenderer 标记为 interface-only，v0.2 不在此处渲染
 ├── wiki_cli.py                 # ✏️ 修改：使用 WikiPageViewModel 增强 wiki show
 │
 src/mindforge_web/
@@ -346,37 +347,54 @@ GET /api/wiki/references  → list[WikiReferenceView] (NEW, JSON)
 
 ---
 
-## 6. Rendering Pipeline
+## 6. Rendering Pipeline（v0.2 唯一默认路径）
+
+v0.2 默认路径：后端负责结构化数据，前端负责 Markdown 渲染和安全净化。后端不生成最终 HTML，不运行 bleach。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Wiki Rendering Pipeline                │
+│           Wiki Rendering Pipeline (v0.2)                │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  1. Synthesis                                           │
-│     llm_rebuild_wiki() → LLMWikiResult + synthesis JSON │
+│  ── Backend ──                                          │
 │                                                         │
-│  2. View Model Construction                             │
+│  1. Data Loading                                        │
+│     wiki_service loads human_approved cards + digests   │
+│                                                         │
+│  2. Synthesis (if llm mode)                             │
+│     llm_rebuild_wiki() → synthesis JSON                 │
+│                                                         │
+│  3. View Model Construction                             │
 │     WikiPageViewModel.build(json, digests)              │
+│     section.body = canonical Markdown text (not HTML)   │
+│     section.card_refs = structured reference data       │
+│     section.provenance = provenance metadata            │
 │                                                         │
-│  3. Renderer Selection                                  │
-│     renderer = registry.get(options.view or "markdown") │
-│                                                         │
-│  4. Rendering                                           │
-│     renderer.render(view_model, options)                │
-│     ├── Markdown → HTML (markdown library)              │
-│     ├── Sanitize HTML (bleach)                          │
-│     ├── Build TOC                                       │
-│     └── Return RenderedOutput                           │
-│                                                         │
-│  5. API Response                                        │
+│  4. API Response                                        │
 │     GET /api/wiki/page → WikiPageViewModel (JSON)       │
+│     ▸ body is raw Markdown, not pre-rendered HTML       │
+│     ▸ references/provenance are structured fields       │
+│     ▸ backend does NOT render default HTML              │
+│     ▸ backend does NOT run bleach                       │
 │                                                         │
-│  6. Frontend Rendering                                  │
-│     WikiPage.tsx renders sections with React components │
+│  ── Frontend ──                                         │
+│                                                         │
+│  5. Markdown Rendering                                  │
+│     WikiPage.tsx receives WikiPageViewModel JSON        │
+│     ├── Frontend Markdown library renders body → HTML   │
+│     ├── DOMPurify sanitizes HTML (single sanitizer)     │
+│     ├── Safe HTML inserted into DOM                     │
+│     └── Never: unsafe innerHTML with unsanitized content│
+│                                                         │
+│  6. UI Composition                                      │
+│     ├── TOC sidebar (from sections[].anchor)            │
+│     ├── Section cards (body + references panel)         │
+│     └── Overview / Open Questions / Warnings            │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**CLI 路径**：`mindforge wiki show` 输出纯文本/原始 Markdown，不做 HTML 渲染。
 
 ---
 
@@ -517,7 +535,7 @@ Web Wiki page 重构：
 ```
 tests/wiki/
 ├── test_wiki_view_model.py             # WikiPageViewModel build from synthesis JSON
-├── test_wiki_renderer.py               # WikiMarkdownRenderer render output
+├── test_wiki_renderer.py               # WikiRenderer interface contract (v0.2: markdown/graph are interface-only)
 ├── test_wiki_sanitization.py           # Sanitization rules
 ├── test_wiki_xss_prevention.py         # XSS payload rejection
 ├── test_wiki_toc_generation.py         # TOC generation
@@ -536,10 +554,14 @@ tests/wiki/
 - Missing overview → empty string
 - Missing open_questions → empty list
 
-**WikiMarkdownRenderer.render()**:
-- Valid view_model → RenderedOutput with safe HTML
-- Markdown with script tag → script stripped
-- Markdown with onclick → onclick stripped
+**WikiRenderer interface contract**:
+- WikiMarkdownRenderer 为 interface-only 标记，v0.2 不在此处做实际渲染
+- WikiGraphRenderer.render() → raises NotImplementedError with clear v0.2 message
+- Renderer registry 预留 "markdown" 和 "graph" 注册点
+
+**Frontend sanitization**（v0.2 实际渲染路径）:
+- Markdown with script tag → script stripped by DOMPurify
+- Markdown with onclick → onclick stripped by DOMPurify
 - Markdown with iframe → iframe stripped
 - Table Markdown → safe table HTML
 
@@ -566,9 +588,9 @@ tests/wiki/
 | Phase | Content | Files |
 |-------|---------|-------|
 | P1 | WikiPageViewModel + WikiSectionView + WikiReferenceView | wiki_view_model.py |
-| P2 | WikiRenderer ABC + WikiMarkdownRenderer | wiki_renderer.py |
-| P3 | Sanitization pipeline + tests | wiki_renderer.py, tests/wiki/ |
-| P4 | TOC generation | wiki_renderer.py (in WikiMarkdownRenderer) |
+| P2 | WikiRenderer ABC + interface markers (markdown/graph) | wiki_renderer.py |
+| P3 | Frontend sanitization rules + tests (DOMPurify config) | tests/wiki/ |
+| P4 | TOC generation logic | wiki_view_model.py |
 | P5 | WikiGraphRenderer interface (NotImplementedError) | wiki_renderer.py |
 | P6 | API: GET /api/wiki/page | routers/wiki.py |
 | P7 | CLI: wiki show enhancement | wiki_cli.py |
