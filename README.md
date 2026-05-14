@@ -22,10 +22,17 @@ Source → AI Draft → Human Review → Explicit Approve → Approved Card
 
 ## 当前状态
 
-- **Local MVP** — 接近首次 release
+- **v0.1** — 当前稳定 release，local-first / LLM-first 主链路已完成
 - CLI + Web 均可使用
 - 适合非敏感资料小规模使用
 - 暂不建议直接处理私人/工作敏感资料、大规模 vault
+- **v0.2** — 规划中（详见下方链接），聚焦 Multi-source ingestion + Wiki presentation
+  - [V0.2 Roadmap](docs/roadmap/V0_2_ROADMAP.md)
+  - [RFC: SourceAdapter v2](docs/rfc/RFC_0001_SOURCE_ADAPTER_V2.md)
+  - [RFC: Wiki Presentation v2](docs/rfc/RFC_0002_WIKI_PRESENTATION_V2.md)
+  - [SDD: SourceAdapter v2](docs/sdd/SDD_SOURCE_ADAPTER_V2.md)
+  - [SDD: Wiki Presentation v2](docs/sdd/SDD_WIKI_PRESENTATION_V2.md)
+  - [Development Rules](docs/V0_2_DEVELOPMENT_RULES.md)
 
 ---
 
@@ -347,13 +354,22 @@ cd web && npm run build
 - Deferred gates use sample folder, no-persist, dry-run, diff preview, backup.
 - A real provider is real provider opt-in, never implicit.
 
-### 相关文档
+### 相关文档（v0.1 Release）
 
 - [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md): 第一版发布说明
 - [DESIGN.md](DESIGN.md): Web 设计系统
 - [docs/LLM_PROVIDER_CONFIG.md](docs/LLM_PROVIDER_CONFIG.md): LLM provider 配置详情
 - [docs/TESTING.md](docs/TESTING.md): 测试指南
 - [docs/ROADMAP_COMPLETION_LEDGER.md](docs/ROADMAP_COMPLETION_LEDGER.md): 维护者功能完成台账（不是 first-run 文档）
+
+### v0.2 Planning（规划中，尚未实现）
+
+- [docs/roadmap/V0_2_ROADMAP.md](docs/roadmap/V0_2_ROADMAP.md): v0.2 路线图
+- [docs/rfc/RFC_0001_SOURCE_ADAPTER_V2.md](docs/rfc/RFC_0001_SOURCE_ADAPTER_V2.md): 多源接入 RFC
+- [docs/rfc/RFC_0002_WIKI_PRESENTATION_V2.md](docs/rfc/RFC_0002_WIKI_PRESENTATION_V2.md): Wiki 展示增强 RFC
+- [docs/sdd/SDD_SOURCE_ADAPTER_V2.md](docs/sdd/SDD_SOURCE_ADAPTER_V2.md): 多源接入 SDD
+- [docs/sdd/SDD_WIKI_PRESENTATION_V2.md](docs/sdd/SDD_WIKI_PRESENTATION_V2.md): Wiki 展示增强 SDD
+- [docs/V0_2_DEVELOPMENT_RULES.md](docs/V0_2_DEVELOPMENT_RULES.md): v0.2 开发规则
 
 ---
 
