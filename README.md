@@ -1,6 +1,7 @@
 # MindForge
 
 **本地优先、LLM 优先的个人 AI 知识加工工具。** 把本地文件变成可审批的知识卡片，提供 Web 控制台 + CLI 双入口。
+MindForge 还可以把已审批知识通过 LLM-first synthesis 组织成本地 Wiki，而不是只停留在 cards / recall。
 
 核心链路：
 
@@ -13,6 +14,7 @@ Source → AI Draft → Human Review → Explicit Approve → Approved Card
 
 - 数据都在本地 vault，不做 RAG、不做 embedding、不连向量数据库
 - AI 只生成草稿 (`ai_draft`)，必须显式审批才能成为正式知识 (`human_approved`)
+- Wiki 基于 `human_approved` cards 做 LLM-first synthesis，把已审批知识组织成 topic pages
 - API key 存本地 secret store (`.mindforge/secrets.json`)，不进 Git、不进 YAML、不进 Web 前端
 - Web 控制台 (React) + CLI (Typer) 同一套 Python service 层
 
@@ -72,7 +74,7 @@ mindforge web --open
 
 API key 由你在本地 Web 页面手动输入，存入 local secret store (`.mindforge/secrets.json`)。API key 不写 YAML。**不要把 key 写进 issue、prompt、README、logs 或 YAML。**
 
-完整链路速览：`mindforge watch add` / `mindforge import` 添加 source → `mindforge runs list` / `mindforge runs show` 查看后台处理 → `mindforge approve list` / `mindforge approve 1 --confirm` 审阅审批 → `mindforge recall --query "MindForge"` 检索 → **Library** 和 **Wiki** 查阅已审批知识。
+完整链路速览：`mindforge watch add` / `mindforge import` 添加 source → `mindforge runs list` / `mindforge runs show` 查看后台处理 → `mindforge approve list` / `mindforge approve 1 --confirm` 审阅审批 → `mindforge recall --query "MindForge"` 检索 → `mindforge wiki rebuild` 基于 approved cards 生成 Wiki → **Library** 和 **Wiki** 查阅已审批知识。
 
 ---
 
@@ -143,7 +145,7 @@ mindforge library show <ref>   # 查看单张卡片详情
 mindforge recall --query "关键词"  # 本地 BM25 词法检索
 ```
 
-**Wiki** 从所有 approved cards 生成 `30-Wiki/Main-Wiki.md`。
+**Wiki** 是第一版已支持能力：从所有 `human_approved` cards 生成 `30-Wiki/Main-Wiki.md`，帮助把 approved cards 组织成结构化 topic pages。
 
 Wiki 是 **LLM-first synthesis**——调用 LLM 对 approved cards 做综合归纳和重写。Web **Wiki** 页面点击 **Rebuild Wiki**，或 CLI：
 
@@ -201,7 +203,7 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 deterministic template rebuild 
 | API key 不进 Web 前端 | Secret store 只在后端 runtime，API 只返回 masked 值 |
 | 不自动审批 | 所有 approve 路径必须显式确认 |
 | Source 文件保护 | Stop watching + Move to Trash 都不动 source 文件 |
-| Wiki 不从 raw source 生成 | 只从 approved cards |
+| Wiki 不从 raw source 生成 | 未审核 `ai_draft` 不进入 Wiki；内容必须先显式 approve 成 `human_approved` |
 | 真实模型必须显式配置 | 配置模型 + API key + 显式触发处理或 Wiki rebuild |
 
 ---
