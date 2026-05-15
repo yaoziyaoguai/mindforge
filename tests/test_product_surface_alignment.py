@@ -496,9 +496,11 @@ telemetry:
 
     assert result.exit_code == 0, result.output
     # 中文学习型说明：status 输出被 Rich 在不同终端宽度下折叠换行，
-    # 换行点若落在空格处，replace("\n", "") 会丢失空格。用空格替换
-    # 换行符以恢复被折叠消耗的空格，确保 product surface 断言稳定。
-    flat = result.output.replace("\n", " ")
+    # 换行点若落在空格处（如 "model " 在一行末尾、"setup=needs setup"
+    # 在下一行开头），replace("\n", " ") 会引入多余空格。用 split+join
+    # 归一化所有空白序列为单空格，确保 product surface 断言不被 Rich
+    # 换行行为破坏。
+    flat = " ".join(result.output.split())
     assert "model setup=needs setup" in flat
     assert "mindforge watch add" in result.output or "mindforge import" in result.output
     assert "approve show" not in result.output
