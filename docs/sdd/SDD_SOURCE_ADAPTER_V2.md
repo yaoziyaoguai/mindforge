@@ -460,20 +460,30 @@ tests/fixtures/
 
 **M1 关键原则**：先 characterization tests + contract tests，后 production code edits。第一个 coding prompt **不允许**直接改 `base.py`。
 
-| Phase | Content | Files |
-|-------|---------|-------|
-| P1 | Markdown characterization tests（捕获 v0.1 行为基线） | tests/test_source_adapter_v2_contract.py (skeleton) |
-| P2 | Contract tests：SourceDocument v2 fields + AdapterResult contract | tests/（contract validation only） |
-| P3 | SourceDocument v2 backward-compatible fields（`extraction_warnings` + `provenance_blocks`） | base.py |
-| P4 | AdapterResult + ExtractionWarning + ProvenanceBlock | adapter_result.py |
-| P5 | Registry update（TxtAdapter + HtmlAdapter registration, dispatch priority） | registry.py |
-| P6 | TxtAdapter | txt.py, tests/adapters/test_txt_adapter.py |
-| P7 | HtmlAdapter | html_adapter.py, tests/adapters/test_html_adapter.py |
-| P8 | PdfAdapter provenance_blocks | pdf.py, tests/adapters/test_pdf_provenance.py |
-| P9 | DocxAdapter structure | docx.py, tests/adapters/test_docx_structure.py |
-| P10 | CommonDocument boundary cleanup | common_document.py, tests/test_common_document_boundary.py |
-| P11 | Legacy DOC research | docs/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md |
-| P9 | Legacy DOC research | docs/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md |
+| Milestone | Phase | Content | Files |
+|-----------|-------|---------|-------|
+| M1 SourceAdapter Foundation | P1 | Markdown characterization tests（捕获 v0.1 行为基线） | tests/test_markdown_adapter_characterization.py |
+| M1 SourceAdapter Foundation | P2 | SourceAdapter contract tests | tests/test_source_adapter_v2_contract.py |
+| M1 SourceAdapter Foundation | P3 | SourceDocument v2 backward-compatible fields（`extraction_warnings` + `provenance_blocks`） | src/mindforge/sources/base.py, tests/test_source_document_contract.py |
+| M1 SourceAdapter Foundation | P4 | AdapterResult + ExtractionWarning + ProvenanceBlock + SkipReason | src/mindforge/sources/adapter_result.py |
+| M1 SourceAdapter Foundation | P5 | SourceAdapter ABC + PlainMarkdownAdapter wrapper | src/mindforge/sources/source_adapter.py, src/mindforge/sources/markdown_adapter.py, tests/test_plain_markdown_adapter_v2.py |
+| M1 SourceAdapter Foundation | P6 | AdapterRegistry skeleton | src/mindforge/sources/registry.py, tests/test_source_adapter_registry.py |
+| M1 SourceAdapter Foundation | P7 | Dry-run integration seam | src/mindforge/sources/dry_run.py, tests/test_source_adapter_dry_run_integration.py |
+| M2 TXT / HTML adapters | P1 | TXT adapter Red tests | tests/adapters/test_txt_adapter.py |
+| M2 TXT / HTML adapters | P2 | TXT adapter minimal implementation | src/mindforge/sources/txt.py |
+| M2 TXT / HTML adapters | P3 | TXT adapter registry / dry-run integration | src/mindforge/sources/registry.py, src/mindforge/sources/dry_run.py |
+| M2 TXT / HTML adapters | P4 | HTML adapter Red tests | tests/adapters/test_html_adapter.py |
+| M2 TXT / HTML adapters | P5 | HTML adapter minimal implementation | src/mindforge/sources/html_adapter.py |
+| M2 TXT / HTML adapters | P6 | HTML adapter registry / dry-run integration | src/mindforge/sources/registry.py, src/mindforge/sources/dry_run.py |
+| M2 TXT / HTML adapters | P7 | M2 closeout audit | tests/adapters/test_txt_adapter.py, tests/adapters/test_html_adapter.py, tests/test_common_document_boundary.py |
+| M3 PDF text adapter | P1 | PDF Red tests | tests/adapters/test_pdf_provenance.py |
+| M3 PDF text adapter | P2 | PDF text extraction | src/mindforge/sources/pdf.py |
+| M3 PDF text adapter | P3 | scanned_pdf_no_text skip | src/mindforge/sources/pdf.py |
+| M3 PDF text adapter | P4 | Page-level provenance | src/mindforge/sources/pdf.py |
+| M4 DOCX adapter | P1 | DOCX Red tests | tests/adapters/test_docx_structure.py |
+| M4 DOCX adapter | P2 | DOCX semantic extraction | src/mindforge/sources/docx.py |
+| M4 DOCX adapter | P3 | Formatting-loss warnings | src/mindforge/sources/docx.py |
+| M5 legacy DOC research gate | P1 | Research only unless dependency approved | docs/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md |
 
 **推荐 adapter 实现顺序**：
 1. Markdown characterization（baseline）
