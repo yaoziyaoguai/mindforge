@@ -93,10 +93,20 @@ class TestClassifySourcePath:
         assert result["source_type"] == "html"
         assert result["path"] == path
 
+    # -- PDF 匹配 ------------------------------------------------------------
+
+    def test_returns_matched_for_pdf(self) -> None:
+        """classify_source_path 对 .pdf 文件应返回 matched（M3 PDF adapter）。"""
+        result = self.classify_source_path("doc.pdf")
+        assert result["matched"] is True
+        assert result["status"] == "matched"
+        assert result["adapter_name"] == "PdfTextAdapter"
+        assert result["source_type"] == "pdf"
+
     # -- 不支持的格式返回 unsupported ----------------------------------------
 
     @pytest.mark.parametrize("path", [
-        "doc.pdf", "report.docx", "data.csv",
+        "report.docx", "data.csv",
     ])
     def test_returns_unsupported_for_other_formats(self, path: str) -> None:
         """不支持的格式应返回 unsupported summary。"""
@@ -239,15 +249,16 @@ class TestDryRunDefaultRegistry:
         self.classify_source_path = classify_source_path
         self.preview_source_load = preview_source_load
 
-    def test_classify_default_registry_markdown_txt_html(self) -> None:
-        """默认 registry 支持 Markdown + TXT + HTML（M2 实现）。"""
+    def test_classify_default_registry_markdown_txt_html_pdf(self) -> None:
+        """默认 registry 支持 Markdown + TXT + HTML + PDF（M2/M3 实现）。"""
         assert self.classify_source_path("note.md")["matched"] is True
         assert self.classify_source_path("note.txt")["matched"] is True
         assert self.classify_source_path("page.html")["matched"] is True
-        assert self.classify_source_path("doc.pdf")["matched"] is False
+        assert self.classify_source_path("doc.pdf")["matched"] is True
+        assert self.classify_source_path("report.docx")["matched"] is False
 
-    def test_preview_default_registry_markdown_txt_html(self, tmp_path) -> None:
-        """默认 registry preview 支持 Markdown + TXT + HTML。"""
+    def test_preview_default_registry_supported_formats(self, tmp_path) -> None:
+        """默认 registry preview 支持 Markdown + TXT + HTML。PDF 需要 pypdf runtime。"""
 
         md = tmp_path / "note.md"
         md.write_text("# Hi", encoding="utf-8")

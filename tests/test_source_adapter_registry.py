@@ -326,42 +326,44 @@ class TestCreateDefaultRegistry:
         reg = self.create_default_registry()
         assert isinstance(reg, AdapterRegistry)
 
-    def test_registers_markdown_txt_html(self) -> None:
-        """默认 registry 应注册 PlainMarkdownAdapter + TxtAdapter + HtmlAdapter（M2）。"""
+    def test_registers_markdown_txt_html_pdf(self) -> None:
+        """默认 registry 应注册 4 个 adapter（M2+M3）。"""
         reg = self.create_default_registry()
         adapters = reg.list_adapters()
-        assert len(adapters) == 3
+        assert len(adapters) == 4
         types = [a.source_type for a in adapters]
         assert "plain_markdown" in types
         assert "txt" in types
         assert "html" in types
+        assert "pdf" in types
 
     def test_find_for_path_md_works_with_default(self) -> None:
-        """默认 registry 应能对 .md 文件 find_for_path。"""
         reg = self.create_default_registry()
         found = reg.find_for_path("note.md")
         assert found is not None
         assert found.source_type == "plain_markdown"
 
     def test_find_for_path_txt_works_with_default(self) -> None:
-        """默认 registry 应能对 .txt 文件 find_for_path（M2）。"""
         reg = self.create_default_registry()
         found = reg.find_for_path("note.txt")
         assert found is not None
         assert found.source_type == "txt"
 
     def test_find_for_path_html_works_with_default(self) -> None:
-        """默认 registry 应能对 .html 文件 find_for_path（M2）。"""
         reg = self.create_default_registry()
         found = reg.find_for_path("page.html")
         assert found is not None
         assert found.source_type == "html"
 
-    def test_find_for_path_unsupported_returns_none_with_default(self) -> None:
-        """默认 registry 对不支持格式应返回 None。"""
+    def test_find_for_path_pdf_works_with_default(self) -> None:
         reg = self.create_default_registry()
-        for path in ["doc.pdf"]:
-            assert reg.find_for_path(path) is None, f"should be None for {path}"
+        found = reg.find_for_path("doc.pdf")
+        assert found is not None
+        assert found.source_type == "pdf"
+
+    def test_find_for_path_unsupported_returns_none_with_default(self) -> None:
+        reg = self.create_default_registry()
+        assert reg.find_for_path("report.docx") is None
 
 
 # =============================================================================

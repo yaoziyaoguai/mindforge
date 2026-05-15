@@ -138,12 +138,14 @@ def create_default_registry() -> AdapterRegistry:
     """
     from mindforge.sources.html_adapter import HtmlAdapter
     from mindforge.sources.markdown_adapter import PlainMarkdownAdapter
+    from mindforge.sources.pdf_adapter import PdfTextAdapter
     from mindforge.sources.txt import TxtAdapter
 
     registry = AdapterRegistry()
     registry.register(PlainMarkdownAdapter())
     registry.register(TxtAdapter())
     registry.register(HtmlAdapter())
+    registry.register(PdfTextAdapter())
     return registry
 
 
