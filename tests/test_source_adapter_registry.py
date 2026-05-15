@@ -182,7 +182,7 @@ class TestAdapterRegistryFindForPath:
     # -- 不支持的格式返回 None -----------------------------------------------
 
     @pytest.mark.parametrize("path", [
-        "page.html", "doc.pdf", "report.docx", "data.csv",
+        "doc.pdf", "report.docx", "data.csv",
     ])
     def test_find_for_path_returns_none_for_unsupported(self, path: str) -> None:
         """不支持的格式应返回 None（不抛异常）。"""
@@ -326,14 +326,15 @@ class TestCreateDefaultRegistry:
         reg = self.create_default_registry()
         assert isinstance(reg, AdapterRegistry)
 
-    def test_registers_markdown_and_txt(self) -> None:
-        """默认 registry 应注册 PlainMarkdownAdapter + TxtAdapter（M2 实现）。"""
+    def test_registers_markdown_txt_html(self) -> None:
+        """默认 registry 应注册 PlainMarkdownAdapter + TxtAdapter + HtmlAdapter（M2）。"""
         reg = self.create_default_registry()
         adapters = reg.list_adapters()
-        assert len(adapters) == 2
+        assert len(adapters) == 3
         types = [a.source_type for a in adapters]
         assert "plain_markdown" in types
         assert "txt" in types
+        assert "html" in types
 
     def test_find_for_path_md_works_with_default(self) -> None:
         """默认 registry 应能对 .md 文件 find_for_path。"""
@@ -349,10 +350,17 @@ class TestCreateDefaultRegistry:
         assert found is not None
         assert found.source_type == "txt"
 
+    def test_find_for_path_html_works_with_default(self) -> None:
+        """默认 registry 应能对 .html 文件 find_for_path（M2）。"""
+        reg = self.create_default_registry()
+        found = reg.find_for_path("page.html")
+        assert found is not None
+        assert found.source_type == "html"
+
     def test_find_for_path_unsupported_returns_none_with_default(self) -> None:
         """默认 registry 对不支持格式应返回 None。"""
         reg = self.create_default_registry()
-        for path in ["page.html", "doc.pdf"]:
+        for path in ["doc.pdf"]:
             assert reg.find_for_path(path) is None, f"should be None for {path}"
 
 

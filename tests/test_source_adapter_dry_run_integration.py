@@ -81,8 +81,22 @@ class TestClassifySourcePath:
 
     # -- 不支持的格式返回 unsupported ----------------------------------------
 
+    # -- HTML 匹配 ------------------------------------------------------------
+
+    @pytest.mark.parametrize("path", ["page.html", "PAGE.HTM", "path/to/file.html"])
+    def test_returns_matched_for_html(self, path: str) -> None:
+        """classify_source_path 对 .html/.htm 文件应返回 matched（M2 HTML adapter）。"""
+        result = self.classify_source_path(path)
+        assert result["matched"] is True
+        assert result["status"] == "matched"
+        assert result["adapter_name"] == "HtmlAdapter"
+        assert result["source_type"] == "html"
+        assert result["path"] == path
+
+    # -- 不支持的格式返回 unsupported ----------------------------------------
+
     @pytest.mark.parametrize("path", [
-        "page.html", "doc.pdf", "report.docx", "data.csv",
+        "doc.pdf", "report.docx", "data.csv",
     ])
     def test_returns_unsupported_for_other_formats(self, path: str) -> None:
         """不支持的格式应返回 unsupported summary。"""
@@ -225,14 +239,15 @@ class TestDryRunDefaultRegistry:
         self.classify_source_path = classify_source_path
         self.preview_source_load = preview_source_load
 
-    def test_classify_default_registry_markdown_and_txt(self) -> None:
-        """默认 registry 支持 Markdown + TXT（M2 实现）。"""
+    def test_classify_default_registry_markdown_txt_html(self) -> None:
+        """默认 registry 支持 Markdown + TXT + HTML（M2 实现）。"""
         assert self.classify_source_path("note.md")["matched"] is True
         assert self.classify_source_path("note.txt")["matched"] is True
-        assert self.classify_source_path("page.html")["matched"] is False
+        assert self.classify_source_path("page.html")["matched"] is True
+        assert self.classify_source_path("doc.pdf")["matched"] is False
 
-    def test_preview_default_registry_markdown_and_txt(self, tmp_path) -> None:
-        """默认 registry preview 支持 Markdown + TXT。"""
+    def test_preview_default_registry_markdown_txt_html(self, tmp_path) -> None:
+        """默认 registry preview 支持 Markdown + TXT + HTML。"""
 
         md = tmp_path / "note.md"
         md.write_text("# Hi", encoding="utf-8")
@@ -241,6 +256,10 @@ class TestDryRunDefaultRegistry:
         txt = tmp_path / "note.txt"
         txt.write_text("text", encoding="utf-8")
         assert self.preview_source_load(str(txt)).status == "loaded"
+
+        html = tmp_path / "page.html"
+        html.write_text("<html><body><h1>Hi</h1></body></html>", encoding="utf-8")
+        assert self.preview_source_load(str(html)).status == "loaded"
 
 
 # =============================================================================

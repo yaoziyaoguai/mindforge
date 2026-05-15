@@ -136,12 +136,14 @@ def create_default_registry() -> AdapterRegistry:
 
     不接入 CLI/import/watch 主链路。
     """
+    from mindforge.sources.html_adapter import HtmlAdapter
     from mindforge.sources.markdown_adapter import PlainMarkdownAdapter
     from mindforge.sources.txt import TxtAdapter
 
     registry = AdapterRegistry()
     registry.register(PlainMarkdownAdapter())
     registry.register(TxtAdapter())
+    registry.register(HtmlAdapter())
     return registry
 
 
