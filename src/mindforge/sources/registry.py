@@ -125,15 +125,23 @@ class AdapterRegistry:
 
 
 def create_default_registry() -> AdapterRegistry:
-    """创建默认 registry，仅注册 PlainMarkdownAdapter。
+    """创建默认 registry，注册已实现的 v0.2 adapter。
 
-    M1 阶段不注册 TXT/HTML/PDF/DOCX。
+    按 SDD §11 推荐实现顺序注册：
+    - PlainMarkdownAdapter（M1 baseline）
+    - TxtAdapter（M2）
+    - HtmlAdapter（M2）
+    - PdfAdapter（M3）
+    - DocxAdapter（M4）
+
     不接入 CLI/import/watch 主链路。
     """
     from mindforge.sources.markdown_adapter import PlainMarkdownAdapter
+    from mindforge.sources.txt import TxtAdapter
 
     registry = AdapterRegistry()
     registry.register(PlainMarkdownAdapter())
+    registry.register(TxtAdapter())
     return registry
 
 

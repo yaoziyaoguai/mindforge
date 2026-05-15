@@ -67,10 +67,22 @@ class TestClassifySourcePath:
         assert result["matched"] is True
         assert result["source_type"] == "plain_markdown"
 
+    # -- TXT 匹配 ------------------------------------------------------------
+
+    @pytest.mark.parametrize("path", ["note.txt", "NOTE.TXT", "path/to/file.txt"])
+    def test_returns_matched_for_txt(self, path: str) -> None:
+        """classify_source_path 对 .txt 文件应返回 matched（M2 TXT adapter）。"""
+        result = self.classify_source_path(path)
+        assert result["matched"] is True
+        assert result["status"] == "matched"
+        assert result["adapter_name"] == "TxtAdapter"
+        assert result["source_type"] == "txt"
+        assert result["path"] == path
+
     # -- 不支持的格式返回 unsupported ----------------------------------------
 
     @pytest.mark.parametrize("path", [
-        "note.txt", "page.html", "doc.pdf", "report.docx", "data.csv",
+        "page.html", "doc.pdf", "report.docx", "data.csv",
     ])
     def test_returns_unsupported_for_other_formats(self, path: str) -> None:
         """不支持的格式应返回 unsupported summary。"""
@@ -175,7 +187,7 @@ class TestPreviewSourceLoad:
     def test_skipped_for_unsupported_suffix(self, tmp_path) -> None:
         """不支持格式应返回 AdapterResult.skipped。"""
 
-        f = tmp_path / "test.txt"
+        f = tmp_path / "test.xyz"
         f.write_text("content", encoding="utf-8")
         result = self.preview_source_load(str(f))
         assert result.status == "skipped"
@@ -213,14 +225,14 @@ class TestDryRunDefaultRegistry:
         self.classify_source_path = classify_source_path
         self.preview_source_load = preview_source_load
 
-    def test_classify_default_registry_only_markdown(self) -> None:
-        """默认 registry 仅支持 Markdown。"""
+    def test_classify_default_registry_markdown_and_txt(self) -> None:
+        """默认 registry 支持 Markdown + TXT（M2 实现）。"""
         assert self.classify_source_path("note.md")["matched"] is True
-        assert self.classify_source_path("note.txt")["matched"] is False
+        assert self.classify_source_path("note.txt")["matched"] is True
         assert self.classify_source_path("page.html")["matched"] is False
 
-    def test_preview_default_registry_only_markdown(self, tmp_path) -> None:
-        """默认 registry preview 仅处理 Markdown。"""
+    def test_preview_default_registry_markdown_and_txt(self, tmp_path) -> None:
+        """默认 registry preview 支持 Markdown + TXT。"""
 
         md = tmp_path / "note.md"
         md.write_text("# Hi", encoding="utf-8")
@@ -228,7 +240,7 @@ class TestDryRunDefaultRegistry:
 
         txt = tmp_path / "note.txt"
         txt.write_text("text", encoding="utf-8")
-        assert self.preview_source_load(str(txt)).status == "skipped"
+        assert self.preview_source_load(str(txt)).status == "loaded"
 
 
 # =============================================================================
@@ -302,7 +314,7 @@ class TestDryRunSafety:
     def test_preview_does_not_read_env_for_unsupported(self, tmp_path) -> None:
         """preview 对不支持格式不应依赖环境变量。"""
 
-        f = tmp_path / "test.txt"
+        f = tmp_path / "test.xyz"
         f.write_text("content", encoding="utf-8")
         result = self.preview_source_load(str(f))
         assert result.status == "skipped"
