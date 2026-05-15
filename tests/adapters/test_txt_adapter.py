@@ -1,44 +1,30 @@
-"""M2 Phase P1 — TxtAdapter Red tests（尚不实现生产代码）。
+"""M2 Phase P2 — TxtAdapter Green tests（最小生产实现）。
 
 中文学习型说明
 ================
 
 本文件定义 v0.2 M2 TXT adapter 的目标行为，覆盖 RFC_0001 §5.1/§5.4/§5.6、
-§5.13/§5.14 与 SDD §4.2/§10/§11。当前生产代码中还没有
-``mindforge.sources.txt.TxtAdapter``，因此这些测试应以 strict xfail 形式进入
-测试套件，清楚指向下一步：实现真实 TxtAdapter。
+§5.13/§5.14 与 SDD §4.2/§10/§11。P1 阶段这些测试以 strict xfail 进入
+测试套件；P2 阶段移除 xfail，让同一组 contract 验证真实 ``TxtAdapter``。
 
-Red 阶段约束
-------------
+测试约束
+--------
 
 - 不在 tests 里伪造 production TxtAdapter。
 - 不 monkeypatch 一个假 adapter 让测试变绿。
-- 不改 ``src/``，不接 import/watch/process 主链路。
+- 只允许最小 ``TxtAdapter`` 实现，不接 import/watch/process 主链路。
 - 不读取真实 ``.env`` / ``.mindforge/secrets.json``，不调用 LLM，不触发审批语义。
 """
 
 from __future__ import annotations
 
 import dataclasses
-import importlib
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from mindforge.sources.adapter_result import AdapterResult, SkipReason
-
-
-def _module_exists(name: str) -> bool:
-    """只检查目标生产模块是否存在；不存在就是本轮 M2 Red 的预期状态。"""
-    try:
-        importlib.import_module(name)
-        return True
-    except ImportError:
-        return False
-
-
-_TXT_ADAPTER_EXISTS = _module_exists("mindforge.sources.txt")
 
 
 def _write_large_text_file(path: Path, size_bytes: int) -> None:
@@ -59,16 +45,10 @@ def _public_result_text(result: AdapterResult) -> str:
     return repr(result)
 
 
-@pytest.mark.xfail(
-    not _TXT_ADAPTER_EXISTS,
-    reason="M2 Red: TxtAdapter 尚未实现；P2 minimal implementation 后这些测试应转绿。",
-    strict=True,
-)
-class TestTxtAdapterM2Red:
+class TestTxtAdapterM2Green:
     """TxtAdapter contract/behavior tests。
 
-    覆盖 RFC_0001 §5.6 TXT Policy 与 SDD §4.2 TxtAdapter 行为，当前只定义目标，
-    不提供任何生产实现。
+    覆盖 RFC_0001 §5.6 TXT Policy 与 SDD §4.2 TxtAdapter 行为。
     """
 
     @pytest.fixture(autouse=True)
