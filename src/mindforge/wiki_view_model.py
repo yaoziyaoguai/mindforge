@@ -253,6 +253,95 @@ class WikiPageViewModel:
         )
 
 
+    @classmethod
+    def build_from_wiki_markdown(
+        cls,
+        markdown_content: str,
+        digests: list[CardDigest],
+        wiki_metadata: dict | None = None,
+    ) -> WikiPageViewModel:
+        """从已有 wiki Markdown 文件 + CardDigest index 构建 ViewModel。
+
+        解析 wiki Markdown 中的 section markers 和 overview 区域，
+        将结构化数据输入 build() 构建完整 ViewModel。
+
+        支持 v0.1 风格 `<!-- WIKI_SECTION_START card_ids=... -->` marker，
+        也尝试从 `## Section Title\ncard_ids=` 行读取。
+
+        Args:
+            markdown_content: wiki Markdown 文件全文
+            digests: 所有 approved card 的 CardDigest 列表
+            wiki_metadata: 可选 {mode, model_id, last_rebuilt_at}
+        """
+        import re as _re
+
+        meta = wiki_metadata or {}
+        mode = meta.get("mode", "llm")
+        model_id = meta.get("model_id")
+        last_rebuilt_at = meta.get("last_rebuilt_at")
+
+        # 解析 overview（## Overview 到下一个 ## 之间）
+        overview = ""
+        overview_match = _re.search(
+            r"^## Overview\s*\n(.*?)(?=^##\s|\Z)",
+            markdown_content,
+            _re.MULTILINE | _re.DOTALL,
+        )
+        if overview_match:
+            overview = overview_match.group(1).strip()
+
+        # 解析 sections（WIKI_SECTION_START/END marker 格式）
+        sections_raw: list[dict] = []
+        pattern = (
+            r"<!--\s*WIKI_SECTION_START\s+card_ids=([^\s>]+)\s*-->\s*\n"
+            r"###\s+(.+?)\n"
+            r"(.*?)"
+            r"<!--\s*WIKI_SECTION_END\s*-->"
+        )
+        for m in _re.finditer(pattern, markdown_content, _re.DOTALL):
+            card_ids_str = m.group(1).strip()
+            title = m.group(2).strip()
+            body = m.group(3).strip()
+            # 移除 body 中的 Related approved cards 区块
+            body = _re.sub(
+                r"\*\*Related approved cards:\*\*\n(?:.+\n)*",
+                "",
+                body,
+            )
+            card_ids = [cid.strip() for cid in card_ids_str.split(",") if cid.strip()]
+            sections_raw.append({"title": title, "body": body.strip(), "card_ids": card_ids})
+
+        # 解析 open_questions（## Open Questions 区域）
+        open_questions: list[str] = []
+        oq_match = _re.search(
+            r"^## Open Questions\s*\n(.*?)(?=^##\s|\Z)",
+            markdown_content,
+            _re.MULTILINE | _re.DOTALL,
+        )
+        if oq_match:
+            oq_body = oq_match.group(1)
+            for line in oq_body.strip().split("\n"):
+                line = line.strip()
+                if line.startswith("- ") or line.startswith("* "):
+                    open_questions.append(line[2:].strip())
+                elif line and line[0].isdigit() and ". " in line:
+                    open_questions.append(line.split(". ", 1)[1].strip())
+
+        synthesis_output: dict = {
+            "overview": overview,
+            "sections": sections_raw,
+            "open_questions": open_questions,
+        }
+
+        return cls.build(
+            synthesis_output=synthesis_output,
+            digests=digests,
+            mode=mode,
+            model_id=model_id,
+            last_rebuilt_at=last_rebuilt_at,
+        )
+
+
 @dataclass
 class WikiRenderOptions:
     """Wiki 渲染选项（mutable，用户可配置）。不影响 Wiki 数据本身。"""
