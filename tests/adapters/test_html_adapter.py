@@ -16,7 +16,6 @@ RFC_0001 §5.7 / SDD §11 M2 Phase P4-P6。
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
