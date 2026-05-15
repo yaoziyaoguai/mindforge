@@ -10,6 +10,11 @@ RFC_0001 §5.9 要求 DOCX adapter 保留 headings/lists/tables 语义结构，
 - 不执行宏（.docm 返回 skipped）
 - 不加载外部资源（图片/OLE 对象）
 - 不保留完整 Word 版式
+- 仅处理 .docx（Office Open XML），.doc（legacy OLE binary）通过
+  can_handle 直接拒绝，不做任何解析。原因：legacy .doc 格式是
+  二进制 OLE 容器，没有跨平台纯 Python 解析库，需要依赖 win32com
+  / LibreOffice headless / antiword 等外部进程，违反了零新增 heavy
+  deps 的边界约束。
 """
 
 from __future__ import annotations
@@ -45,6 +50,8 @@ class DocxTextAdapter(SourceAdapter):
     source_type = "docx"
 
     def can_handle(self, path: str) -> bool:
+        # 仅匹配 .docx（Office Open XML）。.doc（legacy OLE binary）直接拒绝，
+        # 不做任何解析——见 module docstring 设计边界说明。
         return Path(path).suffix.lower() == ".docx"
 
     def load(self, path: str) -> AdapterResult:
