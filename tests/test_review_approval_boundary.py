@@ -297,6 +297,9 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # wiki_service.py 只读取 human_approved cards 生成派生 Wiki 视图；
             # 它不修改 card status，也不把 ai_draft 晋升为 human_approved。
             "wiki_service.py",
+            # wiki_view_model.py 的 docstring 说明 ViewModel 只基于 human_approved
+            # cards（通过 CardDigest）。它不读 card 源文件，不修改状态，不 approve。
+            "wiki_view_model.py",
             # trash_cli.py 展示 restore 后可能回到 human_approved 的状态说明；
             # 真正状态恢复由 trash_service 读取 previous_status，不执行 approve。
             "trash_cli.py",

@@ -9,7 +9,6 @@ RFC_0002 §5.1 / SDD_WIKI_PRESENTATION_V2 §4.1, §5, §13。
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError, asdict
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -361,9 +360,9 @@ class TestWikiPageViewModelBuild:
 
         self.CardDigest = CardDigest
 
-    def _make_digest(self, card_id: str, title: str = "Card Title", **kw) -> "CardDigest":
+    def _make_digest(self, card_id: str, title: str = "Card Title", **kw):
         """构造最小 CardDigest 用于测试。"""
-        from mindforge.wiki_service import CardDigest
+        from mindforge.wiki_service import CardDigest  # noqa: F811
 
         defaults = {
             "card_id": card_id,
