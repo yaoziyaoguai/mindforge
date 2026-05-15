@@ -40,7 +40,7 @@ export function WikiEmptyState({ noApprovedCards, modelReady }: WikiEmptyStatePr
         <>
           <h2 className="mb-2 text-lg font-semibold text-ink">Wiki not built yet</h2>
           <p className="max-w-md text-sm text-muted">
-            Click Rebuild Wiki to generate a structured synthesis from approved
+            Click Generate Wiki to create a structured synthesis from approved
             knowledge cards.
           </p>
         </>

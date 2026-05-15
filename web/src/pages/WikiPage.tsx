@@ -1,20 +1,21 @@
 /**
- * Wiki Page — structured presentation of Main Wiki.
+ * Wiki Page — orchestration layer.
  *
- * Fetches /api/wiki/page (structured WikiPageViewModel JSON) and renders
- * TOC + sections with Markdown → safe HTML via DOMPurify.
+ * Fetches /api/wiki/status and /api/wiki/page, manages rebuild, delegates
+ * all rendering to decomposed components.
  *
- * SDD_WIKI_PRESENTATION_V2 §4.4, §9.
+ * SDD_WIKI_WEB_PRESENTATION_ADDENDUM §12.
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { WikiHeader } from "../components/wiki/WikiHeader";
+import { WikiStatusBar } from "../components/wiki/WikiStatusBar";
+import { WikiReadingPane } from "../components/wiki/WikiReadingPane";
 import { WikiTOC } from "../components/wiki/WikiTOC";
-import { WikiSection } from "../components/wiki/WikiSection";
-import { WikiReferencePanel } from "../components/wiki/WikiReferencePanel";
+import { WikiAdvancedActions } from "../components/wiki/WikiAdvancedActions";
 import { WikiEmptyState } from "../components/wiki/WikiEmptyState";
 import { WikiErrorState } from "../components/wiki/WikiErrorState";
 import { WikiLoadingState } from "../components/wiki/WikiLoadingState";
-import { renderMarkdown } from "../lib/wiki-renderer";
 import type { WikiPageViewModel } from "../api/wiki";
 
 interface WikiStatus {
@@ -119,49 +120,40 @@ export function WikiPage() {
     }
   }
 
-  // -- loading state -----------------------------------------------------------
+  // -- loading state -------------------------------------------------------
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-        </header>
+        <WikiHeader />
         <WikiLoadingState />
       </div>
     );
   }
 
-  // -- error state after initial load -------------------------------------------
+  // -- error state after initial load --------------------------------------
 
   if (error && !page) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-        </header>
+        <WikiHeader />
         <WikiErrorState message={error} onRetry={() => load()} />
       </div>
     );
   }
 
-  // -- rebuild in progress ------------------------------------------------------
+  // -- rebuild in progress -------------------------------------------------
 
   if (busy) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-          <p className="mt-1 text-sm text-muted">
-            Main Wiki is generated from approved knowledge cards.
-          </p>
-        </header>
+        <WikiHeader />
         <WikiLoadingState />
       </div>
     );
   }
 
-  // -- empty state (no wiki / no approved cards) --------------------------------
+  // -- empty state (no wiki / no approved cards) ---------------------------
 
   const noApprovedCards =
     status != null && status.approved_card_count === 0;
@@ -171,33 +163,19 @@ export function WikiPage() {
     const modelReady = status?.model_ready ?? false;
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-          <p className="mt-1 text-sm text-muted">
-            Main Wiki is generated from approved knowledge cards.
-          </p>
-        </header>
+        <WikiHeader />
 
         {status && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <div className="rounded-md border border-line bg-panel px-3 py-2">
-              <span className="text-muted">Approved cards: </span>
-              <span className="text-ink">{status.approved_card_count}</span>
-            </div>
-            <button
-              className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-              disabled={busy || !status.model_ready}
-              onClick={() => rebuild("llm")}
-              type="button"
-              title={
-                status.model_ready
-                  ? "Rebuild Wiki with LLM synthesis"
-                  : status.model_ready_label
-              }
-            >
-              Rebuild Wiki
-            </button>
-          </div>
+          <WikiStatusBar
+            exists={status.exists}
+            lastRebuiltAt={status.last_rebuilt_at}
+            wikiCardCount={status.wiki_card_count}
+            approvedCardCount={status.approved_card_count}
+            modelReady={status.model_ready}
+            modelReadyLabel={status.model_ready_label}
+            busy={busy}
+            onRebuild={() => rebuild("llm")}
+          />
         )}
 
         <WikiEmptyState
@@ -205,166 +183,47 @@ export function WikiPage() {
           modelReady={modelReady}
         />
 
-        <details className="rounded-md border border-line p-3">
-          <summary className="cursor-pointer text-sm font-medium text-muted">
-            Advanced
-          </summary>
-          <div className="mt-3 space-y-3">
-            <p className="text-xs text-muted">
-              Template rebuild is a troubleshooting fallback. It does not
-              require a model.
-            </p>
-            <button
-              className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-              disabled={busy}
-              onClick={() => rebuild("deterministic")}
-              type="button"
-            >
-              Template rebuild (no model)
-            </button>
-          </div>
-        </details>
+        <WikiAdvancedActions
+          busy={busy}
+          onFallbackRebuild={() => rebuild("deterministic")}
+        />
       </div>
     );
   }
 
-  // -- ready state: structured wiki with TOC + sections -------------------------
+  // -- ready state: structured wiki with TOC + sections --------------------
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">Wiki</h1>
-        <p className="mt-1 text-sm text-muted">
-          Main Wiki is generated from approved knowledge cards.
-        </p>
-      </header>
+      <WikiHeader />
 
       {message ? <p className="text-sm text-primary">{message}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
 
-      {/* Status bar */}
-      {status ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <div className="rounded-md border border-line bg-panel px-3 py-2">
-            <span className="text-muted">Status: </span>
-            <span className={status.exists ? "text-safe" : "text-warn"}>
-              {status.exists ? "Exists" : "Missing"}
-            </span>
-          </div>
-          {status.exists ? (
-            <>
-              <div className="rounded-md border border-line bg-panel px-3 py-2">
-                <span className="text-muted">Last rebuilt: </span>
-                <span className="text-ink">
-                  {status.last_rebuilt_at?.slice(0, 19) ?? "—"}
-                </span>
-              </div>
-              <div className="rounded-md border border-line bg-panel px-3 py-2">
-                <span className="text-muted">Cards in Wiki: </span>
-                <span className="text-ink">{status.wiki_card_count}</span>
-              </div>
-            </>
-          ) : null}
-          <div className="rounded-md border border-line bg-panel px-3 py-2">
-            <span className="text-muted">Approved cards: </span>
-            <span className="text-ink">{status.approved_card_count}</span>
-          </div>
-          <button
-            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={busy || !status.model_ready}
-            onClick={() => rebuild("llm")}
-            type="button"
-            title={
-              status.model_ready
-                ? "Rebuild Wiki with LLM synthesis"
-                : status.model_ready_label
-            }
-          >
-            Rebuild Wiki
-          </button>
-        </div>
-      ) : null}
+      {status && (
+        <WikiStatusBar
+          exists={status.exists}
+          lastRebuiltAt={status.last_rebuilt_at}
+          wikiCardCount={status.wiki_card_count}
+          approvedCardCount={status.approved_card_count}
+          modelReady={status.model_ready}
+          modelReadyLabel={status.model_ready_label}
+          busy={busy}
+          onRebuild={() => rebuild("llm")}
+        />
+      )}
 
-      {/* Wiki content: TOC + sections */}
-      {page ? (
+      {page && (
         <div className="flex gap-6">
           <WikiTOC sections={page.sections} />
-
-          <div className="min-w-0 flex-1 space-y-8">
-            {/* Overview */}
-            {page.overview && (
-              <section>
-                <div
-                  className="prose prose-sm max-w-none text-ink leading-relaxed"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(page.overview),
-                  }}
-                />
-              </section>
-            )}
-
-            {/* Sections */}
-            {page.sections.map((sec) => (
-              <WikiSection key={sec.id} section={sec} />
-            ))}
-
-            {/* Open questions */}
-            {page.open_questions.length > 0 && (
-              <section>
-                <h2 className="mb-3 text-lg font-semibold text-ink">
-                  Open Questions
-                </h2>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-ink">
-                  {page.open_questions.map((q, i) => (
-                    <li key={i}>{q.question}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {/* Additional cards */}
-            {page.additional_cards.length > 0 && (
-              <WikiReferencePanel
-                refs={page.additional_cards}
-                title="Additional approved cards"
-              />
-            )}
-
-            {/* Warnings */}
-            {page.warnings.length > 0 && (
-              <div className="rounded-md border border-warn/30 bg-warn/5 p-3">
-                <p className="text-sm font-medium text-warn">Warnings</p>
-                <ul className="mt-1 list-disc pl-5 text-xs text-muted">
-                  {page.warnings.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          <WikiReadingPane page={page} />
         </div>
-      ) : null}
+      )}
 
-      {/* Advanced: deterministic fallback */}
-      <details className="rounded-md border border-line p-3">
-        <summary className="cursor-pointer text-sm font-medium text-muted">
-          Advanced
-        </summary>
-        <div className="mt-3 space-y-3">
-          <p className="text-xs text-muted">
-            Template rebuild is a troubleshooting fallback. It does not require
-            a model.
-          </p>
-          <button
-            className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-            disabled={busy}
-            onClick={() => rebuild("deterministic")}
-            type="button"
-          >
-            Template rebuild (no model)
-          </button>
-        </div>
-      </details>
+      <WikiAdvancedActions
+        busy={busy}
+        onFallbackRebuild={() => rebuild("deterministic")}
+      />
     </div>
   );
 }
