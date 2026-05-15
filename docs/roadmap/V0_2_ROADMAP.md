@@ -102,6 +102,13 @@ v0.1 已完成并作为 baseline 上线：
 - **Wiki card/source references**：展示每个 section 关联的 approved card 和原始 source provenance
 - **Wiki empty/error/loading states**：无 approved cards / LLM 调用失败 / 正在合成 等状态
 - **Wiki rendering safety**：Markdown sanitization、XSS 防护、禁止 unsafe embedded HTML
+- **Wiki Web UX polish**（final milestone）：根据 [SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md](../sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) 完成 Web 展示升级：
+  - Desktop 三栏布局（TOC / reading / references）
+  - Responsive（tablet + mobile）
+  - Personal knowledge base reading typography
+  - Provenance / references 默认可见
+  - Product wording 清理（移除 "no model" 等开发者术语）
+  - Advanced fallback 隐藏在 Troubleshooting 区域
 
 ---
 
@@ -119,6 +126,7 @@ v0.1 已完成并作为 baseline 上线：
 - **automatic semantic merge**：不做自动语义合并
 - **changing knowledge card schema**：不改 `ai_draft` / `human_approved` card schema
 - **changing approval semantics**：不改 approval 状态机
+- **implementing editable Wiki**：不做 Wiki 用户编辑（section body override / annotation persistence），需要独立 RFC 定义编辑边界后才能纳入 scope
 - **claiming full .doc support**：除非 extractor dependency 被明确接受，否则不宣称 Word 全支持
 - **preserving full Word/PDF visual formatting**：不做 Word/PDF 版式还原
 

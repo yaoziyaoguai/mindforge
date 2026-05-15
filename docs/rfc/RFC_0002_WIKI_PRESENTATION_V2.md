@@ -73,6 +73,8 @@ v0.1 Wiki 的展示层停留在"文件 dump"阶段。Wiki synthesis 本身已经
 - **不实现 Mermaid/diagram rendering**（留接口但在 RFC/SDD 中标记为 future）
 - **不新增 Wiki 的持久化格式**：Wiki 仍然是 derived view，approved cards 是 source of truth
 - **不改变 Wiki rebuild 的触发方式**：仍然是用户手动触发（Web button / CLI command）
+- **不实现 editable Wiki persistence**：v0.2 Wiki 为只读视图。用户编辑（section body override / annotation）能力需要独立 RFC 定义编辑边界后才能实现。详见 [SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md](../sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) §11
+- **Web UX polish 遵循 Web Presentation Addendum**：[SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md](../sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) 为 v0.2 Web 展示的权威补充文档
 
 ---
 
