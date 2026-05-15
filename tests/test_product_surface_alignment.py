@@ -495,7 +495,11 @@ telemetry:
     result = runner.invoke(app, ["status", "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert "model setup=needs setup" in result.output.replace("\n", "")
+    # 中文学习型说明：status 输出被 Rich 在不同终端宽度下折叠换行，
+    # 换行点若落在空格处，replace("\n", "") 会丢失空格。用空格替换
+    # 换行符以恢复被折叠消耗的空格，确保 product surface 断言稳定。
+    flat = result.output.replace("\n", " ")
+    assert "model setup=needs setup" in flat
     assert "mindforge watch add" in result.output or "mindforge import" in result.output
     assert "approve show" not in result.output
     for token in ("fake", ".env", " env", "demo", "profile", "Cubox", "api_key_env"):
