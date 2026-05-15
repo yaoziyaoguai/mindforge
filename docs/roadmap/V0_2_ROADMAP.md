@@ -1,11 +1,20 @@
 # MindForge v0.2 Roadmap: Multi-source Ingestion + Wiki Presentation
 
-> **Status**: Draft
+> **Status**: In Progress — Source Module Promoted (M1-M5 ✅), Wiki Presentation Next (M6 🚧)
 > **Branch**: feat-wiki-llm-synthesis → future v0.2 branch
-> **Date**: 2026-05-14
+> **Date**: 2026-05-15
 >
 > This roadmap defines v0.2 scope. Implementation follows RFCs and SDDs under
 > `docs/rfc/` and `docs/sdd/`; development rules are in `docs/V0_2_DEVELOPMENT_RULES.md`.
+>
+> **Source Module Promotion Status** (2026-05-15):
+> - ✅ 5 source adapters promoted: Markdown, TXT, HTML, PDF, DOCX
+> - ✅ AdapterRegistry + dry-run seam
+> - ✅ Legacy .doc research gate (RFC_0003)
+> - ✅ Optional dependency smoke tests (pypdf ✅, python-docx ⏭ skipped)
+> - ✅ 125 adapter/registry/dry-run tests passing
+> - ✅ ruff clean
+> - ✅ Architecture boundary audit PASS
 
 ---
 
@@ -323,17 +332,17 @@ v0.1 已完成并作为 baseline 上线：
 
 ## 5. Milestone Summary
 
-| # | Milestone | Depends On | Estimated Effort |
-|---|-----------|-----------|-----------------|
-| M1 | SourceAdapter Foundation | — | S |
-| M2 | TXT + HTML Adapters | M1 | M |
-| M3 | PDF Adapter Enhancement | M1 | S |
-| M4 | DOCX Adapter Enhancement | M1 | M |
-| M5 | Legacy DOC Research Gate | M4 | S (research) |
-| M6 | Wiki Presentation Foundation | — | L |
-| M7 | Wiki Rendering Security + UX | M6 | M |
+| # | Milestone | Depends On | Status |
+|---|-----------|-----------|--------|
+| M1 | SourceAdapter Foundation | — | ✅ Promoted |
+| M2 | TXT + HTML Adapters | M1 | ✅ Promoted |
+| M3 | PDF Adapter Enhancement | M1 | ✅ Promoted |
+| M4 | DOCX Adapter Enhancement | M1 | ✅ Promoted |
+| M5 | Legacy DOC Research Gate | M4 | ✅ Promoted |
+| M6 | Wiki Presentation Foundation | — | 🚧 Next |
+| M7 | Wiki Rendering Security + UX | M6 | — |
 
-**Effort Key**: S = 1-3 days, M = 3-7 days, L = 7-14 days
+**Status Key**: ✅ Promoted = 已实现并通过独立验收
 
 ---
 
