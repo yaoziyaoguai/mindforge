@@ -103,10 +103,20 @@ class TestClassifySourcePath:
         assert result["adapter_name"] == "PdfTextAdapter"
         assert result["source_type"] == "pdf"
 
+    # -- DOCX 匹配 ------------------------------------------------------------
+
+    def test_returns_matched_for_docx(self) -> None:
+        """classify_source_path 对 .docx 文件应返回 matched（M4 DOCX adapter）。"""
+        result = self.classify_source_path("report.docx")
+        assert result["matched"] is True
+        assert result["status"] == "matched"
+        assert result["adapter_name"] == "DocxTextAdapter"
+        assert result["source_type"] == "docx"
+
     # -- 不支持的格式返回 unsupported ----------------------------------------
 
     @pytest.mark.parametrize("path", [
-        "report.docx", "data.csv",
+        "data.csv", "image.png",
     ])
     def test_returns_unsupported_for_other_formats(self, path: str) -> None:
         """不支持的格式应返回 unsupported summary。"""
@@ -249,13 +259,14 @@ class TestDryRunDefaultRegistry:
         self.classify_source_path = classify_source_path
         self.preview_source_load = preview_source_load
 
-    def test_classify_default_registry_markdown_txt_html_pdf(self) -> None:
-        """默认 registry 支持 Markdown + TXT + HTML + PDF（M2/M3 实现）。"""
+    def test_classify_default_registry_markdown_txt_html_pdf_docx(self) -> None:
+        """默认 registry 支持 Markdown + TXT + HTML + PDF + DOCX（M2/M3/M4 实现）。"""
         assert self.classify_source_path("note.md")["matched"] is True
         assert self.classify_source_path("note.txt")["matched"] is True
         assert self.classify_source_path("page.html")["matched"] is True
         assert self.classify_source_path("doc.pdf")["matched"] is True
-        assert self.classify_source_path("report.docx")["matched"] is False
+        assert self.classify_source_path("report.docx")["matched"] is True
+        assert self.classify_source_path("data.csv")["matched"] is False
 
     def test_preview_default_registry_supported_formats(self, tmp_path) -> None:
         """默认 registry preview 支持 Markdown + TXT + HTML。PDF 需要 pypdf runtime。"""

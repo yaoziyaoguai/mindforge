@@ -326,16 +326,17 @@ class TestCreateDefaultRegistry:
         reg = self.create_default_registry()
         assert isinstance(reg, AdapterRegistry)
 
-    def test_registers_markdown_txt_html_pdf(self) -> None:
-        """默认 registry 应注册 4 个 adapter（M2+M3）。"""
+    def test_registers_markdown_txt_html_pdf_docx(self) -> None:
+        """默认 registry 应注册 5 个 adapter（M2+M3+M4）。"""
         reg = self.create_default_registry()
         adapters = reg.list_adapters()
-        assert len(adapters) == 4
+        assert len(adapters) == 5
         types = [a.source_type for a in adapters]
         assert "plain_markdown" in types
         assert "txt" in types
         assert "html" in types
         assert "pdf" in types
+        assert "docx" in types
 
     def test_find_for_path_md_works_with_default(self) -> None:
         reg = self.create_default_registry()
@@ -361,9 +362,16 @@ class TestCreateDefaultRegistry:
         assert found is not None
         assert found.source_type == "pdf"
 
+    def test_find_for_path_docx_works_with_default(self) -> None:
+        reg = self.create_default_registry()
+        found = reg.find_for_path("report.docx")
+        assert found is not None
+        assert found.source_type == "docx"
+
     def test_find_for_path_unsupported_returns_none_with_default(self) -> None:
         reg = self.create_default_registry()
-        assert reg.find_for_path("report.docx") is None
+        assert reg.find_for_path("data.csv") is None
+        assert reg.find_for_path("image.png") is None
 
 
 # =============================================================================

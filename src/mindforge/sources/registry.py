@@ -132,10 +132,11 @@ def create_default_registry() -> AdapterRegistry:
     - TxtAdapter（M2）
     - HtmlAdapter（M2）
     - PdfAdapter（M3）
-    - DocxAdapter（M4）
+    - DocxTextAdapter（M4）
 
     不接入 CLI/import/watch 主链路。
     """
+    from mindforge.sources.docx_adapter import DocxTextAdapter
     from mindforge.sources.html_adapter import HtmlAdapter
     from mindforge.sources.markdown_adapter import PlainMarkdownAdapter
     from mindforge.sources.pdf_adapter import PdfTextAdapter
@@ -146,6 +147,7 @@ def create_default_registry() -> AdapterRegistry:
     registry.register(TxtAdapter())
     registry.register(HtmlAdapter())
     registry.register(PdfTextAdapter())
+    registry.register(DocxTextAdapter())
     return registry
 
 
