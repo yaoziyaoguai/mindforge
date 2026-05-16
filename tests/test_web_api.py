@@ -349,6 +349,9 @@ def test_web_workflow_library_and_source_visibility_return_card_content_not_sour
 ) -> None:
     client, cards = _client(tmp_path, monkeypatch)
     card = _write_draft(cards)
+    # 将 card 状态改为 human_approved，使 library listing 包含该 card
+    raw_text = card.read_text()
+    card.write_text(raw_text.replace("status: ai_draft", "status: human_approved"))
     source = tmp_path / "dogfood-vault" / "00-Inbox" / "ManualNotes" / "source-note.md"
     source.write_text("SOURCE_BODY_MUST_NOT_LEAK", encoding="utf-8")
     processed = (
@@ -369,8 +372,8 @@ def test_web_workflow_library_and_source_visibility_return_card_content_not_sour
     combined = f"{workflow} {library} {detail} {sources}"
 
     assert workflow["vault_root"].endswith("dogfood-vault")
-    assert workflow["ai_draft_count"] == 1
-    assert workflow["human_approved_count"] == 0
+    assert workflow["human_approved_count"] == 1
+    assert workflow["ai_draft_count"] == 0
     assert workflow["source_bucket_counts"]["pending"]["ManualNotes"] == 1
     assert workflow["source_bucket_counts"]["processed"]["ManualNotes"] == 1
     assert library["cards"][0]["source_path"] == "00-Inbox/ManualNotes/source-note.md"

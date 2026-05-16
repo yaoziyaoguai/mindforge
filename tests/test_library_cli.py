@@ -159,7 +159,7 @@ def test_library_stats_counts_status_track_and_fake_provider(tmp_path: Path) -> 
 def test_library_list_and_show_default_are_metadata_only(tmp_path: Path) -> None:
     cfg_path, vault, source = _write_config(tmp_path)
     cards_root = vault / "20-Knowledge-Cards" / "agent-runtime"
-    card = _write_card(cards_root, "draft-one", status="ai_draft", source_path=source)
+    card = _write_card(cards_root, "draft-one", status="human_approved", source_path=source)
 
     listed = runner.invoke(app, ["library", "list", "--config", str(cfg_path)])
     shown = runner.invoke(
@@ -180,7 +180,7 @@ def test_library_list_and_show_default_are_metadata_only(tmp_path: Path) -> None
     assert "CARD_BODY_SENTINEL" not in listed.output
 
     assert shown.exit_code == 0, shown.output
-    assert "ai_draft：AI 草稿，不是正式知识" in shown.output
+    assert "human_approved：显式 approve 后进入正式知识库" in shown.output
     assert "offline LLM test double" in shown.output
     assert "CARD_BODY_SENTINEL" not in shown.output
 
