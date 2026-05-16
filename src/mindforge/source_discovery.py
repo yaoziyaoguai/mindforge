@@ -221,6 +221,11 @@ def _skip_file_reason(
     if parser_reason is not None:
         return parser_reason
     if not _has_matching_adapter(path, adapters, entries):
+        if path.suffix.lower() == ".doc":
+            return (
+                "unsupported_legacy_doc: Legacy .doc (binary OLE) is not supported in v0.2. "
+                "Please convert to .docx or export as PDF/TXT, then import the converted file."
+            )
         return "unsupported_extension"
     return None
 
