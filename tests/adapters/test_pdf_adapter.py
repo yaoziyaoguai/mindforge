@@ -130,7 +130,7 @@ class TestPdfTextAdapterLoad:
         p.write_text("dummy", encoding="utf-8")  # 文件需存在
 
         mock_reader = _mock_pdf_reader(["Hello PDF World"])
-        with patch("pypdf.PdfReader", return_value=mock_reader):
+        with patch("mindforge.sources.pdf_adapter._load_pdf_reader", return_value=mock_reader):
             result = self.adapter.load(str(p))
         assert result.status == "loaded"
         assert result.document is not None
@@ -144,7 +144,7 @@ class TestPdfTextAdapterLoad:
         p.write_text("dummy", encoding="utf-8")
 
         mock_reader = _mock_pdf_reader(["Page 1", "Page 2", "Page 3"])
-        with patch("pypdf.PdfReader", return_value=mock_reader):
+        with patch("mindforge.sources.pdf_adapter._load_pdf_reader", return_value=mock_reader):
             result = self.adapter.load(str(p))
         assert result.status == "loaded"
         blocks = result.document.provenance_blocks
@@ -158,7 +158,7 @@ class TestPdfTextAdapterLoad:
         p.write_text("dummy", encoding="utf-8")
 
         mock_reader = _mock_empty_page_reader(3)
-        with patch("pypdf.PdfReader", return_value=mock_reader):
+        with patch("mindforge.sources.pdf_adapter._load_pdf_reader", return_value=mock_reader):
             result = self.adapter.load(str(p))
         assert result.status == "skipped"
         assert result.document is None
@@ -174,7 +174,7 @@ class TestPdfTextAdapterLoad:
         mock_meta.title = "My PDF Title"
         mock_reader.metadata = mock_meta
 
-        with patch("pypdf.PdfReader", return_value=mock_reader):
+        with patch("mindforge.sources.pdf_adapter._load_pdf_reader", return_value=mock_reader):
             result = self.adapter.load(str(p))
         assert result.status == "loaded"
         assert result.document.title == "My PDF Title"
@@ -194,7 +194,7 @@ class TestPdfTextAdapterLoad:
         mock_reader.pages = mock_pages
         mock_reader.metadata = None
 
-        with patch("pypdf.PdfReader", return_value=mock_reader):
+        with patch("mindforge.sources.pdf_adapter._load_pdf_reader", return_value=mock_reader):
             result = self.adapter.load(str(p))
         assert result.status == "loaded"
         has_warning = any(

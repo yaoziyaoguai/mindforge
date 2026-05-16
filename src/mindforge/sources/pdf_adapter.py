@@ -26,6 +26,17 @@ _MAX_PDF_BYTES = 50 * 1024 * 1024
 _MAX_PAGE_WARNING = 500
 
 
+def _load_pdf_reader(path: Path):
+    """lazy import pypdf.PdfReader，保持 pypdf optional dependency。
+
+    把 pypdf lazy import 包在 helper 中，是为了让单元测试可以 patch adapter 边界，
+    而不要求 CI 安装 pypdf。
+    """
+    from pypdf import PdfReader
+
+    return PdfReader(str(path))
+
+
 class PdfTextAdapter(SourceAdapter):
     """把本地文本型 ``.pdf`` 文件解析为 ``SourceDocument``（v0.2 contract）。
 
@@ -65,9 +76,9 @@ class PdfTextAdapter(SourceAdapter):
                 skip_reason=SkipReason.FILE_TOO_LARGE,
             )
 
-        # lazy import pypdf
+        # lazy import pypdf + 打开 PDF（通过 _load_pdf_reader seam，供 mock patch）
         try:
-            import pypdf
+            reader = _load_pdf_reader(p)
         except ImportError:
             return AdapterResult(
                 status="failed",
@@ -76,10 +87,6 @@ class PdfTextAdapter(SourceAdapter):
                     "Install with: pip install 'mindforge[pdf]' or pip install pypdf"
                 ),
             )
-
-        # 尝试打开 PDF
-        try:
-            reader = pypdf.PdfReader(str(p))
         except Exception as exc:
             return AdapterResult(
                 status="failed",
