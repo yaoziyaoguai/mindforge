@@ -68,7 +68,7 @@ Review and approve drafts, then browse the Library, search with Recall, or gener
 ## Current Status
 
 - **v0.1** — Stable release with complete local-first / LLM-first pipeline
-- **v0.2** — In development (multi-source ingestion, Wiki presentation enhancements)
+- **v0.2** — Release candidate: main feature work complete, in pre-release validation
 
 Suitable for non-sensitive material at small scale. Not recommended for private/sensitive vaults yet.
 

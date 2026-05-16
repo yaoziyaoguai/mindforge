@@ -9,7 +9,7 @@ MindForge 发布流程。
 遵循 `v<major>.<minor>` 格式：
 
 - **v0.1** — 稳定 release，local-first / LLM-first 主链路完成
-- **v0.2** — 开发中，Multi-source ingestion + Wiki presentation
+- **v0.2** — 主要功能开发已完成，当前处于发布前验收阶段（Source Module、Wiki Visual Polish、Documentation Overhaul 已完成）
 
 ---
 

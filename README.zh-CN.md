@@ -25,7 +25,7 @@ Source → AI Draft → Human Review → Explicit Approve → Approved Card
 - CLI + Web 均可使用
 - 适合非敏感资料小规模使用
 - 暂不建议直接处理私人/工作敏感资料、大规模 vault
-- **v0.2** — 规划中，聚焦 Multi-source ingestion + Wiki presentation
+- **v0.2** — 主要功能开发已完成，当前处于发布前验收阶段
 
 ---
 
