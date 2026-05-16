@@ -80,7 +80,7 @@ Check current frequency and next scan time for all watched sources:
 mindforge watch status
 ```
 
-Frequency management is CLI-based. The Web UI does not currently display frequency settings.
+Frequency can be set via CLI (`--every` / `--frequency`) or Web UI (Setup → Add Source, or Sources → Edit frequency). Use `mindforge watch status` to check current settings.
 
 Review and approve drafts, then browse the Library, search with Recall, or generate a Wiki.
 

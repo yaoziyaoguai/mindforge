@@ -79,7 +79,7 @@ mindforge watch status
 
 没有常驻 daemon。如需定期扫描，配合 cron / launchd / 外部调度定期运行 `mindforge watch scan`。
 
-频率管理主要通过 CLI。Web UI 暂不展示频率配置。
+频率可通过 CLI（`--every` / `--frequency`）或 Web UI（Setup → Add Source 的 Frequency 下拉，或 Sources → Edit frequency）设置。`mindforge watch status` 查看当前配置。
 
 ### import（一次性导入）
 

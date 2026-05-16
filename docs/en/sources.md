@@ -72,7 +72,7 @@ mindforge watch status
 
 There is no persistent daemon. For periodic scanning, schedule `mindforge watch scan` via cron, launchd, or an external scheduler.
 
-Frequency management is CLI-based. The Web UI does not currently display frequency settings.
+Frequency can be set via CLI (`--every` / `--frequency`) or Web UI (Setup → Add Source frequency dropdown, or Sources → Edit frequency). Use `mindforge watch status` to check current settings.
 
 ---
 

@@ -127,7 +127,7 @@ mindforge watch add <path> --frequency "every 6h"
 mindforge watch status
 ```
 
-频率管理主要通过 CLI。Web UI 暂不展示频率配置。
+频率可通过 CLI（`--every` / `--frequency`）或 Web UI（Setup → Add Source 的 Frequency 下拉，或 Sources → Edit frequency）设置。`mindforge watch status` 查看当前配置。
 
 ### 支持的 Source 格式
 

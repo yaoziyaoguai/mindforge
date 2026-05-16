@@ -81,7 +81,7 @@ Source 放在 `vault/00-Inbox/` 下即可，无需预建子目录。
 
 ### 监听频率
 
-`watch add` 默认 **manual** 频率，不自动扫描。通过 `--every` / `--frequency` 设置为 `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h`。查看频率：`mindforge watch status`。详见 [Source 管理](sources.md)。
+`watch add` 默认 **manual** 频率，不自动扫描。通过 CLI `--every` / `--frequency` 或 Web UI（Setup → Add Source 的 Frequency 下拉，Sources → Edit frequency）设置。可选：`manual` / `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h`。查看频率：`mindforge watch status`。详见 [Source 管理](sources.md)。
 
 ### 停止监听
 

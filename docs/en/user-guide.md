@@ -78,7 +78,7 @@ Place sources under `vault/00-Inbox/` — no need to pre-create subdirectories.
 
 ### Watch Frequency
 
-`watch add` defaults to **manual** frequency — no automatic scanning. Set to `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h` via `--every` / `--frequency`. Check frequency: `mindforge watch status`. See [Sources](sources.md) for details.
+`watch add` defaults to **manual** frequency — no automatic scanning. Set via CLI `--every` / `--frequency` or Web UI (Setup → Add Source frequency dropdown, Sources → Edit frequency). Options: `manual` / `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h`. Check frequency: `mindforge watch status`. See [Sources](sources.md) for details.
 
 ### Stopping Watch
 
