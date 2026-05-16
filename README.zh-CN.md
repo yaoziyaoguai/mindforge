@@ -73,6 +73,16 @@ mindforge web --open
 
 API key 由你在本地 Web 页面手动输入，存入 local secret store (`.mindforge/secrets.json`)。API key 不写 YAML。**不要把 key 写进 issue、prompt、README、logs 或 YAML。**
 
+### 可选依赖
+
+基础安装可支持 Markdown、TXT、本地 HTML。如果需要 PDF / DOCX 支持，请安装对应可选依赖：
+
+```bash
+pip install "mindforge[pdf,docx]"
+```
+
+PDF 仅支持文本型 PDF，不做 OCR、不支持扫描件文字识别。DOCX 支持现代 `.docx` 格式；legacy `.doc` 暂不支持。详见 [Source 管理](docs/zh-CN/sources.md)。
+
 完整链路速览：`mindforge watch add` / `mindforge import` 添加 source → `mindforge runs list` / `mindforge runs show` 查看后台处理 → `mindforge approve list` / `mindforge approve 1 --confirm` 审阅审批 → `mindforge recall --query "MindForge"` 检索 → `mindforge wiki rebuild` 基于 approved cards 生成 Wiki → **Library** 和 **Wiki** 查阅已审批知识。
 
 ---
@@ -88,6 +98,19 @@ mindforge import vault/00-Inbox/first-note.md
 ```
 
 source 放在 `vault/00-Inbox/` 下即可，无需预先创建 ManualNotes / WebClips / PDFs / Docs 等分类子目录。
+
+### 支持的 Source 格式
+
+| 格式 | 状态 | 说明 | 依赖 |
+|------|------|------|------|
+| Markdown | 已支持 | 完整支持 | 基础安装 |
+| TXT | 已支持 | 纯文本 | 基础安装 |
+| HTML | 已支持 | 仅本地文件，不做 URL 抓取 | 基础安装 |
+| PDF（文本型） | 已支持 | 仅提取文本层文字，不做 OCR、不支持扫描件 | `pypdf`（可选） |
+| DOCX | 已支持 | 现代 `.docx` 格式 | `python-docx`（可选） |
+| DOC（旧版） | 不支持 | Research gate，当前版本不计划支持 | — |
+
+可选依赖安装：`pip install "mindforge[pdf,docx]"`
 
 ### 路径规则
 

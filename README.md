@@ -35,6 +35,16 @@ mindforge web --open
 
 Open `http://127.0.0.1:8765`, go to **Setup** → **Add model**, and configure your LLM provider with an API key. Keys are stored in the local secret store — never in Git, YAML, or the browser.
 
+### Optional dependencies
+
+The base install supports Markdown, TXT, and local HTML. For PDF and DOCX support, install the optional extras:
+
+```bash
+pip install "mindforge[pdf,docx]"
+```
+
+PDF support is text-based only — no OCR, no scanned document text extraction. DOCX supports modern `.docx` files; legacy `.doc` is not supported. See [Sources](docs/en/sources.md) for details.
+
 Add your first source:
 
 ```bash
@@ -54,6 +64,19 @@ Review and approve drafts, then browse the Library, search with Recall, or gener
 - **BM25 Recall** — Local lexical search over approved cards
 - **LLM-first Wiki** — Synthesize approved cards into structured topic pages
 - **Web console + CLI** — Same Python service layer, dual entry points
+
+## Supported Source Formats
+
+| Format | Status | Notes | Dependency |
+|--------|--------|-------|------------|
+| Markdown | Supported | Full support | Base install |
+| TXT | Supported | Plain text | Base install |
+| HTML | Supported | Local files only; no URL crawling | Base install |
+| PDF (text-based) | Supported | Text extraction only; no OCR, no scanned documents | `pypdf` (optional) |
+| DOCX | Supported | Modern `.docx` format | `python-docx` (optional) |
+| DOC (legacy) | Unsupported | Research gate; not planned for current release | — |
+
+Install optional dependencies: `pip install "mindforge[pdf,docx]"`
 
 ## Safety
 
@@ -79,8 +102,12 @@ Suitable for non-sensitive material at small scale. Not recommended for private/
 | [README.zh-CN.md](README.zh-CN.md) | 中文入口 (Chinese entry) |
 | [Getting Started (CN)](docs/zh-CN/getting-started.md) | 中文快速入门 |
 | [User Guide (CN)](docs/zh-CN/user-guide.md) | 中文用户指南 |
+| [Sources (CN)](docs/zh-CN/sources.md) | 中文 Source 管理 |
+| [Troubleshooting (CN)](docs/zh-CN/troubleshooting.md) | 中文故障排除 |
 | [Getting Started (EN)](docs/en/getting-started.md) | English getting started |
 | [User Guide (EN)](docs/en/user-guide.md) | English user guide |
+| [Sources (EN)](docs/en/sources.md) | English source guide |
+| [Troubleshooting (EN)](docs/en/troubleshooting.md) | English troubleshooting |
 | [Model Setup](docs/zh-CN/model-setup.md) | LLM provider configuration |
 | [Release Notes](docs/RELEASE_NOTES.md) | First release notes |
 | [Developer Docs](docs/dev/) | Architecture, testing, contributing |
