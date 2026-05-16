@@ -5,7 +5,11 @@ document besides `ROADMAP.md`. Tests keep it because it protects future-gate
 status buckets without requiring dozens of historical milestone files.
 
 This is a maintainer-facing guard ledger, not first-run documentation. First
-release users should start from `README.md` and `docs/RELEASE_NOTES.md`.
+release users should start from `README.zh-CN.md` and `docs/RELEASE_NOTES.md`.
+
+## v0.1 Completed Release Closure Labels
+
+Web first slice, Real Data CLI Usability, Documentation cleanup.
 
 ## Status Buckets
 
@@ -19,6 +23,22 @@ release users should start from `README.md` and `docs/RELEASE_NOTES.md`.
 | `future-gated` | Requires fresh design review and explicit human authorization | Named human authorizer |
 | `release-gated` | Requires named release authorization before tag/release | Named human authorizer |
 | `forbidden` | Conflicts with MindForge identity or safety model | Nobody |
+
+## Obsidian Staged Workflow Boundary (future-gated)
+
+Obsidian staged workflow 是开发/维护边界，不是第一版普通用户主路径：
+staged export → diff preview → backup → explicit confirmation。
+Supports include/exclude patterns for staged exports。
+`<export>.manifest.json` is the staged export manifest format。
+No formal Obsidian note writes。No Obsidian plugin。
+
+只读/预检命令示例：
+- `mindforge obsidian next --vault /path/to/project-vault`
+- `mindforge obsidian doctor --vault /path/to/project-vault`
+- `mindforge obsidian scan --vault /path/to/project-vault --limit 20`
+- `mindforge obsidian links --vault /path/to/project-vault`
+- `mindforge obsidian stage --vault /path/to/project-vault --source <note.md> --dry-run`
+- `mindforge obsidian preflight --vault /path/to/project-vault --manifest`
 
 ## Current Guarded Gates
 

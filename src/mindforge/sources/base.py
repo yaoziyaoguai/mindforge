@@ -81,7 +81,7 @@ class Highlight:
 class SourceDocument:
     """Adapter 的统一输出 / 下游加工的统一输入。
 
-    13 个字段对应 ``README.md`` 中的"SourceDocument 数据契约"。
+    v0.1 14 个字段 + v0.2 2 个新增字段 = 当前 16 个字段。
     任何字段语义变更都必须同步更新协议文档与 ``state.json`` schema。
 
     字段说明
@@ -133,6 +133,18 @@ class SourceDocument:
     metadata: dict[str, Any] = field(default_factory=dict)
     content_hash: str = ""
     adapter_name: str = ""
+    # ------------------------------------------------------------------
+    # v0.2 新增字段（backward-compatible，不影响 v0.1 adapter）
+    # - extraction_warnings：解析过程中产生的非致命 warning（如编码退化、
+    #   表格丢失、空文件等）。使用 list 类型暂不绑定 ExtractionWarning，
+    #   待 P4 adapter_result.py 实现后收紧类型。
+    # - provenance_blocks：source 中每个逻辑块的来源信息（如 page / section /
+    #   byte offset）。对 Markdown baseline 为空 list，future PDF/HTML/DOCX
+    #   adapter 填充。
+    # 两个字段均使用 field(default_factory=list)，所有现有 adapter 无需修改。
+    # ------------------------------------------------------------------
+    extraction_warnings: list = field(default_factory=list)
+    provenance_blocks: list = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # 强契约：source_id / source_type / source_path / content_hash 必填。

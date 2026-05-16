@@ -19,7 +19,7 @@ import pytest
 import yaml
 
 
-_README = Path("README.md")
+_README = Path("docs/internal/product-contracts.md")
 _FIXTURE_DIR = Path("examples/custom-strategies")
 _FIXTURE_YAML = _FIXTURE_DIR / "user_concept_review.yaml"
 _FIXTURE_README = _FIXTURE_DIR / "README.md"

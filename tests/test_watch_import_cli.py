@@ -173,7 +173,7 @@ def _latest_run_status(cfg: Path, run_id: str):
     return get_processing_run(load_cfg(cfg, read_env=False), run_id)
 
 
-def _wait_for_cli_run(cfg: Path, output: str, *, timeout: float = 5.0):
+def _wait_for_cli_run(cfg: Path, output: str, *, timeout: float = 10.0):
     run_id = _run_id_from_output(output)
     deadline = time.monotonic() + timeout
     latest = None

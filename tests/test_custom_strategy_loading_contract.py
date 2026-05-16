@@ -533,8 +533,8 @@ def test_custom_strategy_doc_explains_loading_safety() -> None:
     - 不支持 shell strategy。
     """
 
-    p = Path("README.md")
-    assert p.exists(), "README.md 必须存在"
+    p = Path("docs/internal/product-contracts.md")
+    assert p.exists(), "product-contracts.md 必须存在"
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "explicit path",

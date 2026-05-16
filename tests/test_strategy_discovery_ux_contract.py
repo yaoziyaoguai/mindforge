@@ -298,7 +298,8 @@ def test_readme_or_docs_mentions_strategy_discovery(phrase: str) -> None:
     """
 
     candidates = [
-        Path("README.md"),
+        Path("README.zh-CN.md"),
+        Path("docs/internal/product-contracts.md"),
     ]
     haystack = "\n".join(p.read_text(encoding="utf-8") for p in candidates if p.exists())
     assert phrase in haystack, (

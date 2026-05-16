@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head><title>带脚本和样式的页面</title></head>
+<body>
+<h1>主标题</h1>
+<p>可见内容。</p>
+<script>alert('XSS'); /* 这段不应出现在输出中 */</script>
+<style>body { color: red; } /* 这段也不应出现 */</style>
+<p>脚本和样式后的内容。</p>
+</body>
+</html>

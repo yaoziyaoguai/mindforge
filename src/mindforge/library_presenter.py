@@ -97,8 +97,8 @@ def render_library_detail(console: Console, detail: LibraryCardDetail) -> None:
     for key, value in rows.items():
         console.print(f"{key:<20}: {value}", markup=False, soft_wrap=True)
     console.print(f"source_missing={'yes' if detail.card.source_missing else 'no'}", markup=False)
-    if detail.card.fake_provider_note:
-        console.print(detail.card.fake_provider_note, markup=False)
+    if detail.card.fallback_provider_note:
+        console.print(detail.card.fallback_provider_note, markup=False)
     if detail.body is not None:
         console.print("\n[bold]Card body[/bold]")
         console.print(detail.body, markup=False)

@@ -243,7 +243,7 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
 def test_completion_ledger_doc_exists_with_required_buckets():
     """ROADMAP_COMPLETION_LEDGER.md 必须存在并列出全部 5 个 status
     bucket。"""
-    p = Path(__file__).resolve().parents[1] / "docs" / "ROADMAP_COMPLETION_LEDGER.md"
+    p = Path(__file__).resolve().parents[1] / "docs" / "internal/ROADMAP_COMPLETION_LEDGER.md"
     assert p.exists(), "missing ROADMAP_COMPLETION_LEDGER.md"
     text = p.read_text(encoding="utf-8")
     for bucket in (

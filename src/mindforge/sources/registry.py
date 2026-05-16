@@ -68,7 +68,92 @@ def build_active_adapters(sources: SourcesConfig) -> dict[str, SourceAdapter]:
     return result
 
 
+# ---------------------------------------------------------------------------
+# v0.2 AdapterRegistry — source-layer dispatch boundary
+#
+# RFC_0001 §5.3：按优先级派发 adapter，不改变 processing / approval / wiki 语义。
+# 与 v0.1 ``build_active_adapters()`` 并存，互不干扰。
+# ---------------------------------------------------------------------------
+
+
+class AdapterRegistry:
+    """v0.2 SourceAdapter 注册表。
+
+    维护已注册的 v0.2 adapter，按注册顺序派发：
+    1. 逐个调用 ``adapter.can_handle(path)``
+    2. 返回第一个匹配的 adapter
+    3. 无匹配 → 返回 None
+
+    registry 只做 source-layer dispatch，不负责：
+    - load result 解释
+    - processing / approval / wiki
+    - dependency loading for future adapters
+    """
+
+    def __init__(self) -> None:
+        self._adapters: list = []  # type: ignore[type-arg] — 暂不绑定 SourceAdapter 泛型
+
+    def register(self, adapter) -> None:  # type: ignore[no-untyped-def]
+        """注册一个 SourceAdapter。
+
+        后注册的优先级低于先注册的（先注册先匹配）。
+        adapter 必须实现 can_handle / load / capabilities。
+        """
+        self._adapters.append(adapter)
+
+    def find_for_path(self, path: str):
+        """按注册顺序查找第一个能处理 path 的 adapter。
+
+        逐个调用 adapter.can_handle(path)，返回第一个返回 True 的。
+        找不到则返回 None——不抛异常作为正常 unsupported 行为。
+        """
+        for adapter in self._adapters:
+            if adapter.can_handle(path):
+                return adapter
+        return None
+
+    def find_for_type(self, source_type: str):
+        """按 source_type 查找 adapter（RFC_0001 §5.3）。"""
+        for adapter in self._adapters:
+            if adapter.source_type == source_type:
+                return adapter
+        return None
+
+    def list_adapters(self) -> tuple:
+        """返回已注册 adapter 的不可变只读视图。"""
+        return tuple(self._adapters)
+
+
+def create_default_registry() -> AdapterRegistry:
+    """创建默认 registry，注册已实现的 v0.2 adapter。
+
+    按 SDD §11 推荐实现顺序注册：
+    - PlainMarkdownAdapter（M1 baseline）
+    - TxtAdapter（M2）
+    - HtmlAdapter（M2）
+    - PdfAdapter（M3）
+    - DocxTextAdapter（M4）
+
+    不接入 CLI/import/watch 主链路。
+    """
+    from mindforge.sources.docx_adapter import DocxTextAdapter
+    from mindforge.sources.html_adapter import HtmlAdapter
+    from mindforge.sources.markdown_adapter import PlainMarkdownAdapter
+    from mindforge.sources.pdf_adapter import PdfTextAdapter
+    from mindforge.sources.txt import TxtAdapter
+
+    registry = AdapterRegistry()
+    registry.register(PlainMarkdownAdapter())
+    registry.register(TxtAdapter())
+    registry.register(HtmlAdapter())
+    registry.register(PdfTextAdapter())
+    registry.register(DocxTextAdapter())
+    return registry
+
+
 __all__ = [
     "AdapterRegistryError",
     "build_active_adapters",
+    "AdapterRegistry",
+    "create_default_registry",
 ]

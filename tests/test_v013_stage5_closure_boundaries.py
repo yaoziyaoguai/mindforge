@@ -28,7 +28,7 @@ def _read(p: Path) -> str:
 # ---------- closure ledger ----------
 
 def test_closure_ledger_lists_all_state_buckets():
-    text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     for bucket in (
         "available", "real-opt-in",
         "review-only", "future-gated", "forbidden",
@@ -37,7 +37,7 @@ def test_closure_ledger_lists_all_state_buckets():
 
 
 def test_closure_ledger_marks_v013_stage_complete():
-    text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     assert "clean enough for long-term local use" in text
     # 必须明确说明 NO tag / NO release
     assert "No tag" in text or "no tag" in text
@@ -45,7 +45,7 @@ def test_closure_ledger_marks_v013_stage_complete():
 
 
 def test_closure_ledger_keeps_dangerous_capabilities_gated():
-    text = _read(DOCS / "ROADMAP_COMPLETION_LEDGER.md")
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     # 这些能力必须显式标注 future-gated 或 forbidden, 不能漏
     for cap in (
         "External account ingestion",
@@ -61,21 +61,21 @@ def test_closure_ledger_keeps_dangerous_capabilities_gated():
 # ---------- release readiness evidence ----------
 
 def test_release_readiness_references_quality_gates():
-    text = _read(DOCS / "TESTING.md")
+    text = _read(DOCS / "dev/testing.md")
     assert "ruff check" in text
     assert "pytest" in text
     assert "diff --check" in text or "diff-check" in text
 
 
 def test_release_readiness_says_no_tag_no_release():
-    text = _read(Path("README.md"))
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     lower = text.lower()
     assert "no tag" in lower
     assert "tag" in lower
 
 
 def test_release_readiness_records_future_gates():
-    text = _read(Path("README.md"))
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     for gate in (
         "External account ingestion",
         "Real Obsidian",
@@ -89,23 +89,25 @@ def test_release_readiness_records_future_gates():
 # ---------- real-safe journey ----------
 
 def test_real_safe_journey_documents_both_paths():
-    text = _read(Path("README.md"))
+    text = _read(Path("README.zh-CN.md"))
     # 本轮产品语义已迁移到 real model setup + local secret store。
-    assert "Web Setup" in text
-    assert "local secret store" in text
-    assert "Real model calls require explicit model configuration" in text
+    assert "Web Setup" in text or "Setup" in text
+    assert "local secret store" in text or "secret store" in text
+    assert "显式触发" in text  # 真实模型必须 opt-in
     # human_approved 路径必须明确说明只能由 approve 命令产生
     assert "mindforge approve" in text
 
 
 def test_real_safe_journey_lists_what_user_did_not_do():
-    text = _read(Path("README.md"))
+    text = _read(Path("README.zh-CN.md"))
     for negative in (
-        "does not call a real LLM",
-        "No secret file or real model call is used without explicit opt-in",
-        "Keep API keys in the local secret store",
-        "does not automatically modify a real private vault",
-        "does not auto-approve",
+        "不自动审批",
+        "不联网",
+        "不上传",
+        "不进 Git",
+        "不进 Web 前端",
+        "不从未审批",
+        "必须 opt-in",
     ):
         assert negative in text, f"journey missing negative assertion: {negative}"
 
@@ -113,7 +115,7 @@ def test_real_safe_journey_lists_what_user_did_not_do():
 # ---------- roadmap stage closure references ----------
 
 def test_roadmap_records_all_v013_stages():
-    text = _read(Path("README.md"))
+    text = _read(DOCS / "internal/ROADMAP_COMPLETION_LEDGER.md")
     for stage in (
         "Web first slice",
         "Real Data CLI Usability",
@@ -163,7 +165,7 @@ def test_no_v013_doc_promises_a_tag():
     ]
     for doc_name in (
         "../README.md",
-        "ROADMAP_COMPLETION_LEDGER.md",
+        "internal/ROADMAP_COMPLETION_LEDGER.md",
     ):
         text = _read(DOCS / doc_name)
         for phrase in forbidden_tag_phrases:

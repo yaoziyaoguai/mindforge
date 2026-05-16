@@ -29,8 +29,7 @@ build/
 # Web frontend
 web/node_modules/
 web/tsconfig.tsbuildinfo
-!web/dist/
-!web/dist/**
+web/dist/
 
 # uv / pip-tools
 .uv-cache/

@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 DOCS = (
-    Path("README.md"),
+    Path("README.zh-CN.md"),
+    Path("docs/internal/product-contracts.md"),
 )
 
 REQUIRED_TOKENS = [

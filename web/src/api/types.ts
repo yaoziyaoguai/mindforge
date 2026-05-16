@@ -405,7 +405,7 @@ export interface LibraryCardResponse {
   approved_at?: string | null;
   updated_at?: string | null;
   rel_path: string;
-  fake_provider_note?: string | null;
+  fallback_provider_note?: string | null;
 }
 
 export interface LibraryStatsResponse {

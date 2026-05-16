@@ -111,5 +111,5 @@ mindforge doctor --config /tmp/mindforge-smoke/configs/mindforge.yaml
 | `mindforge: command not found` | Activate venv and run `pip install -e .`. |
 | Missing config | Run `mindforge init --interactive` or pass `--config`. |
 | No cards after processing | Check `mindforge runs show <run_id>`, model setup, source files, and `mindforge status`. |
-| PDF/docx dependency error | Install extras or disable those source types. |
+| DOCX / PDF optional dependency skip | `pytest.importorskip` design；install `python-docx` / `pypdf` to run：`pip install python-docx pypdf`；no code change needed |
 | Fixture vault writes runtime state | Use `--config` with `state.workdir` in `/tmp`, as the tests do. |

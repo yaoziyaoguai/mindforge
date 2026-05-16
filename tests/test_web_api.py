@@ -383,7 +383,7 @@ def test_web_workflow_library_and_source_visibility_return_card_content_not_sour
     assert detail["card"]["id"] == "draft-1"
     assert detail["card"]["strategy_version"] == "0.10.0"
     assert detail["card"]["schema_version"] == "1"
-    assert detail["card"]["fake_provider_note"]
+    assert detail["card"]["fallback_provider_note"]
     assert "safe draft body" in detail["body"].lower()
     assert "SOURCE_BODY_MUST_NOT_LEAK" not in combined
     assert "PROCESSED_BODY_MUST_NOT_LEAK" not in combined

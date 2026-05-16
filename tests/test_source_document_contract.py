@@ -79,10 +79,12 @@ def _minimal_kwargs(**overrides: object) -> dict[str, object]:
 
 
 def test_source_document_field_set_is_frozen() -> None:
-    """SourceDocument 的字段名必须严格等于 v0.9 契约规定的 14 个。
+    """SourceDocument 的字段名必须严格等于契约规定的 16 个。
+
+    v0.9 14 字段 + v0.2 2 新增字段（extraction_warnings + provenance_blocks）。
 
     若未来有人新增字段（无论是 ai_summary、approval_status 还是 card_id），
-    本测试会立刻 fail，强迫新增者走 ROADMAP v0.9 §A 的"契约变更"流程，
+    本测试会立刻 fail，强迫新增者走契约变更流程，
     而不是默默扩展数据形状。
     """
     expected = {
@@ -100,6 +102,9 @@ def test_source_document_field_set_is_frozen() -> None:
         "metadata",
         "content_hash",
         "adapter_name",
+        # v0.2 新增（RFC_0001 §5.2）—— extraction source-layer metadata
+        "extraction_warnings",
+        "provenance_blocks",
     }
     actual = {f.name for f in dataclasses.fields(SourceDocument)}
     assert actual == expected, (
