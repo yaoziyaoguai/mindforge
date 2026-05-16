@@ -53,6 +53,34 @@ mindforge watch add <path>
 
 注册 source 并启动后台处理。文件变化时自动重新处理。
 
+#### 监听频率
+
+`watch add` 默认注册为 **manual** 频率，不会自动扫描。如需定期自动扫描，通过 `--every` / `--frequency` 指定：
+
+```bash
+mindforge watch add <path> --every daily
+mindforge watch add <path> --frequency "every 6h"
+```
+
+| 频率 | 说明 |
+|------|------|
+| `manual` | 默认值，不自动扫描；手动运行 `mindforge watch scan` |
+| `hourly` / `every 1h` | 每 1 小时扫描 |
+| `every 6h` | 每 6 小时扫描 |
+| `every 12h` | 每 12 小时扫描 |
+| `daily` / `every 24h` | 每 24 小时扫描 |
+| `weekly` | 每 7 天扫描 |
+
+查看所有 watched source 的频率和下次扫描时间：
+
+```bash
+mindforge watch status
+```
+
+没有常驻 daemon。如需定期扫描，配合 cron / launchd / 外部调度定期运行 `mindforge watch scan`。
+
+频率管理主要通过 CLI。Web UI 暂不展示频率配置。
+
 ### import（一次性导入）
 
 ```bash

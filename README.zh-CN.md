@@ -99,6 +99,36 @@ mindforge import vault/00-Inbox/first-note.md
 
 source 放在 `vault/00-Inbox/` 下即可，无需预先创建 ManualNotes / WebClips / PDFs / Docs 等分类子目录。
 
+### Watch 频率（扫描周期）
+
+`watch add` 默认注册为 **manual** 频率，不会自动扫描。需要自动定期扫描时，通过 `--every` / `--frequency` 指定频率：
+
+```bash
+mindforge watch add <path> --every daily
+mindforge watch add <path> --frequency "every 6h"
+```
+
+可选频率（以 CLI 实际支持为准）：
+
+| 频率 | 说明 |
+|------|------|
+| `manual` | 默认值，不自动扫描；手动 `mindforge watch scan` |
+| `hourly` | 每 1 小时扫描 |
+| `daily` | 每 24 小时扫描 |
+| `weekly` | 每 7 天扫描 |
+| `every 1h` | 每 1 小时扫描 |
+| `every 6h` | 每 6 小时扫描 |
+| `every 12h` | 每 12 小时扫描 |
+| `every 24h` | 每 24 小时扫描 |
+
+查看当前 watched source 的频率和下次扫描时间：
+
+```bash
+mindforge watch status
+```
+
+频率管理主要通过 CLI。Web UI 暂不展示频率配置。
+
 ### 支持的 Source 格式
 
 | 格式 | 状态 | 说明 | 依赖 |

@@ -46,6 +46,36 @@ No code changes are needed — the adapters use lazy imports and skip gracefully
 
 ---
 
+## Watch Frequency
+
+By default, `watch add` registers sources with **manual** frequency — no automatic scanning. To enable periodic scanning, use `--every` / `--frequency`:
+
+```bash
+mindforge watch add <path> --every daily
+mindforge watch add <path> --frequency "every 6h"
+```
+
+| Frequency | Behavior |
+|-----------|----------|
+| `manual` | Default; no auto-scan; manual `mindforge watch scan` only |
+| `hourly` / `every 1h` | Every 1 hour |
+| `every 6h` | Every 6 hours |
+| `every 12h` | Every 12 hours |
+| `daily` / `every 24h` | Every 24 hours |
+| `weekly` | Every 7 days |
+
+Check current frequency and next scan time:
+
+```bash
+mindforge watch status
+```
+
+There is no persistent daemon. For periodic scanning, schedule `mindforge watch scan` via cron, launchd, or an external scheduler.
+
+Frequency management is CLI-based. The Web UI does not currently display frequency settings.
+
+---
+
 ## How Processing Works
 
 When you add a source via `mindforge watch add` or `mindforge import`:

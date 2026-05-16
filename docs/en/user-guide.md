@@ -76,6 +76,10 @@ Place sources under `vault/00-Inbox/` — no need to pre-create subdirectories.
 | PDF (`.pdf`) | Text-based supported |
 | Legacy `.doc` | Not supported |
 
+### Watch Frequency
+
+`watch add` defaults to **manual** frequency — no automatic scanning. Set to `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h` via `--every` / `--frequency`. Check frequency: `mindforge watch status`. See [Sources](sources.md) for details.
+
 ### Stopping Watch
 
 Use the Web **Sources** page. Stop watching does not delete source files.

@@ -52,6 +52,36 @@ printf '# First note\n\nTesting MindForge.\n' > vault/00-Inbox/first-note.md
 mindforge watch add vault/00-Inbox/first-note.md
 ```
 
+### Watch Frequency
+
+`watch add` defaults to **manual** frequency — no automatic scanning. To enable periodic scanning, use `--every` / `--frequency`:
+
+```bash
+mindforge watch add <path> --every daily
+mindforge watch add <path> --frequency "every 6h"
+```
+
+Supported frequencies (matching CLI support):
+
+| Frequency | Behavior |
+|-----------|----------|
+| `manual` | Default; no auto-scan; manual `mindforge watch scan` only |
+| `hourly` | Every 1 hour |
+| `daily` | Every 24 hours |
+| `weekly` | Every 7 days |
+| `every 1h` | Every 1 hour |
+| `every 6h` | Every 6 hours |
+| `every 12h` | Every 12 hours |
+| `every 24h` | Every 24 hours |
+
+Check current frequency and next scan time for all watched sources:
+
+```bash
+mindforge watch status
+```
+
+Frequency management is CLI-based. The Web UI does not currently display frequency settings.
+
 Review and approve drafts, then browse the Library, search with Recall, or generate a Wiki.
 
 ---

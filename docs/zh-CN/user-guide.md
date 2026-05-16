@@ -79,6 +79,10 @@ Source 放在 `vault/00-Inbox/` 下即可，无需预建子目录。
 | PDF (`.pdf`) | 文本型已支持 |
 | Legacy `.doc` | 不支持 |
 
+### 监听频率
+
+`watch add` 默认 **manual** 频率，不自动扫描。通过 `--every` / `--frequency` 设置为 `hourly` / `daily` / `weekly` / `every 1h` / `every 6h` / `every 12h` / `every 24h`。查看频率：`mindforge watch status`。详见 [Source 管理](sources.md)。
+
 ### 停止监听
 
 在 Web **Sources** 页面操作。Stop watching 不删除 source 文件。
