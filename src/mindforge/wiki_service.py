@@ -35,6 +35,8 @@ class WikiStatus:
     last_rebuilt_at: str | None = None
     approved_card_count: int = 0
     wiki_card_count: int = 0
+    is_stale: bool = False
+    new_approved_count: int = 0
 
 
 class WikiError(ValueError):
@@ -144,12 +146,15 @@ def get_wiki_status(cfg: MindForgeConfig) -> WikiStatus:
             except ValueError:
                 pass
 
+    new_approved = max(0, approved_count - wiki_cards)
     return WikiStatus(
         wiki_path=str(path),
         exists=True,
         last_rebuilt_at=last_rebuilt,
         approved_card_count=approved_count,
         wiki_card_count=wiki_cards,
+        is_stale=approved_count > wiki_cards,
+        new_approved_count=new_approved,
     )
 
 

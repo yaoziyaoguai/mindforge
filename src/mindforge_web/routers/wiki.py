@@ -28,6 +28,8 @@ def wiki_status(facade: WebFacade = Depends(get_facade)):
         "last_rebuilt_at": status.last_rebuilt_at,
         "approved_card_count": status.approved_card_count,
         "wiki_card_count": status.wiki_card_count,
+        "is_stale": status.is_stale,
+        "new_approved_count": status.new_approved_count,
         "model_ready": readiness.ready,
         "model_ready_label": readiness.label,
     }
