@@ -13,6 +13,8 @@ interface WikiStatusBarProps {
   lastRebuiltAt: string | null;
   wikiCardCount: number;
   approvedCardCount: number;
+  isStale: boolean;
+  newApprovedCount: number;
   modelReady: boolean;
   modelReadyLabel: string;
   busy: boolean;
@@ -24,6 +26,8 @@ export function WikiStatusBar({
   lastRebuiltAt,
   wikiCardCount,
   approvedCardCount,
+  isStale,
+  newApprovedCount,
   modelReady,
   modelReadyLabel,
   busy,
@@ -65,6 +69,13 @@ export function WikiStatusBar({
         <span className="text-muted">Knowledge cards: </span>
         <span className="text-ink">{approvedCardCount}</span>
       </div>
+
+      {/* Stale indicator */}
+      {isStale && (
+        <div className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
+          New approved knowledge is available ({newApprovedCount} new card{newApprovedCount !== 1 ? "s" : ""}). Rebuild Wiki to include it.
+        </div>
+      )}
 
       {/* Rebuild action (primary, LLM-first) */}
       <button

@@ -16,6 +16,36 @@ mindforge doctor
 
 ## 常见问题
 
+### source 提示 unsupported / 不支持
+
+**原因**：source 格式不在支持列表中。
+
+**对策**：确认格式（详见 [Source 管理](sources.md)）。PDF / DOCX 需要安装可选依赖：`pip install "mindforge[pdf,docx]"`。旧版 `.doc` 不支持，请转换为 `.docx` 或 PDF / TXT。
+
+### PDF 提示 scanned / no text
+
+**原因**：PDF 仅含扫描图片，没有文字层。
+
+**对策**：MindForge 不做 OCR。使用含文字层的 PDF，或先用 OCR 软件预处理扫描件后再导入。
+
+### DOCX 可选依赖缺失
+
+**原因**：`python-docx` 未安装。
+
+**对策**：安装可选依赖：`pip install "mindforge[docx]"` 或 `pip install python-docx`，然后重新 import。
+
+### PDF 可选依赖缺失
+
+**原因**：`pypdf` 未安装。
+
+**对策**：安装可选依赖：`pip install "mindforge[pdf]"` 或 `pip install pypdf`，然后重新 import。
+
+### Wiki 页面为空
+
+**原因**：还没有 `human_approved` 卡片。Wiki 只从已审批卡片生成。
+
+**对策**：处理 source → 审批 ai_draft（`mindforge approve <ref> --confirm`）→ 重建 Wiki（`mindforge wiki rebuild`）。
+
 ### 模型无法生成 draft
 
 **原因**：缺少 API key。

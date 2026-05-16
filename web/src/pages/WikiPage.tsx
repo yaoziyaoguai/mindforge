@@ -24,6 +24,8 @@ interface WikiStatus {
   last_rebuilt_at: string | null;
   approved_card_count: number;
   wiki_card_count: number;
+  is_stale: boolean;
+  new_approved_count: number;
   model_ready: boolean;
   model_ready_label: string;
 }
@@ -171,6 +173,8 @@ export function WikiPage() {
             lastRebuiltAt={status.last_rebuilt_at}
             wikiCardCount={status.wiki_card_count}
             approvedCardCount={status.approved_card_count}
+            isStale={status.is_stale}
+            newApprovedCount={status.new_approved_count}
             modelReady={status.model_ready}
             modelReadyLabel={status.model_ready_label}
             busy={busy}
@@ -206,6 +210,8 @@ export function WikiPage() {
           lastRebuiltAt={status.last_rebuilt_at}
           wikiCardCount={status.wiki_card_count}
           approvedCardCount={status.approved_card_count}
+          isStale={status.is_stale}
+          newApprovedCount={status.new_approved_count}
           modelReady={status.model_ready}
           modelReadyLabel={status.model_ready_label}
           busy={busy}

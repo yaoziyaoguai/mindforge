@@ -61,7 +61,8 @@ class LibraryLookupError:
 
 def build_library_inventory(cfg: MindForgeConfig, *, limit: int = 200) -> LibraryInventory:
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    cards = tuple(_library_card(cfg, card) for card in scan.cards[:limit])
+    approved = [card for card in scan.cards if card.status == "human_approved"]
+    cards = tuple(_library_card(cfg, card) for card in approved[:limit])
     return LibraryInventory(
         stats=_stats(cfg, tuple(scan.cards), scan_errors=scan.errors),
         cards=cards,

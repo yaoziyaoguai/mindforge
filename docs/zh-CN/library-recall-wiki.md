@@ -6,7 +6,7 @@
 
 ## Library
 
-浏览已审批的知识卡片：
+浏览已审批的知识卡片。**Library 只显示 `human_approved` 卡片**，不显示 `ai_draft`、`pending_review` 等未审批状态。审阅未审批卡片请使用 [Review](review.md)。
 
 ```bash
 mindforge library list           # 列出所有已审批卡片
@@ -70,4 +70,4 @@ Approved Cards ──→ Library (浏览)
                └──→ Wiki (LLM synthesis)
 ```
 
-Library 和 Recall 是实时查询，Wiki 需要手动 rebuild 才会更新。
+Library 和 Recall 是实时查询，Wiki 需要手动 rebuild 才会更新。当新审批的卡片数量超过 Wiki 已有卡片数时，Wiki 状态栏会显示过期提醒（"New approved knowledge is available"），提示用户重建 Wiki。
