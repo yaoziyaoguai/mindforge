@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-README = Path("README.md")
+README = Path("README.zh-CN.md")
 
 
 def test_privacy_contract_exists():

@@ -88,7 +88,7 @@ def test_root_help_recommends_web_setup_first():
 def test_readme_quickstart_promotes_web_setup_first():
     """README 快速开始 必须展示 GitHub 新用户可照跑的 Web 主路径。"""
 
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     anchor = "## 快速开始"
     assert anchor in text
     after = text.split(anchor, 1)[1]
@@ -116,7 +116,7 @@ def test_readme_quickstart_promotes_web_setup_first():
 
 
 def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() -> None:
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     collapsed = " ".join(text.split())
     assert "Developer Testing" in text
     assert "Test doubles replace model responses only inside tests" in text
@@ -128,7 +128,7 @@ def test_readme_marks_developer_testing_and_scan_process_as_non_primary_paths() 
 def test_readme_first_run_explains_vault_resolution_and_query_flag() -> None:
     """README first-run 路径以 workspace 为主概念，解释自动查找和 recall --query。"""
 
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
     first_run = text.split("### First-run", 1)[1].split("\n## ", 1)[0] if "### First-run" in text else quickstart
 

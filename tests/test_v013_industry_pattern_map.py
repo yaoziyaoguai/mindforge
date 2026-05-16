@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 DOCS = (
-    Path("README.md"),
+    Path("README.zh-CN.md"),
 )
 
 REQUIRED_TOKENS = [

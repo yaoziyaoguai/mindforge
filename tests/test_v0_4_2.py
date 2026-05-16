@@ -866,7 +866,7 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
 def test_readme_primary_path_keeps_safety_boundaries() -> None:
     """README-first 文档必须强调真实本地主路径和安全边界。"""
     root = Path(__file__).resolve().parent.parent
-    doc = root / "README.md"
+    doc = root / "README.zh-CN.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
     for required in [
@@ -883,7 +883,7 @@ def test_readme_primary_path_keeps_safety_boundaries() -> None:
 def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
     """README-first 文档不应宣称新大功能已实现。"""
     root = Path(__file__).resolve().parent.parent
-    doc = root / "README.md"
+    doc = root / "README.zh-CN.md"
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
     for boundary in (

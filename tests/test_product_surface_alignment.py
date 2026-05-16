@@ -173,8 +173,8 @@ def test_knowledge_card_strategy_can_run_with_injected_stub_llm() -> None:
 
 
 def test_readme_main_path_does_not_recommend_fake_or_internal_strategies() -> None:
-    text = Path("README.md").read_text(encoding="utf-8")
-    main, _, developer = text.partition("## 开发者")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    main, _, _ = text.partition("## 文档导航")
 
     for token in ("mindforge demo", "fake", "Cubox", "cubox", "dogfood", "active_profile", "profiles"):
         assert token not in main, f"{token!r} must not appear in the user-facing README path"
@@ -207,7 +207,7 @@ def test_example_config_routing_refs_valid_models() -> None:
 
 def test_readme_references_example_config() -> None:
     """README 以 workspace 为用户主概念；example config 仍存在于磁盘供 CI/部署。"""
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     # 磁盘上的 example config 是 CI/部署产物，仍然存在
     assert Path("configs/mindforge_example.yaml").is_file()
     # README 不再让用户把它当主概念——workspace 是用户唯一需要理解的概念
@@ -216,15 +216,15 @@ def test_readme_references_example_config() -> None:
 
 
 def test_llm_provider_doc_references_example_config() -> None:
-    """docs/LLM_PROVIDER_CONFIG.md 引用了 mindforge_example.yaml。"""
-    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    """docs/zh-CN/model-setup.md 引用了 mindforge_example.yaml。"""
+    text = Path("docs/zh-CN/model-setup.md").read_text(encoding="utf-8")
     assert "mindforge_example.yaml" in text
 
 
 def test_llm_provider_doc_hides_legacy_and_internal_paths() -> None:
     """LLM 配置文档也必须以 Web Setup + real model 为主路径。"""
 
-    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    text = Path("docs/zh-CN/model-setup.md").read_text(encoding="utf-8")
     for token in (
         "fake",
         "dogfood",
@@ -247,8 +247,8 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     新用户的第一入口，必须把本地配置、secret store、路径和 Wiki 手动边界说清楚。
     """
 
-    text = Path("README.md").read_text(encoding="utf-8")
-    main, _, developer = text.partition("## 开发者")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    main, _, _ = text.partition("## 文档导航")
 
     assert "configs/mindforge.yaml" in text
     assert "本地 runtime config" in text
@@ -273,7 +273,7 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     for token in ("active_profile", "profiles", "fake_fast", "fake_strong", "mindforge demo", "Cubox", "dogfood"):
         assert token not in main, f"{token!r} must not appear in the user-facing README path"
 
-    assert developer  # legacy/dev notes may still exist after the developer boundary.
+    assert _  # reference section boundary exists.
 
 
 def test_cli_primary_help_hides_internal_demo_cubox_env_profile_surfaces() -> None:
@@ -525,11 +525,11 @@ def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
 def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
     """README Quick Start 以 workspace 为用户主概念，说明 init 后自动记住 workspace。"""
 
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
 
     assert "mindforge web" in quickstart
-    assert "首次运行" in quickstart
+    assert "首次运行" in quickstart or "查看 first-run" in quickstart
     assert "workspace" in quickstart
     assert "自动记住" in quickstart
     assert "无需关心内部 config 文件路径" in quickstart
@@ -540,7 +540,7 @@ def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
 def test_readme_quickstart_uses_async_cli_main_path_and_hides_legacy_terms() -> None:
     """Quick Start 必须从 clean clone 到 async processing，而不是 Web-only 或旧同步路径。"""
 
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
 
     for token in (
@@ -690,11 +690,11 @@ def test_commands_map_shows_wiki_rebuild_as_llm_first_not_deterministic() -> Non
 
 
 def test_llm_provider_doc_yaml_example_uses_llm_mode_not_deterministic() -> None:
-    """docs/LLM_PROVIDER_CONFIG.md 的 YAML 示例必须推荐 mode: llm（非 deterministic）。
+    """docs/zh-CN/model-setup.md 的 YAML 示例必须推荐 mode: llm（非 deterministic）。
 
     LLM-first 产品承诺：普通用户看到的配置示例应该以 LLM synthesis 为默认路径。
     """
-    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    text = Path("docs/zh-CN/model-setup.md").read_text(encoding="utf-8")
 
     # YAML 示例中 wiki.mode 推荐 llm
     assert "mode: llm" in text, "LLM provider doc 应包含 mode: llm 注释说明"
@@ -711,10 +711,10 @@ def test_llm_provider_doc_yaml_example_uses_llm_mode_not_deterministic() -> None
 def test_llm_provider_doc_deterministic_only_in_troubleshooting_context() -> None:
     """deterministic 只在 Troubleshooting/回退上下文中出现，不作为并列选项。
 
-    验证：docs/LLM_PROVIDER_CONFIG.md 中所有 deterministic 出现位置均
+    验证：docs/zh-CN/model-setup.md 中所有 deterministic 出现位置均
     在回退说明或 Troubleshooting 上下文中，而非 YAML 配置示例或推荐路径。
     """
-    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    text = Path("docs/zh-CN/model-setup.md").read_text(encoding="utf-8")
 
     lines = text.split("\n")
     for i, line in enumerate(lines):
@@ -739,7 +739,7 @@ def test_llm_provider_doc_auto_rebuild_explains_llm_safety() -> None:
     不应暗示只运行 deterministic rebuild。应明确说明使用 wiki.mode 指定的方式，
     LLM synthesis 需要已配置模型和 API key。
     """
-    text = Path("docs/LLM_PROVIDER_CONFIG.md").read_text(encoding="utf-8")
+    text = Path("docs/zh-CN/model-setup.md").read_text(encoding="utf-8")
 
     assert "auto_rebuild_on_approve" in text
 
@@ -761,7 +761,7 @@ def test_readme_wiki_section_does_not_expose_deterministic_as_primary() -> None:
 
     Wiki 是 LLM-first synthesis；deterministic 仅在 Advanced/Troubleshooting 中出现。
     """
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
 
     # 找到 Wiki 相关内容
     wiki_start = text.find("Wiki")
@@ -964,7 +964,7 @@ def test_wiki_rebuild_requires_model_setup(
 
 def test_llm_first_readme_wiki_rebuild_not_deterministic() -> None:
     """README 中 wiki rebuild 命令描述不应暗示 deterministic 为主路径。"""
-    text = Path("README.md").read_text(encoding="utf-8")
+    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
 
     # 找到 wiki rebuild 相关上下文
     lines = text.split("\n")

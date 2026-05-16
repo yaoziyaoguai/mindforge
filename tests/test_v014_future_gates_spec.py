@@ -14,7 +14,10 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "mindforge"
 
 
 def _read(name: str) -> str:
-    p = ROOT / "README.md" if name == "README.md" else DOCS / name
+    if name in ("README.md", "README.zh-CN.md"):
+        p = ROOT / name
+    else:
+        p = DOCS / name
     assert p.exists(), f"missing required doc: {p}"
     return p.read_text(encoding="utf-8")
 
@@ -22,56 +25,59 @@ def _read(name: str) -> str:
 # ---------- v0.14 future gate spec ----------
 
 def test_roadmap_exists_with_all_future_gates():
-    text = _read("README.md")
+    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
     for gate in (
-        "G1 External account ingestion",
-        "G2 Real Obsidian formal-note write",
-        "G3 Approval UX",
-        "G4 Custom executable strategy runtime",
-        "G5 RAG / embedding / semantic merge",
-        "G6 Public release / git tag",
+        "External account ingestion",
+        "Real Obsidian formal-note write",
+        "Approval UX",
+        "Custom executable strategy runtime",
+        "RAG / embedding / semantic merge",
+        "Public release",
     ):
         assert gate in text, f"roadmap missing: {gate}"
 
 
 def test_future_gates_keep_human_approved_invariant():
-    text = _read("ROADMAP_COMPLETION_LEDGER.md")
+    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
     assert "only explicit human approval" in text
-    assert "timer" in _read("README.md").lower() or "timer" in text.lower()
+    assert "timer" in _read("README.zh-CN.md").lower() or "timer" in text.lower()
     assert "similarity" in text.lower()
 
 
 def test_future_gates_release_section_forbids_automation():
-    text = _read("ROADMAP_COMPLETION_LEDGER.md")
+    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
     assert "no automation may create a tag" in text.lower()
 
 
 # ---------- evidence cookbook ----------
 
 def test_usage_and_testing_list_required_evidence_sections():
-    text = _read("README.md") + "\n" + _read("TESTING.md")
+    text = _read("README.zh-CN.md") + "\n" + _read("dev/testing.md")
     for section in (
         "First Status Commands",
         "Local workflow safety notes",
-        "Approval",
+        "审批",
         "Standard Quality Gate",
     ):
         assert section in text, f"canonical docs missing section: {section}"
 
 
 def test_evidence_cookbook_documents_what_it_does_not_do():
-    text = _read("README.md")
+    text = _read("README.zh-CN.md")
     for negative in (
-        "Keep API keys in the local secret store",
-        "No secret file or real model call is used without explicit opt-in",
-        "does not automatically modify a real private vault",
-        "does not auto-approve",
+        "不自动审批",
+        "不联网",
+        "不上传",
+        "不进 Git",
+        "不进 Web 前端",
+        "不从未审批",
+        "必须 opt-in",
     ):
-        assert negative in text, f"README.md missing negative: {negative}"
+        assert negative in text, f"README.zh-CN.md missing negative: {negative}"
 
 
 def test_evidence_cookbook_does_not_teach_forbidden_actions():
-    text = _read("README.md") + "\n" + _read("TESTING.md")
+    text = _read("README.zh-CN.md") + "\n" + _read("dev/testing.md")
     # 反例: cookbook 不能给出实际的 cat .env / auto-approve 命令行;
     # 仅扫描 fenced code 块, 排除 "Does not / ❌" 这类负向描述。
     in_code = False
