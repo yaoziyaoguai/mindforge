@@ -117,7 +117,7 @@ def test_capability_matrix_section_consistency():
     Roadmap / Usage 必须保持关闭状态语义 (no real-by-default,
     no auto-approval, no real vault writes, no Cubox real ingestion);
     """
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("docs/internal/product-contracts.md").read_text(encoding="utf-8")
     assert "Real LLM enabled by default" in text
     assert "External account ingestion" in text
     assert "Hidden automatic approval" in text

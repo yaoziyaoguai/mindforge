@@ -76,10 +76,12 @@ Suitable for non-sensitive material at small scale. Not recommended for private/
 
 | Document | Description |
 |----------|-------------|
-| [README.zh-CN.md](README.zh-CN.md) | 中文入口 |
-| [Getting Started](docs/zh-CN/getting-started.md) | Detailed setup guide (Chinese) |
-| [User Guide](docs/zh-CN/user-guide.md) | Full feature documentation (Chinese) |
-| [Model Setup](docs/zh-CN/model-setup.md) | LLM provider configuration (Chinese) |
+| [README.zh-CN.md](README.zh-CN.md) | 中文入口 (Chinese entry) |
+| [Getting Started (CN)](docs/zh-CN/getting-started.md) | 中文快速入门 |
+| [User Guide (CN)](docs/zh-CN/user-guide.md) | 中文用户指南 |
+| [Getting Started (EN)](docs/en/getting-started.md) | English getting started |
+| [User Guide (EN)](docs/en/user-guide.md) | English user guide |
+| [Model Setup](docs/zh-CN/model-setup.md) | LLM provider configuration |
 | [Release Notes](docs/RELEASE_NOTES.md) | First release notes |
 | [Developer Docs](docs/dev/) | Architecture, testing, contributing |
 | [Design Docs](docs/design/) | RFCs, SDDs, roadmap |

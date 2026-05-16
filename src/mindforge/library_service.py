@@ -23,7 +23,7 @@ class LibraryCard:
     source_missing: bool
     source_lookup_path: Path | None
     status_explanation: str
-    fake_provider_note: str | None
+    fallback_provider_note: str | None
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,7 @@ def _library_card(cfg: MindForgeConfig, card: CardSummary) -> LibraryCard:
         source_missing=source_missing,
         source_lookup_path=lookup,
         status_explanation=_status_explanation(card.status),
-        fake_provider_note=_fake_note(card),
+        fallback_provider_note=_fallback_note(card),
     )
 
 
@@ -178,7 +178,7 @@ def _provider_label(card: CardSummary) -> str:
     return "unknown"
 
 
-def _fake_note(card: CardSummary) -> str | None:
+def _fallback_note(card: CardSummary) -> str | None:
     label = f"{card.profile or ''} {card.provider or ''}".lower()
     if "fake" in label:
         return "offline LLM test double；不代表真实 provider 或真实卡片质量。"

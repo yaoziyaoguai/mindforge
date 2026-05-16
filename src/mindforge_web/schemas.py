@@ -470,7 +470,7 @@ class LibraryCardResponse(BaseModel):
     approved_at: str | None = None
     updated_at: str | None = None
     rel_path: str
-    fake_provider_note: str | None = None
+    fallback_provider_note: str | None = None
 
 
 class LibraryStatsResponse(BaseModel):

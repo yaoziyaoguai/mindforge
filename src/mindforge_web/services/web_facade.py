@@ -642,7 +642,7 @@ def _library_card_response(card) -> LibraryCardResponse:
         approved_at=None,
         updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
         rel_path=summary.rel_path,
-        fake_provider_note=card.fake_provider_note,
+        fallback_provider_note=card.fallback_provider_note,
     )
 
 

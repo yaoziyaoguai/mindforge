@@ -11,8 +11,8 @@
 ## How to start M1
 
 1. Read this document fully.
-2. Read `docs/rfc/RFC_0001_SOURCE_ADAPTER_V2.md` — especially §5.2 (SourceDocument v2) and §5.4 (AdapterResult).
-3. Read `docs/sdd/SDD_SOURCE_ADAPTER_V2.md` — especially §11 (Implementation Phases).
+2. Read `docs/design/rfc/RFC_0001_SOURCE_ADAPTER_V2.md` — especially §5.2 (SourceDocument v2) and §5.4 (AdapterResult).
+3. Read `docs/design/sdd/SDD_SOURCE_ADAPTER_V2.md` — especially §11 (Implementation Phases).
 4. **First action**: Write characterization tests for `PlainMarkdownAdapter` (SDD §11, Phase P1).
    - `tests/test_source_adapter_v2_contract.py` — contract skeleton
    - `tests/test_markdown_adapter_characterization.py` — capture v0.1 behavior baseline

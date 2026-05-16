@@ -422,7 +422,7 @@ def test_custom_strategy_doc_explains_discovery_ux() -> None:
     - 默认不调真实 LLM。
     """
 
-    p = Path("README.zh-CN.md")
+    p = Path("docs/internal/product-contracts.md")
     assert p.exists()
     text = p.read_text(encoding="utf-8").lower()
     for token in (

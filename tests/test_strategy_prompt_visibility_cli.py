@@ -129,7 +129,7 @@ def test_strategies_list_hides_internal_by_default_and_can_include_it() -> None:
 
 
 def test_readme_documents_card_provenance_and_prompt_visibility() -> None:
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("docs/internal/product-contracts.md").read_text(encoding="utf-8")
 
     for token in (
         "mindforge strategies show knowledge_card",

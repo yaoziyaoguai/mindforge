@@ -309,7 +309,7 @@ def test_readme_explains_strategy_lifecycle_status() -> None:
     没有说明三态。
     """
 
-    p = Path("README.zh-CN.md")
+    p = Path("docs/internal/product-contracts.md")
     assert p.exists()
     text = p.read_text(encoding="utf-8").lower()
     # 三个 status 字面量都应在 README 出现，且至少其中一处应靠近"strategy"

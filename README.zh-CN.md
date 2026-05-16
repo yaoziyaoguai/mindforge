@@ -202,7 +202,7 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 tr
 | API key 不进 Web 前端 | Secret store 只在后端 runtime，API 只返回 masked 值 |
 | 不自动审批 | 所有 approve 路径必须显式确认 |
 | Source 文件保护 | Stop watching + Move to Trash 都不动 source 文件 |
-| Wiki 不从 raw source 生成 | 未审核 `ai_draft` 不进入 Wiki；内容必须先显式 approve 成 `human_approved` |
+| Wiki 不从 raw source 生成 | 不从未审批内容生成 Wiki；未审核 `ai_draft` 不进入 Wiki；内容必须先显式 approve 成 `human_approved` |
 | 真实模型必须显式配置 | 配置模型 + API key + 显式触发处理或 Wiki rebuild |
 
 ---
@@ -266,15 +266,18 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 tr
 
 ---
 
-## 安全契约 / Safety Contracts
+## 安全契约
 
-MindForge does not call a real LLM without explicit opt-in, does not automatically modify a real private vault, and does not auto-approve. No automatic approve. Hidden automatic approval: No. Human decision gate: every approve requires explicit confirmation. Real ≠ Approved: AI drafts are never auto-promoted. Local-first privacy contract: single-user, no telemetry, no upload. No telemetry upload. No default real LLM path. Human Decision Gate Map: ai_draft → explicit human approve → human_approved. Real LLM enabled by default: No; real model calls require Web Setup + API key + explicit processing action.
+核心安全边界的完整声明见 [Product Contracts](docs/internal/product-contracts.md)。摘要：
 
-Custom executable strategy runtime is future-gated. No formal Obsidian notes are written. No Obsidian plugin. External account ingestion is future-gated. Real Obsidian formal-note write is future-gated. No tag, no force push, no public release without separate named release authorization. Keep API keys in the local secret store managed by Web Setup. No secret file or real model call is used without explicit opt-in.
-
-Preview packet is review-only, not ai_draft, not `human_approved`; preview to future implementation requires reviewed built-in implementation path and explicit approval. No arbitrary python, no shell. Custom strategy is declarative preview only. Proposal artifacts are review-only: preview packets, readiness checks, real smoke. Deferred gates use sample folder, no-persist, dry-run, diff preview, backup. A real provider is real provider opt-in, never implicit. Test doubles replace model responses only inside tests — fixtures for CI, not product providers. No embedding / no vector DB; current retrieval is BM25. Every approve requires explicit approval. SourceAdapter layer normalizes diverse formats into a unified pipeline. Use `mindforge strategies list` to discover strategies; `knowledge_card` is the default strategy. `strategy.active` chooses extraction strategy. Strategy lifecycle statuses: implemented, preview, planned. The default strategy is status='implemented'. Use `mindforge strategies show knowledge_card` to inspect it. Use `mindforge prompts list` to browse prompts, `mindforge prompts show triage@v1` to read one. Developer Testing section is for tests, CI fixtures, and compatibility evidence — not the recommended first-run path for normal users. Test doubles replace model responses only inside tests; they are not product providers or recommended extraction strategies. Custom strategy loading uses `explicit path` only: `--custom-path`. Loading is not execution, discovery is not execution, preview is not implementation. Cards record strategy/prompt/source/provider provenance, including source content hash. No implicit scanning of home folders or private vaults. Validation error output is for reading a definition, not for executing it. Advanced / Troubleshooting may still mention scan/process for diagnostics.
-
-Obsidian staged workflow: staged export → diff preview → backup → explicit confirmation. No formal Obsidian note writes. Obsidian 边界声明：不做 Obsidian plugin，不写正式 Obsidian note。不从未审批内容生成 Wiki。必须 opt-in 才能使用真实模型。适合 non-sensitive 资料使用。No RAG / embedding / no vector DB。当前检索是 BM25 词法匹配。已支持 RAG / embedding 尚在 future-gated 阶段。Approval UX polish is future-gated。Obsidian staged workflow 使用 manifest 和 include/exclude patterns。
+- AI 草稿绝不自动提升为正式知识。每条审批都要求显式确认。
+- 真实模型调用必须 opt-in：配置模型 + API key + 显式触发处理。
+- API key 只存 local secret store，不进 Git、不进 YAML、不进前端。
+- 不做 Obsidian plugin，不写正式 Obsidian note。
+- 不做 RAG / embedding / 向量数据库，当前检索是 BM25 词法匹配。
+- Custom strategy 当前是 declarative preview only，不可执行。
+- 提案产物（preview packet 等）仅供审阅，不产生 ai_draft 或 human_approved。
+- 测试替身只在 CI fixtures 中使用，不是产品 provider。
 
 ---
 
@@ -285,7 +288,15 @@ Obsidian staged workflow: staged export → diff preview → backup → explicit
 | [快速入门](docs/zh-CN/getting-started.md) | 详细安装与初始化指南 |
 | [用户指南](docs/zh-CN/user-guide.md) | 完整功能说明 |
 | [模型配置](docs/zh-CN/model-setup.md) | LLM provider 配置详解 |
+| [Source 管理](docs/zh-CN/sources.md) | 添加和管理知识来源 |
+| [审阅与审批](docs/zh-CN/review-and-approval.md) | AI 草稿审阅与审批流程 |
+| [Library / Recall / Wiki](docs/zh-CN/library-recall-wiki.md) | 知识浏览、检索与综合 |
+| [Web Wiki](docs/zh-CN/web-wiki.md) | Web Wiki 页面使用指南 |
+| [配置参考](docs/zh-CN/configuration.md) | 完整配置参考 |
+| [Troubleshooting](docs/zh-CN/troubleshooting.md) | 常见问题诊断 |
+| [FAQ](docs/zh-CN/faq.md) | 常见问题解答 |
 | [发布说明](docs/RELEASE_NOTES.md) | 第一版发布记录 |
+| [English Docs](docs/en/) | English documentation |
 | [开发者文档](docs/dev/) | 架构、测试、贡献指南 |
 | [设计文档](docs/design/) | RFC、SDD、路线图 |
 

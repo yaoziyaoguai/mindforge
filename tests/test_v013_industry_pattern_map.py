@@ -13,6 +13,7 @@ import pytest
 
 DOCS = (
     Path("README.zh-CN.md"),
+    Path("docs/internal/product-contracts.md"),
 )
 
 REQUIRED_TOKENS = [
