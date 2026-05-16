@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, Save, Trash2, X } from "lucide-react";
+import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
+import { copySourcePath, revealSourcePath } from "../api/sources";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
 import { friendlyStatus, truncateMiddle } from "../lib/utils";
+
+const sourceTypeLabels: Record<string, string> = {
+  plain_markdown: "Markdown",
+  txt: "Text",
+  html: "HTML",
+  pdf: "PDF",
+  docx: "Word",
+};
 
 type Detail = DraftDetailResponse | LibraryCardDetailResponse;
 
@@ -22,6 +31,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pathActionMsg, setPathActionMsg] = useState<string | null>(null);
+  const [pathActionErr, setPathActionErr] = useState<string | null>(null);
 
   useEffect(() => {
     setDraftBody(body);
@@ -46,6 +57,35 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
     }
   }
 
+  async function copyPath() {
+    if (!card.source_path) return;
+    setPathActionMsg(null);
+    setPathActionErr(null);
+    if (!navigator.clipboard?.writeText) {
+      setPathActionErr("Clipboard is not available in this browser.");
+      return;
+    }
+    try {
+      const result = await copySourcePath(card.source_path);
+      await navigator.clipboard.writeText(result.path);
+      setPathActionMsg("Copied source path.");
+    } catch (err) {
+      setPathActionErr(err instanceof Error ? err.message : "Copy failed");
+    }
+  }
+
+  async function openInFinder() {
+    if (!card.source_path) return;
+    setPathActionMsg(null);
+    setPathActionErr(null);
+    try {
+      const result = await revealSourcePath(card.source_path);
+      setPathActionMsg(result.message);
+    } catch (err) {
+      setPathActionErr(err instanceof Error ? err.message : "Reveal failed");
+    }
+  }
+
   // 中文学习型说明：主阅读区只展示知识和用户动作；技术标识与生成记录
   // 保留在 Technical details，避免把本地知识工作台变成调试面板。
   return (
@@ -55,10 +95,14 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
           <div>
             <div className="text-sm text-muted">{mode === "draft" ? "Draft knowledge card" : "Knowledge card"}</div>
             <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "Untitled knowledge card"}</h2>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-              <span className={card.status === "human_approved" ? "text-safe" : "text-warn"}>{friendlyStatus(card.status)}</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>{friendlyStatus(card.status)}</span>
+              {sourceTypeBadge(card) && (
+                <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card)}</span>
+              )}
               {card.track ? <span>track:{card.track}</span> : null}
               {card.strategy_label ? <span>{card.strategy_label}</span> : null}
+              {mode === "library" && "approved_at" in card && card.approved_at ? <span>approved:{card.approved_at.slice(0, 10)}</span> : null}
               {sourceLabel(card) ? <span>source:{sourceLabel(card)}</span> : null}
             </div>
           </div>
@@ -122,11 +166,35 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
       </section>
 
       <section className="border-t border-line p-5">
-        <h3 className="text-sm font-semibold text-ink">Source & history</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-ink">Source & history</h3>
+          {card.source_path ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-muted/10"
+                onClick={copyPath}
+                title="Copy source absolute path to clipboard"
+              >
+                <Clipboard size={12} /> Copy path
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-muted/10"
+                onClick={openInFinder}
+                title="Reveal source file in Finder"
+              >
+                <FolderOpen size={12} /> Reveal in Finder
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {pathActionMsg ? <p className="mt-2 text-xs text-safe">{pathActionMsg}</p> : null}
+        {pathActionErr ? <p className="mt-2 text-xs text-danger">{pathActionErr}</p> : null}
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <Meta label="Source" value={card.source_title ?? card.source_path} />
           <Meta label="Source path" value={card.source_path} />
-          <Meta label="Archived source path" value={card.source_archive_path} />
+          <Meta label="Archived source path" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
           <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
         </dl>
       </section>
@@ -193,4 +261,9 @@ function Meta({ label, value }: { label: string; value?: string | null }) {
 
 function sourceLabel(card: Pick<LibraryCardResponse, "source_title" | "source_path">) {
   return card.source_title ?? card.source_path ?? null;
+}
+
+function sourceTypeBadge(card: Pick<LibraryCardResponse, "source_type">) {
+  if (!card.source_type) return null;
+  return sourceTypeLabels[card.source_type] ?? card.source_type;
 }
