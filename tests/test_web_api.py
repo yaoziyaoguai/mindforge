@@ -1707,6 +1707,76 @@ def test_web_workspace_can_read_and_save_approved_card_and_refresh_recall(
     assert "HUMAN_NOTE_MUST_NOT_BE_RECALLABLE" not in recall["hits"][0]["why_this_matched"]
 
 
+def test_library_card_detail_exposes_local_graph_and_related_cards(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Card detail 必须有用户可见的 Relationship Preview 数据。
+
+    中文学习型说明：M6 不能停在 backend graph engine；Web detail API 要返回
+    local_graph / related_cards，前端才能用列表 fallback 展示关系并导航。这里
+    只构造 synthetic approved cards，不读取真实 vault 或 source 正文。
+    """
+
+    client, cards = _client(tmp_path, monkeypatch)
+    _write_approved(cards)
+    neighbor = cards / "neighbor.md"
+    neighbor.write_text(
+        """---
+id: approved-neighbor
+title: Neighbor Card
+status: human_approved
+track: product
+tags:
+  - library
+source_type: manual_note
+source_id: src_approved_1
+source_path: 00-Inbox/_processed/ManualNotes/neighbor.md
+source_title: Approved source
+value_score: 7
+run_id: run-approved
+---
+
+## AI Summary
+
+Neighbor summary.
+""",
+        encoding="utf-8",
+    )
+    draft_neighbor = cards / "draft-neighbor.md"
+    draft_neighbor.write_text(
+        """---
+id: draft-neighbor
+title: Draft Neighbor
+status: ai_draft
+tags:
+  - library
+source_id: src_approved_1
+---
+
+## AI Summary
+
+Draft should not appear in library relationships.
+""",
+        encoding="utf-8",
+    )
+
+    detail = client.get("/api/library/card", params={"ref": "approved-1"}).json()
+
+    graph = detail["local_graph"]
+    graph_card_ids = {node["id"] for node in graph["nodes"] if node["type"] == "card"}
+    related_ids = {item["card"]["id"] for item in detail["related_cards"]}
+    reason_labels = {reason["label"] for item in detail["related_cards"] for reason in item["reasons"]}
+
+    assert graph["center_id"] == "approved-1"
+    assert "approved-neighbor" in graph_card_ids
+    assert "draft-neighbor" not in graph_card_ids
+    assert "approved-neighbor" in related_ids
+    assert "draft-neighbor" not in related_ids
+    assert "Same source" in reason_labels
+    assert all(node["href"].startswith("/library?card=") for node in graph["nodes"] if node["type"] == "card")
+
+
 def test_web_reject_and_imports_are_honest_unavailable(tmp_path: Path, monkeypatch) -> None:
     client, cards = _client(tmp_path, monkeypatch)
     _write_draft(cards)
@@ -3060,6 +3130,47 @@ def test_clean_clone_editable_config_200(tmp_path: Path, monkeypatch) -> None:
     assert data["llm"]["routing"] == {}
     assert data["wiki"]["mode"] == "deterministic"
     assert data["wiki"]["model"] is None
+
+
+def test_clean_clone_quality_api_uses_nested_vault_config(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：quality API 必须使用 ``cfg.vault.root/cards_dir``。
+
+    中文学习型说明：clean clone 加载的是 MindForgeConfig 的真实嵌套结构；
+    Web facade 不能引用旧的 ``cfg.vault_root`` / ``cfg.cards_dir_rel`` 影子字段，
+    否则真实 API 会从业务 200 退化成 AttributeError 500。
+    """
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    cards = vault / "20-Knowledge-Cards"
+    _write_approved_card(cards, name="clean-quality.md")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+
+    resp = client.get("/api/quality/cards/approved-web-1")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["card_id"] == "approved-web-1"
+
+
+def test_clean_clone_source_location_api_uses_nested_vault_config(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：source location API 不能依赖不存在的旧路径字段。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    cards = vault / "20-Knowledge-Cards"
+    _write_approved_card(cards, name="clean-location.md")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+
+    resp = client.get("/api/provenance/cards/approved-web-1/location")
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["source_type"] == "manual_note"
+    assert data["display"]
 
 
 def test_clean_clone_save_first_model_default_model_none(tmp_path: Path, monkeypatch) -> None:

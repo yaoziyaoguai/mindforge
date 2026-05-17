@@ -9,6 +9,7 @@
 import { renderMarkdown } from "../../lib/wiki-renderer";
 import type { WikiSectionView } from "../../api/wiki";
 import { WikiReferencePanel } from "./WikiReferencePanel";
+import { WikiSectionRelationshipPreview } from "./WikiSectionRelationshipPreview";
 
 interface WikiSectionProps {
   section: WikiSectionView;
@@ -23,10 +24,13 @@ export function WikiSection({ section }: WikiSectionProps) {
         dangerouslySetInnerHTML={{ __html: renderMarkdown(section.body) }}
       />
       {section.card_refs.length > 0 && (
-        <WikiReferencePanel
-          refs={section.card_refs}
-          title="Knowledge sources"
-        />
+        <>
+          <WikiSectionRelationshipPreview sectionTitle={section.title} refs={section.card_refs} />
+          <WikiReferencePanel
+            refs={section.card_refs}
+            title="Knowledge sources"
+          />
+        </>
       )}
     </section>
   );

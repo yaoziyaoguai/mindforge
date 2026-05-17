@@ -1,6 +1,7 @@
 """M3 Related Cards computation — SDD §7, TDD §5。
 
-确定性关系发现：基于 source_id, tags, wiki_sections 的字段匹配。
+确定性关系发现：基于 source_id, tags, wiki_sections, run_id,
+source_location_index 的字段匹配。
 不做 semantic similarity，不引入 embedding，全部 in-memory。
 """
 
@@ -65,6 +66,8 @@ def compute_related_cards(
     source_index: dict[str, list[str]] = defaultdict(list)
     tag_index: dict[str, list[str]] = defaultdict(list)
     section_index: dict[str, list[str]] = defaultdict(list)
+    batch_index: dict[str, list[str]] = defaultdict(list)
+    location_index: dict[tuple[str, int], list[str]] = defaultdict(list)
 
     for c in all_cards:
         cid = str(c["id"])
@@ -79,11 +82,19 @@ def compute_related_cards(
             tag_index[str(tag)].append(cid)
         for sec in (c.get("wiki_sections") or []):
             section_index[str(sec)].append(cid)
+        batch_id = c.get("run_id") or c.get("review_batch")
+        if batch_id:
+            batch_index[str(batch_id)].append(cid)
+        source_location_index = _int_or_none(c.get("source_location_index"))
+        if sid and source_location_index is not None:
+            location_index[(str(sid), source_location_index)].append(cid)
 
     edges: list[RelatedCardEdge] = []
     center_src = center.get("source_id")
     center_tags = set(center.get("tags") or [])
     center_sections = set(center.get("wiki_sections") or [])
+    center_batch = center.get("run_id") or center.get("review_batch")
+    center_location_index = _int_or_none(center.get("source_location_index"))
 
     # same_source
     if center_src:
@@ -124,6 +135,32 @@ def compute_related_cards(
                     strength=_STRENGTH[RelationReason.SAME_WIKI_SECTION],
                 ))
 
+    # same_review_batch
+    if center_batch:
+        for target in batch_index.get(str(center_batch), []):
+            edges.append(RelatedCardEdge(
+                source_card_id=card_id,
+                target_card_id=target,
+                reason=RelationReason.SAME_REVIEW_BATCH,
+                reason_detail=f"same review batch: {center_batch}",
+                strength=_STRENGTH[RelationReason.SAME_REVIEW_BATCH],
+            ))
+
+    # source_location_neighbor
+    if center_src and center_location_index is not None:
+        seen_location_targets: set[str] = set()
+        for nearby in (center_location_index - 1, center_location_index + 1):
+            for target in location_index.get((str(center_src), nearby), []):
+                if target not in seen_location_targets:
+                    seen_location_targets.add(target)
+                    edges.append(RelatedCardEdge(
+                        source_card_id=card_id,
+                        target_card_id=target,
+                        reason=RelationReason.SOURCE_LOCATION_NEIGHBOR,
+                        reason_detail=f"nearby source location: {nearby}",
+                        strength=_STRENGTH[RelationReason.SOURCE_LOCATION_NEIGHBOR],
+                    ))
+
     # 按 strength 降序排列
     edges.sort(key=lambda e: e.strength, reverse=True)
 
@@ -136,6 +173,17 @@ def compute_related_cards(
             reason_counts[e.reason] += 1
 
     return capped
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value))
+    except ValueError:
+        return None
 
 
 def _find_card(

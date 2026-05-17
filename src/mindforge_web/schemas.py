@@ -491,9 +491,44 @@ class LibraryCardsResponse(BaseModel):
     cards: list[LibraryCardResponse]
 
 
+class LocalGraphNodeResponse(BaseModel):
+    id: str
+    type: Literal["card", "source", "wiki_section", "tag"]
+    label: str
+    href: str | None = None
+
+
+class LocalGraphEdgeResponse(BaseModel):
+    source_id: str
+    target_id: str
+    reason: str
+    label: str
+
+
+class LocalGraphResponse(BaseModel):
+    center_id: str
+    center_type: Literal["card", "source", "wiki_section", "tag"]
+    nodes: list[LocalGraphNodeResponse] = Field(default_factory=list)
+    edges: list[LocalGraphEdgeResponse] = Field(default_factory=list)
+
+
+class RelatedCardReasonResponse(BaseModel):
+    reason: str
+    label: str
+    detail: str
+    strength: float
+
+
+class RelatedCardResponse(BaseModel):
+    card: LibraryCardResponse
+    reasons: list[RelatedCardReasonResponse] = Field(default_factory=list)
+
+
 class LibraryCardDetailResponse(BaseModel):
     card: LibraryCardResponse
     body: str | None = None
+    local_graph: LocalGraphResponse | None = None
+    related_cards: list[RelatedCardResponse] = Field(default_factory=list)
 
 
 class CardBodyUpdateRequest(BaseModel):

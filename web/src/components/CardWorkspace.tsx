@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { copySourcePath, revealSourcePath } from "../api/sources";
+import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
@@ -143,6 +144,10 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
       </header>
 
       <QualityPanel cardId={card.id ?? ""} />
+
+      {mode === "library" && "local_graph" in detail ? (
+        <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} />
+      ) : null}
 
       <section className="p-5">
         <h3 className="text-lg font-semibold text-ink">Knowledge content</h3>

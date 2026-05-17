@@ -8,6 +8,7 @@ from mindforge.relations.local_graph import (
     NodeType,
     LocalGraph,
     build_card_centered_graph,
+    build_wiki_section_centered_graph,
 )
 
 from tests.fixtures.graph_golden import (
@@ -121,6 +122,30 @@ class TestLocalGraph:
             [_card_dict(c) for c in golden.cards],
         )
         assert len(graph.edges) >= golden.expected_edge_count_min
+
+    def test_wiki_section_centered_graph_lists_referenced_cards(self):
+        """Wiki section graph 是 list fallback 的后端契约。
+
+        中文学习型说明：M6 不需要全局图或 canvas；section-centered graph 只把
+        同一 section 引用的 approved cards、source、tag 聚合成 1-hop 局部关系。
+        """
+        cards = [
+            SyntheticGraphCard(id="c1", source_id="src_1", tags=("auth",), wiki_sections=("Authentication",)),
+            SyntheticGraphCard(id="c2", source_id="src_2", tags=("oauth",), wiki_sections=("Authentication",)),
+            SyntheticGraphCard(id="c3", source_id="src_3", tags=("db",), wiki_sections=("Database",)),
+        ]
+
+        graph = build_wiki_section_centered_graph("Authentication", [_card_dict(c) for c in cards])
+        node_ids = {node.id for node in graph.nodes}
+        card_hrefs = {node.href for node in graph.nodes if node.type == NodeType.CARD}
+
+        assert graph.center_id == "Authentication"
+        assert graph.center_type == NodeType.WIKI_SECTION
+        assert "c1" in node_ids
+        assert "c2" in node_ids
+        assert "c3" not in node_ids
+        assert "/library?card=c1" in card_hrefs
+        assert any(edge.reason == "wiki_section_reference" for edge in graph.edges)
 
 
 class TestLocalGraphModels:

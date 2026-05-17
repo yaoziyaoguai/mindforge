@@ -25,6 +25,8 @@ def _to_record(card: SyntheticRelationCard) -> dict[str, object]:
         "tags": list(card.tags),
         "wiki_sections": list(card.wiki_sections),
         "status": card.status,
+        "run_id": card.review_batch,
+        "source_location_index": card.source_location_index,
     }
 
 
@@ -85,6 +87,57 @@ class TestRelatedCards:
             context="library",
         )
         assert all(e.target_card_id != "c2" for e in edges)
+
+    def test_dogfood_fixture_covers_all_deterministic_reason_labels(self):
+        """dogfood fixture 至少覆盖 4-6 张 approved cards 和五种 v0.3 reason。
+
+        中文学习型说明：真实 dogfood 曾只有一张 approved card，导致 Related
+        Cards 看起来通过但没有验证关系标签。这里用纯合成摘要锁定用户可见的
+        deterministic labels，不引入 embedding 或 semantic similarity。
+        """
+        cards = [
+            SyntheticRelationCard(
+                id="center",
+                source_id="src-a",
+                tags=("agent", "workflow"),
+                wiki_sections=("Agent Runtime",),
+                review_batch="run-42",
+                source_location_index=10,
+            ),
+            SyntheticRelationCard(id="same_source", source_id="src-a"),
+            SyntheticRelationCard(id="same_tag", tags=("agent",)),
+            SyntheticRelationCard(id="same_wiki", wiki_sections=("Agent Runtime",)),
+            SyntheticRelationCard(id="same_batch", review_batch="run-42"),
+            SyntheticRelationCard(id="neighbor", source_id="src-a", source_location_index=11),
+        ]
+
+        edges = compute_related_cards("center", [_to_record(c) for c in cards])
+        reasons = {(edge.target_card_id, edge.reason) for edge in edges}
+        details = {edge.reason_detail for edge in edges}
+
+        assert ("same_source", RelationReason.SAME_SOURCE) in reasons
+        assert ("same_tag", RelationReason.SAME_TAG) in reasons
+        assert ("same_wiki", RelationReason.SAME_WIKI_SECTION) in reasons
+        assert ("same_batch", RelationReason.SAME_REVIEW_BATCH) in reasons
+        assert ("neighbor", RelationReason.SOURCE_LOCATION_NEIGHBOR) in reasons
+        assert any("same review batch" in detail for detail in details)
+        assert any("nearby source location" in detail for detail in details)
+
+    def test_library_context_excludes_draft_and_rejected_from_dogfood_relations(self):
+        """Library context 只能返回 human_approved related cards。"""
+        cards = [
+            SyntheticRelationCard(id="center", source_id="src-a", status="human_approved"),
+            SyntheticRelationCard(id="approved_neighbor", source_id="src-a", status="human_approved"),
+            SyntheticRelationCard(id="draft_neighbor", source_id="src-a", status="ai_draft"),
+            SyntheticRelationCard(id="rejected_neighbor", source_id="src-a", status="rejected"),
+        ]
+
+        edges = compute_related_cards("center", [_to_record(c) for c in cards], context="library")
+        related_ids = {edge.target_card_id for edge in edges}
+
+        assert "approved_neighbor" in related_ids
+        assert "draft_neighbor" not in related_ids
+        assert "rejected_neighbor" not in related_ids
 
     def test_golden_fixture_expected_relations(self):
         f = build_relations_fixture()

@@ -14,6 +14,8 @@ class SyntheticRelationCard:
     tags: tuple[str, ...] = ()
     wiki_sections: tuple[str, ...] = ()
     status: str = "human_approved"
+    review_batch: str | None = None
+    source_location_index: int | None = None
 
 
 @dataclass

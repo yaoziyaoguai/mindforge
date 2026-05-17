@@ -33,6 +33,10 @@ class GraphEdge:
     reason: str  # same_source, same_tag, same_wiki_section
 
 
+LocalGraphNode = GraphNode
+LocalGraphEdge = GraphEdge
+
+
 @dataclass(frozen=True)
 class LocalGraph:
     center_id: str
@@ -87,7 +91,7 @@ def build_card_centered_graph(
     nodes[card_id] = GraphNode(
         id=card_id, type=NodeType.CARD,
         label=center_label,
-        href=f"/card/{card_id}",
+        href=f"/library?card={card_id}",
     )
 
     def add_card_node(cid: str) -> None:
@@ -98,7 +102,7 @@ def build_card_centered_graph(
         nodes[cid] = GraphNode(
             id=cid, type=NodeType.CARD,
             label=label,
-            href=f"/card/{cid}",
+            href=f"/library?card={cid}",
         )
 
     # same_source → edges to neighbor cards + source node
@@ -143,6 +147,60 @@ def build_card_centered_graph(
     return LocalGraph(
         center_id=card_id,
         center_type=NodeType.CARD,
+        nodes=tuple(nodes.values()),
+        edges=tuple(edges),
+    )
+
+
+def build_wiki_section_centered_graph(
+    section: str,
+    all_cards: list[dict[str, object]],
+) -> LocalGraph:
+    """构建以 Wiki section 为中心的 1-hop local graph。
+
+    中文学习型说明：section-centered graph 是 Wiki 页面的最低可见入口。
+    它只用卡片摘要中的 wiki_sections/source_id/tags 字段，不读取 Wiki 或
+    source 正文，也不构建全局 graph。
+    """
+
+    nodes: dict[str, GraphNode] = {
+        section: GraphNode(
+            id=section,
+            type=NodeType.WIKI_SECTION,
+            label=section,
+            href=f"/wiki#{section}",
+        )
+    }
+    edges: list[GraphEdge] = []
+
+    referenced = [
+        card for card in all_cards
+        if section in {str(item) for item in (card.get("wiki_sections") or [])}
+    ]
+    for card in referenced:
+        card_id = str(card["id"])
+        nodes[card_id] = GraphNode(
+            id=card_id,
+            type=NodeType.CARD,
+            label=str(card.get("title") or card_id),
+            href=f"/library?card={card_id}",
+        )
+        edges.append(GraphEdge(source_id=section, target_id=card_id, reason="wiki_section_reference"))
+
+        source_id = card.get("source_id")
+        if source_id:
+            source_key = str(source_id)
+            nodes[source_key] = GraphNode(id=source_key, type=NodeType.SOURCE, label=source_key)
+            edges.append(GraphEdge(source_id=card_id, target_id=source_key, reason="same_source"))
+
+        for tag in card.get("tags") or []:
+            tag_key = str(tag)
+            nodes[tag_key] = GraphNode(id=tag_key, type=NodeType.TAG, label=f"#{tag_key}")
+            edges.append(GraphEdge(source_id=card_id, target_id=tag_key, reason="same_tag"))
+
+    return LocalGraph(
+        center_id=section,
+        center_type=NodeType.WIKI_SECTION,
         nodes=tuple(nodes.values()),
         edges=tuple(edges),
     )
