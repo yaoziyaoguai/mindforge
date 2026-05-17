@@ -303,6 +303,13 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # trash_cli.py 展示 restore 后可能回到 human_approved 的状态说明；
             # 真正状态恢复由 trash_service 读取 previous_status，不执行 approve。
             "trash_cli.py",
+            # related_cards.py 只用于 Library context 的只读过滤，目的是避免
+            # ai_draft / pending / rejected 出现在 related cards 中。它不修改
+            # card 状态，不执行 approve，不绕过 explicit approval。
+            "related_cards.py",
+            # health_service.py 只用 human_approved 做只读筛选，统计低质量/孤儿/
+            # 重复卡片时仅关注已审核内容。它不修改 card 状态，不执行 approve。
+            "health_service.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

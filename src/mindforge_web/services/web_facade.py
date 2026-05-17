@@ -326,7 +326,7 @@ class WebFacade:
 
     def compute_card_quality(self, card_id: str):
         """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
-        from mindforge.cards import CardScanResult, filter_cards, iter_cards
+        from mindforge.cards import CardScanResult, iter_cards
         from mindforge_web.services.web_quality_service import compute_card_quality as _compute
 
         result: CardScanResult = iter_cards(self.cfg.vault_root, self.cfg.cards_dir_rel)

@@ -4,7 +4,7 @@
 所有数据为 synthetic，不包含真实用户数据。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
