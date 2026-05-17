@@ -404,6 +404,14 @@ unused_reason: card too short, card topic too narrow, card status stale, etc.
 3. overlap < threshold (0.3) → 标记为 potential faithfulness issue
 4. 人工审查标记（不自动修改）
 
+**Language handling（语言处理策略）**：
+- First version is deterministic and lightweight — no LLM, no embedding, no new NLP dependency.
+- **English**: lowercase → punctuation strip → tokenize on whitespace → filter small built-in stopword list（如 "the", "a", "is", "of", "and", "in", "to", "it", "that", "for"）。
+- **Chinese**: use simple character bigram overlap or existing tokenizer only if already present in v0.2 dependencies（如已依赖 jieba 可用，但不可仅为了 faithfulness 新增 jieba/NLTK）。
+- Heuristic score is a warning signal only, not a truth validator.
+- If language processing is unstable（语言检测不可靠或分词质量差）→ downgrade to warning-only, do not block rebuild.
+- TDD §4.1b Faithfulness Safety Rules 定义了降级条件（false positive > 30% → warning-only）。
+
 ### 6.3 Staleness Detection
 
 - 检查每个 Wiki section 引用的 card 是否有 updated_at > wiki rebuild time
@@ -467,6 +475,13 @@ def compute_related_cards(card_id: str, all_cards: list[Card]) -> list[RelatedCa
 | html | heading_path, css_selector | "h2#overview > p:nth-child(3)" |
 | pdf | page_number | "Page 12" |
 | docx | paragraph_start, paragraph_end | "Paragraphs 8-12" |
+
+**HTML css_selector scope（精度范围）**：
+- css_selector is **best-effort** — 不要求跨文档版本稳定，不保证 selector 在源文件修改后仍然有效。
+- 第一版优先使用 heading text / id attribute / tag index / text snippet 作为 anchor。
+- **不引入浏览器 runtime**（不调 Playwright / Selenium / headless browser 做 selector 提取）。
+- **不为了精确 selector 过度投入** — 若 selector 不可靠，降级为 heading path + snippet + source file reference（与 Markdown 同级的 provenance 精度即可）。
+- v0.4 可考虑 block-level stable anchor；v0.3 不做。
 
 ### 8.2 Backward Compatibility
 

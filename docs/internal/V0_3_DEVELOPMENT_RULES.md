@@ -24,7 +24,7 @@
 **Step 1 prompt template:**
 
 ```
-Implement M1 Phase P1: Quality rubric scoring and card type classification.
+Implement M1: Card Quality — rubric scoring and card type classification.
 Scope: src/mindforge/quality/ only. Reference RFC_0003 §7 FR1, SDD §3.1, §5.
 ```
 
@@ -52,6 +52,20 @@ Scope: src/mindforge/quality/ only. Reference RFC_0003 §7 FR1, SDD §3.1, §5.
    - Implementer 必须知道自己在实现哪个 section。
    - Commit message 必须包含 RFC/SDD section 引用。
 
+### 1.1 Agent Autonomy Boundary
+
+- **Within a milestone**, the coding agent may continue autonomously until a documented stop condition is reached.
+- **The agent should NOT ask the user after every small step** — minor decisions (file naming, variable naming, test structure within TDD guidelines) are agent territory.
+- **The agent MUST stop and ask the user when**:
+  - A stop condition is hit (see §9).
+  - A new dependency is required (see §2 rule 6).
+  - A schema migration is required.
+  - A real API call or real private data is needed.
+  - A safety boundary is ambiguous.
+  - Push / tag / merge / release is requested.
+  - Implementation would cross into another milestone.
+  - A document-level rule seems to conflict with the task at hand.
+
 ---
 
 ## 2. v0.3 硬边界规则
@@ -65,6 +79,17 @@ Scope: src/mindforge/quality/ only. Reference RFC_0003 §7 FR1, SDD §3.1, §5.
    - Do not install NetworkX, d3, vis.js, cytoscape, viz.js, sigma.js, dagre, elkjs, mermaid, or any graph-computation / graph-visualization libraries for v0.3.
    - Local graph data must be built using built-in Python dict/list/set and rendered with simple HTML/CSS.
    - In-memory adjacency maps are allowed（允许用 Python 内置 dict/set/list 构建邻接关系）；graph databases and graph libraries are not（不安装图数据库和图计算库）。
+   - OK example:
+     ```python
+     # Simple adjacency maps — NO graph library needed
+     source_to_cards: dict[str, list[str]] = {"src_1": ["card_1", "card_2"]}
+     card_edges: list[dict[str, str]] = [
+         {"from": "card_1", "to": "src_1", "reason": "from_source"},
+         {"from": "card_2", "to": "src_1", "reason": "from_source"},
+     ]
+     ```
+   - Do NOT implement complex BFS/DFS graph algorithms — simple dict lookups are enough for 1-hop neighbors.
+   - Do NOT introduce a graph library.
    - 不安装 Graph DB（Neo4j, ArangoDB, SurrealDB 等图数据库）。
    - 不安装 embedding 库（sentence-transformers, openai embeddings, text-embeddings-inference）。
    - 不安装新的外部 API SDK。

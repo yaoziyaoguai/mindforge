@@ -1125,27 +1125,135 @@ def test_wiki_quality_report_only_counts_approved(wiki_fixture):
 # tests/boundary/test_no_forbidden_deps.py
 
 def test_no_vector_db_import():
-    """Verify codebase has no Vector DB dependency."""
+    """Verify project declares no Vector DB dependency."""
     forbidden = ["chromadb", "pinecone", "weaviate", "qdrant_client",
-                 "milvus", "lancedb"]
-    import pkgutil
-    installed = {m.name for m in pkgutil.iter_modules()}
-    found = forbidden & installed
-    assert not found, f"Forbidden Vector DB deps found: {found}"
+                 "milvus", "lancedb", "neo4j", "arangodb", "surrealdb"]
+    import tomllib, pathlib
+    pyproject = pathlib.Path("pyproject.toml")
+    if pyproject.exists():
+        deps = tomllib.loads(pyproject.read_text())
+        dep_text = str(deps).lower()
+    else:
+        # Fallback: check requirements files
+        req_files = list(pathlib.Path(".").glob("requirements*.txt"))
+        dep_text = " ".join(f.read_text().lower() for f in req_files)
+    found = [pkg for pkg in forbidden if pkg in dep_text]
+    assert not found, f"Forbidden deps declared in project files: {found}"
 
 def test_no_embedding_api_import():
-    """Verify codebase has no embedding API dependency."""
-    # Check that no import of openai.Embedding or sentence_transformers exists
+    """Verify codebase has no embedding API import."""
     import ast, pathlib
+    forbidden = {'sentence_transformers', 'openai.Embedding',
+                 'text_embeddings_inference', 'InstructorEmbedding'}
     src_dir = pathlib.Path("src/mindforge")
     for py_file in src_dir.rglob("*.py"):
         tree = ast.parse(py_file.read_text())
         for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if any(f in alias.name for f in forbidden):
+                        pytest.fail(f"Forbidden import '{alias.name}' in {py_file}")
+            elif isinstance(node, ast.ImportFrom):
+                module = (node.module or '')
+                names = {a.name for a in node.names}
+                combined = {module} | names
+                if any(any(f in part for part in combined) for f in forbidden):
+                    pytest.fail(f"Forbidden import in {py_file}: {module}")
+```
+
+
+# tests/boundary/test_provenance_safety.py
+
+def test_copy_reveal_only_allowed_paths(tmp_path):
+    """copy/reveal must reject paths outside the allowlist."""
+    from mindforge.provenance import ProvenanceAction
+    safe = tmp_path / "vault" / "notes"
+    unsafe = "/etc/passwd"
+    action = ProvenanceAction.reveal(unsafe, allowlist=[str(safe)])
+    assert not action.allowed
+    assert "outside allowlist" in action.reason.lower()
+
+
+def test_location_never_exposes_absolute_path_outside_vault(tmp_path):
+    """SourceLocation rendering must not leak absolute paths."""
+    from mindforge.provenance import SourceLocation
+    loc = SourceLocation(source_type="markdown", heading="Intro", line_range=(1, 10))
+    rendered = loc.render(vault_root=str(tmp_path / "vault"))
+    assert "/Users/" not in rendered
+    assert str(tmp_path / "vault") not in rendered
+
+
+# tests/boundary/test_module_isolation.py
+
+def test_source_adapter_never_imports_quality():
+    """Source adapter module must not import quality modules."""
+    import ast, pathlib
+    src = pathlib.Path("src/mindforge")
+    adapter_dir = src / "adapters"
+    for py_file in adapter_dir.rglob("*.py"):
+        tree = ast.parse(py_file.read_text())
+        for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 module = getattr(node, 'module', '') or ''
-                if 'sentence_transformers' in module or 'openai.Embedding' in str(getattr(node, 'names', [])):
-                    pytest.fail(f"Forbidden embedding import in {py_file}")
-```
+                if 'quality' in module or 'relations' in module or 'wiki' in module:
+                    pytest.fail(f"Adapter {py_file} imports forbidden module: {module}")
+
+
+# tests/boundary/test_deterministic_graph.py
+
+def test_local_graph_deterministic_for_same_input(card_fixtures):
+    """Same card set must produce identical graph nodes and edges."""
+    from mindforge.graph import LocalGraph
+    g1 = LocalGraph.build(focus="card_1", cards=card_fixtures, max_hops=1)
+    g2 = LocalGraph.build(focus="card_1", cards=card_fixtures, max_hops=1)
+    assert g1.nodes == g2.nodes
+    assert g1.edges == g2.edges
+
+
+def test_local_graph_no_embedding_or_similarity_call(card_fixtures, mocker):
+    """LocalGraph construction must not invoke any embedding/similarity function."""
+    mocker.patch("mindforge.graph.embedding", None)
+    from mindforge.graph import LocalGraph
+    g = LocalGraph.build(focus="card_1", cards=card_fixtures, max_hops=1)
+    assert len(g.edges) >= 0  # deterministic edges produced
+
+
+# tests/boundary/test_no_auto_mutation.py
+
+def test_health_suggested_action_is_read_only_text(health_fixture):
+    """HealthReport.suggested_action must be a string, never a callable or command."""
+    from mindforge.health import compute_health_report
+    report = compute_health_report(health_fixture)
+    for issue in report.issues:
+        assert isinstance(issue.suggested_action, str)
+        assert not callable(issue.suggested_action)
+        assert not issue.suggested_action.startswith(("rm ", "DELETE ", "DROP "))
+
+
+def test_maintenance_suggestion_never_calls_mutate(health_fixture):
+    """Generating health report must not modify any card."""
+    from mindforge.health import compute_health_report
+    original_states = {c.id: (c.status, c.body) for c in health_fixture.cards}
+    compute_health_report(health_fixture)
+    for c in health_fixture.cards:
+        assert (c.status, c.body) == original_states[c.id]
+
+
+# tests/boundary/test_no_real_api_calls.py
+
+def test_no_real_llm_api_in_unit_tests():
+    """Unit tests must not import or call real LLM clients."""
+    import ast, pathlib
+    forbidden = {'openai', 'anthropic', 'google.generativeai', 'groq'}
+    tests_dir = pathlib.Path("tests")
+    for py_file in tests_dir.rglob("test_*.py"):
+        tree = ast.parse(py_file.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                module = getattr(node, 'module', '') or ''
+                if any(module.startswith(f) for f in forbidden):
+                    pytest.fail(f"Test {py_file} imports real API client: {module}")
+
 
 ### 11.4 Running Boundary Tests
 
