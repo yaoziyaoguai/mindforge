@@ -711,3 +711,20 @@ class CardQualityResponse(BaseModel):
     regenerate_suggestion: str | None = None
     split_candidate: bool = False
     merge_candidate: bool = False
+
+
+# ============================================================================
+# M4 Source Location / Provenance schemas — SDD §8
+# ============================================================================
+
+
+class SourceLocationResponse(BaseModel):
+    source_type: str
+    heading_path: list[str] | None = None
+    line_start: int | None = None
+    line_end: int | None = None
+    page_number: int | None = None
+    paragraph_start: int | None = None
+    paragraph_end: int | None = None
+    css_selector: str | None = None
+    display: str

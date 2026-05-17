@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { copySourcePath, revealSourcePath } from "../api/sources";
 import { QualityPanel } from "./quality/QualityPanel";
+import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
 import { friendlyStatus, truncateMiddle } from "../lib/utils";
 
@@ -197,6 +198,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <Meta label="Source" value={card.source_title ?? card.source_path} />
           <Meta label="Source path" value={card.source_path} />
+          <SourceLocationBadge cardId={card.id ?? ""} hasSource={!!card.source_path} />
           <Meta label="Archived source path" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
           <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
         </dl>

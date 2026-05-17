@@ -337,6 +337,22 @@ class WebFacade:
         all_titles = [c.title for c in result.cards if c.title]
         return _compute(card, self.cfg.vault_root, all_titles)
 
+    def compute_card_location(self, card_id: str):
+        """计算单张卡片的 source location（M4 — SDD §8.1）。"""
+        from mindforge.cards import iter_cards
+        from mindforge.provenance.location import SourceLocation
+
+        result = iter_cards(self.cfg.vault_root, self.cfg.cards_dir_rel)
+        matching = [c for c in result.cards if c.id == card_id or c.path.name == card_id]
+        if not matching:
+            return None
+        card = matching[0]
+        source_type = card.source_type or "plain_markdown"
+
+        heading_path = tuple(card.tags) if card.tags else None
+
+        return SourceLocation(source_type=source_type, heading_path=heading_path)
+
     def update_library_card_body(self, ref: str, body: str) -> CardBodyUpdateResponse | None:
         detail = show_library_card(self.cfg, ref, show_content=False)
         if isinstance(detail, LibraryLookupError):
