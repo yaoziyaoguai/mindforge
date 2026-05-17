@@ -513,6 +513,10 @@ def _ingest_targets_summary(
             ))
         for result in results:
             counts["seen"] += 1
+            if result.skip_reason:
+                _emit_adapter_skip(result=result, logger=logger, counts=counts)
+                skipped_details.append(_skip_detail_from_scan_result(result))
+                continue
             if not result.ok:
                 emit_source_error(result=result, logger=logger, counts=counts)
                 if result.error:
@@ -844,6 +848,47 @@ def _skip_detail(
         matched_record=matched_record,
         hint=hint,
     )
+
+
+def _skip_detail_from_scan_result(result) -> SkippedDocumentDetail:
+    """把 adapter-level skipped ScanResult 转成人类诊断结构。
+
+    中文学习型说明：legacy .doc、scanned PDF、空文件这类情况没有
+    SourceDocument，也不应该伪造一个。诊断只记录路径与原因，不进入
+    approval/wiki/library 数据面。
+    """
+    reason = result.skip_reason or "adapter_skipped"
+    return SkippedDocumentDetail(
+        source_path=str(result.path),
+        normalized_path=_normalized_source_path(str(result.path)),
+        source_id_short="",
+        fingerprint_short="",
+        reason=reason,
+        matched_record=None,
+        hint=_skip_reason_hint(reason),
+    )
+
+
+def _emit_adapter_skip(*, result, logger, counts: dict[str, int]) -> None:
+    counts["skipped"] += 1
+    logger.emit(
+        "source_skipped_or_unchanged",
+        source_id="",
+        source_type=result.source_type,
+        adapter_name=result.adapter_name,
+        source_path=str(result.path),
+        content_hash="",
+        status=result.skip_reason or "adapter_skipped",
+        skip_reason=result.skip_reason or "adapter_skipped",
+    )
+
+
+def _skip_reason_hint(reason: str) -> str | None:
+    if reason.startswith("unsupported_legacy_doc"):
+        return "Convert legacy .doc to .docx, PDF, or TXT, then import the converted file."
+    if reason == "scanned_pdf_no_text":
+        return "MindForge does not do OCR. Import a text-based PDF or OCR externally first."
+    return None
 
 
 def _now() -> str:

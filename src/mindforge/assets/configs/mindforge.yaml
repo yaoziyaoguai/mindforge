@@ -34,8 +34,8 @@ vault:
 # - registry   — 每个 source_type 对应的 adapter 类、inbox 子目录、文件 glob。
 #
 # MindForge 是 LLM-first local knowledge workflow，不是按文件来源预分类的工具。
-# 默认只启用 plain_markdown，扫描整个 00-Inbox。用户通过 watch add/import 将
-# 任意本地 .md 接入 inbox 即可，无需关心子目录分类。
+# 默认启用 readable document sources。用户通过 watch add/import 将本地
+# Markdown/TXT/HTML/PDF/DOCX 接入即可，无需关心子目录分类。
 #
 # 其他 adapter（Cubox / WebClip / ChatExport / CommonDocument / PDF / DOCX）
 # 属于 optional / advanced，默认禁用。需要时在 enabled 列表中加入对应 source_type
@@ -44,6 +44,10 @@ vault:
 sources:
   enabled:
     - plain_markdown
+    - txt
+    - html
+    - pdf
+    - docx
 
   registry:
     plain_markdown:
@@ -51,6 +55,30 @@ sources:
       inbox_subdir: "."
       file_glob: "*.md"
       enabled: true
+
+    txt:
+      adapter: TxtAdapter
+      inbox_subdir: "."
+      file_glob: "*.txt"
+      enabled: true                 # readable local TXT
+
+    html:
+      adapter: HtmlAdapter
+      inbox_subdir: "."
+      file_glob: "*.html"
+      enabled: true                 # local HTML only; no URL crawling
+
+    pdf:
+      adapter: PdfTextAdapter
+      inbox_subdir: "."
+      file_glob: "*.pdf"
+      enabled: true                 # text-based PDF only; no OCR
+
+    docx:
+      adapter: DocxTextAdapter
+      inbox_subdir: "."
+      file_glob: "*.docx"
+      enabled: true                 # modern Office Open XML only; legacy .doc unsupported
 
     # -------------------------------------------------------------------------
     # Optional adapters（默认禁用，按需启用）
@@ -86,18 +114,6 @@ sources:
       inbox_subdir: "."
       file_glob: "*.md"
       enabled: false                 # optional: ``mindforge obsidian scan`` 只读扫描真实 vault
-
-    pdf:
-      adapter: PdfAdapter
-      inbox_subdir: "PDFs"
-      file_glob: "*.pdf"
-      enabled: false                 # optional: 需要 ``pip install 'mindforge[pdf]'``
-
-    docx:
-      adapter: DocxAdapter
-      inbox_subdir: "Docs"
-      file_glob: "*.docx"
-      enabled: false                 # optional: 需要 ``pip install 'mindforge[docx]'``
 
 # -----------------------------------------------------------------------------
 # 状态与日志

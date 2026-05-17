@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .config import MindForgeConfig
+from .sources.adapter_result import AdapterResult
 from .sources.base import SourceAdapter, SourceDocument
 from .sources.registry import build_active_adapters
 
@@ -37,10 +38,15 @@ class ScanResult:
     path: Path
     document: SourceDocument | None
     error: str | None = None
+    skip_reason: str | None = None
 
     @property
     def ok(self) -> bool:
         return self.document is not None and self.error is None
+
+    @property
+    def skipped(self) -> bool:
+        return self.document is None and self.skip_reason is not None and self.error is None
 
 
 class Scanner:
@@ -84,7 +90,15 @@ class Scanner:
         path: Path,
     ) -> ScanResult:
         try:
-            doc = adapter.load(str(path))
+            loaded = adapter.load(str(path))
+            if isinstance(loaded, AdapterResult):
+                return _scan_result_from_adapter_result(
+                    result=loaded,
+                    adapter_name=adapter.name,
+                    source_type=source_type,
+                    path=path,
+                )
+            doc = loaded
             # v0.4.2：统一回填 adapter_name，让 SourceDocument 自带可追溯性，
             # 而不是只在 ScanResult / state.json 旁路记录。adapter 自身仍可
             # 显式填充（如未来插件 adapter 想覆盖类名），这里仅在为空时补默认。
@@ -106,6 +120,43 @@ class Scanner:
                 document=None,
                 error=f"{type(e).__name__}: {e}",
             )
+
+
+def _scan_result_from_adapter_result(
+    *,
+    result: AdapterResult,
+    adapter_name: str,
+    source_type: str,
+    path: Path,
+) -> ScanResult:
+    """把 v0.2 AdapterResult 收敛为旧 pipeline 的 ScanResult。
+
+    中文学习型说明：processor 仍只消费 SourceDocument，不能理解 PDF/DOCX/TXT
+    格式细节；adapter 三态在 scanner 边界被翻译为 loaded/skipped/failed，
+    防止正常 unsupported/empty/scanned PDF 被误算成 crash。
+    """
+    if result.status == "loaded" and result.document is not None:
+        return ScanResult(
+            source_type=source_type,
+            adapter_name=adapter_name,
+            path=path,
+            document=result.document,
+        )
+    if result.status == "skipped":
+        return ScanResult(
+            source_type=source_type,
+            adapter_name=adapter_name,
+            path=path,
+            document=None,
+            skip_reason=result.skip_reason or "adapter_skipped",
+        )
+    return ScanResult(
+        source_type=source_type,
+        adapter_name=adapter_name,
+        path=path,
+        document=None,
+        error=result.error_message or f"Adapter returned {result.status!r}",
+    )
 
 
 __all__ = ["Scanner", "ScanResult"]
