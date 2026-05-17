@@ -5,7 +5,9 @@ import pytest
 from mindforge.health.health_service import (
     HealthIssue,
     HealthReport,
+    KnowledgeHealthReport,
     Severity,
+    build_knowledge_health_report,
     compute_health_report,
 )
 
@@ -109,8 +111,57 @@ class TestHealthReport:
         )
         for issue in report.issues:
             assert issue.severity in (Severity.CRITICAL, Severity.WARN, Severity.INFO)
+            assert len(issue.reason) > 0
             assert len(issue.suggested_action) > 0
             assert len(issue.message) > 0
+
+    def test_missing_provenance_detected(self):
+        report = compute_health_report(
+            cards=[
+                {
+                    "id": "c_missing",
+                    "status": "human_approved",
+                    "quality_level": "medium",
+                    "title": "Missing provenance",
+                    "source_id": None,
+                    "source_path": None,
+                    "source_type": None,
+                    "adapter_name": None,
+                }
+            ],
+            pending_drafts=0,
+            wiki_stale_sections=(),
+        )
+        issue = next(i for i in report.issues if i.code == "missing_provenance")
+        assert issue.severity == Severity.WARN
+        assert issue.affected_card_ids == ("c_missing",)
+
+    def test_source_warnings_detected(self):
+        report = compute_health_report(
+            cards=[],
+            pending_drafts=0,
+            wiki_stale_sections=(),
+            source_warnings=("unsupported_legacy_doc: legacy.doc", "scanned_pdf_no_text"),
+        )
+        issue = next(i for i in report.issues if i.code == "source_warnings")
+        assert issue.severity == Severity.INFO
+        assert "unsupported_legacy_doc" in issue.reason
+
+    def test_summary_stats_include_maintenance_counts(self):
+        report = compute_health_report(
+            cards=[
+                {"id": "draft", "status": "ai_draft", "title": "Draft"},
+                {"id": "approved", "status": "human_approved", "title": "Approved"},
+            ],
+            pending_drafts=1,
+            wiki_stale_sections=(),
+            source_warnings=("decode_error",),
+        )
+        assert report.stats["total_cards"] == 2
+        assert report.stats["approved"] == 1
+        assert report.stats["pending_drafts"] == 1
+        assert report.stats["source_warnings"] == 1
+        assert report.maintenance_suggestions
 
     def test_no_auto_mutation(self):
         cards = [
@@ -151,6 +202,10 @@ class TestHealthReportModel:
         with pytest.raises(Exception):
             report.issues = ()  # type: ignore[misc]
 
+    def test_knowledge_health_report_alias_is_available(self):
+        report = KnowledgeHealthReport(issues=(), summary="ok")
+        assert isinstance(report, HealthReport)
+
     def test_health_issue_is_immutable(self):
         issue = HealthIssue(
             code="test",
@@ -160,3 +215,79 @@ class TestHealthReportModel:
         )
         with pytest.raises(Exception):
             issue.severity = Severity.CRITICAL  # type: ignore[misc]
+
+
+def test_build_knowledge_health_report_from_real_config(tmp_path):
+    """真实配置入口从 vault/state/wiki 聚合，只读生成 health report。"""
+    import yaml
+    from mindforge.app_context import load_app_config
+
+    vault = tmp_path / "vault"
+    cards_dir = vault / "20-Knowledge-Cards"
+    wiki_dir = vault / "30-Wiki"
+    cards_dir.mkdir(parents=True)
+    wiki_dir.mkdir(parents=True)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {
+                    "root": str(vault),
+                    "inbox_root": "00-Inbox",
+                    "cards_dir": "20-Knowledge-Cards",
+                    "archive_dir": "90-Archive/Skipped",
+                },
+                "llm": {
+                    "active": "fake",
+                    "providers": {"fake": {"type": "fake", "purpose": "test"}},
+                },
+                "telemetry": {"enabled": True, "local_only": True},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (cards_dir / "approved.md").write_text(
+        """---
+id: approved-1
+title: Approved Missing Provenance
+status: human_approved
+---
+
+tiny
+""",
+        encoding="utf-8",
+    )
+    (cards_dir / "draft.md").write_text(
+        """---
+id: draft-1
+title: Draft
+status: ai_draft
+source_id: src
+source_type: txt
+source_path: note.txt
+source_content_hash: sha256:test
+adapter_name: TxtAdapter
+---
+
+draft body
+""",
+        encoding="utf-8",
+    )
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """> Cards included: 0
+> Last rebuilt: 2026-01-01T00:00:00+0000
+""",
+        encoding="utf-8",
+    )
+    cfg = load_app_config(cfg_path, cwd=tmp_path)
+
+    report = build_knowledge_health_report(cfg)
+
+    codes = {issue.code for issue in report.issues}
+    assert "missing_provenance" in codes
+    assert "wiki_stale" in codes
+    assert report.stats["total_cards"] == 2
+    assert report.stats["pending_drafts"] == 1
