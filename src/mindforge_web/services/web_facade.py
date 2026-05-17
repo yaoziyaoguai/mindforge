@@ -324,6 +324,19 @@ class WebFacade:
             return None
         return _library_detail_response(detail)
 
+    def compute_card_quality(self, card_id: str):
+        """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
+        from mindforge.cards import CardScanResult, filter_cards, iter_cards
+        from mindforge_web.services.web_quality_service import compute_card_quality as _compute
+
+        result: CardScanResult = iter_cards(self.cfg.vault_root, self.cfg.cards_dir_rel)
+        matching = [c for c in result.cards if c.id == card_id or c.path.name == card_id]
+        if not matching:
+            return None
+        card = matching[0]
+        all_titles = [c.title for c in result.cards if c.title]
+        return _compute(card, self.cfg.vault_root, all_titles)
+
     def update_library_card_body(self, ref: str, body: str) -> CardBodyUpdateResponse | None:
         detail = show_library_card(self.cfg, ref, show_content=False)
         if isinstance(detail, LibraryLookupError):

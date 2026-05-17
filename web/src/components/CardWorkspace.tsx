@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { copySourcePath, revealSourcePath } from "../api/sources";
+import { QualityPanel } from "./quality/QualityPanel";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
 import { friendlyStatus, truncateMiddle } from "../lib/utils";
 
@@ -139,6 +140,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         ) : null}
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
       </header>
+
+      <QualityPanel cardId={card.id ?? ""} />
 
       <section className="p-5">
         <h3 className="text-lg font-semibold text-ink">Knowledge content</h3>

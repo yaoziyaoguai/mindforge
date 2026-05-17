@@ -680,3 +680,34 @@ class ApiError(BaseModel):
     error: str
     message: str
     next_action: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# M1 Quality schemas — SDD §4.1
+# ---------------------------------------------------------------------------
+
+class QualityRubricScoreResponse(BaseModel):
+    dimension: str
+    score: float
+    max_score: float = 1.0
+    notes: str = ""
+
+
+class QualityWarningResponse(BaseModel):
+    code: str
+    severity: str
+    message: str
+    suggestion: str = ""
+
+
+class CardQualityResponse(BaseModel):
+    card_id: str
+    overall_level: str  # "high" | "medium" | "low"
+    overall_level_label: str  # "高质量" | "中质量" | "低质量"
+    overall_score: float
+    rubric_scores: list[QualityRubricScoreResponse]
+    warnings: list[QualityWarningResponse]
+    card_type: str | None = None
+    regenerate_suggestion: str | None = None
+    split_candidate: bool = False
+    merge_candidate: bool = False

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from mindforge.first_run_config import maybe_bootstrap_local_config
-from mindforge_web.routers import approval, config, drafts, health, home, library, processing, prompts, recall, sources, trash, wiki
+from mindforge_web.routers import approval, config, drafts, health, home, library, processing, prompts, quality, recall, sources, trash, wiki
 from mindforge_web.services.web_facade import WebFacade
 
 
@@ -58,6 +58,7 @@ def create_app(
     app.include_router(prompts.router)
     app.include_router(trash.router)
     app.include_router(wiki.router)
+    app.include_router(quality.router)
     app.include_router(recall.router)
     if static_dir and static_dir.exists():
         assets_dir = static_dir / "assets"
