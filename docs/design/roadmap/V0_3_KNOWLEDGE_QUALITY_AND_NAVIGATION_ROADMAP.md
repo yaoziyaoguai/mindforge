@@ -54,6 +54,85 @@ Future extension: 如果 v0.4 或 v0.5 需要 semantic search / embedding-based 
 
 ---
 
+## 2b. Related Work & Inspiration
+
+> **不是论文综述**。本节列出对 v0.3 设计有实际影响的产品/项目，明确吸收了什么、不吸收什么、映射到哪个 milestone。
+
+### A. Obsidian
+
+**What we learn**:
+- Local Graph 围绕当前 note/card 展示局部关系，而不是全局毛线球 — 这直接启发 M6 的 1-hop local graph preview。
+- Links/backlinks 是导航辅助，不是知识真相本身。用户需要看到 "related cards" 来辅助浏览，但关系是确定性的，不是 ranking-based。
+
+**What we do NOT copy**:
+- 不做完整 vault graph（全局大图）。Obsidian 的全局 graph 在 500+ notes 时退化为毛线球，对 knowledge management 帮助有限。
+- 不做 Obsidian plugin。MindForge 是独立应用，通过 source ingestion 连接 Obsidian vault，但不在 Obsidian 内部嵌入功能。
+- 不做 graph DB。Obsidian 的 graph 是 in-memory calculation，不是 persistent graph database。
+
+**How it maps to v0.3**:
+- M3 Related Cards（关系发现和展示）
+- M6 Local Graph Preview（1-hop graph 形态）
+
+### B. Notion
+
+**What we learn**:
+- Page references / backlinks 帮助用户从当前页面看到上下文和引用关系。Notion 的 "linked mentions" 让用户自然发现相关内容。
+- 知识页面的阅读体验和导航结构直接影响用户对知识库的信任。
+
+**What we do NOT copy**:
+- 不做 workspace/collaboration platform。MindForge 是单人知识库工具，不做多人协作。
+- 不做 block editor。卡片内容是 Markdown，不做 Notion 的 block-level editing。
+
+**How it maps to v0.3**:
+- M2 Wiki Section References（每个 section 列出引用的 cards）
+- M3 Related Cards（卡片间导航）
+- Card detail navigation（从 card 跳转到 source/Wiki section/related cards）
+
+### C. Logseq
+
+**What we learn**:
+- Page/block references 启发更细粒度的 provenance。Logseq 的 block reference 让用户可以定位到具体段落，而不是整页。
+- 知识应该可以追溯到具体段落/块/位置，而不是仅仅知道 "来自哪个文件"。
+
+**What we do NOT copy**:
+- 不做 outliner/block editor。MindForge 的卡片是结构化的知识单元，不是 bullet-point outline。
+- 不做 block-level transclusion UI（嵌入式引用渲染）。
+
+**How it maps to v0.3**:
+- M4 Source Location / Provenance（段落/行/页级别的精确引用）
+- Wiki section references（section 到 cards 的引用链路）
+
+### D. GBrain
+
+**What we learn**:
+- signal → entity/page/relationship 的结构化思想：知识不只是文本，还包括结构化关系和维护信号。
+- recurring maintenance / cron 思路：知识库不是一次性生成完就结束，需要持续的维护和健康检查。
+- skills/strategy 作为知识工作流：不同的知识处理策略可以组合成 pipeline。
+
+**What we do NOT copy**:
+- 不做自动写入 approved knowledge。GBrain 的 signal-to-page 流程是全自动的，MindForge 始终要求 human approval。
+- 不做全自动 brain mutation。所有对 human_approved 的修改必须经过用户显式确认。
+- 不绕过 human approval。这是 MindForge 与 GBrain 最根本的路径差异。
+
+**How it maps to v0.3**:
+- M1 Card Quality（quality signal 结构化）
+- M5 Knowledge Health（维护体检、周期性健康检查）
+- Strategy versioning（策略版本管理，M1 可选扩展）
+
+### E. MindForge Originality — 路线独立性声明
+
+MindForge v0.3 的路线**不是**追随 GBrain 或其他知识库工具。MindForge 的独特性在于：
+
+1. **Local-first**：所有知识存储在本地文件系统（Obsidian vault），不依赖云服务。
+2. **Human-approved**：AI 生成的知识卡片必须经过用户显式 approve，不会自动进入知识库。
+3. **Provenance-aware**：每张卡片保留完整的 source → extraction → approval 链路，知识可追溯。
+4. **Deterministic quality & navigation**：v0.3 的质量评分和关系发现全部基于确定性规则，不引入 embedding / Vector DB / Graph DB。
+5. **Read-only quality metadata**：质量评分附属于卡片，但不自动修改卡片内容或状态。
+
+v0.3 做的是 **deterministic quality / navigation / maintenance**，不做 embedding / vector DB / GraphRAG / 全自动 mutation。
+
+---
+
 ## 3. v0.3 总目标
 
 **让 MindForge 知识库从"生成层"升级为"质量层"和"导航层"：**

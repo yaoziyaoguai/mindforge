@@ -276,19 +276,134 @@ class TestWikiCoverage:
         ...
 
 class TestFaithfulness:
-    """Faithfulness 检查测试"""
+    """Faithfulness 检查测试
+
+    Faithfulness 第一版使用 deterministic lexical overlap / citation coverage heuristic。
+    不调用 LLM，不引入 embedding similarity。
+    """
 
     def test_high_overlap_section_is_faithful(self):
-        """section 内容与引用 card 高度重叠 → faithful"""
+        """section 内容与引用 card 高度重叠 → faithful，score > 0.5"""
         ...
 
     def test_low_overlap_section_flagged(self):
-        """section 内容与引用 card 几乎不重叠 → flagged"""
+        """section 内容与引用 card 几乎不重叠 → flagged，score < 0.2"""
+        ...
+
+    def test_section_with_citations_but_unrelated_text_warns(self):
+        """section 引用了 card 但文本内容不相关 → 应警告"""
+        ...
+
+    def test_section_without_references_warns(self):
+        """section 无 card references → 应警告"""
         ...
 
     def test_false_positive_rate_under_30_percent(self, wiki_fixture):
         """Golden fixture 上假阳性率 < 30%"""
         ...
+
+    # ── sensitivity tests ──
+
+    def test_known_faithful_section_scores_above_05(self):
+        """Golden: 已知 faithful section 的 Jaccard score > 0.5"""
+        section_text = "Authentication uses OAuth 2.0 with JWT tokens for session management."
+        card_bodies = {
+            "c1": "OAuth 2.0 is the authentication protocol. JWT tokens manage sessions.",
+            "c2": "Session management uses JWT tokens with refresh-and-rotate.",
+        }
+        score = compute_faithfulness_score(section_text, card_bodies)
+        assert score > 0.5, f"Expected > 0.5, got {score}"
+
+    def test_known_unfaithful_section_scores_below_02(self):
+        """Golden: 已知 unfaithful section 的 Jaccard score < 0.2"""
+        section_text = "Database backups run nightly with incremental snapshots."
+        card_bodies = {
+            "c1": "OAuth 2.0 is the authentication protocol.",
+            "c2": "API endpoints use rate limiting per IP.",
+        }
+        score = compute_faithfulness_score(section_text, card_bodies)
+        assert score < 0.2, f"Expected < 0.2, got {score}"
+
+    def test_partial_overlap_section_scores_between_02_and_05(self):
+        """部分重叠 section 的 score 在 0.2-0.5 之间"""
+        section_text = "Authentication uses OAuth 2.0. Logging is done via syslog."
+        card_bodies = {
+            "c1": "OAuth 2.0 is the authentication protocol.",
+        }
+        score = compute_faithfulness_score(section_text, card_bodies)
+        assert 0.2 <= score <= 0.5, f"Expected 0.2-0.5, got {score}"
+
+### 4.1a Faithfulness Computation (Deterministic)
+
+```python
+def compute_faithfulness_score(
+    section_text: str,
+    card_bodies: dict[str, str],   # card_id → card body
+) -> float:
+    """
+    Deterministic faithfulness via Jaccard similarity of key terms.
+
+    1. 提取 section 和所有 card bodies 的 key terms（去 stopwords，stemming）
+    2. 计算 section_terms ∩ union(card_terms) / section_terms ∪ union(card_terms)
+    3. 返回 Jaccard coefficient
+
+    Heuristic, not a truth judgment. Thresholds are tuning knobs.
+    """
+    ...
+
+# Thresholds (可调)
+FAITHFUL_THRESHOLD = 0.5     # ≥ 0.5 → faithful
+WARNING_THRESHOLD = 0.2      # < 0.2 → unfaithful warning
+                              # 0.2 - 0.5 → grey area, warn at low end
+```
+
+### 4.1b Faithfulness Safety Rules
+
+1. **不调用 LLM 判断 faithfulness** — 所有计算基于 lexical overlap。
+2. **不引入 embedding similarity** — Jaccard + BM25 token overlap only。
+3. **False positive rate 监测** — 在 golden fixture 上假阳性 > 30% 时：
+   - Faithfulness 标记降级为 warning-only。
+   - 不阻塞 Wiki rebuild。
+   - 记录为 known limitation 并在 UI 中提示 "Quality indicator only — review manually"。
+4. **Section without references** — 无 card_ids 的 section 标记 warning，但不算 faithfulness 问题（是 coverage 问题）。
+5. **Faithfulness 报告只读** — 不自动修改 Wiki section 内容或引用的 cards。
+
+### 4.1c Faithfulness Test Fixture
+
+```python
+# tests/fixtures/faithfulness_golden.py
+
+FAITHFULNESS_GOLDEN = {
+    "faithful_case": {
+        "section_text": "OAuth 2.0 authentication uses authorization codes and refresh tokens for secure API access.",
+        "card_bodies": {
+            "c_auth_1": "OAuth 2.0 protocol uses authorization code grant flow.",
+            "c_auth_2": "Refresh tokens provide persistent access without re-authentication.",
+        },
+        "expected_score_min": 0.5,
+    },
+    "unfaithful_case": {
+        "section_text": "PostgreSQL supports window functions like ROW_NUMBER and RANK.",
+        "card_bodies": {
+            "c_api_1": "REST API endpoints use JSON for request and response bodies.",
+        },
+        "expected_score_max": 0.2,
+    },
+    "partial_case": {
+        "section_text": "JWT tokens provide stateless authentication. Rate limiting prevents abuse.",
+        "card_bodies": {
+            "c_auth_1": "JWT is a compact token format for stateless authentication.",
+        },
+        "expected_score_min": 0.2,
+        "expected_score_max": 0.5,
+    },
+    "no_references_case": {
+        "section_text": "This section covers general architecture principles.",
+        "card_bodies": {},   # 无引用
+        "expected_warning": "no_card_references",
+    },
+}
+```
 
 class TestStaleness:
     """Staleness 检测测试"""
@@ -571,31 +686,279 @@ class TestV03API:
     def test_graph_endpoint_returns_local_graph(self, client): ...
 ```
 
-### 8.2 E2E Tests (Playwright)
+### 8.2 E2E State Coverage (Playwright)
+
+每个 milestone 的 E2E 测试必须覆盖 5 种状态：loading、empty、error、happy path、regression。
+
+#### 8.2.1 M1 Card Quality
 
 **File**: `web/e2e/v03-quality.spec.ts`
 
 ```typescript
-test('card detail shows quality badge', async ({ page }) => {
-  // 打开一张已知 quality 的卡片
-  // 验证 QualityBadge 显示正确的 level
+// Loading state
+test('card detail shows quality panel loading skeleton', async ({ page }) => {
+  // 打开卡片详情，quality metadata 加载中
+  // 应显示 loading skeleton，不空白
 });
 
-test('related cards panel shows neighbor cards', async ({ page }) => {
-  // 打开一张已知有 related cards 的卡片
-  // 验证 RelatedCards panel 显示邻居卡片及 reason
+// Empty state
+test('card without quality metadata shows empty placeholder', async ({ page }) => {
+  // 打开一张无 quality metadata 的旧卡片
+  // 应显示 "Quality data not available" 的友好提示
 });
 
-test('health page shows issues with severity', async ({ page }) => {
-  // 访问 Health 页面
-  // 验证 issue 列表、severity badge、suggested action 显示
+// Error state
+test('card quality panel handles API error gracefully', async ({ page }) => {
+  // Quality API 返回 500
+  // 应显示 error state，不影响卡片正文阅读
 });
 
-test('local graph shows connected nodes', async ({ page }) => {
-  // 打开 card detail
-  // 验证 local graph preview 显示 neighbors
+// Happy path
+test('card detail shows quality badge with correct level', async ({ page }) => {
+  // 打开一张 quality=high 的卡片
+  // 验证 QualityBadge 显示 "High" 及对应颜色
+});
+
+test('card detail expandable quality panel shows rubric breakdown', async ({ page }) => {
+  // 展开 quality details
+  // 验证 5 个 rubric 维度分数和 warnings 列表
+});
+
+// Regression path
+test('low quality card shows regenerate suggestion but no auto-approve', async ({ page }) => {
+  // 打开 quality=low 的卡片
+  // 验证显示 regenerate/split/merge 建议
+  // 验证卡片状态未自动改变（仍为当前状态）
 });
 ```
+
+#### 8.2.2 M2 Wiki Quality
+
+**File**: `web/e2e/v03-wiki-quality.spec.ts`
+
+```typescript
+// Loading state
+test('wiki quality report shows loading indicator', async ({ page }) => {
+  // 请求 Wiki quality report
+  // 应显示 loading 状态
+});
+
+// Empty state
+test('wiki without quality report shows empty message', async ({ page }) => {
+  // Wiki 尚未 rebuild
+  // 应显示 "No quality report available. Rebuild Wiki to generate a report."
+});
+
+// Error state
+test('wiki quality report handles API failure', async ({ page }) => {
+  // Quality report API 返回 500
+  // 应显示 error state，不影响 Wiki 正文
+});
+
+// Happy path
+test('wiki quality report shows coverage and section references', async ({ page }) => {
+  // Rebuild Wiki
+  // 验证 report 显示 used/unused card counts
+  // 验证每个 section 有 card references
+});
+
+test('stale wiki section shows warning indicator', async ({ page }) => {
+  // 添加新 approved card 后
+  // 验证相关 Wiki section 显示 stale indicator
+});
+
+// Regression path
+test('wiki quality report never includes pending or rejected cards', async ({ page }) => {
+  // 有 pending/rejected drafts 存在
+  // 验证 Wiki quality report 的 used/unused 仅计算 human_approved
+});
+```
+
+#### 8.2.3 M3 Related Cards
+
+**File**: `web/e2e/v03-relations.spec.ts`
+
+```typescript
+// Loading state
+test('related cards panel shows loading skeleton', async ({ page }) => {
+  // 卡片详情页，related cards 加载中
+  // 应显示 skeleton
+});
+
+// Empty state
+test('card with no related cards shows empty message', async ({ page }) => {
+  // 一张无共享属性、孤立卡片
+  // 应显示 "No related knowledge cards found"
+});
+
+// Error state
+test('related cards panel handles API error', async ({ page }) => {
+  // Relations API 返回 500
+  // 应显示 error state，不阻塞卡片阅读
+});
+
+// Happy path
+test('related cards panel shows cards grouped by relation reason', async ({ page }) => {
+  // 打开一张有 same_source + same_tag 关系的卡片
+  // 验证 related cards 按 reason 分组
+  // 验证每条 relation 显示 reason badge
+});
+
+test('clicking related card navigates to that card', async ({ page }) => {
+  // 点击 related card 链接
+  // 验证跳转到目标卡片详情
+});
+
+// Regression path
+test('library context related cards only show human_approved', async ({ page }) => {
+  // 有 pending drafts 与当前卡片同 source
+  // 验证 Library 上下文的 related cards 不包含 pending/rejected
+});
+```
+
+#### 8.2.4 M4 Source Location
+
+**File**: `web/e2e/v03-location.spec.ts`
+
+```typescript
+// Empty state
+test('card without source location shows fallback display', async ({ page }) => {
+  // 旧卡片无 location 字段
+  // 应显示 "Source file" with path only
+  // 不崩溃，不显示 broken UI
+});
+
+// Error state
+test('source path outside allowlist rejected', async ({ page }) => {
+  // copy/reveal 的 source path 不在 allowlist
+  // 应显示 safe error message
+  // 不泄露不安全路径
+});
+
+// Happy path
+test('markdown card shows heading path and line range', async ({ page }) => {
+  // 打开 Markdown source 的卡片
+  // 验证显示 "§ Architecture > Auth, lines 45-62"
+});
+
+test('pdf card shows page number', async ({ page }) => {
+  // 打开 PDF source 的卡片
+  // 验证显示 "Page 12"
+});
+
+// Regression path
+test('copy/reveal buttons work with v2 provenance blocks', async ({ page }) => {
+  // provenance_blocks v2 带 location 字段
+  // 验证 copy path 仍然正常工作
+  // 验证 reveal in finder 仍然正常工作
+});
+```
+
+#### 8.2.5 M5 Knowledge Health
+
+**File**: `web/e2e/v03-health.spec.ts`
+
+```typescript
+// Loading state
+test('health page shows loading indicator while generating report', async ({ page }) => {
+  // 请求 health report
+  // 应显示 loading 状态
+});
+
+// Empty state
+test('healthy vault shows no issues message', async ({ page }) => {
+  // 知识库无已知问题
+  // 应显示 "No issues detected"
+});
+
+// Error state
+test('health report generation failure shows error state', async ({ page }) => {
+  // Health report 计算失败
+  // 应显示 error state with retry option
+});
+
+// Happy path
+test('health page shows issues grouped by severity', async ({ page }) => {
+  // 访问 Health 页面
+  // 验证 critical > warn > info 分组
+  // 验证每个 issue 显示 title, affected count, suggested action
+});
+
+test('health page issue expansion shows details', async ({ page }) => {
+  // 点击展开一个 issue
+  // 验证显示 affected item 列表和详细说明
+});
+
+// Regression path
+test('health report never auto-mutates cards', async ({ page }) => {
+  // 查看 health report 后刷新卡片状态
+  // 验证没有任何卡片状态被自动修改
+  // 验证 suggested_action 只是文本建议，没有 "Apply" 按钮
+});
+```
+
+#### 8.2.6 M6 Local Graph
+
+**File**: `web/e2e/v03-graph.spec.ts`
+
+```typescript
+// Loading state
+test('local graph shows loading indicator', async ({ page }) => {
+  // 卡片详情页，graph 加载中
+  // 应显示 skeleton / spinner
+});
+
+// Empty state
+test('card with no graph edges shows empty message', async ({ page }) => {
+  // 一张完全孤立的卡片（无同 source、无同 tag、无 wiki section）
+  // 应显示 "No connected knowledge items" + list fallback
+});
+
+// Error state
+test('local graph handles data error gracefully with list fallback', async ({ page }) => {
+  // Graph API 返回 error
+  // 应自动切换为 list fallback view
+  // 不显示 broken canvas
+});
+
+// Happy path
+test('card-centered graph shows 1-hop neighbors in list view', async ({ page }) => {
+  // 打开一张有关系的卡片
+  // 验证 center card 在顶部
+  // 验证 neighbors 按 type 分组（Source / Wiki / Cards / Tags）
+  // 验证每条边有 reason label
+});
+
+test('graph node click navigates to target', async ({ page }) => {
+  // 点击 graph 中的 neighbor card 节点
+  // 验证跳转到目标卡片详情
+});
+
+test('wiki-section-centered graph shows referenced cards', async ({ page }) => {
+  // 从 Wiki section 打开 local graph
+  // 验证 center 为 wiki section
+  // 验证邻居为 section 引用的 cards
+});
+
+// Regression path
+test('local graph uses only deterministic edges, no semantic edges', async ({ page }) => {
+  // 验证所有显示的 edge reasons 都在允许的 6 种类型内
+  // 验证不出现 "semantic_similarity" 或类似 label
+});
+```
+
+### 8.3 E2E State Coverage Checklist
+
+| Milestone | Loading | Empty | Error | Happy | Regression |
+|-----------|---------|-------|-------|-------|------------|
+| M1 Quality | ✓ | ✓ | ✓ | ✓ | ✓ |
+| M2 Wiki Quality | ✓ | ✓ | ✓ | ✓ | ✓ |
+| M3 Related Cards | ✓ | ✓ | ✓ | ✓ | ✓ |
+| M4 Source Location | — | ✓ | ✓ | ✓ | ✓ |
+| M5 Health | ✓ | ✓ | ✓ | ✓ | ✓ |
+| M6 Local Graph | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+> M4 无 loading state（location 数据随 card detail 一起返回，无独立加载态）。
 
 ---
 
@@ -623,7 +986,38 @@ tests/fixtures/
 ├── wiki_quality_fixture.py
 ├── relations_golden.py
 ├── health_golden.py
-└── graph_golden.py
+├── graph_golden.py
+├── faithfulness_golden.py
+└── README.md                   # fixture 使用说明
+```
+
+### 9.2a Golden Fixture Rules
+
+Golden fixtures 必须遵守以下规则：
+
+1. **Hand-authored deterministic data** — fixtures 是手工编写的合成数据，不依赖任何 LLM 输出。
+2. **No live LLM dependency** — 如果 fixture 模拟 LLM 生成的内容，必须以已审核的合成文本冻结，附带清晰元数据标注 `# SYNTHETIC — not LLM output`。
+3. **Unit tests never call LLM** — 所有单元测试和 CI 测试不调用真实 LLM API。Dogfood 测试是独立流程，不在 CI pipeline 中。
+4. **Real API dogfood is separate** — dogfood 验证（在真实 workspace 上手动测试）是 CI/单元测试之外的质量保证步骤，不在 `pytest` 中运行。
+5. **Fixture mutations require review** — 修改 golden fixture 的预期输出必须通过 code review，因为 fixture 定义了行为规范。
+6. **Each fixture has a README comment** — 每个 fixture 文件的 module docstring 说明该 fixture 覆盖的场景、对应的 RFC/SDD section、以及预期行为摘要。
+
+示例 fixture 文件头：
+
+```python
+# tests/fixtures/quality_golden.py
+"""
+Golden fixtures for Card Quality scoring (M1).
+
+Covers RFC_0003 §7 FR1.1, SDD §5.1-5.4.
+
+Scenarios:
+  - high_quality: 完整结构化卡片，预期 score ≥ 70
+  - low_quality: 过短、无结构、无 citation 卡片，预期 score < 40
+  - medium_quality: 部分满足条件，预期 score 40-69
+
+All content is SYNTHETIC — not derived from real user data or LLM output.
+"""
 ```
 
 ---
@@ -646,7 +1040,131 @@ tests/fixtures/
 
 ---
 
-## 11. References
+## 11. Regression & Boundary Tests
+
+> **Release-blocking regression tests**。这些测试不能只靠 code review。每个 milestone 完成后必须跑相关子集。
+
+### 11.1 Boundary Test Manifest
+
+以下 15 条边界测试是 v0.3 发布的必要条件：
+
+| # | Test | Category | Applies To |
+|---|------|----------|------------|
+| 1 | **no auto approve** — quality score 不触发自动审批 | Safety | M1 |
+| 2 | **no automatic mutation of human_approved** — quality/warnings 不修改卡片内容或状态 | Safety | M1, M5 |
+| 3 | **pending_review never appears in Knowledge Library** — Library 查询仅返回 human_approved | Regression | M3 |
+| 4 | **ai_draft never appears in final Wiki** — Wiki synthesis 仅使用 human_approved | Regression | M2 |
+| 5 | **rejected cards never appear in final Wiki** — rejected 状态卡片不出现在 Wiki section | Regression | M2 |
+| 6 | **Wiki only uses human_approved** — Wiki quality report 的 used/unused 仅统计 approved | Regression | M2 |
+| 7 | **Related Cards in Library context only returns human_approved** — 非 Library context 可返回 draft 但 Library 不可 | Boundary | M3 |
+| 8 | **no Vector DB import** — 代码库中不可出现 `import chromadb` / `import pinecone` 等 | Architecture | All |
+| 9 | **no Embedding API call** — 代码库中不可出现 `openai.Embedding` / `sentence_transformers` 调用 | Architecture | All |
+| 10 | **no Graph DB dependency** — 不可 `import neo4j`，NetworkX 不可作为数据存储依赖 | Architecture | M3, M6 |
+| 11 | **no arbitrary file execution for provenance actions** — copy/reveal 仅操作 allowlisted paths | Safety | M4 |
+| 12 | **SourceAdapter must not import quality/wiki/graph modules** — adapter 层与质量/关系层解耦 | Architecture | M1, M4 |
+| 13 | **LocalGraph must be deterministic and no semantic similarity** — 同一输入产生相同输出，无 embedding | Correctness | M6 |
+| 14 | **maintenance suggestions must not mutate content** — HealthReport.suggested_action 是只读文本建议 | Safety | M5 |
+| 15 | **no real API calls in unit tests** — 单元测试不调用 LLM API / 外部服务 | Testing | All |
+
+### 11.2 Test File Mapping
+
+```
+tests/boundary/
+├── __init__.py
+├── test_no_auto_approve.py          # Tests 1-2
+├── test_library_wiki_filter.py      # Tests 3-7
+├── test_no_forbidden_deps.py        # Tests 8-10
+├── test_provenance_safety.py        # Test 11
+├── test_module_isolation.py         # Test 12
+├── test_deterministic_graph.py      # Test 13
+├── test_no_auto_mutation.py         # Test 14
+└── test_no_real_api_calls.py        # Test 15
+```
+
+### 11.3 Example Boundary Tests
+
+```python
+# tests/boundary/test_no_auto_approve.py
+
+def test_quality_score_never_triggers_approve(card_fixture):
+    """Quality score must not change card status to human_approved."""
+    card = ai_draft_card(quality_level="high", quality_score=95)
+    # After quality scoring, status must remain ai_draft
+    assert card.status == "ai_draft"
+    # Only explicit user action can approve
+
+def test_quality_warning_never_mutates_card_body(card_fixture):
+    """Quality warnings must be read-only metadata, never modify card body."""
+    original_body = card.body
+    CardQuality.from_card(card)  # compute quality
+    assert card.body == original_body
+
+
+# tests/boundary/test_library_wiki_filter.py
+
+def test_pending_drafts_excluded_from_library(all_cards):
+    """Knowledge Library query must return only human_approved."""
+    from mindforge.relations import compute_related_cards
+    related = compute_related_cards("center_card", all_cards, context="library")
+    approved_ids = {c.id for c in related if c.status == "human_approved"}
+    pending_ids = {c.id for c in related if c.status != "human_approved"}
+    assert not pending_ids
+    assert related.keys() == approved_ids
+
+def test_wiki_quality_report_only_counts_approved(wiki_fixture):
+    """Wiki quality report used/unused counts must exclude non-approved cards."""
+    report = compute_wiki_quality_report(wiki_fixture)
+    all_used = set(report.used_card_ids)
+    all_unused = set(report.unused_card_ids)
+    all_counted = all_used | all_unused
+    pending_or_rejected = {c.id for c in wiki_fixture.cards
+                          if c.status not in ("human_approved",)}
+    assert not (all_counted & pending_or_rejected)
+
+
+# tests/boundary/test_no_forbidden_deps.py
+
+def test_no_vector_db_import():
+    """Verify codebase has no Vector DB dependency."""
+    forbidden = ["chromadb", "pinecone", "weaviate", "qdrant_client",
+                 "milvus", "lancedb"]
+    import pkgutil
+    installed = {m.name for m in pkgutil.iter_modules()}
+    found = forbidden & installed
+    assert not found, f"Forbidden Vector DB deps found: {found}"
+
+def test_no_embedding_api_import():
+    """Verify codebase has no embedding API dependency."""
+    # Check that no import of openai.Embedding or sentence_transformers exists
+    import ast, pathlib
+    src_dir = pathlib.Path("src/mindforge")
+    for py_file in src_dir.rglob("*.py"):
+        tree = ast.parse(py_file.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                module = getattr(node, 'module', '') or ''
+                if 'sentence_transformers' in module or 'openai.Embedding' in str(getattr(node, 'names', [])):
+                    pytest.fail(f"Forbidden embedding import in {py_file}")
+```
+
+### 11.4 Running Boundary Tests
+
+```bash
+# Run all boundary tests — must pass before release
+pytest tests/boundary/ -v
+
+# Run per-milestone boundary subset
+pytest tests/boundary/test_no_auto_approve.py -v    # M1
+pytest tests/boundary/test_library_wiki_filter.py -v # M2, M3
+pytest tests/boundary/test_no_forbidden_deps.py -v   # All
+pytest tests/boundary/test_provenance_safety.py -v   # M4
+pytest tests/boundary/test_no_auto_mutation.py -v    # M5
+pytest tests/boundary/test_deterministic_graph.py -v # M6
+```
+
+---
+
+## 12. References
 
 - [RFC 0003](../rfc/RFC_0003_KNOWLEDGE_QUALITY_AND_NAVIGATION.md)
 - [SDD Knowledge Quality](../sdd/SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md)

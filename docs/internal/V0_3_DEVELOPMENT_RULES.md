@@ -62,7 +62,10 @@ Scope: src/mindforge/quality/ only. Reference RFC_0003 §7 FR1, SDD §3.1, §5.
 
 6. **不引入新依赖**。
    - 不安装 Vector DB（Chroma, Pinecone, Weaviate, Qdrant, Milvus, LanceDB）。
-   - 不安装 Graph DB（Neo4j, NetworkX 作为 graph DB 使用）。
+   - Do not install NetworkX, d3, vis.js, cytoscape, viz.js, sigma.js, dagre, elkjs, mermaid, or any graph-computation / graph-visualization libraries for v0.3.
+   - Local graph data must be built using built-in Python dict/list/set and rendered with simple HTML/CSS.
+   - In-memory adjacency maps are allowed（允许用 Python 内置 dict/set/list 构建邻接关系）；graph databases and graph libraries are not（不安装图数据库和图计算库）。
+   - 不安装 Graph DB（Neo4j, ArangoDB, SurrealDB 等图数据库）。
    - 不安装 embedding 库（sentence-transformers, openai embeddings, text-embeddings-inference）。
    - 不安装新的外部 API SDK。
    - 仅使用 Python 标准库 + v0.2 已有依赖。

@@ -180,7 +180,7 @@ class RelationReason(str, Enum):
     SAME_WIKI_SECTION = "same_wiki_section"
     SAME_REVIEW_BATCH = "same_review_batch"
     SOURCE_LOCATION_NEIGHBOR = "source_location_neighbor"
-    MANUAL_LINK = "manual_link"
+    MANUAL_LINK = "manual_link"  # reserved for future — v0.3 API must not emit this edge type
 
 @dataclass(frozen=True)
 class RelatedCardEdge:
@@ -432,7 +432,7 @@ unused_reason: card too short, card topic too narrow, card status stale, etc.
 | same_wiki_section | 两张卡片被同一 Wiki section 引用 | 0.7 |
 | same_review_batch | 两张卡片在同一次 source processing 中生成 | 0.3 |
 | source_location_neighbor | 两张卡片来自同一 source 的相邻段落 | 0.4 |
-| manual_link | 保留字段，v0.3 不实现 | 1.0 |
+| manual_link | **reserved for future** — v0.3 API must not emit; Web must handle unknown/reserved reason gracefully | 1.0 (not in v0.3) |
 
 ### 7.2 排序与过滤
 
@@ -440,6 +440,7 @@ unused_reason: card too short, card topic too narrow, card status stale, etc.
 - Library context：仅显示 human_approved
 - Review context：可显示 pending/rejected（如果 mode=draft）
 - 每种 reason 最多显示 5 条（避免列表过长）
+- **manual_link 不出现在 v0.3 API 输出中**；Web UI 对于 unknown/reserved reason 必须 graceful fallback（不作为 error）
 
 ### 7.3 计算策略
 
@@ -522,27 +523,184 @@ def compute_related_cards(card_id: str, all_cards: list[Card]) -> list[RelatedCa
   4. 返回 LocalGraph
 ```
 
-### 10.2 UI 设计
+### 10.2 v0.3 Mini Graph — 视觉形态与硬约束
 
-**Phase 1 (v0.3)**: List view + mini graph
+#### 10.2.1 硬约束
+
+v0.3 Mini Graph 必须遵守以下强制约束：
+
+| 约束 | 说明 |
+|------|------|
+| **不引入图形库** | 不安装 d3 / vis.js / cytoscape / viz.js / sigma.js / dagre / elkjs / mermaid |
+| **不使用 canvas** | 不创建 `<canvas>` 元素做力导向图或自定义渲染 |
+| **不做 force-directed graph** | 不模拟物理力、不计算节点斥力/引力 |
+| **不使用 NetworkX** | NetworkX 不作为图计算/布局/可视化依赖（允许内置 dict/set/list 邻接表） |
+| **HTML/CSS deterministic local graph** | 第一版 graph view 用 React组件 + CSS Flexbox/Grid + 简单 connector line 实现 |
+| **必须支持 list fallback** | 每个 graph view 必须有等价的 list view fallback（CSS `@media` 或 JS fallback） |
+| **Graph data contract 和 graph view 分离** | `LocalGraph` 数据模型通过 API 返回 JSON，不绑定任何 UI 库 |
+
+#### 10.2.2 推荐视觉形态
+
+**A. Card-centered local graph（卡片中心图谱）**
 
 ```
-┌─────────────────────────────────┐
-│ Related Knowledge Graph          │
-│                                  │
-│  ● Current Card                  │
-│  ├── [same_source] → Card B     │
-│  │   └── [same_tag] → Card C    │
-│  ├── [same_source] → Card D     │
-│  └── [wiki_section] → Card E    │
-│                                  │
-│  ▸ Source: introduction.md      │
-│  ▸ Tags: architecture, design   │
-│  ▸ Wiki Section: Overview       │
-└─────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Knowledge Graph                              [List] │ ← toggle: graph / list
+│                                                      │
+│  ┌─────────────────────────────────┐                 │
+│  │  ● Auth Pattern Guide           │ ← center card  │
+│  │    fact · approved · high       │                 │
+│  └───────────┬─────────────────────┘                 │
+│              │                                       │
+│     ┌────────┼────────┐                              │
+│     │        │        │                              │
+│     ▼        ▼        ▼                              │
+│  ┌──────────────┐  ┌──────────────────┐              │
+│  │ 📄 Sources    │  │ 🏷️ Tags          │              │
+│  │              │  │                  │              │
+│  │ docs/auth.md │  │ auth             │              │
+│  │  · same_source│  │ security         │              │
+│  │              │  │  · same_tag      │              │
+│  └──────────────┘  └──────────────────┘              │
+│                                                      │
+│  ┌──────────────────────────────────────┐            │
+│  │ 📚 Wiki Sections                     │            │
+│  │                                      │            │
+│  │ Authentication                       │            │
+│  │  · same_wiki_section                 │            │
+│  └──────────────────────────────────────┘            │
+│                                                      │
+│  ┌──────────────────────────────────────┐            │
+│  │ 📋 Related Cards                     │            │
+│  │                                      │            │
+│  │ ○ OAuth 2.0 Setup · same_source     │            │
+│  │ ○ API Token Security · same_tag     │            │
+│  │ ○ Session Management · same_wiki    │            │
+│  └──────────────────────────────────────┘            │
+│                                                      │
+│  ▸ Show all 12 connected items                       │
+└──────────────────────────────────────────────────────┘
 ```
 
-**Phase 2 (future)**: Canvas-based force-directed graph
+特点：
+- Center card 在顶部，视觉上突出（border/background 区分）
+- Neighbors 按 node type 分组：Sources → Tags → Wiki Sections → Related Cards
+- 每组内 items 按 edge strength 降序排列
+- 每条 edge 的 reason label 以 badge 形式显示
+- 使用 CSS border-left / connector-line 或 indentation 表示层级关系
+- 不渲染 canvas，不绘制贝塞尔曲线
+
+**B. Wiki-section-centered local graph（Wiki Section 中心图谱）**
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Section Graph                              [List]   │
+│                                                      │
+│  ┌─────────────────────────────────┐                 │
+│  │  📚 Authentication              │ ← center        │
+│  │    Wiki Section                 │   wiki section  │
+│  │    3 referenced cards           │                 │
+│  └───────────┬─────────────────────┘                 │
+│              │                                       │
+│              ▼                                       │
+│  ┌──────────────────────────────────────┐            │
+│  │ 📋 Referenced Cards                  │            │
+│  │                                      │            │
+│  │ ○ Auth Pattern Guide                │            │
+│  │   fact · high                       │            │
+│  │   ─ shared via: same_source →       │            │
+│  │     OAuth 2.0 Setup                 │            │
+│  │                                      │            │
+│  │ ○ OAuth 2.0 Setup                   │            │
+│  │   method · medium                   │            │
+│  │   ─ shared via: same_tag →          │            │
+│  │     API Token Security              │            │
+│  │                                      │            │
+│  │ ○ Session Management                │            │
+│  │   decision · high                   │            │
+│  └──────────────────────────────────────┘            │
+│                                                      │
+│  ▸ Tags: auth, security, oauth                      │
+│  ▸ Sources: docs/auth.md                            │
+└──────────────────────────────────────────────────────┘
+```
+
+特点：
+- Center 为 Wiki section，显示引用的卡片数
+- Referenced cards 按 importance（primary > supporting > mentioned）排列
+- 每张 card 下显示其与其他 card 的 shared relation（1-hop 扩展）
+- Tag/source 节点在最下方以 compact inline list 展示
+
+#### 10.2.3 List Fallback（强制）
+
+当 graph view 不适用时（窄屏、JS 关闭、render 错误），自动切换为 relationship list view：
+
+```
+Knowledge Graph (List View)
+─────────────────────────────
+● Auth Pattern Guide (this card)
+  │
+  ├── 📄 Source: docs/auth.md
+  │     · same_source → OAuth 2.0 Setup
+  │     · same_source → API Token Security
+  │
+  ├── 🏷️ Tag: auth
+  │     · same_tag → API Token Security
+  │     · same_tag → Session Management
+  │
+  ├── 🏷️ Tag: security
+  │     · same_tag → API Token Security
+  │
+  ├── 📚 Wiki: Authentication
+  │     · same_wiki_section → OAuth 2.0 Setup
+  │     · same_wiki_section → Session Management
+  │
+  └── 📋 Related Cards
+        ├── OAuth 2.0 Setup (same_source, same_wiki_section)
+        ├── API Token Security (same_tag)
+        └── Session Management (same_tag, same_wiki_section)
+```
+
+#### 10.2.4 实现策略
+
+1. **Phase 6a (必做)**: Relationship list view（用现有 React component pattern，不新增依赖）
+2. **Phase 6b (可选)**: Mini graph view（HTML/CSS grid/flexbox，不超过 500 行 TSX）
+3. **Phase 6c (不出现在 v0.3)**: Canvas / force-directed / 图形库
+
+如果 Phase 6b 的 UI 复杂度超出时间预算 50%，则 v0.3 只交付 Phase 6a（list view），Phase 6b 降级为 v0.4 backlog。
+
+#### 10.2.5 Graph Data Contract 与 View 分离
+
+```typescript
+// API response (data contract — 纯 JSON，不绑定 UI)
+interface LocalGraphResponse {
+  center: {
+    id: string;
+    type: "card" | "wiki_section";
+    label: string;
+    href?: string;
+  };
+  nodes: Array<{
+    id: string;
+    type: "card" | "source" | "wiki_section" | "tag";
+    label: string;
+    href?: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  edges: Array<{
+    source_id: string;
+    target_id: string;
+    reason: RelationReason;
+    label: string;
+  }>;
+}
+
+// React component (view — 消费 data contract，独立演进)
+function LocalGraphView({ data }: { data: LocalGraphResponse }) {
+  // 根据 screen size / feature flag 选择 list 或 mini-graph
+  // 不修改 data contract
+}
+```
 
 ### 10.3 性能优化
 
