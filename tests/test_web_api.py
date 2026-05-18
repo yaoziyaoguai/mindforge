@@ -814,6 +814,72 @@ def test_changed_source_reimport_generates_new_draft(
     assert len(draft_paths) == 2
 
 
+# ── P2 回归测试：ProcessingRun 状态过渡 ───────────────────────────
+# 中文学习型说明：_apply_summary 必须覆盖所有 count 组合映射到正确终结状态，
+# 不能遗留 'running'。以下 5 个单元级测试直接调用 _apply_summary 验证。
+
+
+def _make_record() -> ProcessingRunRecord:
+    return ProcessingRunRecord(
+        run_id="pr_p2_test",
+        source_ref="source-p2",
+        source_path="/tmp/p2-test.md",
+        mode="watch_scan",
+        status="running",
+        started_at="2026-01-01T00:00:00.000000+00:00",
+        current_step="processing source",
+    )
+
+
+def _make_summary(**counts: int) -> IngestionSummary:
+    return IngestionSummary(
+        mode="watch_scan",
+        target=Path("/tmp/p2-test.md"),
+        counts=counts,
+    )
+
+
+def test_apply_summary_no_output_discovered_zero_status_skipped() -> None:
+    """discovered=0 → skipped。扫描无支持文件不算失败。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=0, processed=0, skipped=0, failed=0), draft_ids=[])
+    assert record.status == "skipped"
+    assert record.summary["discovered"] == 0
+
+
+def test_apply_summary_all_succeeded_status_succeeded() -> None:
+    """全部成功生成 drafts → succeeded。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=2, processed=2, skipped=0, failed=0), draft_ids=["a", "b"])
+    assert record.status == "succeeded"
+    assert record.summary["drafts"] == 2
+
+
+def test_apply_summary_all_skipped_status_skipped() -> None:
+    """全部被跳过（duplicate / triage / adapter skip）→ skipped。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=3, processed=0, skipped=3, failed=0), draft_ids=[])
+    assert record.status == "skipped"
+    assert record.summary["skipped"] == 3
+
+
+def test_apply_summary_partial_failure_status_partial_failed() -> None:
+    """部分成功 + 部分失败 → partial_failed。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=3, processed=2, skipped=0, failed=1), draft_ids=["a", "b"])
+    assert record.status == "partial_failed"
+    assert record.summary["drafts"] == 2
+    assert record.summary["errors"] == 1
+
+
+def test_apply_summary_all_failed_status_failed() -> None:
+    """全部失败无产出 → failed。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=1, processed=0, skipped=0, failed=1), draft_ids=[])
+    assert record.status == "failed"
+    assert record.summary["errors"] == 1
+
+
 def test_stale_running_run_is_visible_as_failed_after_reload(
     tmp_path: Path,
     monkeypatch,
