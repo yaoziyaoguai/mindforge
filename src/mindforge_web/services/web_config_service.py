@@ -96,24 +96,49 @@ class WebConfigService:
         provider = report["provider"]
         opt_in = report["opt_in"]
         readiness = model_setup_readiness(self.cfg)
+        alias_statuses = [
+            self._provider_alias_status_from_readiness_alias(a)
+            for a in provider["aliases"]
+        ]
+        blockers = list(opt_in["blockers"])
+        if readiness.ready:
+            # 中文学习型说明：core provider_readiness 是旧的 env-only 审计视图；
+            # Web Setup 主路径使用 local secret store。Web status 必须展示与
+            # processing/wiki 相同的 readiness，否则用户会看到“ready 但缺 key”
+            # 的矛盾状态。这里仍只做 presence/masked metadata，不返回 raw key。
+            blockers = []
         return ProviderStatus(
             active_profile=provider["active_profile"],
-            opt_in_state=opt_in["opt_in_state"],
+            opt_in_state="ready" if readiness.ready else opt_in["opt_in_state"],
             model_setup=readiness.status,
             model_setup_label=readiness.label,
-            can_run_real_smoke=opt_in["can_run_real_smoke"],
-            aliases=[
-                ProviderAliasStatus(
-                    alias=a["alias"],
-                    type=a["type"],
-                    in_active_profile=a["in_active_profile"],
-                    api_key_env=a.get("api_key_env"),
-                    api_key_present=bool(a.get("api_key_present")),
-                    base_url_env_present=bool(a.get("base_url_env_present")),
-                )
-                for a in provider["aliases"]
-            ],
-            blockers=list(opt_in["blockers"]),
+            can_run_real_smoke=readiness.ready,
+            aliases=alias_statuses,
+            blockers=blockers,
+        )
+
+    def _provider_alias_status_from_readiness_alias(self, alias: dict[str, Any]) -> ProviderAliasStatus:
+        """把 env-only readiness alias 转成 Web Setup 的 secret-store-aware 状态。
+
+        中文学习型说明：provider_readiness 不读 secret store 是有意的安全边界；
+        WebConfigService 已经是 Web Setup 的 secret metadata 边界，可以用
+        `SecretStore.present()` 判断 local key 是否存在，但仍不能读取或返回明文。
+        """
+        alias_id = str(alias["alias"])
+        model = self.cfg.llm.models.get(alias_id)
+        env_key_present = bool(alias.get("api_key_present"))
+        secret_key_present = bool(model and self.secrets.api_key_source(
+            alias_id,
+            model.type,
+            model.api_key_env,
+        ) in ("local_secret", "env"))
+        return ProviderAliasStatus(
+            alias=alias_id,
+            type=str(alias["type"]),
+            in_active_profile=bool(alias["in_active_profile"]),
+            api_key_env=alias.get("api_key_env"),
+            api_key_present=env_key_present or secret_key_present,
+            base_url_env_present=bool(alias.get("base_url_env_present")),
         )
 
     def cubox_status_item(self) -> StatusItem:

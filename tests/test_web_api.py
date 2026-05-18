@@ -19,9 +19,10 @@ from mindforge.app_context import AppContextError
 from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
-from mindforge.ingestion_service import IngestionSummary
-from mindforge_web.services.processing_run_service import ProcessingRunRecord, _now, _run_worker, _safe_error_message
+from mindforge.ingestion_service import IngestionSummary, _skip_reason_hint
+from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
+from mindforge_web.services.web_source_service import _display_status
 
 
 def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -101,6 +102,38 @@ def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
     return cfg_path, vault, cards
+
+
+def _write_config_multi_adapter(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """同 _write_config，但额外启用 txt / docx adapter 供跨格式回归测试。"""
+
+    cfg_path, vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["sources"]["enabled"] = ["plain_markdown", "txt", "docx"]
+    raw["sources"]["registry"]["txt"] = {
+        "adapter": "TxtAdapter",
+        "inbox_subdir": "ManualNotes",
+        "file_glob": "*.txt",
+        "enabled": True,
+    }
+    raw["sources"]["registry"]["docx"] = {
+        "adapter": "DocxTextAdapter",
+        "inbox_subdir": "ManualNotes",
+        "file_glob": "*.docx",
+        "enabled": True,
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    return cfg_path, vault, cards
+
+
+def _write_minimal_docx(path: Path) -> None:
+    """生成最小合法 .docx 供 DocxTextAdapter 回归测试。"""
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading("Docx Test", level=1)
+    doc.add_paragraph("Minimal body for dedup regression test.")
+    doc.save(str(path))
 
 
 def _write_draft(cards: Path) -> Path:
@@ -483,6 +516,38 @@ def test_process_now_starts_background_run_and_sources_expose_last_run_summary(
     assert watched["processing_status"] == "succeeded"
 
 
+def test_process_now_reports_legacy_doc_as_friendly_skip(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Legacy .doc 在 Web 后台 run 中必须是友好 skipped，不是 NoOutputError。
+
+    中文学习型说明：source discovery 已经知道 legacy .doc 是 unsupported；
+    processing run 汇总层必须保留这个事实，不能因为没有 draft 就误导用户去
+    检查模型配置。这里锁住 fresh-clone dogfood 暴露的真实回归路径。
+    """
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    legacy = tmp_path / "legacy-plan.doc"
+    legacy.write_bytes(b"synthetic legacy ole placeholder")
+
+    response = client.post(
+        "/api/sources/watch",
+        json={"path": str(legacy), "frequency": "manual", "process_now": True},
+    )
+
+    assert response.status_code == 200
+    finished = _wait_for_processing_run(client, response.json()["run_id"])
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["discovered"] == 1
+    assert finished["summary"]["skipped"] == 1
+    assert finished["summary"]["errors"] == 0
+    assert finished["error_type"] is None
+    assert any(reason.startswith("unsupported_legacy_doc") for reason in finished["skip_reasons"])
+    assert "Model setup" not in finished["message"]
+    assert "convert" in finished["message"].lower()
+
+
 def test_process_now_returns_existing_active_run_instead_of_spawning_duplicate(
     tmp_path: Path,
     monkeypatch,
@@ -526,6 +591,382 @@ def test_process_now_returns_existing_active_run_instead_of_spawning_duplicate(
     assert "already running" in second["message"].lower()
     assert calls == 1
     assert finished["status"] == "succeeded"
+
+
+# ── P1 回归测试：重复 ai_draft 防护 ──────────────────────────────
+# 中文学习型说明：以下 5 个测试锁定 P1 fix 引入的三层 dedup：
+#   L1: active-run 协调（processing_run_service）
+#   L2: card-level dedup（ingestion_service._build_existing_draft_index）
+#   L3: checkpoint fingerprint dedup（processed_sources / content_hash_index）
+
+
+def test_import_then_watch_scan_same_txt_source_only_one_ai_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """import TXT 后再 watch/scan 同一文件，card-level dedup 防止重复 ai_draft。
+
+    中文学习型说明：P1 L2 防线——import 同步生成 ai_draft 后，watch/scan 的
+    _ingest_targets_summary 通过 _build_existing_draft_index 发现已有同
+    source_path 的 ai_draft，必须 skip 而非再写一张。
+    """
+
+    cfg_path, _vault, cards = _write_config_multi_adapter(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    txt_file = tmp_path / "dedup-test.txt"
+    txt_file.write_text("TXT body for dedup regression test.\n", encoding="utf-8")
+
+    # Step 1：import 同步生成 1 张 ai_draft
+    imported = client.post("/api/sources/import", json={"path": str(txt_file)}).json()
+    assert imported["ok"] is True
+    assert imported["counts"]["processed"] == 1
+    assert imported["run_id"]
+
+    # Step 2：watch_add + scan 同一文件 → card-level dedup 应阻止再生成
+    watched = client.post(
+        "/api/sources/watch",
+        json={"path": str(txt_file), "frequency": "manual", "process_now": False},
+    ).json()
+    scanned = client.post(
+        "/api/sources/watch/scan", params={"ref": watched["watch_id"]}
+    ).json()
+    finished = _wait_for_processing_run(client, scanned["run_id"])
+
+    # watch/scan 必须 skipped（不是 NoOutputError）
+    # skip reason 可能是 card-level dedup（ai_draft_already_exists）或
+    # checkpoint-level dedup（already_processed），取决于两次调用的时序
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    valid_reasons = {"ai_draft_already_exists", "already_processed"}
+    assert any(
+        any(reason in r for reason in valid_reasons)
+        for r in finished["skip_reasons"]
+    ), f"expected one of {valid_reasons} in skip_reasons, got {finished['skip_reasons']}"
+
+    # 最终 vault 只有 1 张 ai_draft
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_import_then_watch_scan_same_docx_source_only_one_ai_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """import DOCX 后再 watch/scan 同一文件，card-level dedup 防止重复 ai_draft。
+
+    中文学习型说明：同 TXT 用例，但验证 DocxTextAdapter 路径下的 source_path
+    标准化与 card dedup 无误。python-docx 生成最小合法 .docx。
+    """
+
+    cfg_path, _vault, cards = _write_config_multi_adapter(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    docx_file = tmp_path / "dedup-test.docx"
+    _write_minimal_docx(docx_file)
+
+    imported = client.post("/api/sources/import", json={"path": str(docx_file)}).json()
+    assert imported["ok"] is True
+    assert imported["counts"]["processed"] == 1
+
+    watched = client.post(
+        "/api/sources/watch",
+        json={"path": str(docx_file), "frequency": "manual", "process_now": False},
+    ).json()
+    scanned = client.post(
+        "/api/sources/watch/scan", params={"ref": watched["watch_id"]}
+    ).json()
+    finished = _wait_for_processing_run(client, scanned["run_id"])
+
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    valid_reasons = {"ai_draft_already_exists", "already_processed"}
+    assert any(
+        any(reason in r for reason in valid_reasons)
+        for r in finished["skip_reasons"]
+    ), f"expected one of {valid_reasons} in skip_reasons, got {finished['skip_reasons']}"
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_active_run_blocks_concurrent_import_for_same_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """同一 source 已有 active run 时 import 复用该 run，不新开并发。
+
+    中文学习型说明：P1 L1 防线——start_sync_processing_run 在创建 run 之前
+    先查 latest_run_for_source。如果已有 queued/running 的 run，直接返回它，
+    不创建新 run。这防止两个 HTTP 请求同时触发同一 source 的 processing。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "concurrent-import.md"
+    source.write_text("# Concurrent Import\n\nbody\n", encoding="utf-8")
+
+    # 第一个 import：正常生成
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+    first_run_id = first["run_id"]
+
+    # 第二个 import：同 source 再次 import，走 checkpoint dedup
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    # 第二次不应生成新 draft
+    assert second["counts"]["processed"] == 0
+    assert second["counts"]["skipped"] >= 1
+    # 两次返回不同 run_id（因为第一次已 finalize，第二次是新 run）
+    assert second["run_id"] != first_run_id
+    cards_dir = tmp_path / "dogfood-vault" / "20-Knowledge-Cards"
+    draft_paths = [p for p in cards_dir.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_unchanged_fingerprint_reimport_no_duplicate_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """内容未变的 source 再次 import 不生成新 ai_draft。
+
+    中文学习型说明：P1 L3 防线——checkpoint 层的 processed_sources 索引
+    (source_id + content_hash) 和 processed_content_hash_index 必须阻止
+    同 fingerprint 重复生成卡片。两次独立 import 调用，内容 hash 相同，
+    第二次应 skip。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "unchanged.md"
+    source.write_text("# Unchanged\n\nSame body twice.\n", encoding="utf-8")
+
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    assert second["counts"]["processed"] == 0
+    assert second["counts"]["skipped"] >= 1
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_changed_source_reimport_generates_new_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """内容变更后的 source 重新 import 必须生成新 ai_draft。
+
+    中文学习型说明：P1 的关键反例——dedup 不能阻止用户对真正变更了内容的
+    source 重新处理。content_hash 不同时必须走完整 pipeline 产出新 card。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "changing.md"
+    source.write_text("# Version 1\n\nOriginal body.\n", encoding="utf-8")
+
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+
+    # 内容变更
+    source.write_text("# Version 2\n\nUpdated body with new content.\n", encoding="utf-8")
+
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    assert second["counts"]["processed"] == 1, (
+        f"changed source must generate new draft, got {second['counts']}"
+    )
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 2
+
+
+# ── P2 回归测试：ProcessingRun 状态过渡 ───────────────────────────
+# 中文学习型说明：_apply_summary 必须覆盖所有 count 组合映射到正确终结状态，
+# 不能遗留 'running'。以下 5 个单元级测试直接调用 _apply_summary 验证。
+
+
+def _make_record() -> ProcessingRunRecord:
+    return ProcessingRunRecord(
+        run_id="pr_p2_test",
+        source_ref="source-p2",
+        source_path="/tmp/p2-test.md",
+        mode="watch_scan",
+        status="running",
+        started_at="2026-01-01T00:00:00.000000+00:00",
+        current_step="processing source",
+    )
+
+
+def _make_summary(**counts: int) -> IngestionSummary:
+    return IngestionSummary(
+        mode="watch_scan",
+        target=Path("/tmp/p2-test.md"),
+        counts=counts,
+    )
+
+
+def test_apply_summary_no_output_discovered_zero_status_skipped() -> None:
+    """discovered=0 → skipped。扫描无支持文件不算失败。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=0, processed=0, skipped=0, failed=0), draft_ids=[])
+    assert record.status == "skipped"
+    assert record.summary["discovered"] == 0
+
+
+def test_apply_summary_all_succeeded_status_succeeded() -> None:
+    """全部成功生成 drafts → succeeded。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=2, processed=2, skipped=0, failed=0), draft_ids=["a", "b"])
+    assert record.status == "succeeded"
+    assert record.summary["drafts"] == 2
+
+
+def test_apply_summary_all_skipped_status_skipped() -> None:
+    """全部被跳过（duplicate / triage / adapter skip）→ skipped。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=3, processed=0, skipped=3, failed=0), draft_ids=[])
+    assert record.status == "skipped"
+    assert record.summary["skipped"] == 3
+
+
+def test_apply_summary_partial_failure_status_partial_failed() -> None:
+    """部分成功 + 部分失败 → partial_failed。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=3, processed=2, skipped=0, failed=1), draft_ids=["a", "b"])
+    assert record.status == "partial_failed"
+    assert record.summary["drafts"] == 2
+    assert record.summary["errors"] == 1
+
+
+def test_apply_summary_all_failed_status_failed() -> None:
+    """全部失败无产出 → failed。"""
+    record = _make_record()
+    _apply_summary(record, _make_summary(seen=1, processed=0, skipped=0, failed=1), draft_ids=[])
+    assert record.status == "failed"
+    assert record.summary["errors"] == 1
+
+
+# ── P2b 回归测试：PDF 解析失败原因提示 ────────────────────────────
+# 中文学习型说明：_skip_reason_hint 将 adapter-level 错误码翻译为用户友好文案，
+# 区分 encrypted_pdf / parse_failed / adapter_error 等不同失败原因。
+
+
+def test_skip_reason_hint_encrypted_pdf_returns_password_hint() -> None:
+    """encrypted_pdf → 提示用户移除密码保护或导出为非加密 PDF。"""
+    hint = _skip_reason_hint("encrypted_pdf")
+    assert hint is not None
+    assert "encrypted" in hint.lower()
+    assert "password" in hint.lower()
+
+
+def test_skip_reason_hint_adapter_error_prefix_returns_pdf_extraction_hint() -> None:
+    """adapter_error: <message> → 提示 PDF text extraction failed，不含 OCR 误导。"""
+    hint = _skip_reason_hint("adapter_error: PdfReadError: something wrong")
+    assert hint is not None
+    assert "pdf" in hint.lower()
+    assert "ocr" in hint.lower()
+    assert "not supported" in hint.lower()
+
+
+def test_skip_reason_hint_parse_failed_returns_friendly_format_guidance() -> None:
+    """parse_failed → 友好提示支持格式，提到 OCR 不可用。"""
+    hint = _skip_reason_hint("parse_failed")
+    assert hint is not None
+    assert "parsing failed" in hint.lower()
+    assert "markdown" in hint.lower()
+    assert "docx" in hint.lower()
+    assert "ocr" in hint.lower()
+
+
+def test_skip_reason_hint_unknown_reason_returns_none() -> None:
+    """未知 reason → None，调用方自行处理默认展示。"""
+    assert _skip_reason_hint("some_random_other_reason") is None
+
+
+def test_skip_reason_hint_empty_string_returns_none() -> None:
+    """空字符串 → None，不产生虚假提示。"""
+    assert _skip_reason_hint("") is None
+
+
+# ── P3 回归测试：Source Adapter 状态展示 ──────────────────────────
+# 中文学习型说明：_display_status 将 source adapter 的 pending/processed/error
+# 计数映射为展示标签。v0.3 P3 fix 新增 generated_card_count，确保 watched source
+# 已生成 ai_draft 的 adapter 显示 "Processed" 而非 "Imported"/"Pending"。
+
+
+def test_display_status_imported_no_registry_shows_imported_not_pending() -> None:
+    """无 pending 无 processed 无 error → "Imported"，不是 "Pending"。"""
+    assert _display_status(exists=True, pending_count=0, processed_count=0, error_count=0) == "Imported"
+
+
+def test_display_status_has_generated_cards_shows_processed() -> None:
+    """有 ai_draft (generated_card_count > 0) 但 processed_dir 为空 → "Processed"。"""
+    assert _display_status(
+        exists=True, pending_count=0, processed_count=0, error_count=0, generated_card_count=3
+    ) == "Processed"
+
+
+def test_display_status_incoming_files_no_cards_shows_pending() -> None:
+    """有 pending 文件但无 generated cards → "Pending"。"""
+    assert _display_status(
+        exists=True, pending_count=5, processed_count=0, error_count=0, generated_card_count=0
+    ) == "Pending"
+
+
+def test_display_status_error_overrides_all() -> None:
+    """error_count > 0 → "Failed"，无视其他计数。"""
+    assert _display_status(
+        exists=True, pending_count=5, processed_count=3, error_count=1, generated_card_count=3
+    ) == "Failed"
+
+
+def test_display_status_missing_folder_overrides_all() -> None:
+    """inbox 目录不存在 → "Missing folder"。"""
+    assert _display_status(
+        exists=False, pending_count=0, processed_count=0, error_count=0
+    ) == "Missing folder"
+
+
+def test_display_status_processed_and_pending_shows_processed() -> None:
+    """同时有 processed 和 pending → "Processed" 优先。"""
+    assert _display_status(
+        exists=True, pending_count=3, processed_count=2, error_count=0
+    ) == "Processed"
 
 
 def test_stale_running_run_is_visible_as_failed_after_reload(
@@ -1705,6 +2146,76 @@ def test_web_workspace_can_read_and_save_approved_card_and_refresh_recall(
     assert recall["hits"][0]["detail_href"].startswith("/library?")
     assert "APPROVED_SOURCE_RAW_MUST_NOT_LEAK" not in combined
     assert "HUMAN_NOTE_MUST_NOT_BE_RECALLABLE" not in recall["hits"][0]["why_this_matched"]
+
+
+def test_library_card_detail_exposes_local_graph_and_related_cards(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Card detail 必须有用户可见的 Relationship Preview 数据。
+
+    中文学习型说明：M6 不能停在 backend graph engine；Web detail API 要返回
+    local_graph / related_cards，前端才能用列表 fallback 展示关系并导航。这里
+    只构造 synthetic approved cards，不读取真实 vault 或 source 正文。
+    """
+
+    client, cards = _client(tmp_path, monkeypatch)
+    _write_approved(cards)
+    neighbor = cards / "neighbor.md"
+    neighbor.write_text(
+        """---
+id: approved-neighbor
+title: Neighbor Card
+status: human_approved
+track: product
+tags:
+  - library
+source_type: manual_note
+source_id: src_approved_1
+source_path: 00-Inbox/_processed/ManualNotes/neighbor.md
+source_title: Approved source
+value_score: 7
+run_id: run-approved
+---
+
+## AI Summary
+
+Neighbor summary.
+""",
+        encoding="utf-8",
+    )
+    draft_neighbor = cards / "draft-neighbor.md"
+    draft_neighbor.write_text(
+        """---
+id: draft-neighbor
+title: Draft Neighbor
+status: ai_draft
+tags:
+  - library
+source_id: src_approved_1
+---
+
+## AI Summary
+
+Draft should not appear in library relationships.
+""",
+        encoding="utf-8",
+    )
+
+    detail = client.get("/api/library/card", params={"ref": "approved-1"}).json()
+
+    graph = detail["local_graph"]
+    graph_card_ids = {node["id"] for node in graph["nodes"] if node["type"] == "card"}
+    related_ids = {item["card"]["id"] for item in detail["related_cards"]}
+    reason_labels = {reason["label"] for item in detail["related_cards"] for reason in item["reasons"]}
+
+    assert graph["center_id"] == "approved-1"
+    assert "approved-neighbor" in graph_card_ids
+    assert "draft-neighbor" not in graph_card_ids
+    assert "approved-neighbor" in related_ids
+    assert "draft-neighbor" not in related_ids
+    assert "Same source" in reason_labels
+    assert all(node["href"].startswith("/library?card=") for node in graph["nodes"] if node["type"] == "card")
 
 
 def test_web_reject_and_imports_are_honest_unavailable(tmp_path: Path, monkeypatch) -> None:
@@ -3062,6 +3573,47 @@ def test_clean_clone_editable_config_200(tmp_path: Path, monkeypatch) -> None:
     assert data["wiki"]["model"] is None
 
 
+def test_clean_clone_quality_api_uses_nested_vault_config(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：quality API 必须使用 ``cfg.vault.root/cards_dir``。
+
+    中文学习型说明：clean clone 加载的是 MindForgeConfig 的真实嵌套结构；
+    Web facade 不能引用旧的 ``cfg.vault_root`` / ``cfg.cards_dir_rel`` 影子字段，
+    否则真实 API 会从业务 200 退化成 AttributeError 500。
+    """
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    cards = vault / "20-Knowledge-Cards"
+    _write_approved_card(cards, name="clean-quality.md")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+
+    resp = client.get("/api/quality/cards/approved-web-1")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["card_id"] == "approved-web-1"
+
+
+def test_clean_clone_source_location_api_uses_nested_vault_config(tmp_path: Path, monkeypatch) -> None:
+    """回归测试：source location API 不能依赖不存在的旧路径字段。"""
+    cfg_path, vault = _write_clean_clone_config(tmp_path)
+    cards = vault / "20-Knowledge-Cards"
+    _write_approved_card(cards, name="clean-location.md")
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(
+        create_app(config_path=cfg_path, host="127.0.0.1"),
+        raise_server_exceptions=False,
+    )
+
+    resp = client.get("/api/provenance/cards/approved-web-1/location")
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["source_type"] == "manual_note"
+    assert data["display"]
+
+
 def test_clean_clone_save_first_model_default_model_none(tmp_path: Path, monkeypatch) -> None:
     """clean clone 添加第一个模型、default_model=None → PATCH 200。"""
     cfg_path, _vault = _write_clean_clone_config(tmp_path)
@@ -3563,6 +4115,10 @@ def test_setup_save_anchors_config_and_secret_to_current_workspace(
 
     status = client.get("/api/config/status").json()
     assert status["provider"]["model_setup"] == "ready"
+    assert status["provider"]["can_run_real_smoke"] is True
+    assert status["provider"]["blockers"] == []
+    aliases = {item["alias"]: item for item in status["provider"]["aliases"]}
+    assert aliases["main"]["api_key_present"] is True
 
 
 def test_setup_save_writes_provider_timeout_and_retry_defaults(

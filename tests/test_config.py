@@ -50,13 +50,13 @@ def test_real_mindforge_yaml_loads() -> None:
     cfg = load_mindforge_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
     # vault
     assert cfg.vault.inbox_root == "00-Inbox"
-    # sources：v0.7.21 起默认只启用 plain_markdown。
-    # 其余 adapter 是 optional/advanced，默认不在 enabled 列表中。
-    assert "plain_markdown" in cfg.sources.enabled
+    # sources：real dogfood 要求 fresh clone 默认能识别 readable documents。
+    # 中文学习型说明：这些 adapter 仍是本地文件解析，不会触发 LLM/API；
+    # optional 依赖缺失时由 adapter 友好跳过，而不是让默认配置只看 Markdown。
+    expected_sources = {"plain_markdown", "txt", "html", "pdf", "docx"}
+    assert expected_sources.issubset(set(cfg.sources.enabled))
     active = {e.source_type for e in cfg.sources.active_entries()}
-    assert active == {"plain_markdown"}, (
-        "默认只启用 plain_markdown；其他 adapter 为 optional，需用户显式启用"
-    )
+    assert expected_sources.issubset(active)
     # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
     assert cfg.llm.active_profile == "__model_routing__"
     assert cfg.llm.default_model == "main"

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .config import MindForgeConfig
 from .scanner import ScanResult
+from .sources.adapter_result import AdapterResult
 from .sources.base import SourceAdapter
 from .sources.registry import build_active_adapters
 
@@ -128,6 +129,15 @@ def discover_source_results(
 
     adapters = build_active_adapters(cfg.sources)
     scan = enumerate_supported_source_files(cfg, targets)
+    for skipped in scan.skipped:
+        if skipped.path.is_file() and skipped.reason.startswith("unsupported_legacy_doc"):
+            yield ScanResult(
+                source_type="docx",
+                adapter_name="DocxTextAdapter",
+                path=skipped.path,
+                document=None,
+                skip_reason=skipped.reason,
+            )
     for candidate in scan.candidates:
         resolved = candidate.path
         result = _load_with_first_matching_adapter(cfg, adapters, resolved)
@@ -241,6 +251,11 @@ def _parser_skip_reason(path: Path, adapters: dict[str, SourceAdapter], entries)
     path_str = str(path)
     for entry in entries:
         adapter = adapters[entry.source_type]
+        if path.suffix.lower() == ".doc":
+            return (
+                "unsupported_legacy_doc: Legacy .doc (binary OLE) is not supported in v0.2. "
+                "Please convert to .docx or export as PDF/TXT, then import the converted file."
+            )
         reason_fn = getattr(adapter, "skip_reason", None)
         if not callable(reason_fn):
             continue
@@ -297,7 +312,15 @@ def _load_with_first_matching_adapter(
 
 def _safe_load(adapter: SourceAdapter, source_type: str, path: Path) -> ScanResult:
     try:
-        doc = adapter.load(str(path))
+        loaded = adapter.load(str(path))
+        if isinstance(loaded, AdapterResult):
+            return _scan_result_from_adapter_result(
+                result=loaded,
+                adapter_name=adapter.name,
+                source_type=source_type,
+                path=path,
+            )
+        doc = loaded
         if not doc.adapter_name:
             from dataclasses import replace
 
@@ -316,6 +339,43 @@ def _safe_load(adapter: SourceAdapter, source_type: str, path: Path) -> ScanResu
             document=None,
             error=f"{type(exc).__name__}: {exc}",
         )
+
+
+def _scan_result_from_adapter_result(
+    *,
+    result: AdapterResult,
+    adapter_name: str,
+    source_type: str,
+    path: Path,
+) -> ScanResult:
+    """把 v0.2 adapter 三态翻译给现有 ingestion pipeline。
+
+    AdapterResult 是 source-layer contract；主 pipeline 仍消费 ScanResult +
+    SourceDocument。这个适配点把架构差异限制在 source discovery 边界，避免
+    processor、approval、wiki 理解各类文件格式。
+    """
+    if result.status == "loaded" and result.document is not None:
+        return ScanResult(
+            source_type=source_type,
+            adapter_name=adapter_name,
+            path=path,
+            document=result.document,
+        )
+    if result.status == "skipped":
+        return ScanResult(
+            source_type=source_type,
+            adapter_name=adapter_name,
+            path=path,
+            document=None,
+            skip_reason=result.skip_reason or "adapter_skipped",
+        )
+    return ScanResult(
+        source_type=source_type,
+        adapter_name=adapter_name,
+        path=path,
+        document=None,
+        error=result.error_message or f"Adapter returned {result.status!r}",
+    )
 
 
 __all__ = [

@@ -29,6 +29,16 @@ mindforge recall --query "关键词"
 
 ---
 
+## Knowledge Health
+
+```bash
+mindforge health
+```
+
+Knowledge Health 是只读维护报告，用于检查 review backlog、低质量卡片、缺少 provenance、重复候选、孤立卡片、stale wiki 等，并给出建议。它不会自动修改卡片、source 或 Wiki。
+
+---
+
 ## Wiki
 
 基于所有 `human_approved` 卡片做 LLM-first synthesis，生成结构化 topic page。
@@ -71,3 +81,5 @@ Approved Cards ──→ Library (浏览)
 ```
 
 Library 和 Recall 是实时查询，Wiki 需要手动 rebuild 才会更新。当新审批的卡片数量超过 Wiki 已有卡片数时，Wiki 状态栏会显示过期提醒（"New approved knowledge is available"），提示用户重建 Wiki。
+
+Related cards 和 Local Graph Preview 使用 source、tag、wiki section、review batch 等确定性关系展示局部导航；它们不使用 embedding、Vector DB、Graph DB，也不是 GraphRAG。

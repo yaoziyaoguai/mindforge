@@ -29,16 +29,25 @@ def maybe_bootstrap_local_config(
     config_path: Path,
     *,
     cwd: Path | None = None,
+    allow_unmarked_workspace: bool = False,
 ) -> LocalConfigBootstrapResult:
     """Create a safe local runtime config for a clean-clone Web workspace.
 
     只在明确识别到 MindForge workspace root 时创建，避免用户从任意错误目录
     运行 `mindforge web` 时被写入 `configs/mindforge.yaml`。
+
+    中文学习型说明：`allow_unmarked_workspace` 只给显式 `mindforge web
+    --workspace /path` 使用。此时用户已经给出了工作区根目录，允许空目录首次
+    初始化；默认路径仍要求 repo/workspace 标记，防止错误 cwd 被静默写入。
     """
 
     base_cwd = (cwd or Path.cwd()).expanduser().resolve()
     requested = config_path.expanduser()
-    workspace_root = _workspace_root_for_config(requested, cwd=base_cwd)
+    workspace_root = _workspace_root_for_config(
+        requested,
+        cwd=base_cwd,
+        allow_unmarked_workspace=allow_unmarked_workspace,
+    )
     if workspace_root is None:
         return LocalConfigBootstrapResult(
             created=False,
@@ -68,7 +77,12 @@ def maybe_bootstrap_local_config(
     )
 
 
-def _workspace_root_for_config(config_path: Path, *, cwd: Path) -> Path | None:
+def _workspace_root_for_config(
+    config_path: Path,
+    *,
+    cwd: Path,
+    allow_unmarked_workspace: bool = False,
+) -> Path | None:
     if config_path == DEFAULT_CONFIG_PATH:
         project_root = find_project_root(cwd)
         if project_root is not None and _is_mindforge_workspace(project_root):
@@ -78,7 +92,7 @@ def _workspace_root_for_config(config_path: Path, *, cwd: Path) -> Path | None:
     absolute = config_path if config_path.is_absolute() else (cwd / config_path)
     if absolute.name == "mindforge.yaml" and absolute.parent.name == "configs":
         candidate = absolute.parent.parent.resolve()
-        if _is_mindforge_workspace(candidate):
+        if _is_mindforge_workspace(candidate) or allow_unmarked_workspace:
             return candidate
     return None
 

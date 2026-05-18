@@ -19,9 +19,13 @@ from .common_document import CommonDocumentAdapter
 from .cubox_api import CuboxApiAdapter
 from .cubox_markdown import CuboxMarkdownAdapter
 from .docx import DocxAdapter
+from .docx_adapter import DocxTextAdapter
+from .html_adapter import HtmlAdapter
 from .obsidian_vault import ObsidianVaultSourceAdapter
 from .pdf import PdfAdapter
+from .pdf_adapter import PdfTextAdapter
 from .plain_markdown import PlainMarkdownAdapter
+from .txt import TxtAdapter
 from .webclip_markdown import WebClipMarkdownAdapter
 
 # adapter 类名 → 类。新增 adapter 在此处加一行即可。
@@ -29,9 +33,13 @@ _BUILTIN_ADAPTERS: dict[str, Type[SourceAdapter]] = {
     "CuboxMarkdownAdapter": CuboxMarkdownAdapter,
     "CuboxApiAdapter": CuboxApiAdapter,
     "PlainMarkdownAdapter": PlainMarkdownAdapter,
+    "TxtAdapter": TxtAdapter,
+    "HtmlAdapter": HtmlAdapter,
     "WebClipMarkdownAdapter": WebClipMarkdownAdapter,
     "PdfAdapter": PdfAdapter,
+    "PdfTextAdapter": PdfTextAdapter,
     "DocxAdapter": DocxAdapter,
+    "DocxTextAdapter": DocxTextAdapter,
     "ChatExportAdapter": ChatExportAdapter,
     "ObsidianVaultSourceAdapter": ObsidianVaultSourceAdapter,
     "CommonDocumentAdapter": CommonDocumentAdapter,

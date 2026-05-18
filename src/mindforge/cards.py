@@ -33,6 +33,7 @@ class CardSummary:
     projects: tuple[str, ...]
     tags: tuple[str, ...]
     source_type: str | None
+    wiki_sections: tuple[str, ...] = ()
     source_id: str | None = None
     adapter_name: str | None = None
     source_path: str | None = None
@@ -62,6 +63,7 @@ class CardSummary:
     prompt_versions: dict[str, str] = field(default_factory=dict)
     stage_models: dict[str, Any] = field(default_factory=dict)
     run_id: str | None = None
+    source_location_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +227,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         track=_str_or_none(data.get("track")),
         projects=_str_tuple(data.get("projects")),
         tags=_str_tuple(data.get("tags")),
+        wiki_sections=_str_tuple(data.get("wiki_sections")),
         source_id=_str_or_none(data.get("source_id")),
         source_type=_str_or_none(data.get("source_type")),
         adapter_name=_str_or_none(data.get("adapter_name")),
@@ -252,6 +255,7 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         prompt_versions=_str_dict(data.get("prompt_versions")),
         stage_models=_dict_or_empty(data.get("stage_models")),
         run_id=_str_or_none(data.get("run_id")),
+        source_location_index=_source_location_index(data),
     )
 
 
@@ -274,6 +278,30 @@ def _int_or_none(v: Any) -> int | None:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _source_location_index(data: dict[str, Any]) -> int | None:
+    """把不同 source location 字段归一成可比较序号。
+
+    中文学习型说明：Related Cards 只需要判断“同 source 的相邻位置”，不需要
+    重新解析 source 正文。这里仅使用 card frontmatter 已持久化的安全位置字段，
+    保持只读、确定性，并避免 OCR / URL crawling / embedding。
+    """
+
+    explicit = _int_or_none(data.get("source_location_index"))
+    if explicit is not None:
+        return explicit
+    for key in ("line_start", "page_number", "paragraph_start"):
+        value = _int_or_none(data.get(key))
+        if value is not None:
+            return value
+    location = data.get("source_location")
+    if isinstance(location, dict):
+        for key in ("source_location_index", "line_start", "page_number", "paragraph_start"):
+            value = _int_or_none(location.get(key))
+            if value is not None:
+                return value
+    return None
 
 
 def _str_dict(v: Any) -> dict[str, str]:

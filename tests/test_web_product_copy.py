@@ -68,6 +68,19 @@ def test_card_detail_separates_content_source_history_and_technical_details() ->
         assert forbidden not in header_block
 
 
+def test_local_graph_views_are_visible_list_fallbacks_without_graph_libraries() -> None:
+    workspace_graph = _read("components/LocalGraphPreview.tsx")
+    section_graph = _read("components/wiki/WikiSectionRelationshipPreview.tsx")
+    package = (ROOT / "web" / "package.json").read_text(encoding="utf-8")
+    combined = "\n".join([workspace_graph, section_graph, package])
+
+    assert "Relationship Preview" in workspace_graph
+    assert "Section Relationship Preview" in section_graph
+    assert "/library?card=" in combined
+    for forbidden in ("<canvas", "d3", "cytoscape", "vis-network", "networkx"):
+        assert forbidden not in combined.lower()
+
+
 def test_setup_copy_uses_model_and_secret_safe_language() -> None:
     setup = _read("pages/SetupPage.tsx")
     checklist = _read("components/ConfigChecklist.tsx")

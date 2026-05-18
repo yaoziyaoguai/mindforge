@@ -45,6 +45,8 @@ KNOWN_SOURCE_TYPES: frozenset[str] = frozenset(
         "cubox_markdown",
         "cubox_api",
         "plain_markdown",
+        "txt",
+        "html",
         "webclip_markdown",
         "pdf",
         "docx",

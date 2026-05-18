@@ -64,6 +64,7 @@ from .init_config_cli import (
     setup_cmd,
 )
 from .import_cli import import_cmd
+from .health_cli import health_cmd
 from .llm import build_providers
 from .library_cli import library_app
 from .models import ItemState
@@ -480,6 +481,7 @@ def _legacy_status(
 # instead of Typer's anonymous flattened sub-app placeholders.
 app.command(hidden=True, add_help_option=False)(process)
 app.command("import")(import_cmd)
+app.command("health")(health_cmd)
 app.command()(recall)
 app.command()(init)
 app.command("setup", hidden=True, add_help_option=False)(setup_cmd)

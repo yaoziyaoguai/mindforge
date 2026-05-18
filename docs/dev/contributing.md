@@ -18,7 +18,7 @@ pip install -e .
 
 ## 代码标准
 
-- **Python 3.10+**，类型注解全部函数签名
+- **Python 3.11+**，类型注解全部函数签名
 - **ruff** 格式化 + linting
 - **PEP 8** 命名规范
 - 不可变数据优先（`dataclass(frozen=True)`、`NamedTuple`）

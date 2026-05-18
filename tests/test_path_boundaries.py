@@ -688,6 +688,84 @@ class TestFirstRunConfigBootstrapBoundaries:
         assert (ws / "configs" / "mindforge.yaml").is_file()
         assert received_cfg == [ws / "configs" / "mindforge.yaml"]
 
+    def test_workspace_web_cli_bootstraps_empty_user_workspace(self, tmp_path: Path, monkeypatch):
+        """显式 --workspace 指向空用户目录时，config 必须落在该目录而不是 repo cwd。
+
+        中文学习型说明：fresh clone dogfood 暴露过一个路径边界问题：从仓库目录
+        运行 Web，并传入一个全新的用户 workspace 时，首次启动不能把 runtime
+        config 写回仓库根目录。显式 workspace 是用户意图，应允许在空目录中创建
+        configs/mindforge.yaml，同时保持“未显式 workspace 的错误 cwd 不写文件”边界。
+        """
+        repo_cwd = tmp_path / "fresh-clone-repo"
+        (repo_cwd / "configs").mkdir(parents=True)
+        (repo_cwd / "configs" / "mindforge_example.yaml").write_text(
+            "version: 0.7\n",
+            encoding="utf-8",
+        )
+        (repo_cwd / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+        (repo_cwd / "src" / "mindforge").mkdir(parents=True)
+        user_workspace = tmp_path / "user-workspace"
+        user_workspace.mkdir()
+        monkeypatch.chdir(repo_cwd)
+
+        received_cfg: list[Path] = []
+        received_vault: list[Path | None] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override):
+            received_cfg.append(Path(config_path))
+            received_vault.append(vault_override)
+
+        monkeypatch.setattr("mindforge_web.server.run_server", fake_run_server)
+
+        result = runner.invoke(
+            cli_app,
+            ["web", "--workspace", str(user_workspace), "--no-open"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert (user_workspace / "configs" / "mindforge.yaml").is_file()
+        assert not (repo_cwd / "configs" / "mindforge.yaml").exists()
+        assert received_cfg == [user_workspace / "configs" / "mindforge.yaml"]
+        assert received_vault == [user_workspace / "vault"]
+
+    def test_workspace_web_cli_app_factory_keeps_empty_user_workspace(self, tmp_path: Path, monkeypatch):
+        """走到真实 app factory 后，也不能用默认相对 config 写回 repo cwd。
+
+        中文学习型说明：`mindforge web` 有两层首次启动逻辑：CLI bootstrap 和
+        FastAPI app factory bootstrap。fresh clone dogfood 证明只测 CLI 参数传递
+        不够；真实启动会进入 `create_app()`，它也必须沿用显式 workspace 的
+        config_path，不能再次用默认 `configs/mindforge.yaml` 解析当前 repo cwd。
+        """
+        repo_cwd = tmp_path / "fresh-clone-repo"
+        (repo_cwd / "configs").mkdir(parents=True)
+        (repo_cwd / "configs" / "mindforge_example.yaml").write_text(
+            "version: 0.7\n",
+            encoding="utf-8",
+        )
+        (repo_cwd / "pyproject.toml").write_text("[project]\nname='mindforge'\n", encoding="utf-8")
+        (repo_cwd / "src" / "mindforge").mkdir(parents=True)
+        user_workspace = tmp_path / "user-workspace"
+        user_workspace.mkdir()
+        monkeypatch.chdir(repo_cwd)
+
+        received_cfg: list[Path] = []
+
+        def fake_uvicorn_run(app, *, host, port, log_level):
+            received_cfg.append(Path(app.state.config_path))
+
+        monkeypatch.setattr("mindforge_web.server._ensure_port_available", lambda **_: None)
+        monkeypatch.setattr("uvicorn.run", fake_uvicorn_run)
+
+        result = runner.invoke(
+            cli_app,
+            ["--workspace", str(user_workspace), "web", "--no-open"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert (user_workspace / "configs" / "mindforge.yaml").is_file()
+        assert not (repo_cwd / "configs" / "mindforge.yaml").exists()
+        assert received_cfg == [user_workspace / "configs" / "mindforge.yaml"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Trash path 安全测试

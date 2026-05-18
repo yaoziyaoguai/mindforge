@@ -13,9 +13,10 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from mindforge.app_context import build_app_context
-from mindforge.cards import iter_cards
+from mindforge.cards import CardSummary, iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.checkpoint import Checkpoint, CheckpointError
+from mindforge.config import MindForgeConfig
 from mindforge.lexical_index import default_index_path
 from mindforge.library_service import (
     LibraryCardDetail,
@@ -24,6 +25,8 @@ from mindforge.library_service import (
     show_library_card,
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
+from mindforge.relations.local_graph import LocalGraph, build_card_centered_graph
+from mindforge.relations.related_cards import RelatedCardEdge, compute_related_cards
 from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
@@ -38,10 +41,15 @@ from mindforge_web.schemas import (
     LibraryCardResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
+    LocalGraphEdgeResponse,
+    LocalGraphNodeResponse,
+    LocalGraphResponse,
     NextAction,
     RecallHit,
     RecallResponse,
     RecallStatus,
+    RelatedCardReasonResponse,
+    RelatedCardResponse,
     SafetySummary,
     SetupConfigPatch,
     SetupConfigUpdateResponse,
@@ -322,7 +330,36 @@ class WebFacade:
         detail = show_library_card(self.cfg, ref, show_content=show_content)
         if isinstance(detail, LibraryLookupError):
             return None
-        return _library_detail_response(detail)
+        return _library_detail_response(self.cfg, detail)
+
+    def compute_card_quality(self, card_id: str):
+        """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
+        from mindforge.cards import CardScanResult, iter_cards
+        from mindforge_web.services.web_quality_service import compute_card_quality as _compute
+
+        result: CardScanResult = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        matching = [c for c in result.cards if c.id == card_id or c.path.name == card_id]
+        if not matching:
+            return None
+        card = matching[0]
+        all_titles = [c.title for c in result.cards if c.title]
+        return _compute(card, self.cfg.vault.root, all_titles)
+
+    def compute_card_location(self, card_id: str):
+        """计算单张卡片的 source location（M4 — SDD §8.1）。"""
+        from mindforge.cards import iter_cards
+        from mindforge.provenance.location import SourceLocation
+
+        result = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        matching = [c for c in result.cards if c.id == card_id or c.path.name == card_id]
+        if not matching:
+            return None
+        card = matching[0]
+        source_type = card.source_type or "plain_markdown"
+
+        heading_path = tuple(card.tags) if card.tags else None
+
+        return SourceLocation(source_type=source_type, heading_path=heading_path)
 
     def update_library_card_body(self, ref: str, body: str) -> CardBodyUpdateResponse | None:
         detail = show_library_card(self.cfg, ref, show_content=False)
@@ -646,9 +683,161 @@ def _library_card_response(card) -> LibraryCardResponse:
     )
 
 
-def _library_detail_response(detail: LibraryCardDetail) -> LibraryCardDetailResponse:
+def _library_detail_response(cfg: MindForgeConfig, detail: LibraryCardDetail) -> LibraryCardDetailResponse:
+    related_context = _library_relationship_context(cfg, detail)
     return LibraryCardDetailResponse(
         card=_library_card_response(detail.card),
         body=detail.body,
+        local_graph=_local_graph_response(related_context.graph),
+        related_cards=related_context.related_cards,
     )
-    WatchSourcesResponse,
+
+
+class _LibraryRelationshipContext:
+    def __init__(
+        self,
+        *,
+        graph: LocalGraph,
+        related_cards: list[RelatedCardResponse],
+    ) -> None:
+        self.graph = graph
+        self.related_cards = related_cards
+
+
+def _library_relationship_context(
+    cfg: MindForgeConfig,
+    detail: LibraryCardDetail,
+) -> _LibraryRelationshipContext:
+    """为 Library card detail 构建只读关系上下文。
+
+    中文学习型说明：Relationship Preview 是用户入口，不是新的知识真相来源。
+    它只读取 approved card 摘要字段，调用 deterministic graph / related-card
+    engine，不读取 source 正文、不调用 LLM、不修改 approval 状态。
+    """
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    approved = [card for card in scan.cards if card.status == "human_approved"]
+    records = [_relation_record(card) for card in approved]
+    center_id = detail.card.summary.id or detail.card.summary.rel_path
+    graph = build_card_centered_graph(center_id, records)
+    cards_by_id = {card.id or card.rel_path: _library_card_summary_response(card) for card in approved}
+    edges = compute_related_cards(center_id, records, context="library")
+    return _LibraryRelationshipContext(
+        graph=graph,
+        related_cards=_related_card_responses(edges, cards_by_id),
+    )
+
+
+def _relation_record(card: CardSummary) -> dict[str, object]:
+    """把 CardSummary 转成 relations engine 的窄输入结构。"""
+
+    card_id = card.id or card.rel_path
+    return {
+        "id": card_id,
+        "title": card.title or Path(card.rel_path).stem,
+        "status": card.status,
+        "source_id": card.source_id,
+        "tags": list(card.tags),
+        "wiki_sections": list(card.wiki_sections),
+        "run_id": card.run_id,
+        "source_location_index": card.source_location_index,
+    }
+
+
+def _library_card_summary_response(summary: CardSummary) -> LibraryCardResponse:
+    strategy = strategy_display(summary.strategy_id)
+    return LibraryCardResponse(
+        id=summary.id,
+        title=summary.title,
+        status=summary.status,
+        status_explanation=(
+            "human_approved：显式 approve 后进入正式知识库"
+            if summary.status == "human_approved"
+            else f"{summary.status}：非 Library 主列表状态"
+        ),
+        track=summary.track,
+        source_id=summary.source_id,
+        source_type=summary.source_type,
+        adapter_name=summary.adapter_name,
+        source_title=summary.source_title,
+        source_path=summary.source_path,
+        source_content_hash=summary.source_content_hash,
+        source_archive_path=summary.source_archive_path,
+        source_missing=summary.source_missing,
+        profile=summary.profile,
+        provider=summary.provider,
+        strategy_id=summary.strategy_id,
+        strategy_label=strategy.label,
+        strategy_note=strategy.note,
+        strategy_canonical_id=strategy.canonical_id,
+        strategy_version=summary.strategy_version,
+        schema_version=summary.schema_version,
+        prompt_version=summary.prompt_version,
+        prompt_versions=dict(summary.prompt_versions),
+        stage_models=dict(summary.stage_models),
+        run_id=summary.run_id,
+        created_at=summary.created_at.isoformat() if summary.created_at else None,
+        approved_at=None,
+        updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
+        rel_path=summary.rel_path,
+        fallback_provider_note=None,
+    )
+
+
+def _local_graph_response(graph: LocalGraph) -> LocalGraphResponse:
+    return LocalGraphResponse(
+        center_id=graph.center_id,
+        center_type=graph.center_type.value,
+        nodes=[
+            LocalGraphNodeResponse(
+                id=node.id,
+                type=node.type.value,
+                label=node.label,
+                href=node.href,
+            )
+            for node in graph.nodes
+        ],
+        edges=[
+            LocalGraphEdgeResponse(
+                source_id=edge.source_id,
+                target_id=edge.target_id,
+                reason=edge.reason,
+                label=_relation_reason_label(edge.reason),
+            )
+            for edge in graph.edges
+        ],
+    )
+
+
+def _related_card_responses(
+    edges: list[RelatedCardEdge],
+    cards_by_id: dict[str, LibraryCardResponse],
+) -> list[RelatedCardResponse]:
+    grouped: dict[str, list[RelatedCardReasonResponse]] = {}
+    for edge in edges:
+        if edge.target_card_id not in cards_by_id:
+            continue
+        grouped.setdefault(edge.target_card_id, []).append(
+            RelatedCardReasonResponse(
+                reason=edge.reason.value,
+                label=_relation_reason_label(edge.reason.value),
+                detail=edge.reason_detail,
+                strength=edge.strength,
+            )
+        )
+    return [
+        RelatedCardResponse(card=cards_by_id[card_id], reasons=reasons)
+        for card_id, reasons in grouped.items()
+    ]
+
+
+def _relation_reason_label(reason: str) -> str:
+    labels = {
+        "same_source": "Same source",
+        "same_tag": "Same tag",
+        "same_wiki_section": "Same wiki section",
+        "same_review_batch": "Same review batch",
+        "source_location_neighbor": "Source location neighbor",
+        "manual_link": "Manual link",
+    }
+    return labels.get(reason, reason.replace("_", " ").title())

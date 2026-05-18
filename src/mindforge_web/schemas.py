@@ -491,9 +491,44 @@ class LibraryCardsResponse(BaseModel):
     cards: list[LibraryCardResponse]
 
 
+class LocalGraphNodeResponse(BaseModel):
+    id: str
+    type: Literal["card", "source", "wiki_section", "tag"]
+    label: str
+    href: str | None = None
+
+
+class LocalGraphEdgeResponse(BaseModel):
+    source_id: str
+    target_id: str
+    reason: str
+    label: str
+
+
+class LocalGraphResponse(BaseModel):
+    center_id: str
+    center_type: Literal["card", "source", "wiki_section", "tag"]
+    nodes: list[LocalGraphNodeResponse] = Field(default_factory=list)
+    edges: list[LocalGraphEdgeResponse] = Field(default_factory=list)
+
+
+class RelatedCardReasonResponse(BaseModel):
+    reason: str
+    label: str
+    detail: str
+    strength: float
+
+
+class RelatedCardResponse(BaseModel):
+    card: LibraryCardResponse
+    reasons: list[RelatedCardReasonResponse] = Field(default_factory=list)
+
+
 class LibraryCardDetailResponse(BaseModel):
     card: LibraryCardResponse
     body: str | None = None
+    local_graph: LocalGraphResponse | None = None
+    related_cards: list[RelatedCardResponse] = Field(default_factory=list)
 
 
 class CardBodyUpdateRequest(BaseModel):
@@ -680,3 +715,51 @@ class ApiError(BaseModel):
     error: str
     message: str
     next_action: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# M1 Quality schemas — SDD §4.1
+# ---------------------------------------------------------------------------
+
+class QualityRubricScoreResponse(BaseModel):
+    dimension: str
+    score: float
+    max_score: float = 1.0
+    notes: str = ""
+
+
+class QualityWarningResponse(BaseModel):
+    code: str
+    severity: str
+    message: str
+    suggestion: str = ""
+
+
+class CardQualityResponse(BaseModel):
+    card_id: str
+    overall_level: str  # "high" | "medium" | "low"
+    overall_level_label: str  # "高质量" | "中质量" | "低质量"
+    overall_score: float
+    rubric_scores: list[QualityRubricScoreResponse]
+    warnings: list[QualityWarningResponse]
+    card_type: str | None = None
+    regenerate_suggestion: str | None = None
+    split_candidate: bool = False
+    merge_candidate: bool = False
+
+
+# ============================================================================
+# M4 Source Location / Provenance schemas — SDD §8
+# ============================================================================
+
+
+class SourceLocationResponse(BaseModel):
+    source_type: str
+    heading_path: list[str] | None = None
+    line_start: int | None = None
+    line_end: int | None = None
+    page_number: int | None = None
+    paragraph_start: int | None = None
+    paragraph_end: int | None = None
+    css_selector: str | None = None
+    display: str

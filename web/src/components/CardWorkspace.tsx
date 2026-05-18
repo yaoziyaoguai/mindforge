@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { copySourcePath, revealSourcePath } from "../api/sources";
+import { LocalGraphPreview } from "./LocalGraphPreview";
+import { QualityPanel } from "./quality/QualityPanel";
+import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
 import { friendlyStatus, truncateMiddle } from "../lib/utils";
 
@@ -140,6 +143,12 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
       </header>
 
+      <QualityPanel cardId={card.id ?? ""} />
+
+      {mode === "library" && "local_graph" in detail ? (
+        <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} />
+      ) : null}
+
       <section className="p-5">
         <h3 className="text-lg font-semibold text-ink">Knowledge content</h3>
         {editing ? (
@@ -194,6 +203,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <Meta label="Source" value={card.source_title ?? card.source_path} />
           <Meta label="Source path" value={card.source_path} />
+          <SourceLocationBadge cardId={card.id ?? ""} hasSource={!!card.source_path} />
           <Meta label="Archived source path" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
           <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
         </dl>

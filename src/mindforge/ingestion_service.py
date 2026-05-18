@@ -310,6 +310,13 @@ def watch_scan_sources(
         has_changes = bool(changed_targets)
         source_failed = False
 
+        if process_changes:
+            baseline_skipped = _skipped_details_from_baseline(baseline)
+            for detail in baseline_skipped:
+                totals["seen"] += 1
+                totals["skipped"] += 1
+            skipped_details.extend(baseline_skipped)
+
         if process_changes and changed_targets:
             # worker 路径：同步处理变更文件
             effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
@@ -493,6 +500,11 @@ def _ingest_targets_summary(
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
     processed_content_hashes = _build_processed_content_hash_index(parts.checkpoint)
+    # v0.3 P1 fix：构建已有 ai_draft 卡片索引（by source_path），作为 card-level
+    # dedup 的最后⼀道防线。checkpoint-level dedup 只在同⼀次 _ingest_targets_summary
+    # 调用内有效；当 import 和 watch/scan 并发时，两者各自 load checkpoint、
+    # 各自 miss，各自写卡。这个索引查实际文件系统状态，能捕获竞态窗口内的重复写入。
+    existing_drafts_by_source = _build_existing_draft_index(cfg)
     skipped_details: list[SkippedDocumentDetail] = []
     error_details: list[str] = []
     with RunLogger(cfg.state.runs_path, command=command) as logger:
@@ -513,6 +525,10 @@ def _ingest_targets_summary(
             ))
         for result in results:
             counts["seen"] += 1
+            if result.skip_reason:
+                _emit_adapter_skip(result=result, logger=logger, counts=counts)
+                skipped_details.append(_skip_detail_from_scan_result(result))
+                continue
             if not result.ok:
                 emit_source_error(result=result, logger=logger, counts=counts)
                 if result.error:
@@ -568,6 +584,27 @@ def _ingest_targets_summary(
                     doc,
                     reason="duplicate_content_hash",
                     matched_record=duplicate_match.state_key,
+                ))
+                continue
+            # v0.3 P1 fix：card-level dedup —— 检查 vault 中是否已有同 source_path
+            # 且 content_hash 未变的 ai_draft。这能在 import + watch/scan 并发竞态窗口里
+            # 捕获重复写入，不依赖 checkpoint 的时序一致性。
+            # content_hash 不同时放行，确保用户修改 source 后能重新处理生成新 card。
+            existing_draft_entry = existing_drafts_by_source.get(
+                _normalized_source_path(doc.source_path)
+            )
+            if existing_draft_entry is not None and existing_draft_entry[1] == doc.content_hash:
+                _emit_skip(
+                    result=result,
+                    doc=doc,
+                    logger=logger,
+                    counts=counts,
+                    reason="ai_draft_already_exists",
+                )
+                skipped_details.append(_skip_detail(
+                    doc,
+                    reason="ai_draft_already_exists",
+                    matched_record=existing_draft_entry[0],
                 ))
                 continue
             try:
@@ -630,6 +667,17 @@ def _build_source_baseline(
         stat = resolved.stat()
         rel = _relative_to_source(source, resolved)
         if result is None or not result.ok or result.document is None:
+            # v0.3 P2 fix：保留 adapter 的具体 skip_reason / error，不统一丢失为
+            # "parse_failed"。PDF text extraction failed、HTML decode error 等需要
+            # 独立 reason 以便 UI 展示友好的用户提示。
+            if result is not None and result.skip_reason:
+                reason = result.skip_reason
+            elif result is not None and result.error:
+                # 把 adapter error 转化为结构化 skip reason；保留原始 error
+                # 以区分 PdfReadError / DecodeError 等不同失败原因
+                reason = f"adapter_error: {result.error}"
+            else:
+                reason = "parse_failed"
             current[rel] = WatchFileSnapshot(
                 relative_path=rel,
                 path=resolved,
@@ -638,7 +686,7 @@ def _build_source_baseline(
                 mtime=stat.st_mtime,
                 last_seen_at=now,
                 status="skipped",
-                skipped_reason="parse_failed",
+                skipped_reason=reason,
             )
             continue
         previous_item = previous.get(rel)
@@ -723,6 +771,41 @@ def _changed_targets_from_baseline(
     return [item.path for item in retry if item.path.exists()]
 
 
+def _skipped_details_from_baseline(
+    baseline: dict[str, WatchFileSnapshot],
+) -> list[SkippedDocumentDetail]:
+    """把 watch baseline 的 skipped item 带回 ProcessingRun 汇总。
+
+    中文学习型说明：baseline diff 负责发现 unsupported/hidden/too_large 等文件；
+    processing run 负责向用户解释本次点击的最终结果。两层之间必须传递
+    skipped reason，否则 legacy .doc 这类友好 unsupported 会被 run 汇总层误判成
+    "发现了文件但无输出"的模型配置失败。
+    """
+
+    details: list[SkippedDocumentDetail] = []
+    seen: set[Path] = set()
+    for item in baseline.values():
+        if item.status != "skipped" or not item.skipped_reason:
+            continue
+        try:
+            normalized = item.path.expanduser().resolve()
+        except OSError:
+            normalized = item.path
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        details.append(SkippedDocumentDetail(
+            source_path=str(item.path),
+            normalized_path=str(normalized),
+            source_id_short="",
+            fingerprint_short="",
+            reason=item.skipped_reason,
+            matched_record=None,
+            hint=_skip_reason_hint(item.skipped_reason),
+        ))
+    return details
+
+
 def _relative_to_source(source: WatchedSource, path: Path) -> str:
     if source.path_type == "file":
         return path.name
@@ -790,6 +873,31 @@ def _build_processed_content_hash_index(checkpoint) -> dict[str, ProcessedSource
     return keys
 
 
+def _build_existing_draft_index(cfg: MindForgeConfig) -> dict[str, tuple[str, str | None]]:
+    """构建已有 ai_draft 卡片索引（by normalized source_path → (card_rel_path, content_hash)）。
+
+    中文学习型说明：checkpoint 只在同一次 _ingest_targets_summary 调用内一致；
+    当 import 和 watch/scan 并发处理同一 source 时，两边各自 load checkpoint、
+    各自看不到对方的已处理状态。这个索引直接扫描 vault cards 文件系统，作为
+    card-level dedup 的最后防线。
+
+    同时记录 source_content_hash，使得 content_hash 变更后的 source 可以重新处理，
+    不被 card-level dedup 误拦。content_hash 相同才 skip，不同则放行。
+    """
+    index: dict[str, tuple[str, str | None]] = {}
+    from .cards import iter_cards
+
+    for card in iter_cards(cfg.vault.root, cfg.vault.cards_dir).cards:
+        if card.status != "ai_draft":
+            continue
+        if not card.source_path:
+            continue
+        normalized = _normalized_source_path(card.source_path)
+        if normalized not in index:
+            index[normalized] = (card.rel_path, card.source_content_hash)
+    return index
+
+
 def _processed_match(
     source_id: str,
     content_hash: str,
@@ -844,6 +952,66 @@ def _skip_detail(
         matched_record=matched_record,
         hint=hint,
     )
+
+
+def _skip_detail_from_scan_result(result) -> SkippedDocumentDetail:
+    """把 adapter-level skipped ScanResult 转成人类诊断结构。
+
+    中文学习型说明：legacy .doc、scanned PDF、空文件这类情况没有
+    SourceDocument，也不应该伪造一个。诊断只记录路径与原因，不进入
+    approval/wiki/library 数据面。
+    """
+    reason = result.skip_reason or "adapter_skipped"
+    return SkippedDocumentDetail(
+        source_path=str(result.path),
+        normalized_path=_normalized_source_path(str(result.path)),
+        source_id_short="",
+        fingerprint_short="",
+        reason=reason,
+        matched_record=None,
+        hint=_skip_reason_hint(reason),
+    )
+
+
+def _emit_adapter_skip(*, result, logger, counts: dict[str, int]) -> None:
+    counts["skipped"] += 1
+    logger.emit(
+        "source_skipped_or_unchanged",
+        source_id="",
+        source_type=result.source_type,
+        adapter_name=result.adapter_name,
+        source_path=str(result.path),
+        content_hash="",
+        status=result.skip_reason or "adapter_skipped",
+        skip_reason=result.skip_reason or "adapter_skipped",
+    )
+
+
+def _skip_reason_hint(reason: str) -> str | None:
+    if reason.startswith("unsupported_legacy_doc"):
+        return "Convert legacy .doc to .docx, PDF, or TXT, then import the converted file."
+    if reason == "scanned_pdf_no_text":
+        return "MindForge does not do OCR. Import a text-based PDF or OCR externally first."
+    # v0.3 P2 fix：PDF text extraction failure 需要友好提示，建议用户
+    # 转换为 text-based PDF / TXT / DOCX，不做 OCR
+    if reason == "encrypted_pdf":
+        return (
+            "PDF is encrypted and cannot be read. Remove password protection or "
+            "export as an unprotected text-based PDF, then import again."
+        )
+    if reason == "parse_failed":
+        return (
+            "File parsing failed. The file may be corrupted, in an unsupported format, "
+            "or requires external conversion. Supported formats: Markdown, TXT, DOCX, "
+            "HTML, text-based PDF. For image-only or scanned PDFs, use external OCR first."
+        )
+    if reason.startswith("adapter_error:"):
+        return (
+            "PDF text extraction failed. The file may be corrupted, image-only, encrypted, "
+            "or in an unsupported PDF format. OCR is not supported in this version. "
+            "Please export as text-based PDF, TXT, or DOCX, then import the converted file."
+        )
+    return None
 
 
 def _now() -> str:

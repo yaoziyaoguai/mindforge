@@ -426,9 +426,46 @@ export interface LibraryCardsResponse {
   cards: LibraryCardResponse[];
 }
 
+export type LocalGraphNodeType = "card" | "source" | "wiki_section" | "tag";
+
+export interface LocalGraphNodeResponse {
+  id: string;
+  type: LocalGraphNodeType;
+  label: string;
+  href?: string | null;
+}
+
+export interface LocalGraphEdgeResponse {
+  source_id: string;
+  target_id: string;
+  reason: string;
+  label: string;
+}
+
+export interface LocalGraphResponse {
+  center_id: string;
+  center_type: LocalGraphNodeType;
+  nodes: LocalGraphNodeResponse[];
+  edges: LocalGraphEdgeResponse[];
+}
+
+export interface RelatedCardReasonResponse {
+  reason: string;
+  label: string;
+  detail: string;
+  strength: number;
+}
+
+export interface RelatedCardResponse {
+  card: LibraryCardResponse;
+  reasons: RelatedCardReasonResponse[];
+}
+
 export interface LibraryCardDetailResponse {
   card: LibraryCardResponse;
   body?: string | null;
+  local_graph?: LocalGraphResponse | null;
+  related_cards: RelatedCardResponse[];
 }
 
 export interface CardBodyUpdateResponse {
