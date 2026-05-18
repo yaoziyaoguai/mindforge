@@ -667,6 +667,17 @@ def _build_source_baseline(
         stat = resolved.stat()
         rel = _relative_to_source(source, resolved)
         if result is None or not result.ok or result.document is None:
+            # v0.3 P2 fix：保留 adapter 的具体 skip_reason / error，不统一丢失为
+            # "parse_failed"。PDF text extraction failed、HTML decode error 等需要
+            # 独立 reason 以便 UI 展示友好的用户提示。
+            if result is not None and result.skip_reason:
+                reason = result.skip_reason
+            elif result is not None and result.error:
+                # 把 adapter error 转化为结构化 skip reason；保留原始 error
+                # 以区分 PdfReadError / DecodeError 等不同失败原因
+                reason = f"adapter_error: {result.error}"
+            else:
+                reason = "parse_failed"
             current[rel] = WatchFileSnapshot(
                 relative_path=rel,
                 path=resolved,
@@ -675,7 +686,7 @@ def _build_source_baseline(
                 mtime=stat.st_mtime,
                 last_seen_at=now,
                 status="skipped",
-                skipped_reason="parse_failed",
+                skipped_reason=reason,
             )
             continue
         previous_item = previous.get(rel)
@@ -981,6 +992,25 @@ def _skip_reason_hint(reason: str) -> str | None:
         return "Convert legacy .doc to .docx, PDF, or TXT, then import the converted file."
     if reason == "scanned_pdf_no_text":
         return "MindForge does not do OCR. Import a text-based PDF or OCR externally first."
+    # v0.3 P2 fix：PDF text extraction failure 需要友好提示，建议用户
+    # 转换为 text-based PDF / TXT / DOCX，不做 OCR
+    if reason == "encrypted_pdf":
+        return (
+            "PDF is encrypted and cannot be read. Remove password protection or "
+            "export as an unprotected text-based PDF, then import again."
+        )
+    if reason == "parse_failed":
+        return (
+            "File parsing failed. The file may be corrupted, in an unsupported format, "
+            "or requires external conversion. Supported formats: Markdown, TXT, DOCX, "
+            "HTML, text-based PDF. For image-only or scanned PDFs, use external OCR first."
+        )
+    if reason.startswith("adapter_error:"):
+        return (
+            "PDF text extraction failed. The file may be corrupted, image-only, encrypted, "
+            "or in an unsupported PDF format. OCR is not supported in this version. "
+            "Please export as text-based PDF, TXT, or DOCX, then import the converted file."
+        )
     return None
 
 

@@ -19,7 +19,7 @@ from mindforge.app_context import AppContextError
 from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
-from mindforge.ingestion_service import IngestionSummary
+from mindforge.ingestion_service import IngestionSummary, _skip_reason_hint
 from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 
@@ -878,6 +878,48 @@ def test_apply_summary_all_failed_status_failed() -> None:
     _apply_summary(record, _make_summary(seen=1, processed=0, skipped=0, failed=1), draft_ids=[])
     assert record.status == "failed"
     assert record.summary["errors"] == 1
+
+
+# ── P2b 回归测试：PDF 解析失败原因提示 ────────────────────────────
+# 中文学习型说明：_skip_reason_hint 将 adapter-level 错误码翻译为用户友好文案，
+# 区分 encrypted_pdf / parse_failed / adapter_error 等不同失败原因。
+
+
+def test_skip_reason_hint_encrypted_pdf_returns_password_hint() -> None:
+    """encrypted_pdf → 提示用户移除密码保护或导出为非加密 PDF。"""
+    hint = _skip_reason_hint("encrypted_pdf")
+    assert hint is not None
+    assert "encrypted" in hint.lower()
+    assert "password" in hint.lower()
+
+
+def test_skip_reason_hint_adapter_error_prefix_returns_pdf_extraction_hint() -> None:
+    """adapter_error: <message> → 提示 PDF text extraction failed，不含 OCR 误导。"""
+    hint = _skip_reason_hint("adapter_error: PdfReadError: something wrong")
+    assert hint is not None
+    assert "pdf" in hint.lower()
+    assert "ocr" in hint.lower()
+    assert "not supported" in hint.lower()
+
+
+def test_skip_reason_hint_parse_failed_returns_friendly_format_guidance() -> None:
+    """parse_failed → 友好提示支持格式，提到 OCR 不可用。"""
+    hint = _skip_reason_hint("parse_failed")
+    assert hint is not None
+    assert "parsing failed" in hint.lower()
+    assert "markdown" in hint.lower()
+    assert "docx" in hint.lower()
+    assert "ocr" in hint.lower()
+
+
+def test_skip_reason_hint_unknown_reason_returns_none() -> None:
+    """未知 reason → None，调用方自行处理默认展示。"""
+    assert _skip_reason_hint("some_random_other_reason") is None
+
+
+def test_skip_reason_hint_empty_string_returns_none() -> None:
+    """空字符串 → None，不产生虚假提示。"""
+    assert _skip_reason_hint("") is None
 
 
 def test_stale_running_run_is_visible_as_failed_after_reload(
