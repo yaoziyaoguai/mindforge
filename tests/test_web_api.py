@@ -3674,6 +3674,10 @@ def test_setup_save_anchors_config_and_secret_to_current_workspace(
 
     status = client.get("/api/config/status").json()
     assert status["provider"]["model_setup"] == "ready"
+    assert status["provider"]["can_run_real_smoke"] is True
+    assert status["provider"]["blockers"] == []
+    aliases = {item["alias"]: item for item in status["provider"]["aliases"]}
+    assert aliases["main"]["api_key_present"] is True
 
 
 def test_setup_save_writes_provider_timeout_and_retry_defaults(
