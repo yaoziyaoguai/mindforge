@@ -310,6 +310,13 @@ def watch_scan_sources(
         has_changes = bool(changed_targets)
         source_failed = False
 
+        if process_changes:
+            baseline_skipped = _skipped_details_from_baseline(baseline)
+            for detail in baseline_skipped:
+                totals["seen"] += 1
+                totals["skipped"] += 1
+            skipped_details.extend(baseline_skipped)
+
         if process_changes and changed_targets:
             # worker 路径：同步处理变更文件
             effective_strategy = resolve_strategy_selection(cfg, watched_strategy=source.strategy_id)
@@ -725,6 +732,41 @@ def _changed_targets_from_baseline(
         if item.status == "unchanged" and item.last_processed_at is None
     ]
     return [item.path for item in retry if item.path.exists()]
+
+
+def _skipped_details_from_baseline(
+    baseline: dict[str, WatchFileSnapshot],
+) -> list[SkippedDocumentDetail]:
+    """把 watch baseline 的 skipped item 带回 ProcessingRun 汇总。
+
+    中文学习型说明：baseline diff 负责发现 unsupported/hidden/too_large 等文件；
+    processing run 负责向用户解释本次点击的最终结果。两层之间必须传递
+    skipped reason，否则 legacy .doc 这类友好 unsupported 会被 run 汇总层误判成
+    "发现了文件但无输出"的模型配置失败。
+    """
+
+    details: list[SkippedDocumentDetail] = []
+    seen: set[Path] = set()
+    for item in baseline.values():
+        if item.status != "skipped" or not item.skipped_reason:
+            continue
+        try:
+            normalized = item.path.expanduser().resolve()
+        except OSError:
+            normalized = item.path
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        details.append(SkippedDocumentDetail(
+            source_path=str(item.path),
+            normalized_path=str(normalized),
+            source_id_short="",
+            fingerprint_short="",
+            reason=item.skipped_reason,
+            matched_record=None,
+            hint=_skip_reason_hint(item.skipped_reason),
+        ))
+    return details
 
 
 def _relative_to_source(source: WatchedSource, path: Path) -> str:

@@ -483,6 +483,38 @@ def test_process_now_starts_background_run_and_sources_expose_last_run_summary(
     assert watched["processing_status"] == "succeeded"
 
 
+def test_process_now_reports_legacy_doc_as_friendly_skip(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Legacy .doc 在 Web 后台 run 中必须是友好 skipped，不是 NoOutputError。
+
+    中文学习型说明：source discovery 已经知道 legacy .doc 是 unsupported；
+    processing run 汇总层必须保留这个事实，不能因为没有 draft 就误导用户去
+    检查模型配置。这里锁住 fresh-clone dogfood 暴露的真实回归路径。
+    """
+
+    client, _cards = _client(tmp_path, monkeypatch)
+    legacy = tmp_path / "legacy-plan.doc"
+    legacy.write_bytes(b"synthetic legacy ole placeholder")
+
+    response = client.post(
+        "/api/sources/watch",
+        json={"path": str(legacy), "frequency": "manual", "process_now": True},
+    )
+
+    assert response.status_code == 200
+    finished = _wait_for_processing_run(client, response.json()["run_id"])
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["discovered"] == 1
+    assert finished["summary"]["skipped"] == 1
+    assert finished["summary"]["errors"] == 0
+    assert finished["error_type"] is None
+    assert any(reason.startswith("unsupported_legacy_doc") for reason in finished["skip_reasons"])
+    assert "Model setup" not in finished["message"]
+    assert "convert" in finished["message"].lower()
+
+
 def test_process_now_returns_existing_active_run_instead_of_spawning_duplicate(
     tmp_path: Path,
     monkeypatch,
