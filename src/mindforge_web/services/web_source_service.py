@@ -85,6 +85,7 @@ class WebSourceService:
                         pending_count=len(files),
                         processed_count=len(processed_files),
                         error_count=scan_errors.get(entry.source_type, 0),
+                        generated_card_count=len(card_paths),
                     ),
                     generated_knowledge_status=(
                         "Has generated knowledge" if card_paths else "No generated knowledge"
@@ -557,12 +558,16 @@ def _display_status(
     pending_count: int,
     processed_count: int,
     error_count: int,
+    generated_card_count: int = 0,
 ) -> str:
+    # 中文学习型说明：v0.3 P3 fix — generated_card_count 反映已生成 ai_draft
+    # 数量。对于 watched source，processed_dir 可能为空但 cards 已生成，
+    # 此时应显示 "Processed" 而非 "Imported" 或 "Pending"。
     if error_count:
         return "Failed"
     if not exists:
         return "Missing folder"
-    if processed_count:
+    if processed_count or generated_card_count:
         return "Processed"
     if pending_count:
         return "Pending"

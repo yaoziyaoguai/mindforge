@@ -22,6 +22,7 @@ from mindforge_web.app import create_app
 from mindforge.ingestion_service import IngestionSummary, _skip_reason_hint
 from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
+from mindforge_web.services.web_source_service import _display_status
 
 
 def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -920,6 +921,52 @@ def test_skip_reason_hint_unknown_reason_returns_none() -> None:
 def test_skip_reason_hint_empty_string_returns_none() -> None:
     """空字符串 → None，不产生虚假提示。"""
     assert _skip_reason_hint("") is None
+
+
+# ── P3 回归测试：Source Adapter 状态展示 ──────────────────────────
+# 中文学习型说明：_display_status 将 source adapter 的 pending/processed/error
+# 计数映射为展示标签。v0.3 P3 fix 新增 generated_card_count，确保 watched source
+# 已生成 ai_draft 的 adapter 显示 "Processed" 而非 "Imported"/"Pending"。
+
+
+def test_display_status_imported_no_registry_shows_imported_not_pending() -> None:
+    """无 pending 无 processed 无 error → "Imported"，不是 "Pending"。"""
+    assert _display_status(exists=True, pending_count=0, processed_count=0, error_count=0) == "Imported"
+
+
+def test_display_status_has_generated_cards_shows_processed() -> None:
+    """有 ai_draft (generated_card_count > 0) 但 processed_dir 为空 → "Processed"。"""
+    assert _display_status(
+        exists=True, pending_count=0, processed_count=0, error_count=0, generated_card_count=3
+    ) == "Processed"
+
+
+def test_display_status_incoming_files_no_cards_shows_pending() -> None:
+    """有 pending 文件但无 generated cards → "Pending"。"""
+    assert _display_status(
+        exists=True, pending_count=5, processed_count=0, error_count=0, generated_card_count=0
+    ) == "Pending"
+
+
+def test_display_status_error_overrides_all() -> None:
+    """error_count > 0 → "Failed"，无视其他计数。"""
+    assert _display_status(
+        exists=True, pending_count=5, processed_count=3, error_count=1, generated_card_count=3
+    ) == "Failed"
+
+
+def test_display_status_missing_folder_overrides_all() -> None:
+    """inbox 目录不存在 → "Missing folder"。"""
+    assert _display_status(
+        exists=False, pending_count=0, processed_count=0, error_count=0
+    ) == "Missing folder"
+
+
+def test_display_status_processed_and_pending_shows_processed() -> None:
+    """同时有 processed 和 pending → "Processed" 优先。"""
+    assert _display_status(
+        exists=True, pending_count=3, processed_count=2, error_count=0
+    ) == "Processed"
 
 
 def test_stale_running_run_is_visible_as_failed_after_reload(
