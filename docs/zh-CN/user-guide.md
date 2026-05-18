@@ -181,6 +181,8 @@ mindforge library list           # 列出所有已审批卡片
 mindforge library show <ref>     # 查看单张卡片详情
 ```
 
+Library 会展示基于 source、tag、wiki section、review batch 等确定性关系得到的 Related cards 和 Local Graph Preview，用于局部导航；它不是向量数据库，也不是 GraphRAG。
+
 ---
 
 ## Recall
@@ -192,6 +194,16 @@ mindforge recall --query "关键词"
 ```
 
 当前基于 BM25 词法匹配，不做语义检索。不支持 RAG / embedding / 向量数据库。
+
+---
+
+## Knowledge Health
+
+```bash
+mindforge health
+```
+
+Knowledge Health 是只读维护报告，会检查 review backlog、低质量卡片、缺少 provenance、重复候选、孤立卡片、stale wiki 等，并给出建议。它不会自动修改卡片、source 或 Wiki。
 
 ---
 

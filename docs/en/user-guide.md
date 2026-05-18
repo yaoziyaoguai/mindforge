@@ -174,6 +174,8 @@ mindforge library list           # List all approved cards
 mindforge library show <ref>     # View card details
 ```
 
+Library can show Related cards and Local Graph Preview based on deterministic source, tag, wiki section, and review batch relationships. This is local navigation, not a vector database or GraphRAG.
+
 ---
 
 ## Recall
@@ -185,6 +187,16 @@ mindforge recall --query "keyword"
 ```
 
 BM25 lexical matching only — no semantic search, no RAG, no embeddings, no vector database.
+
+---
+
+## Knowledge Health
+
+```bash
+mindforge health
+```
+
+Knowledge Health is a read-only maintenance report for review backlog, low-quality cards, missing provenance, duplicate candidates, orphan cards, stale wiki, and suggested actions. It does not modify cards, sources, or Wiki.
 
 ---
 

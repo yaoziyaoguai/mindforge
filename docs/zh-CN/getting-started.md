@@ -6,7 +6,7 @@ MindForge 安装、初始化和首次使用指南。
 
 ## 环境要求
 
-- Python 3.10+
+- Python 3.11+
 - pip
 - 一个可用的 LLM API key（Anthropic、OpenAI 或兼容协议）
 
@@ -154,7 +154,10 @@ mindforge approve 1 --confirm           # 显式审批
 mindforge library list           # 浏览已审批知识库
 mindforge library show <ref>     # 查看单张卡片详情
 mindforge recall --query "关键词"  # BM25 词法检索
+mindforge health                 # 只读生成 Knowledge Health 报告
 ```
+
+Knowledge Health 会检查 review backlog、低质量卡片、缺少 provenance、重复候选、孤立卡片、stale wiki 等，只给维护建议，不自动修改内容。
 
 ---
 
@@ -172,10 +175,12 @@ mindforge wiki show
 
 Wiki 只从 approved cards 生成，不绕过审批。LLM synthesis 必须手动触发，不会自动运行。
 
+Library / Wiki 中的 Related cards 和 Local Graph Preview 使用 source、tag、wiki section、review batch 等确定性关系展示局部导航；它不是向量数据库，也不是 GraphRAG。
+
 ---
 
 ## 下一步
 
 - [用户指南](user-guide.md) — 完整功能说明
 - [模型配置](model-setup.md) — LLM provider 配置详解
-- [README](../../README.zh-CN.md) — 项目总览
+- [README](../../README.md) — 中文主入口

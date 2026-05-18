@@ -6,7 +6,7 @@ Installation, initialization, and first-use guide for MindForge.
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - pip
 - An available LLM API key (Anthropic, OpenAI, or compatible protocol)
 
@@ -142,7 +142,10 @@ Or use the Web **Review** page. **Approval is always explicit. No automatic appr
 mindforge library list           # Browse approved cards
 mindforge library show <ref>     # View card details
 mindforge recall --query "keyword"  # BM25 lexical search
+mindforge health                 # Read-only Knowledge Health report
 ```
+
+Knowledge Health checks review backlog, low-quality cards, missing provenance, duplicate candidates, orphan cards, stale wiki, and suggested maintenance actions. It does not modify your content.
 
 ---
 
@@ -159,6 +162,8 @@ mindforge wiki show
 Or click **Generate Wiki** on the Web **Wiki** page.
 
 Wiki only uses approved cards — it never bypasses approval. LLM synthesis must be triggered manually.
+
+Related cards and Local Graph Preview in Library / Wiki use deterministic source, tag, wiki section, and review batch relationships for local navigation. They are not a vector database or GraphRAG.
 
 ---
 
