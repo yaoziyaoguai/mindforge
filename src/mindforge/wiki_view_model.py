@@ -53,6 +53,25 @@ def _derive_source_type(source_title: str | None) -> str | None:
     return mapping.get(suffix)
 
 
+def _parse_wiki_marker_card_ids(card_ids_text: str) -> list[str]:
+    """把 Wiki section marker 中的 card 引用统一解析为 card_ids 列表。
+
+    中文学习型说明：deterministic builder 写过 `card=...`，LLM builder 写
+    `card_ids=...`。parser 位于 Web 可见性边界，必须兼容旧文件和两条 builder
+    路径，避免 marker 格式漂移导致 Wiki 正文在 Web 上消失。
+    """
+
+    card_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in card_ids_text.split(","):
+        card_id = raw_id.strip()
+        if not card_id or card_id in seen:
+            continue
+        seen.add(card_id)
+        card_ids.append(card_id)
+    return card_ids
+
+
 # =============================================================================
 # View Model Data Classes
 # =============================================================================
@@ -265,8 +284,8 @@ class WikiPageViewModel:
         解析 wiki Markdown 中的 section markers 和 overview 区域，
         将结构化数据输入 build() 构建完整 ViewModel。
 
-        支持 v0.1 风格 `<!-- WIKI_SECTION_START card_ids=... -->` marker，
-        也尝试从 `## Section Title\ncard_ids=` 行读取。
+        支持 `<!-- WIKI_SECTION_START card=... -->` deterministic marker 和
+        `<!-- WIKI_SECTION_START card_ids=... -->` LLM marker。
 
         Args:
             markdown_content: wiki Markdown 文件全文
@@ -290,10 +309,11 @@ class WikiPageViewModel:
         if overview_match:
             overview = overview_match.group(1).strip()
 
-        # 解析 sections（WIKI_SECTION_START/END marker 格式）
+        # 解析 sections（WIKI_SECTION_START/END marker 格式）。这里接受
+        # card/card_ids 两种参数名，再统一交给 build() 的 card_ids contract。
         sections_raw: list[dict] = []
         pattern = (
-            r"<!--\s*WIKI_SECTION_START\s+card_ids=([^\s>]+)\s*-->\s*\n"
+            r"<!--\s*WIKI_SECTION_START\s+(?:card_ids|card)=([^>]+?)\s*-->\s*\n"
             r"###\s+(.+?)\n"
             r"(.*?)"
             r"<!--\s*WIKI_SECTION_END\s*-->"
@@ -308,7 +328,7 @@ class WikiPageViewModel:
                 "",
                 body,
             )
-            card_ids = [cid.strip() for cid in card_ids_str.split(",") if cid.strip()]
+            card_ids = _parse_wiki_marker_card_ids(card_ids_str)
             sections_raw.append({"title": title, "body": body.strip(), "card_ids": card_ids})
 
         # 解析 open_questions（## Open Questions 区域）

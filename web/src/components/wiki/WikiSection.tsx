@@ -23,14 +23,12 @@ export function WikiSection({ section }: WikiSectionProps) {
         className="prose prose-sm max-w-[720px] text-ink leading-relaxed"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(section.body) }}
       />
+      <WikiSectionRelationshipPreview sectionTitle={section.title} refs={section.card_refs} />
       {section.card_refs.length > 0 && (
-        <>
-          <WikiSectionRelationshipPreview sectionTitle={section.title} refs={section.card_refs} />
-          <WikiReferencePanel
-            refs={section.card_refs}
-            title="Knowledge sources"
-          />
-        </>
+        <WikiReferencePanel
+          refs={section.card_refs}
+          title="Knowledge sources"
+        />
       )}
     </section>
   );

@@ -579,3 +579,123 @@ class TestWikiPageViewModelBuild:
         )
         assert vm.mode == "deterministic"
         assert vm.model_id is None
+
+
+class TestWikiPageViewModelMarkdownMarkers:
+    """Wiki Markdown marker 兼容性回归测试。
+
+    中文学习型说明：deterministic builder 历史上写 `card=`，LLM builder 写
+    `card_ids=`。WikiPageViewModel parser 是 Web 可见性边界；如果它只认识其中
+    一种 marker，Wiki 文件虽然存在且 /api/wiki/content 可读，Web 主页面仍会因为
+    sections=[] 而看不到真实文档。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _imports(self):
+        from mindforge.wiki_service import CardDigest
+        from mindforge.wiki_view_model import WikiPageViewModel
+
+        self.CardDigest = CardDigest
+        self.WikiPageViewModel = WikiPageViewModel
+
+    def _make_digest(self, card_id: str, title: str):
+        """构造最小 approved CardDigest，避免读取真实 vault 或私人资料。"""
+
+        return self.CardDigest(
+            card_id=card_id,
+            title=title,
+            track="wiki",
+            tags=["wiki"],
+            summary=f"Summary for {title}",
+            principles="",
+            actions="",
+            value_score=7,
+            approved_at="2026-05-19T10:00:00+0800",
+            card_rel_path=f"20-Knowledge-Cards/{card_id}.md",
+            source_title="synthetic-source.md",
+        )
+
+    def test_deterministic_card_marker_parses_section_and_reference(self) -> None:
+        """deterministic `card=` marker 必须生成 section，并关联对应 card。"""
+
+        markdown = """# MindForge Main Wiki
+
+## Overview
+
+Synthetic overview.
+
+## wiki
+
+<!-- WIKI_SECTION_START card=card-a -->
+### Deterministic Section
+
+Section body from deterministic wiki.
+
+<!-- WIKI_SECTION_END -->
+"""
+        vm = self.WikiPageViewModel.build_from_wiki_markdown(
+            markdown_content=markdown,
+            digests=[self._make_digest("card-a", "Card A")],
+            wiki_metadata={"mode": "deterministic"},
+        )
+
+        assert len(vm.sections) == 1
+        assert vm.sections[0].title == "Deterministic Section"
+        assert [ref.card_id for ref in vm.sections[0].card_refs] == ["card-a"]
+        assert vm.additional_cards == []
+
+    def test_llm_card_ids_marker_still_supports_multiple_cards(self) -> None:
+        """LLM `card_ids=` 多卡 marker 不能被 deterministic 兼容修复破坏。"""
+
+        markdown = """# MindForge Main Wiki
+
+## Overview
+
+Synthetic overview.
+
+## Knowledge Sections
+
+<!-- WIKI_SECTION_START card_ids=card-a, card-b,card-a -->
+### LLM Section
+
+Section body from LLM wiki.
+
+<!-- WIKI_SECTION_END -->
+"""
+        vm = self.WikiPageViewModel.build_from_wiki_markdown(
+            markdown_content=markdown,
+            digests=[
+                self._make_digest("card-a", "Card A"),
+                self._make_digest("card-b", "Card B"),
+                self._make_digest("card-c", "Card C"),
+            ],
+            wiki_metadata={"mode": "llm"},
+        )
+
+        assert len(vm.sections) == 1
+        assert [ref.card_id for ref in vm.sections[0].card_refs] == ["card-a", "card-b"]
+        assert [ref.card_id for ref in vm.additional_cards] == ["card-c"]
+
+    def test_malformed_marker_is_safe_fallback_not_exception(self) -> None:
+        """格式漂移或损坏的 marker 应安全跳过，不能让 /api/wiki/page 变 500。"""
+
+        markdown = """# MindForge Main Wiki
+
+## Overview
+
+Synthetic overview.
+
+<!-- WIKI_SECTION_START bad_marker -->
+### Broken Section
+
+This malformed section should not crash the parser.
+
+<!-- WIKI_SECTION_END -->
+"""
+        vm = self.WikiPageViewModel.build_from_wiki_markdown(
+            markdown_content=markdown,
+            digests=[self._make_digest("card-a", "Card A")],
+        )
+
+        assert vm.sections == []
+        assert [ref.card_id for ref in vm.additional_cards] == ["card-a"]

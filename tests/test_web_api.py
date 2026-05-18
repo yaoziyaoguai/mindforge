@@ -262,6 +262,47 @@ def test_wiki_rebuild_json_mode_runs_llm_branch(tmp_path: Path, monkeypatch) -> 
     assert data["model_id"] == "main"
 
 
+def test_wiki_page_parses_deterministic_card_marker_into_sections(tmp_path: Path) -> None:
+    """`/api/wiki/page` 必须把 deterministic `card=` marker 解析成可见 section。
+
+    中文学习型说明：这是 Web Wiki 的 P0 可见性边界。deterministic builder 和
+    LLM builder 可能产生不同 marker；如果 parser 只接受 `card_ids=`，Web 页面会
+    只剩 additional cards，看不到已经生成的 Wiki 正文。
+    """
+
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+## Overview
+
+Synthetic overview.
+
+## agent-runtime
+
+<!-- WIKI_SECTION_START card=approved-web-1 -->
+### Approved Web Card
+
+Approved section body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["sections"]) == 1
+    assert data["sections"][0]["card_refs"][0]["card_id"] == "approved-web-1"
+    assert data["additional_cards"] == []
+
+
 def test_setup_save_preserves_wiki_auto_rebuild_false(tmp_path: Path) -> None:
     """Setup PATCH 中的 false 是显式用户选择，不能被当成未设置丢弃。"""
 
