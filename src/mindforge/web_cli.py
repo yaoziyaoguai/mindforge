@@ -65,7 +65,11 @@ def web(
 
     # 使用统一 workspace resolution 解析 config
     from .app_context import load_app_config, AppContextError
-    from .workspace_resolver import set_active_workspace, WorkspaceResolutionError
+    from .workspace_resolver import (
+        global_workspace_override,
+        set_active_workspace,
+        WorkspaceResolutionError,
+    )
 
     try:
         resolved_cfg = load_app_config(
@@ -91,10 +95,23 @@ def web(
             except WorkspaceResolutionError:
                 pass  # 静默：active workspace 不是 web 启动的必要条件
 
+    workspace_for_bootstrap = workspace or global_workspace_override()
+    if workspace_for_bootstrap is not None and workspace is None:
+        # 中文学习型说明：console entrypoint 会把后置 `web --workspace X`
+        # 归一化成 Typer 全局参数，并通过 env 传递到子命令。Web 子命令仍需
+        # 在首次启动前显式派生 config/vault，否则会把 config 写回 repo cwd。
+        ws = workspace_for_bootstrap.expanduser().resolve()
+        if config == Path("configs/mindforge.yaml"):
+            config = ws / "configs" / "mindforge.yaml"
+            config.parent.mkdir(parents=True, exist_ok=True)
+        if vault is None:
+            vault = ws / "vault"
+            vault.mkdir(parents=True, exist_ok=True)
+
     effective_vault = vault or global_vault_override()
     bootstrap = maybe_bootstrap_local_config(
         config,
-        allow_unmarked_workspace=workspace is not None,
+        allow_unmarked_workspace=workspace_for_bootstrap is not None,
     )
     if bootstrap.config_path is None and not config.expanduser().exists():
         console.print(
