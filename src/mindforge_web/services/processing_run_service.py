@@ -68,7 +68,7 @@ def start_processing_run(
 ) -> ProcessingRunRecord:
     """创建 run 文件并启动后台线程。
 
-    中文学习型说明：HTTP 请求只做到“登记任务并返回 run_id”。LLM pipeline
+    中文学习型说明：HTTP 请求只做到"登记任务并返回 run_id"。LLM pipeline
     在 daemon thread 中继续执行，完成后把最后状态写回本地 JSON。第一版不做
     Redis/Celery/数据库，也不保证服务重启后恢复 queued/running，只保证已完成
     或失败的 summary 可在刷新后读取。
@@ -105,6 +105,69 @@ def start_processing_run(
         daemon=True,
     )
     thread.start()
+    return record
+
+
+def start_sync_processing_run(
+    cfg: MindForgeConfig,
+    *,
+    source_ref: str,
+    source_path: str | None,
+    mode: str,
+    work: Callable[[], IngestionSummary | WatchScanSummary],
+) -> ProcessingRunRecord:
+    """创建 ProcessingRun 并同步执行，完成后返回已完结 record。
+
+    中文学习型说明：import_source 路径需要在 HTTP 响应里直接返回处理结果，
+    不能只用后台线程；但同时也必须参与 active-run 协调，避免和 watch/scan
+    的并发处理产生 duplicate ai_draft。这里沿用同一个 run 生命周期，只是把
+    worker 执行放在当前线程同步完成，返回已 finalized 的 record。
+    """
+
+    existing = latest_run_for_source(cfg, source_ref=source_ref, source_path=source_path)
+    if existing is not None and existing.status in ACTIVE_RUN_STATUSES:
+        existing.message = (
+            "Processing is already running in the background. You can keep using MindForge. "
+            "Sources will show the final status, and Review will show any generated drafts."
+        )
+        _save_record(cfg, existing)
+        return existing
+
+    record = ProcessingRunRecord(
+        run_id=_new_run_id(),
+        source_ref=source_ref,
+        source_path=source_path,
+        mode=mode,
+        status="queued",
+        started_at=_now(),
+        last_heartbeat_at=_now(),
+        summary=_empty_summary(),
+        message=started_response_message(),
+    )
+    _save_record(cfg, record)
+
+    # 同步执行：沿用和 _run_worker 相同逻辑，但在当前线程
+    record.status = "running"
+    record.current_step = "processing source"
+    record.last_heartbeat_at = _now()
+    _save_record(cfg, record)
+
+    before_draft_ids = _draft_ids(cfg)
+    try:
+        summary = work()
+        after_draft_ids = _draft_ids(cfg)
+        draft_ids = sorted(after_draft_ids - before_draft_ids)
+        _apply_summary(record, summary, draft_ids=draft_ids)
+    except Exception as exc:
+        record.status = "failed"
+        record.current_step = "failed"
+        record.finished_at = _now()
+        record.summary = {**_empty_summary(), "errors": 1}
+        record.error_type = type(exc).__name__
+        record.error_message = _safe_error_message(str(exc))
+        record.message = f"Processing failed. Reason: {record.error_message}"
+
+    _save_final_record_if_active(cfg, record)
     return record
 
 

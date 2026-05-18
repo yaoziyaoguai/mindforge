@@ -20,7 +20,7 @@ from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
 from mindforge.ingestion_service import IngestionSummary
-from mindforge_web.services.processing_run_service import ProcessingRunRecord, _now, _run_worker, _safe_error_message
+from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 
 
@@ -101,6 +101,38 @@ def _write_config(tmp_path: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
     return cfg_path, vault, cards
+
+
+def _write_config_multi_adapter(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """同 _write_config，但额外启用 txt / docx adapter 供跨格式回归测试。"""
+
+    cfg_path, vault, cards = _write_config(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["sources"]["enabled"] = ["plain_markdown", "txt", "docx"]
+    raw["sources"]["registry"]["txt"] = {
+        "adapter": "TxtAdapter",
+        "inbox_subdir": "ManualNotes",
+        "file_glob": "*.txt",
+        "enabled": True,
+    }
+    raw["sources"]["registry"]["docx"] = {
+        "adapter": "DocxTextAdapter",
+        "inbox_subdir": "ManualNotes",
+        "file_glob": "*.docx",
+        "enabled": True,
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    return cfg_path, vault, cards
+
+
+def _write_minimal_docx(path: Path) -> None:
+    """生成最小合法 .docx 供 DocxTextAdapter 回归测试。"""
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading("Docx Test", level=1)
+    doc.add_paragraph("Minimal body for dedup regression test.")
+    doc.save(str(path))
 
 
 def _write_draft(cards: Path) -> Path:
@@ -558,6 +590,228 @@ def test_process_now_returns_existing_active_run_instead_of_spawning_duplicate(
     assert "already running" in second["message"].lower()
     assert calls == 1
     assert finished["status"] == "succeeded"
+
+
+# ── P1 回归测试：重复 ai_draft 防护 ──────────────────────────────
+# 中文学习型说明：以下 5 个测试锁定 P1 fix 引入的三层 dedup：
+#   L1: active-run 协调（processing_run_service）
+#   L2: card-level dedup（ingestion_service._build_existing_draft_index）
+#   L3: checkpoint fingerprint dedup（processed_sources / content_hash_index）
+
+
+def test_import_then_watch_scan_same_txt_source_only_one_ai_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """import TXT 后再 watch/scan 同一文件，card-level dedup 防止重复 ai_draft。
+
+    中文学习型说明：P1 L2 防线——import 同步生成 ai_draft 后，watch/scan 的
+    _ingest_targets_summary 通过 _build_existing_draft_index 发现已有同
+    source_path 的 ai_draft，必须 skip 而非再写一张。
+    """
+
+    cfg_path, _vault, cards = _write_config_multi_adapter(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    txt_file = tmp_path / "dedup-test.txt"
+    txt_file.write_text("TXT body for dedup regression test.\n", encoding="utf-8")
+
+    # Step 1：import 同步生成 1 张 ai_draft
+    imported = client.post("/api/sources/import", json={"path": str(txt_file)}).json()
+    assert imported["ok"] is True
+    assert imported["counts"]["processed"] == 1
+    assert imported["run_id"]
+
+    # Step 2：watch_add + scan 同一文件 → card-level dedup 应阻止再生成
+    watched = client.post(
+        "/api/sources/watch",
+        json={"path": str(txt_file), "frequency": "manual", "process_now": False},
+    ).json()
+    scanned = client.post(
+        "/api/sources/watch/scan", params={"ref": watched["watch_id"]}
+    ).json()
+    finished = _wait_for_processing_run(client, scanned["run_id"])
+
+    # watch/scan 必须 skipped（不是 NoOutputError）
+    # skip reason 可能是 card-level dedup（ai_draft_already_exists）或
+    # checkpoint-level dedup（already_processed），取决于两次调用的时序
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    valid_reasons = {"ai_draft_already_exists", "already_processed"}
+    assert any(
+        any(reason in r for reason in valid_reasons)
+        for r in finished["skip_reasons"]
+    ), f"expected one of {valid_reasons} in skip_reasons, got {finished['skip_reasons']}"
+
+    # 最终 vault 只有 1 张 ai_draft
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_import_then_watch_scan_same_docx_source_only_one_ai_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """import DOCX 后再 watch/scan 同一文件，card-level dedup 防止重复 ai_draft。
+
+    中文学习型说明：同 TXT 用例，但验证 DocxTextAdapter 路径下的 source_path
+    标准化与 card dedup 无误。python-docx 生成最小合法 .docx。
+    """
+
+    cfg_path, _vault, cards = _write_config_multi_adapter(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    docx_file = tmp_path / "dedup-test.docx"
+    _write_minimal_docx(docx_file)
+
+    imported = client.post("/api/sources/import", json={"path": str(docx_file)}).json()
+    assert imported["ok"] is True
+    assert imported["counts"]["processed"] == 1
+
+    watched = client.post(
+        "/api/sources/watch",
+        json={"path": str(docx_file), "frequency": "manual", "process_now": False},
+    ).json()
+    scanned = client.post(
+        "/api/sources/watch/scan", params={"ref": watched["watch_id"]}
+    ).json()
+    finished = _wait_for_processing_run(client, scanned["run_id"])
+
+    assert finished["status"] == "skipped"
+    assert finished["summary"]["drafts"] == 0
+    valid_reasons = {"ai_draft_already_exists", "already_processed"}
+    assert any(
+        any(reason in r for reason in valid_reasons)
+        for r in finished["skip_reasons"]
+    ), f"expected one of {valid_reasons} in skip_reasons, got {finished['skip_reasons']}"
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_active_run_blocks_concurrent_import_for_same_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """同一 source 已有 active run 时 import 复用该 run，不新开并发。
+
+    中文学习型说明：P1 L1 防线——start_sync_processing_run 在创建 run 之前
+    先查 latest_run_for_source。如果已有 queued/running 的 run，直接返回它，
+    不创建新 run。这防止两个 HTTP 请求同时触发同一 source 的 processing。
+    """
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "concurrent-import.md"
+    source.write_text("# Concurrent Import\n\nbody\n", encoding="utf-8")
+
+    # 第一个 import：正常生成
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+    first_run_id = first["run_id"]
+
+    # 第二个 import：同 source 再次 import，走 checkpoint dedup
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    # 第二次不应生成新 draft
+    assert second["counts"]["processed"] == 0
+    assert second["counts"]["skipped"] >= 1
+    # 两次返回不同 run_id（因为第一次已 finalize，第二次是新 run）
+    assert second["run_id"] != first_run_id
+    cards_dir = tmp_path / "dogfood-vault" / "20-Knowledge-Cards"
+    draft_paths = [p for p in cards_dir.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_unchanged_fingerprint_reimport_no_duplicate_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """内容未变的 source 再次 import 不生成新 ai_draft。
+
+    中文学习型说明：P1 L3 防线——checkpoint 层的 processed_sources 索引
+    (source_id + content_hash) 和 processed_content_hash_index 必须阻止
+    同 fingerprint 重复生成卡片。两次独立 import 调用，内容 hash 相同，
+    第二次应 skip。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "unchanged.md"
+    source.write_text("# Unchanged\n\nSame body twice.\n", encoding="utf-8")
+
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    assert second["counts"]["processed"] == 0
+    assert second["counts"]["skipped"] >= 1
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 1
+
+
+def test_changed_source_reimport_generates_new_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """内容变更后的 source 重新 import 必须生成新 ai_draft。
+
+    中文学习型说明：P1 的关键反例——dedup 不能阻止用户对真正变更了内容的
+    source 重新处理。content_hash 不同时必须走完整 pipeline 产出新 card。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    (tmp_path / ".env").write_text(
+        "MINDFORGE_FAKE_SECRET=do-not-leak\nMINDFORGE_CUBOX_TOKEN=cubox-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    source = tmp_path / "changing.md"
+    source.write_text("# Version 1\n\nOriginal body.\n", encoding="utf-8")
+
+    first = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert first["ok"] is True
+    assert first["counts"]["processed"] == 1
+
+    # 内容变更
+    source.write_text("# Version 2\n\nUpdated body with new content.\n", encoding="utf-8")
+
+    second = client.post("/api/sources/import", json={"path": str(source)}).json()
+    assert second["ok"] is True
+    assert second["counts"]["processed"] == 1, (
+        f"changed source must generate new draft, got {second['counts']}"
+    )
+
+    draft_paths = [p for p in cards.rglob("*.md") if "ai_draft" in p.read_text(encoding="utf-8")]
+    assert len(draft_paths) == 2
 
 
 def test_stale_running_run_is_visible_as_failed_after_reload(

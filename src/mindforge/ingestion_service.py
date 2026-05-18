@@ -500,6 +500,11 @@ def _ingest_targets_summary(
     approved_sources = build_approved_source_index(cfg)
     processed_sources = _build_processed_source_index(parts.checkpoint)
     processed_content_hashes = _build_processed_content_hash_index(parts.checkpoint)
+    # v0.3 P1 fix：构建已有 ai_draft 卡片索引（by source_path），作为 card-level
+    # dedup 的最后⼀道防线。checkpoint-level dedup 只在同⼀次 _ingest_targets_summary
+    # 调用内有效；当 import 和 watch/scan 并发时，两者各自 load checkpoint、
+    # 各自 miss，各自写卡。这个索引查实际文件系统状态，能捕获竞态窗口内的重复写入。
+    existing_drafts_by_source = _build_existing_draft_index(cfg)
     skipped_details: list[SkippedDocumentDetail] = []
     error_details: list[str] = []
     with RunLogger(cfg.state.runs_path, command=command) as logger:
@@ -579,6 +584,27 @@ def _ingest_targets_summary(
                     doc,
                     reason="duplicate_content_hash",
                     matched_record=duplicate_match.state_key,
+                ))
+                continue
+            # v0.3 P1 fix：card-level dedup —— 检查 vault 中是否已有同 source_path
+            # 且 content_hash 未变的 ai_draft。这能在 import + watch/scan 并发竞态窗口里
+            # 捕获重复写入，不依赖 checkpoint 的时序一致性。
+            # content_hash 不同时放行，确保用户修改 source 后能重新处理生成新 card。
+            existing_draft_entry = existing_drafts_by_source.get(
+                _normalized_source_path(doc.source_path)
+            )
+            if existing_draft_entry is not None and existing_draft_entry[1] == doc.content_hash:
+                _emit_skip(
+                    result=result,
+                    doc=doc,
+                    logger=logger,
+                    counts=counts,
+                    reason="ai_draft_already_exists",
+                )
+                skipped_details.append(_skip_detail(
+                    doc,
+                    reason="ai_draft_already_exists",
+                    matched_record=existing_draft_entry[0],
                 ))
                 continue
             try:
@@ -834,6 +860,31 @@ def _build_processed_content_hash_index(checkpoint) -> dict[str, ProcessedSource
         if item.status == "processed" and item.card_path:
             keys[item.content_hash] = ProcessedSourceMatch(state_key=item.state_key)
     return keys
+
+
+def _build_existing_draft_index(cfg: MindForgeConfig) -> dict[str, tuple[str, str | None]]:
+    """构建已有 ai_draft 卡片索引（by normalized source_path → (card_rel_path, content_hash)）。
+
+    中文学习型说明：checkpoint 只在同一次 _ingest_targets_summary 调用内一致；
+    当 import 和 watch/scan 并发处理同一 source 时，两边各自 load checkpoint、
+    各自看不到对方的已处理状态。这个索引直接扫描 vault cards 文件系统，作为
+    card-level dedup 的最后防线。
+
+    同时记录 source_content_hash，使得 content_hash 变更后的 source 可以重新处理，
+    不被 card-level dedup 误拦。content_hash 相同才 skip，不同则放行。
+    """
+    index: dict[str, tuple[str, str | None]] = {}
+    from .cards import iter_cards
+
+    for card in iter_cards(cfg.vault.root, cfg.vault.cards_dir).cards:
+        if card.status != "ai_draft":
+            continue
+        if not card.source_path:
+            continue
+        normalized = _normalized_source_path(card.source_path)
+        if normalized not in index:
+            index[normalized] = (card.rel_path, card.source_content_hash)
+    return index
 
 
 def _processed_match(

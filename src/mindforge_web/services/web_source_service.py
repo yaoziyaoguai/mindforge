@@ -46,6 +46,7 @@ from mindforge_web.services.processing_run_service import (
     next_actions_for_record,
     processing_run_response,
     start_processing_run,
+    start_sync_processing_run,
 )
 
 
@@ -305,6 +306,12 @@ class WebSourceService:
     def import_source(self, path: Path) -> IngestionActionResponse:
         # 中文学习型说明：Web import_source 必须和 watch_add 一样在 Web 边界校验路径。
         # 相对路径、不存在路径都必须在进入 ingestion pipeline 之前被拒绝，返回 400。
+        #
+        # v0.3 P1 fix：import_source 现在走 start_sync_processing_run，而不是直接
+        # 调用 import_sources()。这样 import 会创建 ProcessingRun 并参与 active-run
+        # 协调：如果同 source_path 已有 watch/scan 在跑，复用它；如果还没有 run，
+        # 创建新 run 同步执行并在返回前 finalize。避免 import + watch/scan overlap
+        # 产生 duplicate ai_draft。
         if not path.is_absolute():
             raise SourcePathError(
                 f"Please use an absolute path, such as /Users/you/Documents/note.md. "
@@ -316,15 +323,42 @@ class WebSourceService:
                 f"File or folder not found: {resolved}. "
                 f"Please choose or paste an existing path."
             )
-        summary = import_sources(self.cfg, resolved)
+        _ensure_processing_model_configured(self.cfg)
+        from mindforge.strategy_selection import resolve_strategy_selection
+
+        selected_strategy = resolve_strategy_selection(self.cfg)
+        # source_ref 用 import: 前缀 + resolved path，避免和 watch source id 冲突
+        # 但仍可通过 source_path 参与 latest_run_for_source 的 active-run 匹配
+        source_ref = f"import:{str(resolved)}"
+        run = start_sync_processing_run(
+            self.cfg,
+            source_ref=source_ref,
+            source_path=str(resolved),
+            mode="import",
+            work=lambda: import_sources(
+                self.cfg,
+                resolved,
+                strategy=selected_strategy,
+            ),
+        )
+        # run.summary keys 是 ProcessingRun 内部术语（discovered/processed/drafts/skipped/errors），
+        # 适配为 IngestionActionResponse 需要的展示术语
+        import_counts = {
+            "processed": run.summary.get("drafts", 0),
+            "skipped": run.summary.get("skipped", 0),
+            "failed": run.summary.get("errors", 0),
+            "seen": run.summary.get("discovered", 0),
+        }
         return IngestionActionResponse(
             ok=True,
-            mode=summary.mode,
-            target=str(summary.target),
-            counts=summary.counts,
-            message="source imported once as ai_draft; not added to watched sources",
+            mode="import",
+            target=str(resolved),
+            counts=import_counts,
+            message=run.message,
             added_to_registry=False,
-            next_actions=_ingestion_next_actions({"processed": 0}),
+            next_actions=next_actions_for_record(run),
+            run_id=run.run_id,
+            processing_status=run.status,
         )
 
     def ingestion_status(self) -> IngestionSummaryStatus:
