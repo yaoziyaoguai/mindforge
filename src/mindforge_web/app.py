@@ -46,10 +46,18 @@ def create_app(
         exc: RequestValidationError,
     ) -> JSONResponse:
         errors = exc.errors()
-        safe_errors = [
-            {k: v for k, v in err.items() if k != "input"}
-            for err in errors
-        ]
+        safe_errors: list[dict] = []
+        for err in errors:
+            safe = {k: v for k, v in err.items() if k != "input"}
+            # model_validator ValueError 会在 ctx.error 中带入 Exception
+            # 对象，JSON 无法序列化，统一转为字符串。
+            ctx = safe.get("ctx")
+            if isinstance(ctx, dict):
+                safe["ctx"] = {
+                    ck: str(cv) if isinstance(cv, Exception) else cv
+                    for ck, cv in ctx.items()
+                }
+            safe_errors.append(safe)
         return JSONResponse(
             status_code=422,
             content={"detail": safe_errors},

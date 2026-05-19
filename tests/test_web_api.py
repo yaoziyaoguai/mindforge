@@ -4455,11 +4455,28 @@ def test_reveal_by_ref_rejects_missing_draft(tmp_path: Path) -> None:
 
 
 def test_reveal_by_ref_requires_card_or_draft_id(tmp_path: Path) -> None:
-    """safe reveal endpoint 在无 card_id 和 draft_id 时返回 400。"""
+    """safe reveal endpoint 在无 card_id 和 draft_id 时返回 422。
+
+    中文学习型说明：schema 层 exactly-one validator 拒绝两个都为空。
+    """
     cfg_path, _vault, _cards = _write_config(tmp_path)
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     response = client.post("/api/sources/reveal", json={})
-    assert response.status_code == 400
+    assert response.status_code == 422
+
+
+def test_reveal_by_ref_rejects_both_card_and_draft_id(tmp_path: Path) -> None:
+    """safe reveal endpoint 在同时传 card_id 和 draft_id 时返回 422。
+
+    中文学习型说明：schema 层 exactly-one validator 拒绝两个都传。
+    """
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post(
+        "/api/sources/reveal",
+        json={"card_id": "foo", "draft_id": "bar"},
+    )
+    assert response.status_code == 422
 
 
 def test_source_path_view_outside_path_no_full_path(tmp_path: Path) -> None:
@@ -4840,11 +4857,13 @@ def test_draft_outside_source_path_is_redacted(tmp_path: Path) -> None:
     assert draft["source_path_view"] is not None
     assert draft["source_path_view"]["path_kind"] == "outside_allowed_roots"
 
-    # draft detail
+    # draft detail（response_model_exclude_none=True 会导致 source_path 字段缺席）
     detail = client.get("/api/drafts/draft-1").json()
-    assert detail["draft"]["source_path"] is None
+    assert "source_path" not in detail["draft"], (
+        f"outside source_path must be absent from detail response, got {detail['draft'].get('source_path')!r}"
+    )
     assert detail["draft"]["source_path_view"]["path_kind"] == "outside_allowed_roots"
-    # source_context 中的 source_path 也必须 redact
+    # source_context 中的 source_path 也必须 redact（dict 不受 exclude_none 影响）
     assert detail["source_context"]["source_path"] is None
 
 
@@ -5003,3 +5022,42 @@ def test_reveal_endpoint_workspace_card_reveal_allowed(
     assert reveal["action"] == "reveal"
     assert reveal["path_kind"] == "workspace"
     assert calls[0][0] == ["open", "-R", str(source_file.resolve())]
+
+
+# ---------------------------------------------------------------------------
+# P3 Item A: 旧 raw path endpoint 410 覆盖
+# ---------------------------------------------------------------------------
+
+
+def test_old_copy_path_endpoint_returns_410(tmp_path: Path) -> None:
+    """POST /api/sources/path-actions/copy 返回 410 Gone 且不 echo raw path。
+
+    中文学习型说明：旧 raw path endpoint 已禁用，调用即返回 410。
+    response detail 中不得包含传入的 raw path 字符串，防止 path probing。
+    """
+    cfg_path, _, _ = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    outside_path = "/tmp/mindforge-test-evil/path"
+    resp = client.post("/api/sources/path-actions/copy", json={"path": outside_path})
+    assert resp.status_code == 410, f"expected 410, got {resp.status_code}"
+
+    body = resp.json()
+    assert outside_path not in str(body)
+
+
+def test_old_reveal_path_endpoint_returns_410(tmp_path: Path) -> None:
+    """POST /api/sources/path-actions/reveal 返回 410 Gone 且不 echo raw path。
+
+    中文学习型说明：旧 raw path endpoint 已禁用，调用即返回 410。
+    response detail 中不得包含传入的 raw path 字符串，防止 path probing。
+    """
+    cfg_path, _, _ = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    outside_path = "/tmp/mindforge-test-evil/path"
+    resp = client.post("/api/sources/path-actions/reveal", json={"path": outside_path})
+    assert resp.status_code == 410, f"expected 410, got {resp.status_code}"
+
+    body = resp.json()
+    assert outside_path not in str(body)

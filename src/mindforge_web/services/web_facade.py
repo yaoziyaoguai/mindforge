@@ -289,12 +289,6 @@ class WebFacade:
         except RuntimeError as exc:
             raise _http_error(500, str(exc)) from exc
 
-    def copy_path(self, path: Path) -> PathActionResponse:
-        return self.path_action_service.copy_path(path)
-
-    def reveal_path(self, path: Path) -> PathActionResponse:
-        return self.path_action_service.reveal_path(path)
-
     def reveal_by_ref(
         self, *, card_id: str | None = None, draft_id: str | None = None
     ) -> PathActionResponse:

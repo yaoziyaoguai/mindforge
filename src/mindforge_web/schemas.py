@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 StatusLevel = Literal["ok", "info", "warn", "error"]
@@ -626,6 +626,13 @@ class RevealRequest(BaseModel):
 
     card_id: str | None = None
     draft_id: str | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_ref(self) -> "RevealRequest":
+        """card_id 和 draft_id 必须二选一，不能同时传也不能都不传。"""
+        if (self.card_id is not None) == (self.draft_id is not None):
+            raise ValueError("exactly one of card_id or draft_id is required")
+        return self
 
 
 class PathActionResponse(BaseModel):

@@ -27,7 +27,8 @@ class PathActionError(ValueError):
 
 class WebPathActionService:
     # 中文学习型说明：source_path 安全展示的白名单 path_kind。
-    # 只有 vault 内路径（workspace）和已注册 source 可以展示完整 path；
+    # workspace 内路径允许展示完整 path；registered_source 枚举保留给未来
+    # source registry，当前 build_source_path_view 不会返回此值。
     # outside / unknown / not_available 的 source_path 在 Web API 中必须
     # redact 为 None，由 source_path_view.display_path 提供安全展示。
     _SAFE_DISPLAY_PATH_KINDS = frozenset({"workspace", "registered_source"})
@@ -120,8 +121,9 @@ class WebPathActionService:
             )
 
         if self._is_allowlisted(resolved):
-            # workspace 内还是 registered source？先统一为 workspace
-            # —— 两者目前权限相同（允许 copy/reveal）
+            # 中文学习型说明：registered_source 枚举保留给未来（当 source
+            # registry 落地时启用），当前所有 allowlisted path 统一返回 workspace。
+            # 两者目前权限相同（允许 copy/reveal），前端只根据 path_kind 做决策。
             return SourcePathViewModel(
                 display_source_name=source_title or resolved.name,
                 display_path=str(resolved),
@@ -229,52 +231,6 @@ class WebPathActionService:
             path_kind=view.path_kind,
         )
 
-    def copy_path(self, path: Path) -> PathActionResponse:
-        resolved = self._validated_path(path)
-        return PathActionResponse(
-            ok=True,
-            action="copy",
-            path=str(resolved),
-            path_type=_path_type(resolved),
-            message="Copied",
-            path_kind=_classify_resolved(resolved, self._allowlisted_roots()),
-        )
-
-    def reveal_path(self, path: Path) -> PathActionResponse:
-        resolved = self._validated_path(path)
-        if sys.platform != "darwin":
-            return PathActionResponse(
-                ok=False,
-                action="reveal",
-                path=str(resolved),
-                path_type=_path_type(resolved),
-                message="Reveal in Finder is available on macOS only. Copy path instead.",
-                path_kind=_classify_resolved(resolved, self._allowlisted_roots()),
-            )
-
-        command = ["open", str(resolved)] if resolved.is_dir() else ["open", "-R", str(resolved)]
-        subprocess.run(command, check=False, shell=False)
-        return PathActionResponse(
-            ok=True,
-            action="reveal",
-            path=str(resolved),
-            path_type=_path_type(resolved),
-            message="Opened",
-            command=command,
-            path_kind=_classify_resolved(resolved, self._allowlisted_roots()),
-        )
-
-    def _validated_path(self, path: Path) -> Path:
-        candidate = path.expanduser()
-        if not candidate.is_absolute():
-            candidate = self.cfg.vault.root / candidate
-        resolved = candidate.resolve(strict=False)
-        if not self._is_allowlisted(resolved):
-            raise PathActionError(403, "Path is outside allowed local MindForge roots.")
-        if not resolved.exists():
-            raise PathActionError(404, "Path does not exist.")
-        return resolved
-
     def _is_allowlisted(self, resolved: Path) -> bool:
         return any(_contains(root, resolved) for root in self._allowlisted_roots())
 
@@ -287,19 +243,6 @@ class WebPathActionService:
         roots.extend(source.path for source in watch_sources_for_display(self.cfg))
         roots.extend(card.path for card in iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir).cards)
         return [root.expanduser().resolve(strict=False) for root in roots]
-
-
-def _classify_resolved(resolved: Path, allowlisted_roots: list[Path]) -> str:
-    """安全分类已解析路径，返回 path_kind literal。
-
-    中文学习型说明：_validated_path 已验证 allowlist + existence，
-    此处仅做最终分类标记，保证 copy/reveal response 携带 path_kind。
-    """
-    if not resolved.exists():
-        return "not_available"
-    if any(_contains(root, resolved) for root in allowlisted_roots):
-        return "workspace"
-    return "outside_allowed_roots"
 
 
 def _safe_display_path(raw: str) -> str:

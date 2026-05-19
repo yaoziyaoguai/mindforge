@@ -15,7 +15,7 @@ def drafts(facade: WebFacade = Depends(get_facade)) -> DraftsResponse:
     return facade.drafts()
 
 
-@router.get("/{draft_id:path}", response_model=DraftDetailResponse)
+@router.get("/{draft_id:path}", response_model=DraftDetailResponse, response_model_exclude_none=True)
 def draft_detail(draft_id: str, facade: WebFacade = Depends(get_facade)) -> DraftDetailResponse:
     detail = facade.draft_detail(draft_id)
     if detail is None:
