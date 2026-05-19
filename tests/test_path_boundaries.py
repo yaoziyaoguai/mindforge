@@ -26,6 +26,7 @@ from mindforge.trash_service import _resolve_restore_target
 from mindforge.wiki_service import _wiki_path
 from mindforge.config import MindForgeConfig, load_mindforge_config
 from mindforge_web.app import create_app
+from mindforge_web.server import run_server as _real_run_server
 from mindforge_web.services.web_config_service import WebConfigService
 
 runner = CliRunner()
@@ -179,17 +180,6 @@ def _web_client(tmp_path: Path, monkeypatch) -> TestClient:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Web source path 测试
 # ═══════════════════════════════════════════════════════════════════════════════
-
-def _write_fake_web_dist(repo_root: Path) -> None:
-    """为 Web CLI 路径测试创建最小前端构建产物。
-
-    中文学习型说明：生产 CLI 现在会在 web/dist 缺失时 fail fast；
-    路径边界测试若不是在验证 fail-fast 本身，就需要显式提供最小
-    index.html，避免把「前端未构建」误当成 workspace 逻辑失败。
-    """
-    dist_dir = repo_root / "web" / "dist"
-    dist_dir.mkdir(parents=True, exist_ok=True)
-    (dist_dir / "index.html").write_text("<!doctype html><div id='root'></div>", encoding="utf-8")
 
 
 class TestWebSourcePath:
@@ -760,12 +750,27 @@ class TestFirstRunConfigBootstrapBoundaries:
         user_workspace.mkdir()
 
         # 中文学习型说明：真实 run_server 现在要求 web/dist/index.html 存在，
-        # 否则会 fail fast。这不是此测试要验证的行为，因此显式补齐最小前端产物。
-        _write_fake_web_dist(repo_cwd)
-
-        monkeypatch.chdir(repo_cwd)
+        # 否则会 fail fast。通过 wrapper 注入 static_dir 指向临时 fake dist，
+        # 让 guard 通过的同时仍执行真实的 create_app + uvicorn.run 路径。
+        fake_dist = tmp_path / "fake-web-dist"
+        fake_dist.mkdir()
+        (fake_dist / "index.html").write_text("<!doctype html><div id='root'></div>", encoding="utf-8")
 
         received_cfg: list[Path] = []
+
+        def fake_run_server(*, host, port, open_browser, config_path, vault_override, static_dir=None):
+            return _real_run_server(
+                host=host,
+                port=port,
+                open_browser=open_browser,
+                config_path=config_path,
+                vault_override=vault_override,
+                static_dir=fake_dist,
+            )
+
+        monkeypatch.setattr("mindforge_web.server.run_server", fake_run_server)
+
+        monkeypatch.chdir(repo_cwd)
 
         def fake_uvicorn_run(app, *, host, port, log_level):
             received_cfg.append(Path(app.state.config_path))
