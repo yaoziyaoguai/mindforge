@@ -71,7 +71,7 @@ Custom strategy 当前是 declarative preview only：preview packet is review-on
 - Python >=3.11
 - pip
 - 一个可用的 LLM API key（Anthropic、OpenAI 或兼容协议）
-- Node/npm 仅用于 Web 前端开发或 build；普通 CLI/Web 使用不需要先运行 npm
+- Node/npm 用于构建 Web 前端（Web UI 和 Setup 页面需要已构建的前端 assets）
 
 ## 快速开始
 
@@ -80,22 +80,28 @@ Custom strategy 当前是 declarative preview only：preview packet is review-on
 git clone https://github.com/yaoziyaoguai/mindforge.git
 cd mindforge
 
-# 2. 安装
+# 2. 安装 Python 依赖
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 pip install -e .
 
-# 3. 初始化本地 workspace
+# 3. 构建 Web 前端（Web UI / Setup 页面需要）
+cd web
+npm install
+npm run build
+cd ..
+
+# 4. 初始化本地 workspace
 mkdir -p /tmp/mindforge-first-run
 cd /tmp/mindforge-first-run
 mindforge init
 
-# 4. 查看 first-run checklist
+# 5. 查看 first-run checklist
 mindforge start
 mindforge status
 
-# 5. 启动 Web 配置模型
+# 6. 启动 Web 配置模型
 mindforge web --open
 ```
 
@@ -104,6 +110,15 @@ mindforge web --open
 本地 runtime config 对应 `configs/mindforge.yaml` 的运行时配置结构，但普通用户优先通过 Web Setup 配置。
 
 ### Web 使用流程
+
+首次使用需要先构建 Web 前端（如果已按快速开始执行过可跳过）：
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+```
 
 启动 Web：
 

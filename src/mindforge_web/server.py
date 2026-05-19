@@ -14,8 +14,14 @@ def run_server(
     open_browser: bool,
     config_path: Path,
     vault_override: Path | None,
+    static_dir: Path | None = None,
 ) -> None:
-    """启动本地 Web server；默认只绑定 127.0.0.1。"""
+    """启动本地 Web server；默认只绑定 127.0.0.1。
+
+    ``static_dir`` 允许调用方覆盖前端 build 产物目录（仅测试/CI 使用）。
+    为 ``None`` 时自动推导为仓库根 ``web/dist``；如果 ``web/dist/index.html``
+    不存在则 fail fast，避免静默启动一个只有 API route、前端 404 的 Web。
+    """
 
     try:
         import uvicorn
@@ -29,12 +35,32 @@ def run_server(
 
     _ensure_port_available(host=host, port=port)
 
-    web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
+    if static_dir is None:
+        # 中文学习型说明：fresh clone / pip install 后 web/dist 不存在。
+        # 此时直接启动会导致 /setup 等前端路由 404，用户按 README 操作
+        # 会撞到一个只有 API 的误导性 Web。这里 fail fast 并给出构建指引。
+        static_dir = Path(__file__).resolve().parents[2] / "web" / "dist"
+
+    if not (static_dir / "index.html").exists():
+        raise RuntimeError(
+            "Web frontend is not built.\n"
+            "Web 前端尚未构建，缺少 web/dist/index.html。\n\n"
+            "请先构建 Web 前端：\n"
+            "  cd web\n"
+            "  npm install\n"
+            "  npm run build\n"
+            "  cd ..\n\n"
+            "然后重新启动：\n"
+            "  mindforge web --open\n\n"
+            "说明：/setup 等 Web 页面需要已构建的前端 assets；"
+            "单独的 API routes 不足以完成 Web Setup。"
+        )
+
     app = create_app(
         config_path=config_path,
         vault_override=vault_override,
         host=host,
-        static_dir=web_dist if web_dist.exists() else None,
+        static_dir=static_dir,
     )
     url = f"http://{host}:{port}"
     if open_browser:

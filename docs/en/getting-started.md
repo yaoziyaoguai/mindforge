@@ -8,6 +8,7 @@ Installation, initialization, and first-use guide for MindForge.
 
 - Python 3.11+
 - pip
+- Node.js / npm (for building the Web frontend)
 - An available LLM API key (Anthropic, OpenAI, or compatible protocol)
 
 ---
@@ -17,9 +18,17 @@ Installation, initialization, and first-use guide for MindForge.
 ```bash
 git clone https://github.com/yaoziyaoguai/mindforge.git
 cd mindforge
+
+# Install Python dependencies
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
+
+# Build Web frontend (needed for Web UI / Setup page)
+cd web
+npm install
+npm run build
+cd ..
 ```
 
 Verify:
@@ -55,9 +64,16 @@ mindforge status    # Workspace / vault / draft status
 
 MindForge needs an LLM model to generate knowledge cards and Wiki.
 
+Make sure you have built the Web frontend first (see Installation above).
+
 ```bash
 mindforge web --open
 ```
+
+> If you see a "Web frontend is not built" error, run:
+> ```bash
+> cd web && npm install && npm run build
+> ```
 
 Open `http://127.0.0.1:8765`:
 

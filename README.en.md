@@ -72,7 +72,7 @@ For first runs, use synthetic source files or a temporary folder before connecti
 - Python >=3.11
 - pip
 - An available LLM API key (Anthropic, OpenAI, or compatible protocol)
-- Node/npm only for Web frontend development or build; normal CLI/Web use does not require running npm first
+- Node/npm for building the Web frontend (the Web UI and Setup page require built frontend assets)
 
 ## Quick Start
 
@@ -80,10 +80,17 @@ For first runs, use synthetic source files or a temporary folder before connecti
 git clone https://github.com/yaoziyaoguai/mindforge.git
 cd mindforge
 
+# Install Python dependencies
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 pip install -e .
+
+# Build Web frontend (needed for Web UI / Setup page)
+cd web
+npm install
+npm run build
+cd ..
 
 mkdir -p /tmp/mindforge-first-run
 cd /tmp/mindforge-first-run

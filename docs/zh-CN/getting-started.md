@@ -8,6 +8,7 @@ MindForge 安装、初始化和首次使用指南。
 
 - Python 3.11+
 - pip
+- Node.js / npm（用于构建 Web 前端）
 - 一个可用的 LLM API key（Anthropic、OpenAI 或兼容协议）
 
 ---
@@ -17,9 +18,17 @@ MindForge 安装、初始化和首次使用指南。
 ```bash
 git clone https://github.com/yaoziyaoguai/mindforge.git
 cd mindforge
+
+# 安装 Python 依赖
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
+
+# 构建 Web 前端（Web UI / Setup 页面需要）
+cd web
+npm install
+npm run build
+cd ..
 ```
 
 验证安装：
@@ -58,9 +67,16 @@ mindforge status    # workspace / vault / draft 状态
 
 MindForge 需要 LLM 模型才能生成知识卡片和 Wiki。
 
+首次启动前请确认已完成 Web 前端构建（见上方安装步骤）。
+
 ```bash
 mindforge web --open
 ```
+
+> 如果看到 "Web frontend is not built" 错误，请先运行：
+> ```bash
+> cd web && npm install && npm run build
+> ```
 
 浏览器打开 `http://127.0.0.1:8765`：
 
