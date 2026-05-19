@@ -180,6 +180,18 @@ def _web_client(tmp_path: Path, monkeypatch) -> TestClient:
 # Web source path 测试
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _write_fake_web_dist(repo_root: Path) -> None:
+    """为 Web CLI 路径测试创建最小前端构建产物。
+
+    中文学习型说明：生产 CLI 现在会在 web/dist 缺失时 fail fast；
+    路径边界测试若不是在验证 fail-fast 本身，就需要显式提供最小
+    index.html，避免把「前端未构建」误当成 workspace 逻辑失败。
+    """
+    dist_dir = repo_root / "web" / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    (dist_dir / "index.html").write_text("<!doctype html><div id='root'></div>", encoding="utf-8")
+
+
 class TestWebSourcePath:
     """Web API add source 的路径边界校验。"""
 
@@ -746,6 +758,11 @@ class TestFirstRunConfigBootstrapBoundaries:
         (repo_cwd / "src" / "mindforge").mkdir(parents=True)
         user_workspace = tmp_path / "user-workspace"
         user_workspace.mkdir()
+
+        # 中文学习型说明：真实 run_server 现在要求 web/dist/index.html 存在，
+        # 否则会 fail fast。这不是此测试要验证的行为，因此显式补齐最小前端产物。
+        _write_fake_web_dist(repo_cwd)
+
         monkeypatch.chdir(repo_cwd)
 
         received_cfg: list[Path] = []
