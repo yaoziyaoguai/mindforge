@@ -8,13 +8,18 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
 
 from mindforge.app_context import load_app_config
+from mindforge.assets_runtime import asset_root
 from mindforge.cards import read_card_frontmatter
+from mindforge.config import PromptVersions
 from mindforge.ingestion_service import import_sources
+from mindforge.llm import LLMResult, ResolvedModel, StageCallResult
+from mindforge.processors.pipeline import Pipeline
 from mindforge.source_discovery import discover_source_results, enumerate_supported_source_files
 from mindforge.sources.adapter_result import AdapterResult
 from mindforge.sources.base import SourceDocument, compute_content_hash
@@ -64,6 +69,88 @@ def _document(path: Path, *, source_type: str, adapter_name: str, raw_text: str)
         metadata={"synthetic": True},
         content_hash=compute_content_hash(raw_text, {"source_type": source_type, "path": str(path)}),
         adapter_name=adapter_name,
+    )
+
+
+class _NoOpLogger:
+    run_id = "readable-source-test"
+
+    def emit(self, event: str, **fields: object) -> None:
+        return None
+
+
+class _PromptScoringLLMClient:
+    """按 triage prompt 内容打分的本地替身，不调用真实 LLM/API。
+
+    中文学习型说明：P2-1 的问题发生在 adapter 输出进入 triage prompt 的边界。
+    这里替身化模型返回，但仍走真实 Pipeline + prompt rendering；这样能证明
+    high-signal PDF/DOCX 正文确实进入 triage，而不是把 threshold 降低或绕过。
+    """
+
+    def resolve_model_for_stage(self, stage: str) -> ResolvedModel:
+        return ResolvedModel(
+            stage=stage,
+            model_alias="stub",
+            provider="stub",
+            actual_model="stub-model",
+            type="stub",
+        )
+
+    def generate(self, *, stage: str, prompt: str, options=None) -> StageCallResult:  # type: ignore[no-untyped-def]
+        if stage == "triage":
+            high_signal = "local-first storage model" in prompt or "reliable document ingestion" in prompt
+            payload = {
+                "track": "agent-runtime",
+                "value_score": 7 if high_signal else 1,
+                "should_process": high_signal,
+                "reason": "prompt-scoring stub",
+                "topic_keywords": ["readable-source"],
+            }
+        elif stage == "distill":
+            payload = {
+                "title": "Readable Source",
+                "slug": "readable-source",
+                "tags": ["readable-source"],
+                "confidence": 0.8,
+                "source_excerpt": "synthetic excerpt",
+                "ai_summary_bullets": ["High-signal readable source was processed."],
+                "ai_inference_bullets": [],
+                "reusable_prompts_or_principles": ["Keep source extraction noise out of triage scoring."],
+            }
+        elif stage == "link_suggestion":
+            payload = {"suggested_links": [], "project_hooks": []}
+        elif stage == "review_questions":
+            payload = {"review_questions": []}
+        elif stage == "action_extraction":
+            payload = {"action_items": []}
+        else:
+            raise AssertionError(f"unexpected stage: {stage}")
+        return StageCallResult(
+            resolved=self.resolve_model_for_stage(stage),
+            result=LLMResult(
+                text=json.dumps(payload, ensure_ascii=False),
+                tokens_in=len(prompt),
+                tokens_out=1,
+                latency_ms=0,
+                raw={"stub": True},
+            ),
+        )
+
+
+def _prompt_scoring_pipeline() -> Pipeline:
+    return Pipeline(
+        client=_PromptScoringLLMClient(),  # type: ignore[arg-type]
+        logger=_NoOpLogger(),  # type: ignore[arg-type]
+        prompts_dir=asset_root().joinpath("prompts"),
+        prompt_versions=PromptVersions(
+            triage="v1",
+            distill="v1",
+            link_suggestion="v1",
+            review_questions="v1",
+            action_extraction="v1",
+        ),
+        triage_threshold=5,
+        learning_tracks_text="tracks:\n  - id: agent-runtime\n    keywords: [storage, ingestion]\n",
     )
 
 
@@ -178,3 +265,162 @@ def test_legacy_doc_is_friendly_unsupported_without_processing(tmp_path: Path) -
     assert summary.counts["processed"] == 0
     assert summary.counts["skipped"] == 1
     assert _card_paths(vault) == []
+
+
+# ---------------------------------------------------------------------------
+# P2-1: PDF/DOCX triage scoring — smart excerpt + prompt guidance
+# ---------------------------------------------------------------------------
+
+
+def test_smart_excerpt_skips_pdf_docx_front_matter() -> None:
+    """pdf/docx 长文本的 smart excerpt 应跳过前 10% 的 TOC/header 区域。
+
+    中文学习型说明：pdf/docx 提取文本前面经常是目录、页眉等低信息噪音。
+    _smart_excerpt 在文本 >8000 chars 时应从 10% 位置取 excerpt，避免 triage
+    看到全是 TOC 而给出 value_score=0。
+    """
+    from mindforge.processors.pipeline import _smart_excerpt
+
+    # 模拟一个长 PDF 提取文本：前 ~1200 字是目录/页眉噪音，后面是正文
+    front_noise = "TABLE OF CONTENTS\n\n1. Introduction ........... 1\n2. Methods ................ 3\n" * 30  # ~1500 chars of TOC
+    real_content = "\n\n## Architecture Design\n\nThe system uses a local-first storage model with immutable event log.\n" * 50  # ~4000 chars of real content
+    text = front_noise + real_content + "\n\n## More content\n" + "Additional details for padding to reach minimum length requirement.\n" * 200
+    assert len(text) > 8000, f"text too short: {len(text)} chars"
+
+    result = _smart_excerpt(text, "pdf")
+
+    assert len(result) > 0
+    assert "source_type=pdf" in result
+    assert "total_chars≈" in result
+    assert "excerpt from ~10%" in result
+    # body 应该包含正文而不是纯目录
+    assert "Architecture Design" in result
+    assert "local-first storage" in result
+    # 不应以前 10% 的目录噪音开头
+    assert not result.split("\n\n", 1)[1].startswith("TABLE OF CONTENTS")
+
+
+def test_smart_excerpt_short_text_unchanged() -> None:
+    """短文本（<=prompt budget）不从中间截取，保留原文完整给 triage。"""
+    from mindforge.processors.pipeline import _smart_excerpt
+
+    short = "## Short document\n\nJust a brief note.\n" * 50
+    assert len(short) < 8000
+
+    result = _smart_excerpt(short, "pdf")
+    # 短文本原文全部保留，不以 [...]truncated 结束
+    assert "[...truncated for prompt budget...]" not in result
+    assert "## Short document" in result
+
+
+def test_high_quality_pdf_docx_sources_pass_triage_without_force(tmp_path: Path) -> None:
+    """高质量 text-based PDF/DOCX 应正常通过 triage，不依赖 --force。
+
+    中文学习型说明：这里不降低全局 threshold，也不让 pdf/docx 无条件通过；
+    stub client 只在 high-signal 正文进入 triage prompt 时给 7 分。
+    """
+
+    front_noise = "TABLE OF CONTENTS\n1. Preface ........ 1\n2. Index ........ 2\n" * 40
+    pdf_text = (
+        front_noise
+        + ("\n## Actionable Architecture\nThe local-first storage model keeps an immutable event log.\n" * 80)
+    )
+    docx_text = (
+        front_noise
+        + ("\n# Reliable Document Ingestion\nA reliable document ingestion pipeline keeps provenance intact.\n" * 80)
+    )
+    pipeline = _prompt_scoring_pipeline()
+
+    pdf_outcome = pipeline.run(
+        _document(tmp_path / "paper.pdf", source_type="pdf", adapter_name="PdfTextAdapter", raw_text=pdf_text)
+    )
+    docx_outcome = pipeline.run(
+        _document(tmp_path / "brief.docx", source_type="docx", adapter_name="DocxTextAdapter", raw_text=docx_text)
+    )
+
+    assert pdf_outcome.status == "processed"
+    assert docx_outcome.status == "processed"
+    assert pdf_outcome.card_payload is not None
+    assert docx_outcome.card_payload is not None
+    assert pdf_outcome.card_payload["structured_payload"]["card"]["value_score"] == 7
+    assert docx_outcome.card_payload["structured_payload"]["card"]["value_score"] == 7
+
+
+def test_low_quality_txt_html_sources_still_skip_triage(tmp_path: Path) -> None:
+    """TXT/HTML 低质量文本仍可被 triage skipped，避免把 PDF/DOCX 修复扩散成全局放宽。"""
+
+    pipeline = _prompt_scoring_pipeline()
+    txt_outcome = pipeline.run(
+        _document(
+            tmp_path / "noise.txt",
+            source_type="txt",
+            adapter_name="TxtAdapter",
+            raw_text="cookie banner subscribe share login footer " * 50,
+        )
+    )
+    html_outcome = pipeline.run(
+        _document(
+            tmp_path / "noise.html",
+            source_type="html",
+            adapter_name="HtmlAdapter",
+            raw_text="script style nav advertisement cookie banner " * 50,
+        )
+    )
+
+    assert txt_outcome.status == "skipped"
+    assert html_outcome.status == "skipped"
+    assert "value_score=1" in (txt_outcome.skip_reason or "")
+    assert "value_score=1" in (html_outcome.skip_reason or "")
+
+
+def test_smart_excerpt_non_pdf_docx_unchanged() -> None:
+    """plain_markdown / txt 等非 pdf/docx 类型不走 smart excerpt，保持原行为。"""
+    from mindforge.processors.pipeline import _smart_excerpt
+
+    long_md = "# Title\n\n## Section\n\nBody text.\n" * 300
+    assert len(long_md) > 8000
+
+    result = _smart_excerpt(long_md, "plain_markdown")
+    # markdown 类型保持从开头取 excerpt
+    assert result.startswith("# Title")
+    assert "[...truncated for prompt budget...]" in result
+    # 不应有 source_type 前缀
+    assert "source_type=" not in result
+
+
+def test_triage_prompt_includes_pdf_docx_in_source_type_examples() -> None:
+    """triage prompt v1 的 source_type 示例必须包含 pdf 和 docx。
+
+    中文学习型说明：修复前示例只有 cubox_markdown / plain_markdown / ...，
+    缺少 pdf/docx/html，LLM 看到陌生 source_type 影响评分。修复后必须包含。
+    """
+    from pathlib import Path
+
+    from mindforge.prompts_runtime import load_prompt
+
+    prompts_dir = Path("src/mindforge/assets/prompts")
+    text = load_prompt(prompts_dir, "triage", "v1")
+    assert "pdf" in text
+    assert "docx" in text
+    assert "html" in text
+    assert "txt" in text
+
+
+def test_triage_prompt_includes_extraction_quality_guidance() -> None:
+    """triage prompt v1 必须包含提取格式注意章节，指导 LLM 忽略 pdf/docx/html 提取噪音。
+
+    中文学习型说明：这是 P2-1 修复的关键——告诉 triage LLM 不要因为
+    extract_text 导致的格式噪音（合并词、页眉残留）而给低分。
+    """
+    from pathlib import Path
+
+    from mindforge.prompts_runtime import load_prompt
+
+    prompts_dir = Path("src/mindforge/assets/prompts")
+    text = load_prompt(prompts_dir, "triage", "v1")
+    assert "提取格式注意" in text
+    assert "pdf" in text
+    assert "docx" in text
+    assert "html" in text
+    assert "pypdf" in text or "提取噪音" in text
+    assert "聚焦内容实质" in text

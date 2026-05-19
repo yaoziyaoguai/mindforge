@@ -196,6 +196,31 @@ def _excerpt(text: str, max_chars: int) -> str:
     return text[:max_chars] + "\n\n[...truncated for prompt budget...]"
 
 
+def _smart_excerpt(text: str, source_type: str, max_chars: int = 4000) -> str:
+    """为 triage 做 smarter excerpt，对 pdf/docx 跳过开头可能的 TOC/header 噪音。
+
+    中文学习型说明：这是 prompt 输入层的局部修正，不改变 triage threshold，
+    也不让 pdf/docx 无条件通过。它只保证长 PDF/DOCX 的正文信号有机会进入
+    triage prompt，避免目录/页眉噪音占满 excerpt。
+
+    pdf/docx 提取文本的前面部分经常是目录、页眉、残留页码，会导致 triage
+    误判为低质量。如果文本足够长（>8000 chars），从 10% 位置开始取 excerpt，
+    跳过 TOC 区域；否则还是从头取完整文本。
+    """
+    if len(text) <= max_chars:
+        return text
+    if source_type in ("pdf", "docx") and len(text) > 8000:
+        start = len(text) // 10  # 跳过前 10% 的 TOC/header 区域
+        # 对齐到最近换行，避免切断单词（中文例外：中文无空格，对齐到换行即可）
+        nl = text.find("\n", start)
+        if nl != -1 and nl - start < 200:
+            start = nl + 1
+        excerpt = text[start : start + max_chars]
+        percent = start * 100 // len(text)
+        return f"[source_type={source_type}, total_chars≈{len(text)}, excerpt from ~{percent}% position]\n\n{excerpt}\n\n[...truncated for prompt budget...]"
+    return text[:max_chars] + "\n\n[...truncated for prompt budget...]"
+
+
 def _bullet_lines(items: Any) -> str:
     return "\n".join(f"- {item}" for item in (items or []))
 
@@ -207,7 +232,7 @@ def _triage_vars(doc: SourceDocument, learning_tracks_text: str) -> dict[str, st
         "source_url": doc.source_url or "",
         "tags": ", ".join(doc.tags),
         "tracks_yaml": learning_tracks_text,
-        "excerpt": _excerpt(doc.raw_text, 4000),
+        "excerpt": _smart_excerpt(doc.raw_text, doc.source_type),
     }
 
 
