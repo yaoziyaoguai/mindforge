@@ -69,13 +69,17 @@ def test_card_detail_separates_content_source_history_and_technical_details() ->
 
 
 def test_local_graph_views_are_visible_list_fallbacks_without_graph_libraries() -> None:
+    """Local Graph Preview 是产品能力名，relationship preview 只是局部视图说明。"""
+
     workspace_graph = _read("components/LocalGraphPreview.tsx")
     section_graph = _read("components/wiki/WikiSectionRelationshipPreview.tsx")
     package = (ROOT / "web" / "package.json").read_text(encoding="utf-8")
     combined = "\n".join([workspace_graph, section_graph, package])
 
-    assert "Relationship Preview" in workspace_graph
-    assert "Section Relationship Preview" in section_graph
+    assert "Local Graph Preview" in workspace_graph
+    assert "Local Graph Preview" in section_graph
+    assert "relationship preview" in section_graph
+    assert "not a global Graph page" in workspace_graph
     assert "/library?card=" in combined
     for forbidden in ("<canvas", "d3", "cytoscape", "vis-network", "networkx"):
         assert forbidden not in combined.lower()

@@ -15,7 +15,7 @@ export function LocalGraphPreview({ graph, relatedCards = [] }: Props) {
     <section className="border-t border-line p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <GitBranch className="h-4 w-4" /> Relationship Preview
+          <GitBranch className="h-4 w-4" /> Local Graph Preview
         </h3>
         <span className="text-xs text-muted">{relatedCards.length} related cards</span>
       </div>
@@ -46,7 +46,7 @@ export function LocalGraphPreview({ graph, relatedCards = [] }: Props) {
         </div>
       ) : (
         <p className="mt-3 rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
-          No related approved knowledge found yet.
+          No deterministic relationships found yet. This preview uses shared source, tags, wiki section, review batch, and nearby source location; it is not a global Graph page.
         </p>
       )}
 

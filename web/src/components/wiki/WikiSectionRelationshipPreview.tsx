@@ -13,9 +13,9 @@ export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
   return (
     <div className="mt-4 rounded-md border border-line bg-white p-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-        <GitBranch className="h-4 w-4" /> Section Relationship Preview
+        <GitBranch className="h-4 w-4" /> Local Graph Preview
       </h3>
-      <p className="mt-1 text-xs text-muted">{sectionTitle} links {refs.length} approved knowledge cards.</p>
+      <p className="mt-1 text-xs text-muted">{sectionTitle} relationship preview links {refs.length} approved knowledge cards.</p>
 
       {refs.length > 0 ? (
         <>
@@ -51,7 +51,7 @@ export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
         // 中文学习型说明：这是 Wiki 内的局部关系预览 empty-state，不是全局 Graph 页面；
         // 关系只来自 shared source/tag/wiki section/review batch 等确定性信号。
         <p className="mt-3 rounded-md border border-line bg-muted/5 px-3 py-2 text-sm text-muted">
-          This section has no visible relationships yet. Local Graph uses deterministic relationships from shared source, tags, wiki section, and review batches.
+          This section has no visible relationships yet. Local Graph Preview uses deterministic relationships from shared source, tags, wiki section, review batches, and nearby source location.
         </p>
       )}
     </div>

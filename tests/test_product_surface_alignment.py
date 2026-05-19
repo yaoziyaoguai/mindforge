@@ -256,6 +256,11 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     assert "自动记住" in text
     assert "secret store" in text
     assert ".mindforge/secrets.json" in text
+    assert "默认不联网" in text
+    assert "默认不调用真实 LLM/API" in text
+    assert "显式配置 provider/API key" in text
+    assert "不上传 telemetry" in text
+    assert "environment files" in text
     assert "Web Add Source" in text
     assert "必须绝对路径" in text
     assert "anthropic" in text
@@ -264,6 +269,8 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     assert "openai_compatible" in text
     assert "LLM synthesis 必须由用户在 Wiki 页面或 CLI 手动触发" in text
     assert "not RAG / not embedding / no vector DB" in text
+    assert "source_location_neighbor" in text
+    assert "当前没有独立全局 Graph 页面" in text
     assert "vault/" in text
     assert "本地知识库" in text
     assert "不提交" in text

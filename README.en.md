@@ -50,17 +50,22 @@ MindForge is not yet recommended for private sensitive vaults, company-confident
 
 | Boundary | Meaning |
 |----------|---------|
-| local-first | Single-user local workspace; no telemetry upload |
+| offline by default | A fresh workspace does not call real LLM/API services and does not upload telemetry by default; external model calls require explicit provider/API key setup plus an explicit import/watch processing or Wiki rebuild action |
+| local-first | Single-user local workspace; reads and writes local files by default |
 | local API key setup | Configure keys through Web Setup; keys are stored in the local secret store (`.mindforge/secrets.json`) |
+| no automatic secret disclosure | MindForge does not automatically read environment files or secret store values for source processing and print API keys, tokens, or secrets |
+| no automatic local-data outflow | Raw sources, API keys, tokens, and secrets do not go into Git, the Web frontend, or telemetry by default |
 | do not paste keys | Do not paste API keys into chats, issues, terminal logs, README files, or YAML |
 | no automatic approval | `ai_draft` never enters Library automatically; `human_approved` requires explicit approve |
-| Wiki uses approved cards only | Wiki rebuild does not bypass approval to read raw sources |
+| Wiki uses approved cards only | Wiki rebuild does not bypass approval, does not build from unapproved content, and does not read raw sources |
 | real model calls are explicit | Model + API key + explicit import/watch processing or wiki rebuild trigger |
 | legacy `.doc` unsupported | Old Word `.doc` files are reported with a friendly conversion hint |
 | no OCR | PDF support is text-layer only; scanned PDFs are not recognized |
-| Graph is not GraphRAG | Local Graph Preview is deterministic local navigation, not Vector DB, Graph DB, or GraphRAG |
+| Graph is not GraphRAG | Local Graph Preview is a local view based on deterministic relations such as same_source, same_tag, same_wiki_section, same_review_batch, and source_location_neighbor; there is currently no standalone global Graph page, and it is not Vector DB, Graph DB, Embedding, or GraphRAG |
 
 Custom strategy support is currently declarative preview only: preview packet is review-only, not ai_draft, not human_approved; no arbitrary python, no shell; preview to future implementation requires a reviewed built-in implementation path and still requires explicit approval and explicit opt-in.
+
+For first runs, use synthetic source files or a temporary folder before connecting real personal material.
 
 ## Requirements
 
