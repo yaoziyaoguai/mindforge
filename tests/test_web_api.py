@@ -303,6 +303,104 @@ Approved section body.
     assert data["additional_cards"] == []
 
 
+def test_wiki_page_reports_deterministic_metadata_without_llm_hardcode(tmp_path: Path) -> None:
+    """deterministic Wiki 页面不能被 API metadata 伪装成 LLM 产物。
+
+    中文学习型说明：`/api/wiki/page` 是前端理解 Wiki 来源的架构边界。
+    deterministic fallback 不调 LLM，因此 metadata 必须保留真实 mode；model_id
+    未知时显式为 null，避免旧前端因为缺字段而出现兼容性漂移。
+    """
+
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> This wiki is generated from human-approved knowledge cards.
+> It is a derived view. Source files are not copied into this wiki.
+> Last rebuilt: 2026-05-18T10:30:00+0800
+> Cards included: 1
+
+## Overview
+
+Synthetic overview.
+
+<!-- WIKI_SECTION_START card=approved-web-1 -->
+### Approved Web Card
+
+Approved section body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["mode"] == "deterministic"
+    assert data["model_id"] is None
+    assert data["last_rebuilt_at"] == "2026-05-18T10:30:00+0800"
+
+
+def test_wiki_page_reports_llm_metadata_from_wiki_header(tmp_path: Path) -> None:
+    """LLM synthesis Wiki 页面应保留 model_id 和 last_rebuilt_at metadata。"""
+
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> LLM synthesis · Model: wiki_model · Last rebuilt: 2026-05-18T11:00:00+0800
+> Cards included: 1
+
+## Overview
+
+LLM overview.
+
+<!-- WIKI_SECTION_START card_ids=approved-web-1 -->
+### Approved Web Card
+
+Approved section body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["mode"] == "llm"
+    assert data["model_id"] == "wiki_model"
+    assert data["last_rebuilt_at"] == "2026-05-18T11:00:00+0800"
+
+
+def test_wiki_page_missing_wiki_still_returns_metadata_fields(tmp_path: Path) -> None:
+    """缺失 Wiki 文件时 API 应返回稳定 empty-state contract，而不是 500。"""
+
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    response = client.get("/api/wiki/page")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["exists"] is False
+    assert data["mode"] == "deterministic"
+    assert data["model_id"] is None
+    assert data["last_rebuilt_at"] is None
+    assert data["sections"] == []
+
+
 def test_setup_save_preserves_wiki_auto_rebuild_false(tmp_path: Path) -> None:
     """Setup PATCH 中的 false 是显式用户选择，不能被当成未设置丢弃。"""
 

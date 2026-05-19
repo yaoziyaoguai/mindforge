@@ -133,6 +133,9 @@ def wiki_page(view: str | None = None, facade: WebFacade = Depends(get_facade)):
         return {
             "exists": False,
             "title": "MindForge Main Wiki",
+            "mode": "deterministic",
+            "model_id": None,
+            "last_rebuilt_at": None,
             "sections": [],
             "overview": "Wiki 尚未生成。请先 Rebuild。",
         }
@@ -149,11 +152,42 @@ def wiki_page(view: str | None = None, facade: WebFacade = Depends(get_facade)):
     vm = WikiPageViewModel.build_from_wiki_markdown(
         markdown_content=markdown,
         digests=digests,
-        wiki_metadata={"mode": "llm"},
+        wiki_metadata=_wiki_markdown_metadata(markdown),
     )
 
     from dataclasses import asdict
     return asdict(vm)
+
+
+def _wiki_markdown_metadata(markdown: str) -> dict[str, str | None]:
+    """从已生成 Wiki header 提取 API metadata，不重新调用生成器。
+
+    中文学习型说明：`/api/wiki/page` 只读现有 Wiki 文件。这里根据生成器写入的
+    header 识别 deterministic 与 LLM synthesis，避免展示层硬编码来源，也避免为
+    了 metadata 再触发 LLM 或改写 Wiki 文件。旧 Wiki 若缺少字段则返回 null。
+    """
+
+    model_id: str | None = None
+    last_rebuilt_at: str | None = None
+    mode = "deterministic"
+
+    for line in markdown.splitlines():
+        text = line.strip()
+        if not text.startswith(">"):
+            continue
+        body = text.lstrip(">").strip()
+        if body.startswith("LLM synthesis"):
+            mode = "llm"
+            for part in body.split("·"):
+                part = part.strip()
+                if part.startswith("Model:"):
+                    model_id = part.split("Model:", 1)[1].strip() or None
+                elif part.startswith("Last rebuilt:"):
+                    last_rebuilt_at = part.split("Last rebuilt:", 1)[1].strip() or None
+        elif body.startswith("Last rebuilt:") and last_rebuilt_at is None:
+            last_rebuilt_at = body.split("Last rebuilt:", 1)[1].strip() or None
+
+    return {"mode": mode, "model_id": model_id, "last_rebuilt_at": last_rebuilt_at}
 
 
 @router.get("/sections")

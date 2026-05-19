@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
+import pytest
 import yaml
 
 from mindforge.config import load_mindforge_config
@@ -325,9 +326,31 @@ def test_llm_rebuild_requires_explicit_model_when_no_default(tmp_path: Path) -> 
     try:
         llm_rebuild_wiki(cfg)
     except WikiError as exc:
-        assert "wiki.mode=llm" in str(exc)
+        # 中文学习型说明：WikiError 会直接显示给 CLI/Web 用户。双语短句是
+        # 本轮的最小 i18n 边界，既保留中文体验，也让英文用户能理解下一步。
+        message = str(exc)
+        assert "wiki.mode=llm" in message
+        assert "requires" in message
+        assert "需要" in message
     else:
         raise AssertionError("llm_rebuild_wiki 应该在无 wiki.model/default_model 时失败")
+
+
+def test_llm_rebuild_unknown_model_error_is_bilingual(tmp_path: Path) -> None:
+    """未知 wiki.model 的 WikiError 应同时包含英文和中文可读信息。"""
+
+    cfg_path = _write_wiki_llm_config_without_processing_routing(tmp_path)
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["wiki"]["model"] = "missing_model"
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    cfg = load_mindforge_config(cfg_path)
+
+    with pytest.raises(WikiError) as excinfo:
+        llm_rebuild_wiki(cfg)
+
+    message = str(excinfo.value)
+    assert "not configured" in message
+    assert "不在 llm.models" in message
 
 
 # ============================================================================

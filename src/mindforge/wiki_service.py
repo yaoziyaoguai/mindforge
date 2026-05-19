@@ -43,6 +43,16 @@ class WikiError(ValueError):
     """Wiki 操作失败；message 可安全返回给 Web/CLI。"""
 
 
+def _wiki_error_message(english: str, chinese: str) -> str:
+    """组合用户可见双语 Wiki 错误，不引入完整 i18n 系统。
+
+    中文学习型说明：WikiError 会被 CLI/Web 直接展示。这里保持单一 message
+    contract，只补英文可理解句子，避免为了小范围错误文案制造新的翻译层。
+    """
+
+    return f"{english} / {chinese}"
+
+
 def _wiki_root(cfg: MindForgeConfig) -> Path:
     return cfg.vault.root / "30-Wiki"
 
@@ -287,9 +297,19 @@ def llm_rebuild_wiki(
     # 不属于 processing pipeline 的五阶段 routing。
     model_id = cfg.wiki.model or cfg.llm.default_model
     if not model_id:
-        raise WikiError("wiki.mode=llm 需要配置 wiki.model 或 llm.default_model。请先在 Setup 中添加模型。")
+        raise WikiError(
+            _wiki_error_message(
+                "wiki.mode=llm requires wiki.model or llm.default_model. Complete model setup first.",
+                "wiki.mode=llm 需要配置 wiki.model 或 llm.default_model。请先在 Setup 中添加模型。",
+            )
+        )
     if model_id not in cfg.llm.models:
-        raise WikiError(f"wiki.model={model_id!r} 不在 llm.models 中。请在 Setup 中配置模型或设置 wiki.model。")
+        raise WikiError(
+            _wiki_error_message(
+                f"wiki.model={model_id!r} is not configured in llm.models. Configure the model or update wiki.model.",
+                f"wiki.model={model_id!r} 不在 llm.models 中。请在 Setup 中配置模型或设置 wiki.model。",
+            )
+        )
 
     # 2) 构建 CardDigest
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
@@ -338,12 +358,27 @@ def llm_rebuild_wiki(
             try:
                 output = _json.loads(m.group(0))
             except _json.JSONDecodeError:
-                raise WikiError("LLM 返回了无效 JSON。旧 Wiki 保持不变。")
+                raise WikiError(
+                    _wiki_error_message(
+                        "The LLM returned invalid JSON. The previous Wiki was kept unchanged.",
+                        "LLM 返回了无效 JSON。旧 Wiki 保持不变。",
+                    )
+                )
         else:
-            raise WikiError("LLM 返回了无效 JSON。旧 Wiki 保持不变。")
+            raise WikiError(
+                _wiki_error_message(
+                    "The LLM returned invalid JSON. The previous Wiki was kept unchanged.",
+                    "LLM 返回了无效 JSON。旧 Wiki 保持不变。",
+                )
+            )
 
     if not isinstance(output, dict):
-        raise WikiError("LLM 输出不是 JSON 对象。旧 Wiki 保持不变。")
+        raise WikiError(
+            _wiki_error_message(
+                "The LLM output was not a JSON object. The previous Wiki was kept unchanged.",
+                "LLM 输出不是 JSON 对象。旧 Wiki 保持不变。",
+            )
+        )
 
     # 7) 构建 card_id -> CardDigest 索引
     digest_index: dict[str, CardDigest] = {d.card_id: d for d in digests}
@@ -474,7 +509,12 @@ def _generate_wiki_synthesis(cfg: MindForgeConfig, model_id: str, prompt: str) -
         if override:
             actual_model = override
     if not actual_model:
-        raise WikiError(f"wiki.model={model_id!r} 没有可用的 model 名称。请配置 model 或 model_env。")
+        raise WikiError(
+            _wiki_error_message(
+                f"wiki.model={model_id!r} has no resolved model name. Configure model or model_env.",
+                f"wiki.model={model_id!r} 没有可用的 model 名称。请配置 model 或 model_env。",
+            )
+        )
 
     request = LLMRequest(
         prompt=prompt,
