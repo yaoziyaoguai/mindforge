@@ -27,9 +27,11 @@ jobs:
         run: |
           python -m venv .venv
           python -m pip install -U pip
-          python -m pip install --editable ".[dev]"
+          # 中文学习型说明：CI 跑完整 pytest，会创建真实 synthetic PDF/DOCX fixture。
+          # 因此测试环境必须安装项目声明的 pdf/docx extras，不能只装 dev。
+          python -m pip install --editable ".[dev,pdf,docx]"
           .venv/bin/python -m pip install -U pip
-          .venv/bin/python -m pip install --editable ".[dev]"
+          .venv/bin/python -m pip install --editable ".[dev,pdf,docx]"
 
       - name: Prepare CI test fixtures
         run: |

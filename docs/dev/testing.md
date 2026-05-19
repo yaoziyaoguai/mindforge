@@ -5,10 +5,15 @@
 Run from the repository root:
 
 ```bash
+python -m pip install -e ".[dev,pdf,docx]"
 ruff check src tests
 git diff --check
 git status --short
 ```
+
+完整 pytest 会覆盖 PDF / DOCX adapter 与 Web DOCX dedup 路径。开发机和 CI
+应使用 `.[dev,pdf,docx]` 安装口径，确保 `pypdf` 与 `python-docx` 都来自项目
+extras，而不是在测试里跳过可读文档覆盖。
 
 Run the full suite with a temporary HOME so tests never reuse your real
 workspace, secret store, or private notes:

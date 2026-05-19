@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
 import pytest
 from rich.console import Console
@@ -34,6 +35,26 @@ from mindforge.strategy_selection import (
 
 
 runner = CliRunner()
+
+
+def test_full_test_environment_installs_readable_source_extras() -> None:
+    """完整测试环境必须安装 PDF/DOCX extras，而不是跳过可读文档测试。
+
+    中文学习型说明：DOCX/PDF 是 optional runtime dependency，但 CI 跑的是完整
+    pytest，里面会用 synthetic fixture 覆盖 Web DOCX dedup 和 adapter smoke。
+    这里锁定 packaging/docs 口径，避免 CI 只安装 dev extras 导致测试环境漂移。
+    """
+
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    extras = project["project"]["optional-dependencies"]
+
+    assert "pypdf>=4.0" in extras["pdf"]
+    assert "python-docx>=1.0" in extras["docx"]
+
+    ci = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    testing_doc = Path("docs/dev/testing.md").read_text(encoding="utf-8")
+    assert ".[dev,pdf,docx]" in ci
+    assert ".[dev,pdf,docx]" in testing_doc
 
 
 def test_default_public_strategy_is_knowledge_card() -> None:
