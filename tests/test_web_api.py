@@ -20,7 +20,7 @@ from mindforge.config import REQUIRED_STAGES
 from mindforge.watch_registry import WatchRegistry
 from mindforge_web.app import create_app
 from mindforge.ingestion_service import IngestionSummary, _skip_reason_hint
-from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _now, _run_worker, _safe_error_message
+from mindforge_web.services.processing_run_service import ProcessingRunRecord, _apply_summary, _message_for_summary, _now, _run_worker, _safe_error_message
 from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 from mindforge_web.services.web_source_service import _display_status
 
@@ -920,6 +920,97 @@ def test_apply_summary_all_failed_status_failed() -> None:
     _apply_summary(record, _make_summary(seen=1, processed=0, skipped=0, failed=1), draft_ids=[])
     assert record.status == "failed"
     assert record.summary["errors"] == 1
+
+
+# ── P2-2 回归测试：transient failure missing error details ──────────
+# 中文学习型说明：P2-2 修复确保 transient adapter/process exception 出现时，
+# API response / run detail 必须包含 error_type 和 friendly message；errors
+# count 不能只有数字没有细节；不泄露 stack trace / secret / raw provider payload。
+
+
+def test_apply_summary_errors_without_messages_still_sets_error_type() -> None:
+    """errors > 0 但 error_messages 为空时，error_type 和 retry hint 不能缺失。"""
+    record = _make_record()
+    # 构造无 error 消息尽有 count 的 summary（模拟 pipeline 返回空 message 场景）
+    summary = IngestionSummary(
+        mode="watch_scan",
+        target=Path("/tmp/p2-2-test.md"),
+        counts={"seen": 1, "processed": 0, "skipped": 0, "failed": 1},
+        errors=(),  # 空 tuple — 没有任何错误消息
+    )
+    _apply_summary(record, summary, draft_ids=[])
+    assert record.status == "failed"
+    assert record.summary["errors"] == 1
+    assert record.error_type == "ProcessingError", (
+        f"errors=1 但 error_messages 为空时未设置 error_type，got {record.error_type}"
+    )
+    assert record.error_message is not None
+    assert "retry" in record.error_message.lower()
+    # 不应泄露 stack trace
+    assert "Traceback" not in record.error_message
+    assert "secret" not in record.error_message.lower()
+
+
+def test_apply_summary_errors_with_specific_message_preserves_error_detail() -> None:
+    """error_messages 非空时，error_type、failed stage 和具体错误消息都应保留。"""
+    record = _make_record()
+    summary = IngestionSummary(
+        mode="watch_scan",
+        target=Path("/tmp/p2-2-test.md"),
+        counts={"seen": 1, "processed": 0, "skipped": 0, "failed": 1},
+        errors=("distill_stage_failed: JSON parse error",),
+    )
+    _apply_summary(record, summary, draft_ids=[])
+    assert record.status == "failed"
+    assert record.error_type == "ProcessingError"
+    assert "JSON parse error" in record.error_message
+    assert record.current_step == "failed: distill"
+
+
+def test_message_for_summary_errors_without_reason_includes_retry_hint() -> None:
+    """message_for_summary 在 errors > 0 但无 reason 时必须提示重试。"""
+    record = _make_record()
+    record.status = "failed"
+    record.summary = {"discovered": 1, "processed": 0, "drafts": 0, "skipped": 0, "errors": 1}
+    record.error_message = None
+    record.skip_reasons = []
+    msg = _message_for_summary(record)
+    assert "failed" in msg.lower()
+    assert "retry" in msg.lower()
+    assert "transient" in msg.lower()
+
+
+def test_message_for_summary_errors_with_reason_shows_reason_not_retry() -> None:
+    """message_for_summary 在有具体 reason 时展示原因，而非泛泛重试提示。"""
+    record = _make_record()
+    record.status = "failed"
+    record.summary = {"discovered": 1, "processed": 0, "drafts": 0, "skipped": 0, "errors": 1}
+    record.error_message = "distill stage JSON parse error"
+    msg = _message_for_summary(record)
+    assert "JSON parse error" in msg
+    assert "Reason:" in msg
+    # 有具体 reason 时不展示泛型重试文案
+    assert "transient" not in msg.lower()
+
+
+def test_safe_error_message_strips_html_and_stack_trace() -> None:
+    """_safe_error_message 必须剥除 HTML 错误页和 stack trace。"""
+    # HTML 错误页 → 友好提示
+    html_msg = (
+        "<!DOCTYPE html><html><body><h1>502 Bad Gateway</h1>"
+        "The proxy server received an invalid response.</body></html>"
+    )
+    cleaned = _safe_error_message(html_msg)
+    assert "Provider returned an HTML error page" in cleaned
+    assert "<!DOCTYPE html>" not in cleaned
+    assert "<html" not in cleaned
+
+
+def test_safe_error_message_preserves_friendly_diagnostic() -> None:
+    """_safe_error_message 应保留 friendly_missing_key_error 的诊断消息。"""
+    cleaned = _safe_error_message("API key 未设置，无法完成请求")
+    assert cleaned is not None
+    assert "API key" in cleaned
 
 
 # ── P2b 回归测试：PDF 解析失败原因提示 ────────────────────────────

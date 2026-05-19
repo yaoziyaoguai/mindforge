@@ -624,8 +624,11 @@ def _ingest_targets_summary(
                         reason=message or "pipeline_skipped",
                         matched_record=None,
                     ))
-                elif status == "failed" and message:
-                    error_details.append(message)
+                elif status == "failed":
+                    # 中文学习型说明：pipeline 可能返回空 message（例如
+                    # PipelineOutcome.error_message 为 None），但 errors count
+                    # 仍应被保留并给出可行动的 fallback，避免静默丢错误。
+                    error_details.append(message or "processing_failed_no_detail")
             except ProviderError as exc:
                 friendly = friendly_missing_key_error(str(exc))
                 if friendly:

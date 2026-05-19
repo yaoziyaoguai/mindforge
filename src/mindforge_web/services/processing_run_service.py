@@ -380,6 +380,16 @@ def _apply_summary(
     elif error_messages and errors:
         record.error_type = "ProcessingError"
         record.error_message = error_messages[0]
+    elif errors:
+        # 中文学习型说明：errors > 0 但 error_messages 为空时，不能静默
+        # 丢错误。原因：ingestion_service 在 pipeline 返回空 error_message
+        # 时可能写入 "processing_failed_no_detail" 占位符；若连占位符也未
+        # 写入（如 process_executor 层直接返回空），此处仍需兜底。
+        record.error_type = "ProcessingError"
+        record.error_message = (
+            "Processing failed for some file(s). "
+            "Check the run history for per-item details or retry the import."
+        )
 
     # watch retry 边界：discovered > 0 但无任何产出（drafts=0 skipped=0 errors=0）
     # 说明 processing 被跳过或静默无输出（如 unchanged+unprocessed 文件未被
@@ -402,6 +412,8 @@ def _apply_summary(
         )
     else:
         record.status = "succeeded"
+    if record.status in {"failed", "partial_failed"}:
+        record.current_step = _failed_current_step(error_messages)
     record.message = _message_for_summary(record)
 
 
@@ -412,7 +424,10 @@ def _message_for_summary(record: ProcessingRunRecord) -> str:
     discovered = record.summary.get("discovered", 0)
     reason = record.error_message or _first_skip_reason(record.skip_reasons)
     if errors:
-        suffix = f" Reason: {reason}" if reason else ""
+        if reason:
+            suffix = f" Reason: {reason}"
+        else:
+            suffix = " Retry the import — the failure may be transient."
         return f"Processing failed for {errors} item(s).{suffix}"
     if drafts:
         return f"Generated {drafts} AI draft{'s' if drafts != 1 else ''}."
@@ -426,6 +441,21 @@ def _message_for_summary(record: ProcessingRunRecord) -> str:
         f"Scan found {discovered} file(s) but produced no output. "
         "Model setup may be incomplete — check runs show for details."
     )
+
+
+def _failed_current_step(error_messages: list[str]) -> str:
+    """从安全错误字符串中恢复 failed stage，供 Web run detail 展示。
+
+    中文学习型说明：stage 是 pipeline 边界元数据，不是 UI 文案。这里仅识别
+    process_executor 生成的 ``<stage>_stage_failed`` 前缀；识别不到时保守
+    返回 ``failed``，避免用字符串猜测扩散成脆弱协议。
+    """
+
+    for message in error_messages:
+        stage, marker, _rest = message.partition("_stage_failed")
+        if marker and stage:
+            return f"failed: {stage}"
+    return "failed"
 
 
 def _skip_reasons(summary: IngestionSummary | WatchScanSummary) -> list[str]:

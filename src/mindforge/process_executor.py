@@ -339,7 +339,7 @@ def process_one_result(
             stage_failed=outcome.error_stage or "",
             error_message=outcome.error_message or "",
         )
-        return "failed", outcome.error_message
+        return "failed", _pipeline_failure_message(outcome)
 
     counts["processed"] += 1
     item.track = item_result.track
@@ -386,6 +386,24 @@ def process_one_result(
         output_file=str(wr.path),
     )
     return "conflict" if wr.conflict else "processed", str(wr.path)
+
+
+def _pipeline_failure_message(outcome) -> str | None:
+    """把 pipeline failed outcome 压成 ingestion summary 可携带的安全错误字符串。
+
+    中文学习型说明：ProcessingRun 只能从 IngestionSummary 读到 tuple[str]。
+    如果这里只返回 error_message，Web run detail 会丢失 failed stage；如果
+    error_message 为空，又会退化成 errors=1 但没有可行动细节。这里把 stage
+    和 message 合并为稳定、可解析的本地诊断，不包含 source 正文或 secret。
+    """
+
+    stage = outcome.error_stage
+    message = outcome.error_message
+    if stage and message:
+        return f"{stage}_stage_failed: {message}"
+    if stage:
+        return f"{stage}_stage_failed"
+    return message
 
 
 def emit_already_approved_source_skip(*, result, doc, logger, counts: dict[str, int]) -> None:
