@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from rich.console import Console
@@ -146,9 +147,98 @@ def _config_path(cfg: MindForgeConfig) -> str:
     return "(unknown)"
 
 
+# ---------------------------------------------------------------------------
+# provider error 分类 —— CLI / Web / API 共用
+#
+# 中文学习型说明：provider 在 HTTP/client 层抛出的异常信息可能包含 raw
+# response body、status code 等，不能直接暴露给用户。这里的分类函数把错误
+# 归一化成稳定 error_type + 不泄密的 safe_message，让 CLI、Web run detail、
+# API response 使用同一口径，避免各层各自拼文案导致口径分裂。
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProviderErrorClassification:
+    """provider error 的结构化分类结果；不包含 raw payload / secret。"""
+
+    error_type: str
+    """稳定分类值：``provider_rate_limited`` / ``provider_quota_exceeded`` /
+    ``provider_error`` / ``unknown``。"""
+
+    safe_message: str
+    """用户可读的安全消息；不含 raw response body / token / key。"""
+
+    retry_hint: str | None
+    """可操作的 retry 建议；由展示层决定是否渲染。"""
+
+
+# 用于匹配 rate limit 相关模式的编译正则（不区分大小写）。
+_RATE_LIMIT_RE = re.compile(
+    r"rate.limit|too many requests|429|throttl",
+    re.IGNORECASE,
+)
+_QUOTA_RE = re.compile(
+    r"quota.*(exceeded|limit|insufficient)|insufficient.*quota",
+    re.IGNORECASE,
+)
+
+
+def classify_provider_error(message: str, status_code: int | None = None) -> ProviderErrorClassification:
+    """把 provider error message / status code 分类为稳定 error_type。
+
+    调用方（CLI presenter / Web run detail / API response）都应使用本函数，
+    而不是各自 regex 猜测。
+
+    Args:
+        message: provider 抛出的错误消息（可能包含 raw response）。
+        status_code: HTTP status code（如果可获取）。
+
+    Returns:
+        ``ProviderErrorClassification``：稳定 error_type + 不泄密 safe_message。
+    """
+    # 中文学习型说明：只匹配公认的安全模式；禁止把 raw message 直接拼接进
+    # safe_message，防止 provider response body 中的敏感信息泄露给前端。
+    if status_code == 429 or _RATE_LIMIT_RE.search(message):
+        return ProviderErrorClassification(
+            error_type="provider_rate_limited",
+            safe_message=(
+                "Provider rate limited. Wait a moment and retry, or reduce "
+                "concurrency and batch size. If this persists, check your "
+                "provider quota and billing status."
+            ),
+            retry_hint=(
+                "Wait 30-60 seconds and retry. Reduce concurrent processing "
+                "or split large imports into smaller batches."
+            ),
+        )
+    if _QUOTA_RE.search(message):
+        return ProviderErrorClassification(
+            error_type="provider_quota_exceeded",
+            safe_message=(
+                "Provider quota exceeded. Check your quota or billing status "
+                "in the provider dashboard, or switch to a different provider."
+            ),
+            retry_hint=(
+                "Verify quota in your provider dashboard. Consider switching "
+                "to a different provider or model."
+            ),
+        )
+    # generic provider error：不暴露 raw message，但保留 error_type 区分
+    return ProviderErrorClassification(
+        error_type="provider_error",
+        safe_message=(
+            "Provider request failed. Check your model configuration, "
+            "API endpoint, and network connectivity."
+        ),
+        retry_hint=None,
+    )
+
+
 __all__ = [
+    "ProviderErrorClassification",
     "ProviderFailureDetail",
     "SkippedDocumentDetail",
+    "classify_provider_error",
     "friendly_missing_key_error",
     "print_ingestion_diagnostics",
     "print_provider_failure",

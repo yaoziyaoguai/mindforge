@@ -295,6 +295,12 @@ class WebFacade:
     def reveal_path(self, path: Path) -> PathActionResponse:
         return self.path_action_service.reveal_path(path)
 
+    def reveal_by_ref(
+        self, *, card_id: str | None = None, draft_id: str | None = None
+    ) -> PathActionResponse:
+        """安全的 object-reference reveal —— 不接受 raw path。"""
+        return self.path_action_service.reveal_by_ref(card_id=card_id, draft_id=draft_id)
+
     def workflow_summary(self) -> WorkflowSummaryResponse:
         inventory = build_library_inventory(self.cfg, limit=500)
         bucket_counts = self.source_service.bucket_counts()
@@ -321,16 +327,21 @@ class WebFacade:
 
     def library_cards(self) -> LibraryCardsResponse:
         inventory = build_library_inventory(self.cfg, limit=500)
+        cards = [_library_card_response(card) for card in inventory.cards]
+        for c in cards:
+            c.source_path_view = self.path_action_service.build_source_path_view(
+                c.source_path, source_title=c.source_title
+            )
         return LibraryCardsResponse(
             stats=_library_stats_response(inventory.stats),
-            cards=[_library_card_response(card) for card in inventory.cards],
+            cards=cards,
         )
 
     def library_card_detail(self, ref: str, *, show_content: bool = False) -> LibraryCardDetailResponse | None:
         detail = show_library_card(self.cfg, ref, show_content=show_content)
         if isinstance(detail, LibraryLookupError):
             return None
-        return _library_detail_response(self.cfg, detail)
+        return _library_detail_response(self.cfg, detail, path_action_service=self.path_action_service)
 
     def compute_card_quality(self, card_id: str):
         """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
@@ -393,6 +404,10 @@ class WebFacade:
 
     def drafts(self) -> DraftsResponse:
         drafts, errors = self.review_service.list_drafts()
+        for d in drafts:
+            d.source_path_view = self.path_action_service.build_source_path_view(
+                d.source_path, source_title=d.source_title
+            )
         empty = None
         if not drafts:
             empty = NextAction(
@@ -403,7 +418,12 @@ class WebFacade:
         return DraftsResponse(drafts=drafts, scan_errors=errors, empty_state=empty)
 
     def draft_detail(self, draft_id: str) -> DraftDetailResponse | None:
-        return self.review_service.draft_detail(draft_id)
+        result = self.review_service.draft_detail(draft_id)
+        if result is not None:
+            result.draft.source_path_view = self.path_action_service.build_source_path_view(
+                result.draft.source_path, source_title=result.draft.source_title
+            )
+        return result
 
     def update_draft_body(self, draft_id: str, body: str) -> CardBodyUpdateResponse | None:
         return self.review_service.update_draft_body(draft_id, body)
@@ -676,17 +696,26 @@ def _library_card_response(card) -> LibraryCardResponse:
         stage_models=dict(summary.stage_models),
         run_id=summary.run_id,
         created_at=summary.created_at.isoformat() if summary.created_at else None,
-        approved_at=None,
+        approved_at=summary.approved_at.isoformat() if summary.approved_at else None,
         updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
         rel_path=summary.rel_path,
         fallback_provider_note=card.fallback_provider_note,
     )
 
 
-def _library_detail_response(cfg: MindForgeConfig, detail: LibraryCardDetail) -> LibraryCardDetailResponse:
-    related_context = _library_relationship_context(cfg, detail)
+def _library_detail_response(
+    cfg: MindForgeConfig,
+    detail: LibraryCardDetail,
+    path_action_service: WebPathActionService | None = None,
+) -> LibraryCardDetailResponse:
+    related_context = _library_relationship_context(cfg, detail, path_action_service=path_action_service)
+    card = _library_card_response(detail.card)
+    if path_action_service is not None:
+        card.source_path_view = path_action_service.build_source_path_view(
+            card.source_path, source_title=card.source_title
+        )
     return LibraryCardDetailResponse(
-        card=_library_card_response(detail.card),
+        card=card,
         body=detail.body,
         local_graph=_local_graph_response(related_context.graph),
         related_cards=related_context.related_cards,
@@ -707,6 +736,7 @@ class _LibraryRelationshipContext:
 def _library_relationship_context(
     cfg: MindForgeConfig,
     detail: LibraryCardDetail,
+    path_action_service: WebPathActionService | None = None,
 ) -> _LibraryRelationshipContext:
     """为 Library card detail 构建只读关系上下文。
 
@@ -720,7 +750,10 @@ def _library_relationship_context(
     records = [_relation_record(card) for card in approved]
     center_id = detail.card.summary.id or detail.card.summary.rel_path
     graph = build_card_centered_graph(center_id, records)
-    cards_by_id = {card.id or card.rel_path: _library_card_summary_response(card) for card in approved}
+    cards_by_id = {
+        card.id or card.rel_path: _library_card_summary_response(card, path_action_service=path_action_service)
+        for card in approved
+    }
     edges = compute_related_cards(center_id, records, context="library")
     return _LibraryRelationshipContext(
         graph=graph,
@@ -744,8 +777,16 @@ def _relation_record(card: CardSummary) -> dict[str, object]:
     }
 
 
-def _library_card_summary_response(summary: CardSummary) -> LibraryCardResponse:
+def _library_card_summary_response(
+    summary: CardSummary,
+    path_action_service: WebPathActionService | None = None,
+) -> LibraryCardResponse:
     strategy = strategy_display(summary.strategy_id)
+    source_path_view = None
+    if path_action_service is not None:
+        source_path_view = path_action_service.build_source_path_view(
+            summary.source_path, source_title=summary.source_title
+        )
     return LibraryCardResponse(
         id=summary.id,
         title=summary.title,
@@ -777,10 +818,11 @@ def _library_card_summary_response(summary: CardSummary) -> LibraryCardResponse:
         stage_models=dict(summary.stage_models),
         run_id=summary.run_id,
         created_at=summary.created_at.isoformat() if summary.created_at else None,
-        approved_at=None,
+        approved_at=summary.approved_at.isoformat() if summary.approved_at else None,
         updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
         rel_path=summary.rel_path,
         fallback_provider_note=None,
+        source_path_view=source_path_view,
     )
 
 

@@ -12,6 +12,7 @@ from mindforge_web.schemas import (
     NextAction,
     PathActionRequest,
     PathActionResponse,
+    RevealRequest,
     SourcesResponse,
     UnavailableResponse,
     WatchSourcesResponse,
@@ -81,10 +82,17 @@ def copy_path(
     payload: PathActionRequest,
     facade: WebFacade = Depends(get_facade),
 ) -> PathActionResponse:
-    try:
-        return facade.copy_path(Path(payload.path))
-    except PathActionError as exc:
-        raise HTTPException(status_code=exc.status_code, detail={"message": exc.message}) from exc
+    # 中文学习型说明：raw path endpoint 已禁用 —— 接受任意 absolute path
+    # 构成 path probing oracle（403/404 差异泄露路径是否存在）。
+    # 前端改用 client-side clipboard，从 card/draft response 的
+    # source_path_view.display_path 直接复制。
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "message": "Raw path copy is disabled. "
+            "Copy display paths client-side from source_path_view in card/draft API responses."
+        },
+    )
 
 
 @router.post("/path-actions/reveal", response_model=PathActionResponse)
@@ -92,10 +100,34 @@ def reveal_path(
     payload: PathActionRequest,
     facade: WebFacade = Depends(get_facade),
 ) -> PathActionResponse:
+    # 中文学习型说明：raw path endpoint 已禁用。
+    # 请改用 object-reference endpoint: POST /api/sources/reveal
+    # 传 card_id 或 draft_id，后端自行查找对象并校验权限。
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "message": "Raw path reveal is disabled. "
+            "Use POST /api/sources/reveal with card_id or draft_id instead."
+        },
+    )
+
+
+@router.post("/reveal", response_model=PathActionResponse)
+def reveal_source(
+    payload: RevealRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> PathActionResponse:
+    """安全的 object-reference reveal 端点。
+
+    中文学习型说明：前端传 card_id 或 draft_id，后端自行查找对象、
+    校验 source_path_view 权限，再执行 reveal。不接受 raw path。
+    """
     try:
-        return facade.reveal_path(Path(payload.path))
+        return facade.reveal_by_ref(card_id=payload.card_id, draft_id=payload.draft_id)
     except PathActionError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"message": exc.message}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
 
 
 @router.post("/import-local", response_model=UnavailableResponse)

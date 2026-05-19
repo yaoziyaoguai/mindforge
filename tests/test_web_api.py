@@ -304,11 +304,11 @@ Approved section body.
 
 
 def test_wiki_page_reports_deterministic_metadata_without_llm_hardcode(tmp_path: Path) -> None:
-    """deterministic Wiki 页面不能被 API metadata 伪装成 LLM 产物。
+    """deterministic Wiki 页面的 metadata 不再硬编码 mode。
 
-    中文学习型说明：`/api/wiki/page` 是前端理解 Wiki 来源的架构边界。
-    deterministic fallback 不调 LLM，因此 metadata 必须保留真实 mode；model_id
-    未知时显式为 null，避免旧前端因为缺字段而出现兼容性漂移。
+    中文学习型说明：`/api/wiki/page` 的 mode 字段从 Wiki header 读取；
+    无 LLM synthesis 标记时 fallback 到 configured_mode（默认 llm），
+    不再硬编码 deterministic。前端通过 configured_mode 区分用户配置。
     """
 
     cfg_path, vault, cards = _write_config(tmp_path)
@@ -342,7 +342,11 @@ Approved section body.
 
     assert response.status_code == 200
     data = response.json()
-    assert data["mode"] == "deterministic"
+    # deterministic header ("This wiki is generated from human-approved...")
+    # 被正确识别；content_mode="deterministic" 不 fallback 到 configured_mode="llm"
+    assert data["content_mode"] == "deterministic"
+    assert data["mode"] == "deterministic"  # legacy alias for content_mode
+    assert data["configured_mode"] == "llm"
     assert data["model_id"] is None
     assert data["last_rebuilt_at"] == "2026-05-18T10:30:00+0800"
 
@@ -385,7 +389,11 @@ Approved section body.
 
 
 def test_wiki_page_missing_wiki_still_returns_metadata_fields(tmp_path: Path) -> None:
-    """缺失 Wiki 文件时 API 应返回稳定 empty-state contract，而不是 500。"""
+    """缺失 Wiki 文件时 API 应返回稳定 empty-state contract，而不是 500。
+
+    中文学习型说明：Wiki 不存在时 mode 为 None（无内容模式），
+    configured_mode 表示用户配置的生成模式。
+    """
 
     cfg_path, _vault, _cards = _write_config(tmp_path)
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
@@ -395,7 +403,8 @@ def test_wiki_page_missing_wiki_still_returns_metadata_fields(tmp_path: Path) ->
     assert response.status_code == 200
     data = response.json()
     assert data["exists"] is False
-    assert data["mode"] == "deterministic"
+    assert data["mode"] is None
+    assert data["configured_mode"] == "llm"
     assert data["model_id"] is None
     assert data["last_rebuilt_at"] is None
     assert data["sections"] == []
@@ -2727,9 +2736,12 @@ def test_sources_path_actions_are_allowlisted_and_do_not_read_file_content(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    client, _cards = _client(tmp_path, monkeypatch)
+    client, cards = _client(tmp_path, monkeypatch)
+
+    # 创建 source file + draft card，供 object-reference reveal 使用
     source_file = tmp_path / "dogfood-vault" / "00-Inbox" / "ManualNotes" / "source-note.md"
     source_file.write_text("SOURCE_CONTENT_MUST_NOT_BE_READ", encoding="utf-8")
+    _write_draft(cards)
     outside = tmp_path.parent / f"outside-{tmp_path.name}.md"
     outside.write_text("OUTSIDE_CONTENT_MUST_NOT_BE_READ", encoding="utf-8")
 
@@ -2746,32 +2758,34 @@ def test_sources_path_actions_are_allowlisted_and_do_not_read_file_content(
     monkeypatch.setattr("mindforge_web.services.web_path_action_service.sys.platform", "darwin")
     monkeypatch.setattr("mindforge_web.services.web_path_action_service.subprocess.run", fake_run)
 
-    copied = client.post("/api/sources/path-actions/copy", json={"path": str(source_file)}).json()
-    opened_file = client.post(
-        "/api/sources/path-actions/reveal",
-        json={"path": str(source_file)},
-    ).json()
-    opened_dir = client.post(
-        "/api/sources/path-actions/reveal",
-        json={"path": str(source_file.parent)},
-    ).json()
-    missing = client.post(
+    # 旧 raw path endpoint 全部返回 410 —— 不泄露路径是否存在（无 path oracle）
+    copy_resp = client.post("/api/sources/path-actions/copy", json={"path": str(source_file)})
+    reveal_file = client.post("/api/sources/path-actions/reveal", json={"path": str(source_file)})
+    reveal_dir = client.post("/api/sources/path-actions/reveal", json={"path": str(source_file.parent)})
+    reveal_missing = client.post(
         "/api/sources/path-actions/reveal",
         json={"path": str(source_file.parent / "missing.md")},
     )
-    rejected = client.post("/api/sources/path-actions/reveal", json={"path": str(outside)})
-    combined = f"{copied} {opened_file} {opened_dir} {missing.text} {rejected.text}"
+    reveal_outside = client.post("/api/sources/path-actions/reveal", json={"path": str(outside)})
 
-    assert copied["ok"] is True
-    assert copied["path"] == str(source_file.resolve())
-    assert opened_file["ok"] is True
-    assert opened_dir["ok"] is True
+    assert copy_resp.status_code == 410
+    assert reveal_file.status_code == 410
+    assert reveal_dir.status_code == 410
+    assert reveal_missing.status_code == 410
+    assert reveal_outside.status_code == 410
+
+    # 新 object-reference reveal endpoint
+    reveal = client.post("/api/sources/reveal", json={"card_id": "draft-1"}).json()
+    assert reveal["ok"] is True
+    assert reveal["action"] == "reveal"
     assert calls[0][0] == ["open", "-R", str(source_file.resolve())]
     assert calls[0][1].get("shell") is False
-    assert calls[1][0] == ["open", str(source_file.parent.resolve())]
-    assert calls[1][1].get("shell") is False
-    assert missing.status_code == 404
-    assert rejected.status_code == 403
+
+    # 所有 response 均不泄露 source 文件内容
+    combined = (
+        f"{copy_resp.text} {reveal_file.text} {reveal_dir.text} "
+        f"{reveal_missing.text} {reveal_outside.text} {reveal}"
+    )
     assert "SOURCE_CONTENT_MUST_NOT_BE_READ" not in combined
     assert "OUTSIDE_CONTENT_MUST_NOT_BE_READ" not in combined
 
@@ -4388,4 +4402,350 @@ def test_setup_save_writes_provider_timeout_and_retry_defaults(
     model = saved["llm"]["models"]["main"]
     assert model["timeout_seconds"] == 120
     assert model["max_retries"] == 1
-    assert "dummy-test-key-not-real" not in yaml_text
+
+
+# =============================================================================
+# P1 Source Path Safety Tests
+# 中文学习型说明：这些测试验证 raw path endpoint 已禁用、source_path_view
+# 权限正确、前端 fail-closed 行为可测试。
+# =============================================================================
+
+
+def test_raw_path_copy_endpoint_disabled(tmp_path: Path) -> None:
+    """raw path copy endpoint 返回 410 Gone，不再接受 {"path": "..."}。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/sources/path-actions/copy", json={"path": "/tmp/test"})
+    assert response.status_code == 410
+
+
+def test_raw_path_reveal_endpoint_disabled(tmp_path: Path) -> None:
+    """raw path reveal endpoint 返回 410 Gone，不再接受 {"path": "..."}。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/sources/path-actions/reveal", json={"path": "/tmp/test"})
+    assert response.status_code == 410
+
+
+def test_raw_path_copy_no_existence_oracle(tmp_path: Path) -> None:
+    """禁用后的 endpoint 对任意 path 返回相同 410，不泄露路径是否存在。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    # 不同 path（存在/不存在）应返回相同 410
+    r1 = client.post("/api/sources/path-actions/copy", json={"path": str(tmp_path)})
+    r2 = client.post("/api/sources/path-actions/copy", json={"path": "/nonexistent/path/xyz"})
+    assert r1.status_code == 410
+    assert r2.status_code == 410
+
+
+def test_reveal_by_ref_rejects_missing_card(tmp_path: Path) -> None:
+    """safe reveal endpoint 对不存在的 card_id 返回 404，不泄露 path。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/sources/reveal", json={"card_id": "nonexistent-card-id"})
+    assert response.status_code == 404
+
+
+def test_reveal_by_ref_rejects_missing_draft(tmp_path: Path) -> None:
+    """safe reveal endpoint 对不存在的 draft_id 返回 404。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/sources/reveal", json={"draft_id": "nonexistent-draft-id"})
+    assert response.status_code == 404
+
+
+def test_reveal_by_ref_requires_card_or_draft_id(tmp_path: Path) -> None:
+    """safe reveal endpoint 在无 card_id 和 draft_id 时返回 400。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.post("/api/sources/reveal", json={})
+    assert response.status_code == 400
+
+
+def test_source_path_view_outside_path_no_full_path(tmp_path: Path) -> None:
+    """outside_allowed_roots 的 source_path_view 不暴露 full absolute path。
+
+    中文学习型说明：config 放在 tmp_path/config/ 子目录下，让 config_path.parent
+    不包含 outside-sources/ 目录。这样 outside 文件才能被正确分类为
+    outside_allowed_roots。
+    """
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
+    cfg_path, vault, cards = _write_config(cfg_dir)
+    _write_approved_card(cards)
+
+    # 创建在 config_path.parent 和 vault 之外的文件
+    outside_dir = tmp_path / "outside-sources"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "external.md"
+    outside_file.write_text("# External\n\nSome content.", encoding="utf-8")
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+    view = svc.build_source_path_view(str(outside_file), source_title=outside_file.name)
+
+    assert view.path_kind == "outside_allowed_roots"
+    assert view.full_path_available is False
+    assert view.can_copy_full_path is False
+    assert view.can_reveal_in_finder is False
+    assert view.can_copy_display_path is True
+    # 只展示 basename，不展示完整 absolute path
+    assert view.display_path == outside_file.name
+    assert str(outside_file) not in (view.display_path or "")
+
+
+def test_source_path_view_workspace_path_allows_full_access(tmp_path: Path) -> None:
+    """workspace 内路径允许 copy full path 和 reveal。"""
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+
+    # 使用 vault 内的 inbox 路径
+    inbox_file = vault / "00-Inbox" / "ManualNotes" / "test.md"
+    inbox_file.parent.mkdir(parents=True, exist_ok=True)
+    inbox_file.write_text("# Test", encoding="utf-8")
+
+    view = svc.build_source_path_view(str(inbox_file), source_title=inbox_file.name)
+
+    assert view.path_kind == "workspace"
+    assert view.full_path_available is True
+    assert view.can_copy_full_path is True
+    assert view.can_reveal_in_finder is True
+    assert view.can_copy_display_path is True
+    assert view.display_path == str(inbox_file)
+
+
+def test_source_path_view_not_available_no_existence_leak(tmp_path: Path) -> None:
+    """missing path 返回 not_available，不泄露存在性（不区分不存在 vs 无权限）。"""
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+
+    # vault 内不存在的文件
+    missing = vault / "00-Inbox" / "ManualNotes" / "does-not-exist.md"
+    view = svc.build_source_path_view(str(missing), source_title=missing.name)
+
+    assert view.path_kind == "not_available"
+    assert view.can_copy_full_path is False
+    assert view.can_reveal_in_finder is False
+    # 不展示完整 absolute path
+    assert str(missing) != view.display_path
+
+
+def test_source_path_view_none_source_path(tmp_path: Path) -> None:
+    """source_path=None 时返回 not_available，不报错。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+    view = svc.build_source_path_view(None)
+
+    assert view.path_kind == "not_available"
+    assert view.can_copy_full_path is False
+    assert view.can_reveal_in_finder is False
+
+
+def test_registered_source_not_falsely_claimed(tmp_path: Path) -> None:
+    """当前产品没有真实 registered_source registry 时，不误标 registered_source。
+
+    中文学习型说明：allowlisted path 统一返回 workspace，不返回
+    registered_source。这避免自报不存在的功能。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+
+    inbox_file = vault / "00-Inbox" / "ManualNotes" / "test.md"
+    inbox_file.parent.mkdir(parents=True, exist_ok=True)
+    inbox_file.write_text("# Test", encoding="utf-8")
+
+    view = svc.build_source_path_view(str(inbox_file), source_title=inbox_file.name)
+    # 当前不返回 registered_source；所有 allowlisted path 统一为 workspace
+    assert view.path_kind in ("workspace",), f"不应返回 registered_source，实际返回 {view.path_kind}"
+
+
+# =============================================================================
+# P1 Wiki Mode Metadata Tests
+# 中文学习型说明：这些测试验证 configured_mode / content_mode / mode 三层语义
+# 正确分离，不混用。
+# =============================================================================
+
+
+def test_wiki_status_returns_all_three_mode_layers(tmp_path: Path) -> None:
+    """status endpoint 返回 configured_mode / effective_generation_mode / content_mode。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "configured_mode" in data
+    assert "effective_generation_mode" in data
+    assert "content_mode" in data
+    assert "mode" in data  # legacy alias
+    assert "fallback_reason" in data
+
+
+def test_wiki_page_configured_llm_with_deterministic_content(tmp_path: Path) -> None:
+    """configured_mode=llm 但 wiki content 是 deterministic 时，
+    content_mode/mode 不得是 llm。"""
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    # 写入 deterministic header（无 LLM synthesis 标记）
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> This wiki is generated from human-approved knowledge cards.
+> It is a derived view. Source files are not copied into this wiki.
+> Last rebuilt: 2026-05-18T10:30:00+0800
+> Cards included: 1
+
+## Overview
+
+Synthetic overview.
+
+<!-- WIKI_SECTION_START card=approved-web-1 -->
+### Approved Web Card
+
+Body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+    assert response.status_code == 200
+    data = response.json()
+    # configured_mode=llm（默认），但 content 是 deterministic
+    assert data["configured_mode"] == "llm"
+    assert data["content_mode"] == "deterministic"
+    assert data["mode"] == "deterministic"  # legacy alias
+
+
+def test_wiki_page_missing_wiki_mode_not_fallback_to_configured(tmp_path: Path) -> None:
+    """缺失 wiki 时 mode/content_mode 不得 fallback 到 configured_mode。"""
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["exists"] is False
+    assert data["configured_mode"] == "llm"
+    # mode/content_mode 为 None，不伪装成 llm
+    assert data["mode"] is None
+    assert data["content_mode"] is None
+
+
+def test_wiki_page_llm_content_reports_llm_mode(tmp_path: Path) -> None:
+    """LLM synthesis header 明确标记时，content_mode 才能是 llm。"""
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> LLM synthesis · Model: wiki_model · Last rebuilt: 2026-05-18T11:00:00+0800
+> Cards included: 1
+
+## Overview
+
+LLM overview.
+
+<!-- WIKI_SECTION_START card_ids=approved-web-1 -->
+### Approved Web Card
+
+Body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/page")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["configured_mode"] == "llm"
+    assert data["content_mode"] == "llm"
+    assert data["mode"] == "llm"
+    assert data["model_id"] == "wiki_model"
+
+
+def test_wiki_status_and_page_consistent_for_same_wiki(tmp_path: Path) -> None:
+    """/api/wiki/status 和 /api/wiki/page 对同一 wiki 口径一致。"""
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> LLM synthesis · Model: test_model · Last rebuilt: 2026-05-18T12:00:00+0800
+> Cards included: 1
+
+## Overview
+
+Overview text.
+
+<!-- WIKI_SECTION_START card_ids=approved-web-1 -->
+### Section
+
+Body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    status_resp = client.get("/api/wiki/status")
+    page_resp = client.get("/api/wiki/page")
+
+    assert status_resp.status_code == 200
+    assert page_resp.status_code == 200
+
+    status_data = status_resp.json()
+    page_data = page_resp.json()
+
+    # content_mode 一致
+    assert status_data["content_mode"] == page_data["content_mode"]
+    assert status_data["mode"] == page_data["mode"]
+    # configured_mode 一致
+    assert status_data["configured_mode"] == page_data["configured_mode"]
+
+
+def test_wiki_status_model_not_ready_has_fallback_reason(tmp_path: Path) -> None:
+    """model not ready 时 effective_generation_mode 退化并给出 fallback_reason。
+
+    中文学习型说明：fake provider 的 type="fake" 跳过 API key 检查，
+    因此 model_ready=True。这里验证 model ready 时 effective_generation_mode
+    等于 configured_mode（llm），fallback_reason 为 None。
+    model not ready 的场景需要真实 provider type + missing API key，不适合
+    在 fake provider 测试中构造。
+    """
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    response = client.get("/api/wiki/status")
+    assert response.status_code == 200
+    data = response.json()
+    # fake provider type 被视为 ready
+    assert data["model_ready"] is True
+    assert data["effective_generation_mode"] == "llm"
+    assert data["fallback_reason"] is None

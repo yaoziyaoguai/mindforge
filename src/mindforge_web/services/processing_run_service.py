@@ -21,7 +21,10 @@ from typing import Literal
 
 from mindforge.cards import iter_cards
 from mindforge.config import MindForgeConfig
-from mindforge.ingestion_diagnostics import friendly_missing_key_error
+from mindforge.ingestion_diagnostics import (
+    classify_provider_error,
+    friendly_missing_key_error,
+)
 from mindforge.ingestion_service import IngestionSummary, WatchScanSummary
 
 from mindforge_web.schemas import NextAction, ProcessingRunResponse
@@ -163,8 +166,14 @@ def start_sync_processing_run(
         record.current_step = "failed"
         record.finished_at = _now()
         record.summary = {**_empty_summary(), "errors": 1}
-        record.error_type = type(exc).__name__
-        record.error_message = _safe_error_message(str(exc))
+        raw_msg = str(exc)
+        classification = classify_provider_error(raw_msg)
+        if classification.error_type != "provider_error":
+            record.error_type = classification.error_type
+            record.error_message = classification.safe_message
+        else:
+            record.error_type = type(exc).__name__
+            record.error_message = _safe_error_message(raw_msg)
         record.message = f"Processing failed. Reason: {record.error_message}"
 
     _save_final_record_if_active(cfg, record)
@@ -337,8 +346,14 @@ def _run_worker(
         record.current_step = "failed"
         record.finished_at = _now()
         record.summary = {**_empty_summary(), "errors": 1}
-        record.error_type = type(exc).__name__
-        record.error_message = _safe_error_message(str(exc))
+        raw_msg = str(exc)
+        classification = classify_provider_error(raw_msg)
+        if classification.error_type != "provider_error":
+            record.error_type = classification.error_type
+            record.error_message = classification.safe_message
+        else:
+            record.error_type = type(exc).__name__
+            record.error_message = _safe_error_message(raw_msg)
         record.message = f"Processing failed. Reason: {record.error_message}"
     finally:
         stop_heartbeat.set()
@@ -375,11 +390,22 @@ def _apply_summary(
     record.draft_ids = draft_ids
     record.skip_reasons = skip_reasons
     if provider_failure is not None and errors:
-        record.error_type = "ProviderError"
-        record.error_message = _safe_error_message(provider_failure.message)
+        # 中文学习型说明：使用共享分类函数，避免 CLI/Web/API 口径分裂。
+        # classify_provider_error 不暴露 raw payload / secret。
+        classification = classify_provider_error(provider_failure.message)
+        record.error_type = classification.error_type
+        record.error_message = classification.safe_message
     elif error_messages and errors:
-        record.error_type = "ProcessingError"
-        record.error_message = error_messages[0]
+        # 中文学习型说明：error_messages 来自 ingestion summary 的 errors
+        # 列表（process_executor 层写入），也需要走分类以捕获 rate limit。
+        first_msg = error_messages[0]
+        classification = classify_provider_error(first_msg)
+        if classification.error_type != "provider_error":
+            record.error_type = classification.error_type
+            record.error_message = classification.safe_message
+        else:
+            record.error_type = "ProcessingError"
+            record.error_message = first_msg
     elif errors:
         # 中文学习型说明：errors > 0 但 error_messages 为空时，不能静默
         # 丢错误。原因：ingestion_service 在 pipeline 返回空 error_message

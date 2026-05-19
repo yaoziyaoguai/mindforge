@@ -471,6 +471,8 @@ class LibraryCardResponse(BaseModel):
     updated_at: str | None = None
     rel_path: str
     fallback_provider_note: str | None = None
+    # 中文学习型说明：后端生成的 source path 安全视图；前端只展示，不做安全决策。
+    source_path_view: SourcePathViewModel | None = None
 
 
 class LibraryStatsResponse(BaseModel):
@@ -565,8 +567,62 @@ class UnavailableResponse(BaseModel):
     next_action: NextAction
 
 
+class SourcePathViewModel(BaseModel):
+    """后端生成的 source path 安全视图 —— 前端只展示，不做安全决策。
+
+    中文学习型说明：path_kind 由后端根据 allowlisted roots 计算，
+    前端根据 can_copy_full_path / can_reveal_in_finder 禁用按钮。
+    outside_allowed_roots 时不展示完整 absolute path。
+    """
+
+    display_source_name: str | None = None
+    """展示用的 source 名称（basename 或脱敏路径）。"""
+
+    display_path: str | None = None
+    """展示路径。outside 时仅显示 basename，不暴露完整路径。"""
+
+    path_kind: Literal[
+        "workspace",
+        "registered_source",
+        "outside_allowed_roots",
+        "not_available",
+        "unknown",
+    ] = "unknown"
+    """路径分类：workspace / registered_source / outside_allowed_roots /
+    not_available / unknown。"""
+
+    full_path_available: bool = False
+    """完整 absolute path 是否对用户可见。"""
+
+    can_copy_full_path: bool = False
+    """是否允许 Copy full absolute path。"""
+
+    can_copy_display_path: bool = False
+    """是否允许 Copy display path（always true if display_path 存在）。"""
+
+    can_reveal_in_finder: bool = False
+    """是否允许 Reveal in Finder。"""
+
+    safety_label: str | None = None
+    """安全标签（如 \"Workspace\" / \"Registered Source\" / \"External\"）。"""
+
+    warning: str | None = None
+    """安全警告文案。outside 时说明路径不在 workspace 或已注册 source root 内。"""
+
+
 class PathActionRequest(BaseModel):
     path: str
+
+
+class RevealRequest(BaseModel):
+    """安全的 object-reference reveal 请求 —— 不接受 raw path。
+
+    中文学习型说明：前端传 card_id 或 draft_id，后端自行查找对象并校验权限，
+    不信任用户提供的 path 字符串。
+    """
+
+    card_id: str | None = None
+    draft_id: str | None = None
 
 
 class PathActionResponse(BaseModel):
@@ -576,6 +632,15 @@ class PathActionResponse(BaseModel):
     path_type: Literal["file", "folder"]
     message: str
     command: list[str] = Field(default_factory=list)
+    # 中文学习型说明：path_kind 让前端在 action 执行前后都能判断安全性，
+    # 避免"提示 outside 但仍提供 Reveal"的截图问题。
+    path_kind: Literal[
+        "workspace",
+        "registered_source",
+        "outside_allowed_roots",
+        "not_available",
+        "unknown",
+    ] = "unknown"
 
 
 class DraftSummary(BaseModel):
@@ -607,7 +672,9 @@ class DraftSummary(BaseModel):
     stage_models: dict[str, Any] = Field(default_factory=dict)
     run_id: str | None = None
     created_at: str | None = None
+    approved_at: str | None = None
     updated_at: str | None = None
+    source_path_view: SourcePathViewModel | None = None
 
 
 class DraftsResponse(BaseModel):

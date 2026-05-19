@@ -44,6 +44,8 @@ class CardSummary:
     source_missing: bool = False
     value_score: int | None = None
     created_at: datetime | None = None
+    # M3 approval 字段（approver 写入 approved_at；旧卡片可能只有 reviewed_at）
+    approved_at: datetime | None = None
     # M4 review 字段（缺失按默认值）
     reviewed_at: datetime | None = None
     review_count: int = 0
@@ -239,6 +241,9 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         source_missing=_bool_or_false(data.get("source_missing")),
         value_score=_int_or_none(data.get("value_score")),
         created_at=_dt_or_none(data.get("created_at")),
+        # 中文学习型说明：approver 写入 approved_at，旧卡片可能只有 reviewed_at。
+        # 优先读 approved_at，fallback 到 reviewed_at 保证向后兼容。
+        approved_at=_dt_or_none(data.get("approved_at")) or _dt_or_none(data.get("reviewed_at")),
         reviewed_at=_dt_or_none(data.get("reviewed_at")),
         review_count=_int_or_none(data.get("review_count")) or 0,
         last_review_result=_str_or_none(data.get("last_review_result")),

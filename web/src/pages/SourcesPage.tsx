@@ -1,5 +1,5 @@
 import type { SourcesResponse } from "../api/types";
-import { copySourcePath, deleteWatchedSource, revealSourcePath, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
+import { deleteWatchedSource, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
 import { frequencyOptions } from "../components/SourceAddPanel";
 import { useState } from "react";
 
@@ -61,26 +61,18 @@ export function SourcesPage({
     }
   }
 
+  // 中文学习型说明：client-side clipboard copy —— raw path endpoint 已禁用。
   async function copyPath(targetPath: string) {
     setResult(null);
     try {
-      const response = await copySourcePath(targetPath);
-      await navigator.clipboard?.writeText(response.path);
+      await navigator.clipboard?.writeText(targetPath);
       setResult("Copied");
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Copy path failed");
     }
   }
-
-  async function revealPath(targetPath: string) {
-    setResult(null);
-    try {
-      const response = await revealSourcePath(targetPath);
-      setResult(response.ok ? "Opened" : response.message);
-    } catch (error) {
-      setResult(error instanceof Error ? error.message : "Reveal in Finder failed");
-    }
-  }
+  // 中文学习型说明：raw path reveal 已禁用。SourcesPage 的 reveal 功能待
+  // source-ref based endpoint 实现后恢复。
 
   return (
     <div className="space-y-6">
@@ -121,9 +113,7 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
                         Copy path
                       </button>
-                      <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => revealPath(source.path)} type="button">
-                        Reveal in Finder
-                      </button>
+                      {/* 中文学习型说明：raw path reveal 已禁用；source-ref reveal 待实现 */}
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
@@ -198,9 +188,7 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
                         Copy path
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => revealPath(source.path)} type="button">
-                        Reveal in Finder
-                      </button>
+                      {/* 中文学习型说明：raw path reveal 已禁用 */}
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source)} title="Stop watching" type="button">
                         Stop watching
                       </button>

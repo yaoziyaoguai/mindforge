@@ -17,11 +17,41 @@ router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 
 @router.get("/status")
 def wiki_status(facade: WebFacade = Depends(get_facade)):
-    """返回 Main Wiki 状态摘要。"""
+    """返回 Main Wiki 状态摘要。
+
+    中文学习型说明：返回三层 mode 语义：
+    - configured_mode: 用户配置想用什么
+    - effective_generation_mode: rebuild 时实际会用哪种生成方式
+    - content_mode: 当前 wiki 内容的实际来源（从 header 解析）
+    """
     from mindforge.model_setup_readiness import model_setup_readiness
-    from mindforge.wiki_service import get_wiki_status
+    from mindforge.wiki_service import get_wiki_status, read_main_wiki
     status = get_wiki_status(facade.cfg)
     readiness = model_setup_readiness(facade.cfg)
+
+    # effective_generation_mode：rebuild 时实际会用的生成方式
+    configured = facade.cfg.wiki.mode
+    if configured == "llm" and not readiness.ready:
+        effective_generation_mode = "deterministic"
+        fallback_reason = f"LLM not ready ({readiness.label}). Would fallback to deterministic."
+    elif configured == "llm":
+        effective_generation_mode = "llm"
+        fallback_reason = None
+    elif configured == "deterministic":
+        effective_generation_mode = "deterministic"
+        fallback_reason = None
+    else:
+        effective_generation_mode = None
+        fallback_reason = f"Unknown configured mode: {configured!r}"
+
+    # content_mode：从已存在的 wiki header 解析
+    content_mode: str | None = None
+    if status.exists:
+        markdown = read_main_wiki(facade.cfg)
+        if markdown:
+            meta = _wiki_markdown_metadata(markdown, configured_mode=configured)
+            content_mode = meta.get("content_mode")
+
     return {
         "wiki_path": status.wiki_path,
         "exists": status.exists,
@@ -30,6 +60,11 @@ def wiki_status(facade: WebFacade = Depends(get_facade)):
         "wiki_card_count": status.wiki_card_count,
         "is_stale": status.is_stale,
         "new_approved_count": status.new_approved_count,
+        "configured_mode": configured,
+        "effective_generation_mode": effective_generation_mode,
+        "content_mode": content_mode,
+        "mode": content_mode,  # legacy alias for content_mode
+        "fallback_reason": fallback_reason,
         "model_ready": readiness.ready,
         "model_ready_label": readiness.label,
     }
@@ -130,12 +165,18 @@ def wiki_page(view: str | None = None, facade: WebFacade = Depends(get_facade)):
     # 读取 wiki Markdown
     markdown = read_main_wiki(facade.cfg)
     if markdown is None:
+        # 中文学习型说明：Wiki 不存在时使用 configured_mode，不再硬编码
+        # "deterministic"。content_mode 为 None 表示尚无内容。
+        configured = facade.cfg.wiki.mode
         return {
             "exists": False,
             "title": "MindForge Main Wiki",
-            "mode": "deterministic",
+            "configured_mode": configured,
+            "content_mode": None,
+            "mode": None,
             "model_id": None,
             "last_rebuilt_at": None,
+            "fallback_reason": "Wiki 尚未生成。请先 Rebuild。",
             "sections": [],
             "overview": "Wiki 尚未生成。请先 Rebuild。",
         }
@@ -149,27 +190,47 @@ def wiki_page(view: str | None = None, facade: WebFacade = Depends(get_facade)):
             digests.append(d)
 
     # 构建 ViewModel
+    wiki_meta = _wiki_markdown_metadata(markdown, configured_mode=facade.cfg.wiki.mode)
     vm = WikiPageViewModel.build_from_wiki_markdown(
         markdown_content=markdown,
         digests=digests,
-        wiki_metadata=_wiki_markdown_metadata(markdown),
+        wiki_metadata=wiki_meta,
     )
 
     from dataclasses import asdict
-    return asdict(vm)
+    result = asdict(vm)
+    # 中文学习型说明：注入三层 mode 语义。
+    # - configured_mode: 用户配置
+    # - content_mode: 当前 wiki 内容实际来源（从 header 解析，不 fallback）
+    # - mode: legacy alias for content_mode
+    result["configured_mode"] = facade.cfg.wiki.mode
+    result["content_mode"] = wiki_meta.get("content_mode")
+    result["mode"] = wiki_meta.get("content_mode")  # legacy alias
+    return result
 
 
-def _wiki_markdown_metadata(markdown: str) -> dict[str, str | None]:
+def _wiki_markdown_metadata(
+    markdown: str,
+    *,
+    configured_mode: str = "llm",
+) -> dict:
     """从已生成 Wiki header 提取 API metadata，不重新调用生成器。
 
-    中文学习型说明：`/api/wiki/page` 只读现有 Wiki 文件。这里根据生成器写入的
-    header 识别 deterministic 与 LLM synthesis，避免展示层硬编码来源，也避免为
-    了 metadata 再触发 LLM 或改写 Wiki 文件。旧 Wiki 若缺少字段则返回 null。
+    中文学习型说明：content_mode 只能从 wiki header 明确标记推导。
+    - "LLM synthesis" 明确标记 → content_mode="llm"
+    - "generated from human-approved knowledge cards" → content_mode="deterministic"
+    - 其他情况 → content_mode=None（不 fallback 到 configured_mode）
+    这避免 configured=llm 时把 deterministic wiki 误报为 llm 产物。
+    configured_mode 单独传递，不与 content_mode 混用。
+
+    Args:
+        markdown: Wiki Markdown 全文。
+        configured_mode: 用户配置的 wiki.mode（仅用于返回，不参与 content_mode 推断）。
     """
 
     model_id: str | None = None
     last_rebuilt_at: str | None = None
-    mode = "deterministic"
+    content_mode: str | None = None  # 从 header 明确推导，不 fallback
 
     for line in markdown.splitlines():
         text = line.strip()
@@ -177,17 +238,26 @@ def _wiki_markdown_metadata(markdown: str) -> dict[str, str | None]:
             continue
         body = text.lstrip(">").strip()
         if body.startswith("LLM synthesis"):
-            mode = "llm"
+            content_mode = "llm"
             for part in body.split("·"):
                 part = part.strip()
                 if part.startswith("Model:"):
                     model_id = part.split("Model:", 1)[1].strip() or None
                 elif part.startswith("Last rebuilt:"):
                     last_rebuilt_at = part.split("Last rebuilt:", 1)[1].strip() or None
+        elif body.startswith("This wiki is generated from human-approved knowledge cards"):
+            if content_mode is None:
+                content_mode = "deterministic"
         elif body.startswith("Last rebuilt:") and last_rebuilt_at is None:
             last_rebuilt_at = body.split("Last rebuilt:", 1)[1].strip() or None
 
-    return {"mode": mode, "model_id": model_id, "last_rebuilt_at": last_rebuilt_at}
+    return {
+        "content_mode": content_mode,
+        "mode": content_mode,  # legacy alias for content_mode
+        "model_id": model_id,
+        "last_rebuilt_at": last_rebuilt_at,
+        "configured_mode": configured_mode,
+    }
 
 
 @router.get("/sections")
@@ -206,6 +276,7 @@ def wiki_sections(facade: WebFacade = Depends(get_facade)):
     vm = WikiPageViewModel.build_from_wiki_markdown(
         markdown_content=markdown,
         digests=digests,
+        wiki_metadata=_wiki_markdown_metadata(markdown, configured_mode=facade.cfg.wiki.mode),
     )
     from dataclasses import asdict
     return [asdict(s) for s in vm.sections]
@@ -227,6 +298,7 @@ def wiki_references(facade: WebFacade = Depends(get_facade)):
     vm = WikiPageViewModel.build_from_wiki_markdown(
         markdown_content=markdown,
         digests=digests,
+        wiki_metadata=_wiki_markdown_metadata(markdown, configured_mode=facade.cfg.wiki.mode),
     )
     from dataclasses import asdict
     result: list = [asdict(r) for r in vm.additional_cards]

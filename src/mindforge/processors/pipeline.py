@@ -18,10 +18,21 @@
 - triage short-circuit 不算失败；item.status = "skipped"，不写 Card。
 - 本 pipeline **不知道** state.json 与 cli 的存在；调用方负责把 :class:`PipelineOutcome`
   反映到 checkpoint 与日志。
+
+pre-triage 守卫
+---------------
+
+- 在调用 LLM triage 前，先做保守的 insufficient_content 检查：跳过 empty、
+  whitespace-only、punctuation-only、以及极少数公认无信息量的单 token trivial ack
+  （ok / hi / n/a / none / null / ...）。
+- 不跳过 todo / wip / test / 短标题 / ID / 专有名词 —— 这些可能包含有效信息。
+- skip_reason 稳定为 ``"insufficient_content"``，用户可见消息明确说明是
+  graceful skipped，不是 model/provider failure。
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -76,6 +87,16 @@ class Pipeline:
     def run(self, doc: SourceDocument) -> PipelineOutcome:
         outcome = PipelineOutcome(status="failed")
         ifh = doc.content_hash
+
+        # 中文学习型说明：pre-triage guard 在调用 LLM 前先检查明显无信息量的内容，
+        # 避免浪费 API 配额并产生伪失败。规则保守：只跳过 empty / whitespace-only /
+        # punctuation-only / 极少数公认无意义的单 token trivial ack。
+        # 不跳过 todo / wip / test / 短标题 / ID / 专有名词。
+        pre_triage = _check_insufficient_content(doc)
+        if pre_triage is not None:
+            outcome.status = "skipped"
+            outcome.skip_reason = pre_triage
+            return outcome
 
         triage = self._run_stage_or_fail(outcome, "triage", ifh, _triage_vars(doc, self.learning_tracks_text))
         if triage is None:
@@ -379,4 +400,64 @@ def _build_card_payload(
     }
 
 
-__all__ = ["Pipeline", "PipelineOutcome"]
+# ---------------------------------------------------------------------------
+# pre-triage insufficient_content guard
+#
+# 中文学习型说明：这些 token 是公认无信息量的单 token trivial ack，出现在
+# 正文中时不需要送入 LLM triage。规则故意不包含 todo / wip / test 等可能
+# 有实际内容的词。
+# ---------------------------------------------------------------------------
+
+# 全文 exactly 匹配（忽略大小写、前后空白）这些 token 时触发 skip。
+_INSUFFICIENT_CONTENT_TOKENS: frozenset[str] = frozenset({
+    "ok", "okay", "yes", "no", "hi", "hello", "hey",
+    "n/a", "na", "none", "null", "nil", "undefined",
+    "...", "---", "***",
+})
+
+
+def _check_insufficient_content(doc: "SourceDocument") -> str | None:
+    """保守判断文档是否明显无信息量，返回 skip_reason 或 None。
+
+    触发条件（任一满足）：
+    1. raw_text 为 empty 或 whitespace-only
+    2. raw_text 为 punctuation-only（不含字母/数字/中日韩字符）
+    3. raw_text 去掉空白后 exactly 匹配 ``_INSUFFICIENT_CONTENT_TOKENS`` 之一
+
+    不触发：
+    - todo / wip / test 等可能包含实际信息的短词
+    - 任何长度 ≥2 token 的内容（交由 triage LLM 判断）
+    - 短标题 / ID / 专有名词
+
+    返回 ``"insufficient_content"`` 表示应跳过，``None`` 表示继续 triage。
+    """
+    text = doc.raw_text
+    if not text:
+        return "insufficient_content"
+    stripped = text.strip()
+    if not stripped:
+        return "insufficient_content"
+    # punctuation-only：不含任何字母、数字、CJK 字符
+    if not _RE_HAS_CONTENT.search(stripped):
+        return "insufficient_content"
+    # 全文 exactly 匹配 trivial ack token（大小写不敏感）
+    normalized = stripped.lower()
+    if normalized in _INSUFFICIENT_CONTENT_TOKENS:
+        return "insufficient_content"
+    return None
+
+
+_RE_HAS_CONTENT = re.compile(
+    r"[A-Za-z0-9"  # 拉丁字母 + 数字
+    r"぀-ヿ"  # 日文（平假名 + 片假名）
+    r"㐀-䶿一-鿿"  # 中日韩统一表意文字
+    r"가-힯"  # 韩文
+    r"]"
+)
+
+
+__all__ = [
+    "Pipeline",
+    "PipelineOutcome",
+    "_check_insufficient_content",
+]

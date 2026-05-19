@@ -406,6 +406,7 @@ export interface LibraryCardResponse {
   updated_at?: string | null;
   rel_path: string;
   fallback_provider_note?: string | null;
+  source_path_view?: SourcePathViewModel | null;
 }
 
 export interface LibraryStatsResponse {
@@ -521,7 +522,9 @@ export interface DraftSummary {
   stage_models: Record<string, unknown>;
   run_id?: string | null;
   created_at?: string | null;
+  approved_at?: string | null;
   updated_at?: string | null;
+  source_path_view?: SourcePathViewModel | null;
 }
 
 export interface DraftsResponse {
@@ -557,6 +560,18 @@ export interface UnavailableResponse {
   next_action: NextAction;
 }
 
+export interface SourcePathViewModel {
+  display_source_name?: string | null;
+  display_path?: string | null;
+  path_kind: "workspace" | "registered_source" | "outside_allowed_roots" | "not_available" | "unknown";
+  full_path_available: boolean;
+  can_copy_full_path: boolean;
+  can_copy_display_path: boolean;
+  can_reveal_in_finder: boolean;
+  safety_label?: string | null;
+  warning?: string | null;
+}
+
 export interface PathActionResponse {
   ok: boolean;
   action: "copy" | "reveal";
@@ -564,6 +579,7 @@ export interface PathActionResponse {
   path_type: "file" | "folder";
   message: string;
   command: string[];
+  path_kind?: "workspace" | "registered_source" | "outside_allowed_roots" | "not_available" | "unknown";
 }
 
 export interface RecallResponse {

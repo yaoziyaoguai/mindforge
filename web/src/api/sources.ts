@@ -48,10 +48,12 @@ export function importLocalUnavailable() {
   return apiPost<UnavailableResponse>("/api/sources/import-local");
 }
 
-export function copySourcePath(path: string) {
-  return apiPost<PathActionResponse>("/api/sources/path-actions/copy", { path });
-}
+/* raw path endpoints 已禁用 —— 安全优先。
+ * 中文学习型说明：旧 copySourcePath / revealSourcePath 接受 raw absolute path，
+ * 构成 path probing oracle。前端改用 source_path_view + client-side clipboard
+ * （copy）和 object-reference endpoint（reveal）。
+ */
 
-export function revealSourcePath(path: string) {
-  return apiPost<PathActionResponse>("/api/sources/path-actions/reveal", { path });
+export function revealSourceByRef(cardId?: string | null, draftId?: string | null) {
+  return apiPost<PathActionResponse>("/api/sources/reveal", { card_id: cardId, draft_id: draftId });
 }

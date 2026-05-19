@@ -20,17 +20,24 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from mindforge.wiki_service import normalize_wiki_title
+
 if TYPE_CHECKING:
     from mindforge.wiki_service import CardDigest
 
 
 def _slugify(text: str) -> str:
-    """将 section title 转为 URL-safe anchor slug。"""
+    """将 section title 转为 URL-safe anchor slug。
+
+    中文学习型说明：若 title 为纯标点（如 "?"），移除标点后 slug 为空，
+    必须 fallback 到 "untitled" 以保证 anchor 非空。
+    """
     slug = text.lower().strip()
     slug = re.sub(r"[^\w\s-]", "", slug)  # remove punctuation
     slug = re.sub(r"\s+", "-", slug)       # spaces → hyphens
     slug = re.sub(r"-+", "-", slug)        # collapse hyphens
-    return slug.strip("-")
+    result = slug.strip("-")
+    return result if result else "untitled"
 
 
 def _derive_source_type(source_title: str | None) -> str | None:
@@ -130,7 +137,10 @@ class WikiPageViewModel:
     """
 
     title: str
-    mode: str  # "llm" | "deterministic"
+    # 中文学习型说明：mode 是 content_mode 的 legacy alias。
+    # 仅当 wiki header 有明确标记时才为 "llm" 或 "deterministic"；
+    # 无法从 header 识别时为 None。
+    mode: str | None
     model_id: str | None
     last_rebuilt_at: str | None
     overview: str  # canonical Markdown text
@@ -295,7 +305,10 @@ class WikiPageViewModel:
         import re as _re
 
         meta = wiki_metadata or {}
-        mode = meta.get("mode", "llm")
+        # 中文学习型说明：mode 是 content_mode 的 legacy alias。
+        # 不从 header 明确标记推导时不得 fallback 到 "llm" —— 否则
+        # configured=llm 时会把 deterministic wiki 误报为 LLM 产物。
+        mode = meta.get("mode")
         model_id = meta.get("model_id")
         last_rebuilt_at = meta.get("last_rebuilt_at")
 
@@ -320,7 +333,9 @@ class WikiPageViewModel:
         )
         for m in _re.finditer(pattern, markdown_content, _re.DOTALL):
             card_ids_str = m.group(1).strip()
-            title = m.group(2).strip()
+            # 中文学习型说明：对 parsed heading 做 normalize，避免 "?" 或纯标点
+            # 进入 section title / TOC。
+            title = normalize_wiki_title(m.group(2).strip())
             body = m.group(3).strip()
             # 移除 body 中的 Related approved cards 区块
             body = _re.sub(
