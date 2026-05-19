@@ -32,6 +32,31 @@ def create_app(
         config_path = bootstrap.config_path
 
     app = FastAPI(title="MindForge Local Console", version="0.1.0")
+
+    # 中文学习型说明：Pydantic 的 RequestValidationError 默认在 error detail
+    # 中 echo 客户端发送的 raw input（包括 extra forbidden fields 的值）。
+    # 这个 handler 在返回 422 前 strip 掉所有 `input` 字段，防止 raw path
+    # 等不可信输入通过 validation error 回显。
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.requests import Request
+    from fastapi.responses import JSONResponse
+
+    async def _safe_validation_handler(
+        _request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        errors = exc.errors()
+        safe_errors = [
+            {k: v for k, v in err.items() if k != "input"}
+            for err in errors
+        ]
+        return JSONResponse(
+            status_code=422,
+            content={"detail": safe_errors},
+        )
+
+    app.add_exception_handler(RequestValidationError, _safe_validation_handler)
+
     app.state.config_path = config_path
     app.state.vault_override = vault_override
     app.state.host = host

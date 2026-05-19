@@ -332,6 +332,12 @@ class WebFacade:
             c.source_path_view = self.path_action_service.build_source_path_view(
                 c.source_path, source_title=c.source_title
             )
+            # 中文学习型说明：API contract 安全边界 —— source_path 对 unsafe
+            # path_kind 必须 redact 为 None，由 source_path_view.display_path
+            # 提供安全展示。这里在组装 response 后统一 redact。
+            c.source_path = self.path_action_service.safe_source_path(
+                c.source_path, c.source_path_view
+            )
         return LibraryCardsResponse(
             stats=_library_stats_response(inventory.stats),
             cards=cards,
@@ -408,6 +414,9 @@ class WebFacade:
             d.source_path_view = self.path_action_service.build_source_path_view(
                 d.source_path, source_title=d.source_title
             )
+            d.source_path = self.path_action_service.safe_source_path(
+                d.source_path, d.source_path_view
+            )
         empty = None
         if not drafts:
             empty = NextAction(
@@ -423,6 +432,16 @@ class WebFacade:
             result.draft.source_path_view = self.path_action_service.build_source_path_view(
                 result.draft.source_path, source_title=result.draft.source_title
             )
+            result.draft.source_path = self.path_action_service.safe_source_path(
+                result.draft.source_path, result.draft.source_path_view
+            )
+            # 中文学习型说明：source_context 中的 source_path 同样需要
+            # redact，不与 raw card 值混用。
+            if result.source_context and "source_path" in result.source_context:
+                result.source_context["source_path"] = self.path_action_service.safe_source_path(
+                    result.source_context.get("source_path"),
+                    result.draft.source_path_view,
+                )
         return result
 
     def update_draft_body(self, draft_id: str, body: str) -> CardBodyUpdateResponse | None:
@@ -714,6 +733,9 @@ def _library_detail_response(
         card.source_path_view = path_action_service.build_source_path_view(
             card.source_path, source_title=card.source_title
         )
+        card.source_path = path_action_service.safe_source_path(
+            card.source_path, card.source_path_view
+        )
     return LibraryCardDetailResponse(
         card=card,
         body=detail.body,
@@ -787,6 +809,9 @@ def _library_card_summary_response(
         source_path_view = path_action_service.build_source_path_view(
             summary.source_path, source_title=summary.source_title
         )
+    safe_path = path_action_service.safe_source_path(
+        summary.source_path, source_path_view
+    ) if path_action_service is not None else None
     return LibraryCardResponse(
         id=summary.id,
         title=summary.title,
@@ -801,7 +826,7 @@ def _library_card_summary_response(
         source_type=summary.source_type,
         adapter_name=summary.adapter_name,
         source_title=summary.source_title,
-        source_path=summary.source_path,
+        source_path=safe_path,
         source_content_hash=summary.source_content_hash,
         source_archive_path=summary.source_archive_path,
         source_missing=summary.source_missing,

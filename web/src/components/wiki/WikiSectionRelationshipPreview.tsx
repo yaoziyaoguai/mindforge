@@ -7,7 +7,7 @@ interface Props {
 }
 
 export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
-  const sources = unique(refs.map((ref) => ref.source_title ?? ref.source_path).filter(isString));
+  const sources = unique(refs.map((ref) => ref.source_title).filter(isString));
   const tags = unique(refs.flatMap((ref) => ref.tags));
 
   return (

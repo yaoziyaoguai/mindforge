@@ -26,9 +26,38 @@ class PathActionError(ValueError):
 
 
 class WebPathActionService:
+    # 中文学习型说明：source_path 安全展示的白名单 path_kind。
+    # 只有 vault 内路径（workspace）和已注册 source 可以展示完整 path；
+    # outside / unknown / not_available 的 source_path 在 Web API 中必须
+    # redact 为 None，由 source_path_view.display_path 提供安全展示。
+    _SAFE_DISPLAY_PATH_KINDS = frozenset({"workspace", "registered_source"})
+
     def __init__(self, cfg: MindForgeConfig, *, config_path: Path) -> None:
         self.cfg = cfg
         self.config_path = config_path
+
+    @staticmethod
+    def safe_source_path(
+        source_path: str | None,
+        source_path_view: object | None,
+    ) -> str | None:
+        """对 Web API response 中的 source_path 做安全 redact。
+
+        中文学习型说明：Web API response 的 source_path 字段不得直接透传
+        raw value。必须通过 build_source_path_view 分类后再决定是否保留。
+        规则：
+        - workspace / registered_source → 保留 source_path
+        - outside_allowed_roots / not_available / unknown / 无 view → None
+
+        source_path_view 为 None 时 fail-closed（返回 None），
+        此时前端只展示 source_path_view.display_path。
+        """
+        if source_path_view is None:
+            return None
+        kind = getattr(source_path_view, "path_kind", None)
+        if kind in WebPathActionService._SAFE_DISPLAY_PATH_KINDS:
+            return source_path
+        return None
 
     # ------------------------------------------------------------------
     # 中文学习型说明：build_source_path_view 是后端统一的 path safety 分类

@@ -218,8 +218,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         {pathActionErr ? <p className="mt-2 text-xs text-danger">{pathActionErr}</p> : null}
         {pathView?.warning ? <p className="mt-2 text-xs text-warn">{pathView.warning}</p> : null}
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <Meta label="Source" value={card.source_title ?? (pathView?.display_path ?? card.source_path)} />
-          <Meta label="Source path" value={pathView?.full_path_available ? card.source_path : (pathView?.display_path ?? card.source_path)} />
+          <Meta label="Source" value={card.source_title ?? pathView?.display_path ?? "Source path not available"} />
+          <Meta label="Source path" value={pathView?.display_path ?? "Source path not available"} />
           <SourceLocationBadge cardId={card.id ?? ""} hasSource={!!card.source_path} />
           <Meta label="Archived source path" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
           <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
@@ -286,8 +286,8 @@ function Meta({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function sourceLabel(card: Pick<LibraryCardResponse, "source_title" | "source_path">) {
-  return card.source_title ?? card.source_path ?? null;
+function sourceLabel(card: Pick<LibraryCardResponse, "source_title" | "source_path_view">) {
+  return card.source_title ?? card.source_path_view?.display_path ?? null;
 }
 
 function sourceTypeBadge(card: Pick<LibraryCardResponse, "source_type">) {

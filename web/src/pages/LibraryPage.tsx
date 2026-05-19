@@ -67,7 +67,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                   <h3 className="font-medium text-ink">{card.title ?? card.rel_path}</h3>
                   <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{friendlyStatus(card.status)}</span>
                 </div>
-                <p className="mt-1 text-sm text-muted">{card.source_title ?? card.source_path ?? "No source title"}</p>
+                <p className="mt-1 text-sm text-muted">{card.source_title ?? card.source_path_view?.display_path ?? "No source title"}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
                   {card.track ? <span>track:{card.track}</span> : null}
                   {card.strategy_label ? <span>{card.strategy_label}</span> : null}

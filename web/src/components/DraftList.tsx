@@ -31,7 +31,7 @@ export function DraftList({
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
               {draft.strategy_label ? <span>{draft.strategy_label}</span> : null}
               {draft.strategy_note ? <span>{draft.strategy_note}</span> : null}
-              {draft.source_title || draft.source_path ? <span>source:{draft.source_title ?? draft.source_path}</span> : null}
+              {draft.source_title || draft.source_path_view?.display_path ? <span>source:{draft.source_title ?? draft.source_path_view?.display_path}</span> : null}
               {draft.track ? <span>track:{draft.track}</span> : null}
               {draft.projects.map((project) => (
                 <span key={project}>project:{project}</span>

@@ -31,7 +31,7 @@ export function LocalGraphPreview({ graph, relatedCards = [] }: Props) {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="font-medium text-ink">{item.card.title ?? item.card.rel_path}</div>
-                  <div className="mt-1 text-xs text-muted">{item.card.source_title ?? item.card.source_path ?? "No source title"}</div>
+                  <div className="mt-1 text-xs text-muted">{item.card.source_title ?? item.card.source_path_view?.display_path ?? "No source title"}</div>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {item.reasons.map((reason) => (

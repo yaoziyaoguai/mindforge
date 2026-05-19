@@ -450,7 +450,7 @@ class LibraryCardResponse(BaseModel):
     source_id: str | None = None
     adapter_name: str | None
     source_title: str | None
-    source_path: str | None
+    source_path: str | None = None
     source_content_hash: str | None = None
     source_archive_path: str | None
     source_missing: bool
@@ -618,8 +618,11 @@ class RevealRequest(BaseModel):
     """安全的 object-reference reveal 请求 —— 不接受 raw path。
 
     中文学习型说明：前端传 card_id 或 draft_id，后端自行查找对象并校验权限，
-    不信任用户提供的 path 字符串。
+    不信任用户提供的 path 字符串。extra="forbid" 确保传入 path 等额外字段时
+    返回 422 而非静默忽略。
     """
+
+    model_config = {"extra": "forbid"}
 
     card_id: str | None = None
     draft_id: str | None = None

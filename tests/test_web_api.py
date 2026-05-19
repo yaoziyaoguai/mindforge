@@ -4749,3 +4749,257 @@ def test_wiki_status_model_not_ready_has_fallback_reason(tmp_path: Path) -> None
     assert data["model_ready"] is True
     assert data["effective_generation_mode"] == "llm"
     assert data["fallback_reason"] is None
+
+
+# ===========================================================================
+# Remaining P1: API source_path redaction tests
+# 中文学习型说明：这些测试验证 source_path 在 API response 中对 unsafe
+# path_kind（outside/unknown/not_available）必须 redact 为 None。
+# source_path_view.display_path 是唯一可信展示来源。
+# ===========================================================================
+
+
+def test_library_card_outside_source_path_is_redacted(tmp_path: Path) -> None:
+    """outside source_path 在 library card API response 中必须为 None。
+
+    中文学习型说明：config_path.parent 不包含 outside 目录，确保
+    build_source_path_view 将其分类为 outside_allowed_roots。
+    """
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
+    cfg_path, vault, cards = _write_config(cfg_dir)
+    _write_approved_card(cards)
+
+    # 改写 approved card，将 source_path 改为 outside 绝对路径
+    outside_file = tmp_path / "outside-sources" / "external.md"
+    outside_file.parent.mkdir()
+    outside_file.write_text("# External\n\nOutside content.", encoding="utf-8")
+
+    card_path = cards / "approved.md"
+    raw = card_path.read_text(encoding="utf-8")
+    raw = raw.replace(
+        "source_path: 00-Inbox/ManualNotes/source-note.md",
+        f"source_path: {outside_file}",
+    )
+    card_path.write_text(raw, encoding="utf-8")
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # library list
+    lib = client.get("/api/library/cards").json()
+    assert len(lib["cards"]) == 1
+    card = lib["cards"][0]
+    # source_path 必须 redact 为 None（outside path）
+    assert card["source_path"] is None, f"outside source_path must be None, got {card['source_path']!r}"
+    # source_path_view 必须存在
+    assert card["source_path_view"] is not None
+    assert card["source_path_view"]["path_kind"] == "outside_allowed_roots"
+    assert card["source_path_view"]["full_path_available"] is False
+    assert card["source_path_view"]["can_copy_full_path"] is False
+    assert card["source_path_view"]["can_reveal_in_finder"] is False
+    # display_path 只展示 basename
+    assert card["source_path_view"]["display_path"] == outside_file.name
+    assert str(outside_file) not in (card["source_path_view"]["display_path"] or "")
+
+    # library detail（response_model_exclude_none=True → source_path=None 被排除）
+    detail = client.get("/api/library/card", params={"ref": "approved-web-1"}).json()
+    assert "source_path" not in detail["card"], (
+        f"outside source_path must be excluded from detail response, "
+        f"got {detail['card'].get('source_path')!r}"
+    )
+    assert detail["card"]["source_path_view"]["path_kind"] == "outside_allowed_roots"
+
+
+def test_draft_outside_source_path_is_redacted(tmp_path: Path) -> None:
+    """outside source_path 在 draft API response 中必须为 None。"""
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
+    cfg_path, vault, cards = _write_config(cfg_dir)
+    _write_draft(cards)
+
+    # 改写 draft card，将 source_path 改为 outside 绝对路径
+    outside_file = tmp_path / "outside-sources" / "draft-source.md"
+    outside_file.parent.mkdir()
+    outside_file.write_text("# Draft Source", encoding="utf-8")
+
+    draft_path = cards / "draft.md"
+    raw = draft_path.read_text(encoding="utf-8")
+    raw = raw.replace(
+        "source_path: 00-Inbox/ManualNotes/source-note.md",
+        f"source_path: {outside_file}",
+    )
+    draft_path.write_text(raw, encoding="utf-8")
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # draft list
+    drafts_resp = client.get("/api/drafts").json()
+    assert len(drafts_resp["drafts"]) == 1
+    draft = drafts_resp["drafts"][0]
+    assert draft["source_path"] is None, f"outside source_path must be None, got {draft['source_path']!r}"
+    assert draft["source_path_view"] is not None
+    assert draft["source_path_view"]["path_kind"] == "outside_allowed_roots"
+
+    # draft detail
+    detail = client.get("/api/drafts/draft-1").json()
+    assert detail["draft"]["source_path"] is None
+    assert detail["draft"]["source_path_view"]["path_kind"] == "outside_allowed_roots"
+    # source_context 中的 source_path 也必须 redact
+    assert detail["source_context"]["source_path"] is None
+
+
+def test_library_card_workspace_source_path_is_preserved(tmp_path: Path) -> None:
+    """workspace source_path 在 API response 中必须保留（不 redact）。
+
+    中文学习型说明：vault 内相对路径是安全的，redact 规则只对
+    outside/unknown/not_available 生效。需确保 source file 存在。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    # 确保 source file 存在（否则 build_source_path_view 分类为 not_available）
+    inbox_source = vault / "00-Inbox" / "ManualNotes" / "source-note.md"
+    inbox_source.parent.mkdir(parents=True, exist_ok=True)
+    inbox_source.write_text("# Safe source", encoding="utf-8")
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    lib = client.get("/api/library/cards").json()
+    assert len(lib["cards"]) == 1
+    card = lib["cards"][0]
+
+    # workspace 路径应保留
+    assert card["source_path"] == "00-Inbox/ManualNotes/source-note.md"
+    assert card["source_path_view"]["path_kind"] == "workspace"
+    assert card["source_path_view"]["full_path_available"] is True
+    assert card["source_path_view"]["can_copy_full_path"] is True
+    assert card["source_path_view"]["can_reveal_in_finder"] is True
+
+
+def test_source_path_none_redacted_to_none(tmp_path: Path) -> None:
+    """source_path 为 None 时 API response 始终保持 None。
+
+    中文学习型说明：没有 source_path 时，source_path_view 为 not_available，
+    safe_source_path 也应返回 None（fail-closed）。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    # 写入无 source_path 的 approved card
+    card_path = cards / "no-source.md"
+    card_path.write_text(
+        """---
+id: no-source-1
+title: No Source Card
+status: human_approved
+source_type: manual_note
+---
+## Body
+No source.
+""",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    detail = client.get("/api/library/card", params={"ref": "no-source-1"}).json()
+    # response_model_exclude_none=True → source_path=None 被排除
+    assert "source_path" not in detail["card"], (
+        f"None source_path must be excluded from detail response, "
+        f"got {detail['card'].get('source_path')!r}"
+    )
+    assert detail["card"]["source_path_view"]["path_kind"] == "not_available"
+
+
+# ===========================================================================
+# Remaining P1: RevealRequest contract tests
+# ===========================================================================
+
+
+def test_reveal_endpoint_rejects_extra_path_field(tmp_path: Path) -> None:
+    """RevealRequest extra="forbid" —— 传入 path 字段返回 422。
+
+    中文学习型说明：不能静默忽略 path，必须显式拒绝。
+    """
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 传入 raw path 字段 —— 必须 422
+    response = client.post(
+        "/api/sources/reveal",
+        json={"card_id": "draft-1", "path": "/tmp/foo"},
+    )
+    assert response.status_code == 422, f"extra path must be rejected, got {response.status_code}"
+    detail = response.json()
+    # 错误响应不 echo raw path
+    combined = f"{detail}"
+    assert "/tmp/foo" not in combined
+
+
+def test_reveal_endpoint_outside_card_reveal_rejected(tmp_path: Path) -> None:
+    """outside card 的 reveal 必须被拒绝（403）。
+
+    中文学习型说明：即使 card 存在，outside_allowed_roots 的 can_reveal_in_finder
+    为 False，reveal 必须返回 403。错误响应不泄露 raw path。
+    """
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
+    cfg_path, vault, cards = _write_config(cfg_dir)
+    _write_draft(cards)
+
+    # 将 source_path 改为 outside 绝对路径
+    outside_file = tmp_path / "outside-sources" / "secret.md"
+    outside_file.parent.mkdir()
+    outside_file.write_text("SECRET", encoding="utf-8")
+
+    draft_path = cards / "draft.md"
+    raw = draft_path.read_text(encoding="utf-8")
+    raw = raw.replace(
+        "source_path: 00-Inbox/ManualNotes/source-note.md",
+        f"source_path: {outside_file}",
+    )
+    draft_path.write_text(raw, encoding="utf-8")
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    # 尝试 reveal outside card
+    response = client.post("/api/sources/reveal", json={"card_id": "draft-1"})
+    assert response.status_code == 403, f"outside reveal must be rejected, got {response.status_code}"
+    detail = response.json()
+    # 错误不泄露 raw path
+    assert str(outside_file) not in str(detail)
+
+
+def test_reveal_endpoint_workspace_card_reveal_allowed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """workspace card 的 reveal 允许（mock subprocess.run）。
+
+    中文学习型说明：vault 内路径的 reveal 必须成功；mock 掉 subprocess.run
+    以避免实际执行 open 命令。验证 authorization decision 通过且 command 正确。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_draft(cards)
+
+    # 确保 source file 存在
+    source_file = vault / "00-Inbox" / "ManualNotes" / "source-note.md"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("# Safe", encoding="utf-8")
+
+    calls: list[tuple[list[str], dict]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append((list(args), kwargs))
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    monkeypatch.setattr("mindforge_web.services.web_path_action_service.sys.platform", "darwin")
+    monkeypatch.setattr("mindforge_web.services.web_path_action_service.subprocess.run", fake_run)
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    reveal = client.post("/api/sources/reveal", json={"card_id": "draft-1"}).json()
+
+    assert reveal["ok"] is True
+    assert reveal["action"] == "reveal"
+    assert reveal["path_kind"] == "workspace"
+    assert calls[0][0] == ["open", "-R", str(source_file.resolve())]

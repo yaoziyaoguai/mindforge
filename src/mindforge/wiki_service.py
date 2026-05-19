@@ -201,10 +201,13 @@ def _append_card_section(lines: list[str], card: CardSummary) -> None:
     lines.append("**Provenance:**\n\n")
     lines.append(f"- **Source card**: [{title}](../20-Knowledge-Cards/{card.rel_path.rsplit('/', 1)[-1] if '/' in card.rel_path else card.rel_path})\n")
     lines.append(f"- **Card path**: `{card.rel_path}`\n")
-    if card.source_title:
-        lines.append(f"- **Original source**: {card.source_title}\n")
-    elif card.source_path:
-        lines.append(f"- **Original source**: `{card.source_path}`\n")
+    # 中文学习型说明：原 source_path 不能直接嵌入 wiki content；
+    # 优先用 source_title，fallback 到 source_path 的 basename。
+    provenance_label = card.source_title
+    if not provenance_label and card.source_path:
+        provenance_label = Path(card.source_path).name
+    if provenance_label:
+        lines.append(f"- **Original source**: {provenance_label}\n")
     if card.strategy_id:
         lines.append(f"- **Strategy**: {card.strategy_id} v{card.strategy_version or '?'}\n")
     if card.tags:
