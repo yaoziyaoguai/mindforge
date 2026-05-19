@@ -178,7 +178,7 @@ def render_approval_list(
     )
     for col in (
         "ref",
-        "stable id",
+        "card id prefix",
         "title",
         "source",
         "created",
@@ -188,10 +188,10 @@ def render_approval_list(
     ):
         table.add_column(col, overflow="fold")
     for c, ref in zip(rows, refs, strict=False):
-        stable_id = (c.id or "")[:8] if c.id else "-"
+        card_id_prefix = (c.id or "")[:8] if c.id else "-"
         table.add_row(
             f"[{ref.number}]",
-            stable_id,
+            card_id_prefix,
             c.title or "?",
             format_card_source_hint(c),
             format_card_created_at(c),
@@ -202,9 +202,10 @@ def render_approval_list(
     console.print(table)
     console.print("[bold]Todo commands[/bold]")
     for c, ref in zip(rows, refs, strict=False):
-        stable_id = (c.id or "")[:8] if c.id else "-"
+        card_id_prefix = (c.id or "")[:8] if c.id else "-"
         console.print(
-            f"- [{ref.number}] {c.title or '?'} · stable_id={stable_id} · short_ref={ref.short_ref} · "
+            f"- [{ref.number}] {c.title or '?'} · card_id_prefix={card_id_prefix} · "
+            f"card_id={c.id or '-'} · short_ref={ref.short_ref} · "
             f"source={format_card_source_hint(c)} · created={format_card_created_at(c)} · "
             f"full_path={c.rel_path}",
             markup=False,
@@ -219,7 +220,7 @@ def render_approval_list(
         )
     console.print(
         "[dim]说明：数字 ref（方括号）是当前 session 的便捷编号，审批后列表刷新编号会变化。"
-        "stable_id（card_id 前 8 位）是稳定标识，可用于跨 session 引用。"
+        "card_id_prefix（card_id 前 8 位）只是展示用短标识；完整 card_id 或 full_path 才是 canonical reference。"
         "approve 会把 ai_draft 晋升为 human_approved，之后才进入 "
         "recall / review / project context 的默认结果；MindForge 不会自动 approve。[/dim]"
     )

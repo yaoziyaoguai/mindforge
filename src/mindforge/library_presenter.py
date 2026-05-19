@@ -91,7 +91,7 @@ def render_library_detail(console: Console, detail: LibraryCardDetail) -> None:
         "source_archive_path": card.source_archive_path or "-",
         "source_missing": "yes" if detail.card.source_missing else "no",
         "model": card.profile or card.provider or "-",
-        "approved_at": card.reviewed_at.isoformat() if card.reviewed_at else "-",
+        "approved_at": card.approved_at.isoformat() if card.approved_at else "-",
         "path": card.rel_path,
     }
     for key, value in rows.items():

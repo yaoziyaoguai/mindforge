@@ -266,6 +266,7 @@ export interface SourceStatus {
   file_glob: string;
   enabled: boolean;
   path: string;
+  source_path_view?: SourcePathViewModel | null;
   exists: boolean;
   file_count: number;
   error_count: number;
@@ -283,6 +284,7 @@ export interface ProcessingRunResponse {
   run_id: string;
   source_ref: string;
   source_path?: string | null;
+  source_path_view?: SourcePathViewModel | null;
   mode: string;
   status: "queued" | "running" | "succeeded" | "skipped" | "failed" | "partial_failed";
   started_at: string;
@@ -301,6 +303,7 @@ export interface ProcessingRunResponse {
 export interface WatchedSourceResponse {
   id: string;
   path: string;
+  source_path_view?: SourcePathViewModel | null;
   path_type: "file" | "folder";
   is_default: boolean;
   kind: "default" | "user-added";

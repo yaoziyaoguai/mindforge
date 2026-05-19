@@ -59,6 +59,7 @@ from mindforge.cards import CardSummary
 
 def _card(
     *,
+    card_id: str = "card-1234567890abcdef",
     title: str = "示例卡片",
     rel_path: str = "knowledge-cards/general/sample.md",
     status: str = "ai_draft",
@@ -70,7 +71,7 @@ def _card(
     value_score: int | None = 5,
 ) -> CardSummary:
     return CardSummary(
-        id="card-1",
+        id=card_id,
         title=title,
         path=Path("/tmp/vault") / rel_path,
         rel_path=rel_path,
@@ -127,6 +128,26 @@ def test_render_approval_list_table_contains_header_and_row():
     assert "mindforge approve 1 --confirm" in out
     assert "full_path=knowledge-cards/general/sample.md" in out
     assert "MindForge 不会自动 approve" in out
+
+
+def test_render_approval_list_labels_short_id_as_card_id_prefix_not_stable_id():
+    """8-char 前缀只是展示短标识，不能命名为 stable_id。"""
+
+    cards = (_card(card_id="card-1234567890abcdef"),)
+    res = ApprovalListResult(
+        candidates=cards, scan_errors=(), statuses=("ai_draft",)
+    )
+    console, buf = _capture_console()
+    approve_presenter.render_approval_list(
+        console, res, wanted_statuses={"ai_draft"}
+    )
+    out = buf.getvalue()
+
+    assert "stable_id" not in out
+    assert "stable id" not in out.lower()
+    assert "card_id_prefix=card-123" in out
+    assert "card_id=card-1234567890abcdef" in out
+    assert "数字 ref（方括号）是当前 session 的便捷编号" in out
 
 
 def test_render_approval_list_json_payload_schema_is_stable():

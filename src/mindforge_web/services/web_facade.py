@@ -94,8 +94,8 @@ class WebFacade:
         self.cfg = self.context.config
         self.config_path = self.context.paths.config_path
         self.config_service = WebConfigService(self.cfg, config_path=self.config_path)
-        self.source_service = WebSourceService(self.cfg)
         self.path_action_service = WebPathActionService(self.cfg, config_path=self.config_path)
+        self.source_service = WebSourceService(self.cfg, path_action_service=self.path_action_service)
         self.review_service = WebReviewService(self.cfg)
 
     def health(self) -> HealthResponse:
@@ -273,7 +273,7 @@ class WebFacade:
         record = get_processing_run(self.cfg, run_id)
         if record is None:
             return None
-        return processing_run_response(record)
+        return processing_run_response(record, path_action_service=self.path_action_service)
 
     def watch_delete(self, ref: str) -> IngestionActionResponse:
         return self.source_service.watch_delete(ref)

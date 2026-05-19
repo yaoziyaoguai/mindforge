@@ -63,10 +63,10 @@ def wiki_status(facade: WebFacade = Depends(get_facade)):
         "configured_mode": configured,
         "effective_generation_mode": effective_generation_mode,
         "content_mode": content_mode,
-        "mode": content_mode,  # legacy alias for content_mode
         "fallback_reason": fallback_reason,
         "model_ready": readiness.ready,
         "model_ready_label": readiness.label,
+        "model_id": _wiki_configured_model_id(facade),
     }
 
 
@@ -258,6 +258,17 @@ def _wiki_markdown_metadata(
         "last_rebuilt_at": last_rebuilt_at,
         "configured_mode": configured_mode,
     }
+
+
+def _wiki_configured_model_id(facade: WebFacade) -> str | None:
+    """返回 Wiki rebuild 配置的模型 id，不表达当前 Wiki 内容来源。
+
+    中文学习型说明：`/api/wiki/status` 不再返回 legacy `mode`，避免把用户配置、
+    实际 rebuild 模式和当前内容来源混成一个字段。model_id 只说明下一次 LLM
+    rebuild 会参考哪个配置模型；当前内容是否由 LLM 生成仍看 content_mode。
+    """
+
+    return facade.cfg.wiki.model or facade.cfg.llm.default_model
 
 
 @router.get("/sections")

@@ -25,14 +25,18 @@ export function SourceList({
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
-          {sources.map((source) => (
+          {sources.map((source) => {
+            const pathView = source.source_path_view;
+            const displayPath = pathView?.display_path ?? "Source path not available";
+            const copyTarget = pathView?.can_copy_full_path ? source.path : pathView?.display_path;
+            return (
             <tr key={source.source_type}>
               <td className="px-4 py-3">
                 <div className="font-medium text-ink">{source.source_type}</div>
                 <div className="text-xs text-muted">{source.adapter}</div>
               </td>
               <td className="max-w-[280px] px-4 py-3 text-muted">
-                <div className="truncate">{source.path}</div>
+                <div className="truncate">{displayPath}</div>
               </td>
               <td className="px-4 py-3">{source.file_count}</td>
               <td className="px-4 py-3">{source.processed_count}</td>
@@ -43,10 +47,10 @@ export function SourceList({
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-2">
-                  <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => onCopyPath?.(source.path)} type="button">
-                    Copy path
+                  <button className="rounded-md border border-line px-2 py-1 text-xs text-ink disabled:opacity-50" disabled={!copyTarget || !pathView?.can_copy_display_path} onClick={() => copyTarget && onCopyPath?.(copyTarget)} type="button">
+                    {pathView?.can_copy_full_path ? "Copy path" : "Copy display path"}
                   </button>
-                  <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => onRevealPath?.(source.path)} type="button">
+                  <button className="rounded-md border border-line px-2 py-1 text-xs text-ink disabled:opacity-50" disabled={!pathView?.can_reveal_in_finder} onClick={() => pathView?.can_reveal_in_finder && onRevealPath?.(source.path)} type="button">
                     Reveal in Finder
                   </button>
                   <button className="rounded-md border border-line px-2 py-1 text-xs text-primary" onClick={onOpenCards} type="button">
@@ -64,7 +68,8 @@ export function SourceList({
                 ) : null}
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>

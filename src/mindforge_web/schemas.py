@@ -318,6 +318,7 @@ class SourceStatus(BaseModel):
     file_glob: str
     enabled: bool
     path: str
+    source_path_view: SourcePathViewModel | None = None
     exists: bool
     file_count: int
     error_count: int = 0
@@ -334,6 +335,7 @@ class SourceStatus(BaseModel):
 class WatchedSourceResponse(BaseModel):
     id: str
     path: str
+    source_path_view: SourcePathViewModel | None = None
     path_type: Literal["file", "folder"]
     is_default: bool
     kind: Literal["default", "user-added"]
@@ -410,6 +412,7 @@ class ProcessingRunResponse(BaseModel):
     run_id: str
     source_ref: str
     source_path: str | None = None
+    source_path_view: SourcePathViewModel | None = None
     mode: str
     status: Literal["queued", "running", "succeeded", "skipped", "failed", "partial_failed"]
     started_at: str

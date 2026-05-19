@@ -178,7 +178,8 @@ _RATE_LIMIT_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTA_RE = re.compile(
-    r"quota.*(exceeded|limit|insufficient)|insufficient.*quota",
+    r"insufficient\s+(quota|credits?)|quota\s+(exceeded|exhausted|limit)"
+    r"|exceeded\s+.*quota|billing\s+quota|credit\s+balance",
     re.IGNORECASE,
 )
 
@@ -198,6 +199,18 @@ def classify_provider_error(message: str, status_code: int | None = None) -> Pro
     """
     # 中文学习型说明：只匹配公认的安全模式；禁止把 raw message 直接拼接进
     # safe_message，防止 provider response body 中的敏感信息泄露给前端。
+    if _QUOTA_RE.search(message):
+        return ProviderErrorClassification(
+            error_type="provider_quota_exceeded",
+            safe_message=(
+                "Provider quota exceeded. Check your quota or billing status "
+                "in the provider dashboard, or switch to a different provider."
+            ),
+            retry_hint=(
+                "Verify quota in your provider dashboard. Consider switching "
+                "to a different provider or model."
+            ),
+        )
     if status_code == 429 or _RATE_LIMIT_RE.search(message):
         return ProviderErrorClassification(
             error_type="provider_rate_limited",
@@ -209,18 +222,6 @@ def classify_provider_error(message: str, status_code: int | None = None) -> Pro
             retry_hint=(
                 "Wait 30-60 seconds and retry. Reduce concurrent processing "
                 "or split large imports into smaller batches."
-            ),
-        )
-    if _QUOTA_RE.search(message):
-        return ProviderErrorClassification(
-            error_type="provider_quota_exceeded",
-            safe_message=(
-                "Provider quota exceeded. Check your quota or billing status "
-                "in the provider dashboard, or switch to a different provider."
-            ),
-            retry_hint=(
-                "Verify quota in your provider dashboard. Consider switching "
-                "to a different provider or model."
             ),
         )
     # generic provider error：不暴露 raw message，但保留 error_type 区分

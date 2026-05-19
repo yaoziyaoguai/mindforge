@@ -241,9 +241,10 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         source_missing=_bool_or_false(data.get("source_missing")),
         value_score=_int_or_none(data.get("value_score")),
         created_at=_dt_or_none(data.get("created_at")),
-        # 中文学习型说明：approver 写入 approved_at，旧卡片可能只有 reviewed_at。
-        # 优先读 approved_at，fallback 到 reviewed_at 保证向后兼容。
-        approved_at=_dt_or_none(data.get("approved_at")) or _dt_or_none(data.get("reviewed_at")),
+        # 中文学习型说明：approved_at 是显式 approval timestamp，不能用
+        # reviewed_at（复习时间）fallback。旧卡片若只有 reviewed_at，仍通过
+        # reviewed_at 字段表达，避免把“复习过”误报成“已批准”。
+        approved_at=_dt_or_none(data.get("approved_at")),
         reviewed_at=_dt_or_none(data.get("reviewed_at")),
         review_count=_int_or_none(data.get("review_count")) or 0,
         last_review_result=_str_or_none(data.get("last_review_result")),

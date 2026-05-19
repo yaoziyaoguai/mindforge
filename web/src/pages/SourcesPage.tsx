@@ -62,11 +62,22 @@ export function SourcesPage({
   }
 
   // 中文学习型说明：client-side clipboard copy —— raw path endpoint 已禁用。
-  async function copyPath(targetPath: string) {
+  // SourcesPage 只信任 source_path_view；没有 view 时 fail-closed。
+  async function copySourcePath(source: SourcesResponse["watched_sources"][number]) {
     setResult(null);
+    const view = source.source_path_view;
+    if (!view?.can_copy_display_path) {
+      setResult("No safe source path to copy.");
+      return;
+    }
+    const targetPath = view.can_copy_full_path ? source.path : view.display_path;
+    if (!targetPath) {
+      setResult("No safe source path to copy.");
+      return;
+    }
     try {
       await navigator.clipboard?.writeText(targetPath);
-      setResult("Copied");
+      setResult(view.can_copy_full_path ? "Copied source path." : "Copied display path.");
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Copy path failed");
     }
@@ -108,10 +119,10 @@ export function SourcesPage({
                   </div>
                   <div>
                     <div className="text-xs font-medium uppercase text-muted">Path</div>
-                    <div className="mt-1 break-all text-sm text-ink">{source.path}</div>
+                    <div className="mt-1 break-all text-sm text-ink">{sourceDisplayPath(source)}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <button className="rounded-md border border-line px-2 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
-                        Copy path
+                      <button className="rounded-md border border-line px-2 py-1 text-xs text-ink disabled:opacity-50" disabled={!source.source_path_view?.can_copy_display_path} onClick={() => copySourcePath(source)} type="button">
+                        {source.source_path_view?.can_copy_full_path ? "Copy path" : "Copy display path"}
                       </button>
                       {/* 中文学习型说明：raw path reveal 已禁用；source-ref reveal 待实现 */}
                     </div>
@@ -185,8 +196,8 @@ export function SourcesPage({
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => editFrequency(source.id, source.frequency)} title="Edit frequency" type="button">
                         Edit frequency
                       </button>
-                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink" onClick={() => copyPath(source.path)} type="button">
-                        Copy path
+                      <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={!source.source_path_view?.can_copy_display_path} onClick={() => copySourcePath(source)} type="button">
+                        {source.source_path_view?.can_copy_full_path ? "Copy path" : "Copy display path"}
                       </button>
                       {/* 中文学习型说明：raw path reveal 已禁用 */}
                       <button className="rounded-md border border-line px-3 py-1 text-xs text-ink disabled:opacity-50" disabled={busy} onClick={() => removeWatch(source)} title="Stop watching" type="button">
@@ -248,6 +259,9 @@ function runStatusLabel(status?: string | null, runId?: string | null) {
 
 function sourceLabel(source: SourcesResponse["watched_sources"][number]) {
   if (source.is_default) return "Built-in inbox";
-  const cleanPath = source.path.replace(/\/$/, "");
-  return cleanPath.split("/").pop() || source.path;
+  return source.source_path_view?.display_source_name ?? source.source_path_view?.display_path ?? source.id;
+}
+
+function sourceDisplayPath(source: SourcesResponse["watched_sources"][number]) {
+  return source.source_path_view?.display_path ?? "Source path not available";
 }

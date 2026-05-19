@@ -48,11 +48,13 @@ from mindforge_web.services.processing_run_service import (
     start_processing_run,
     start_sync_processing_run,
 )
+from mindforge_web.services.web_path_action_service import WebPathActionService
 
 
 class WebSourceService:
-    def __init__(self, cfg: MindForgeConfig) -> None:
+    def __init__(self, cfg: MindForgeConfig, *, path_action_service: WebPathActionService) -> None:
         self.cfg = cfg
+        self.path_action_service = path_action_service
 
     def list_sources(self) -> list[SourceStatus]:
         results: list[SourceStatus] = []
@@ -60,6 +62,10 @@ class WebSourceService:
         generated_cards = self._generated_cards_by_source_subdir()
         for entry in self.cfg.sources.active_entries():
             path = self.cfg.vault.inbox_path / entry.inbox_subdir
+            source_path_view = self.path_action_service.build_source_path_view(
+                str(path),
+                source_title=entry.inbox_subdir,
+            )
             files = self._safe_files(path, entry.file_glob) if path.exists() else []
             processed_dir = self.cfg.vault.inbox_path / "_processed" / entry.inbox_subdir
             processed_files = (
@@ -73,7 +79,8 @@ class WebSourceService:
                     inbox_subdir=entry.inbox_subdir,
                     file_glob=entry.file_glob,
                     enabled=entry.enabled,
-                    path=str(path),
+                    path=_safe_response_path(str(path), source_path_view),
+                    source_path_view=source_path_view,
                     exists=path.exists(),
                     file_count=len(files),
                     error_count=scan_errors.get(entry.source_type, 0),
@@ -423,6 +430,11 @@ class WebSourceService:
         ]
 
     def _watch_response(self, source, generated_cards) -> WatchedSourceResponse:
+        source_path = str(source.path)
+        source_path_view = self.path_action_service.build_source_path_view(
+            source_path,
+            source_title=source.path.name,
+        )
         scan = enumerate_supported_source_files(self.cfg, source.path) if source.path.exists() else None
         supported_count = len(scan.candidates) if scan is not None else 0
         skipped_summary = dict(scan.skipped_reason_summary) if scan is not None else {}
@@ -460,7 +472,11 @@ class WebSourceService:
             source_ref=source.id,
             source_path=str(source.path),
         )
-        run_response = processing_run_response(latest_run) if latest_run is not None else None
+        run_response = (
+            processing_run_response(latest_run, path_action_service=self.path_action_service)
+            if latest_run is not None
+            else None
+        )
         active_run_id = (
             run_response.run_id if run_response is not None and run_response.status in {"queued", "running"} else None
         )
@@ -478,7 +494,8 @@ class WebSourceService:
         )
         return WatchedSourceResponse(
             id=source.id,
-            path=str(source.path),
+            path=_safe_response_path(source_path, source_path_view),
+            source_path_view=source_path_view,
             path_type=source.path_type,
             is_default=source.is_default,
             kind="default" if source.is_default else "user-added",
@@ -550,6 +567,25 @@ def _rel_to_vault(cfg: MindForgeConfig, path: Path) -> str:
         return path.resolve().relative_to(cfg.vault.root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _safe_response_path(raw_path: str, source_path_view: object | None) -> str:
+    """返回 Source API 里的兼容 path 字段，但不绕过 source_path_view。
+
+    中文学习型说明：老前端和部分测试仍读取 ``path`` 字段；新的安全边界是
+    ``source_path_view``。因此这里把 path 变成派生兼容字段：允许 full path 时
+    保留 raw；否则只返回 display_path/basename，避免 not_available/unknown
+    通过旧字段泄露 absolute path。
+    """
+
+    if source_path_view is None:
+        return Path(raw_path).name or "source"
+    if getattr(source_path_view, "full_path_available", False):
+        return raw_path
+    display_path = getattr(source_path_view, "display_path", None)
+    if display_path:
+        return str(display_path)
+    return Path(raw_path).name or "source"
 
 
 def _display_status(

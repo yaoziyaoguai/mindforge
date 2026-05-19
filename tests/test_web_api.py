@@ -4598,13 +4598,14 @@ def test_registered_source_not_falsely_claimed(tmp_path: Path) -> None:
 
 # =============================================================================
 # P1 Wiki Mode Metadata Tests
-# 中文学习型说明：这些测试验证 configured_mode / content_mode / mode 三层语义
-# 正确分离，不混用。
+# 中文学习型说明：这些测试验证 configured_mode / effective_generation_mode /
+# content_mode 三层语义正确分离。status 不返回 legacy mode；page 可保留 mode
+# 作为 content_mode alias。
 # =============================================================================
 
 
-def test_wiki_status_returns_all_three_mode_layers(tmp_path: Path) -> None:
-    """status endpoint 返回 configured_mode / effective_generation_mode / content_mode。"""
+def test_wiki_status_returns_separated_mode_layers_without_legacy_mode(tmp_path: Path) -> None:
+    """status endpoint 返回三层 mode 语义，但不返回容易混淆的 legacy mode。"""
     cfg_path, _vault, _cards = _write_config(tmp_path)
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     response = client.get("/api/wiki/status")
@@ -4613,8 +4614,9 @@ def test_wiki_status_returns_all_three_mode_layers(tmp_path: Path) -> None:
     assert "configured_mode" in data
     assert "effective_generation_mode" in data
     assert "content_mode" in data
-    assert "mode" in data  # legacy alias
+    assert "mode" not in data
     assert "fallback_reason" in data
+    assert "model_id" in data
 
 
 def test_wiki_page_configured_llm_with_deterministic_content(tmp_path: Path) -> None:
@@ -4743,7 +4745,8 @@ Body.
 
     # content_mode 一致
     assert status_data["content_mode"] == page_data["content_mode"]
-    assert status_data["mode"] == page_data["mode"]
+    assert "mode" not in status_data
+    assert page_data["mode"] == page_data["content_mode"]
     # configured_mode 一致
     assert status_data["configured_mode"] == page_data["configured_mode"]
 
@@ -4924,6 +4927,112 @@ No source.
         f"got {detail['card'].get('source_path')!r}"
     )
     assert detail["card"]["source_path_view"]["path_kind"] == "not_available"
+
+
+def test_library_api_does_not_treat_reviewed_at_as_approved_at(tmp_path: Path) -> None:
+    """Web/API 不能把 legacy reviewed_at 展示成 approval timestamp。
+
+    中文学习型说明：reviewed_at 属于复习系统；approved_at 只表示显式 approve。
+    如果 API 把 reviewed_at 填进 approved_at，前端会误导用户以为这张卡曾被
+    approval workflow 批准过。
+    """
+
+    cfg_path, _vault, cards = _write_config(tmp_path)
+    card = cards / "reviewed-only.md"
+    card.write_text(
+        """---
+id: reviewed-only
+title: Reviewed Only
+status: human_approved
+reviewed_at: 2026-05-11T09:00:00+08:00
+source_type: manual_note
+---
+
+## Body
+Reviewed, but not approved by approval metadata.
+""",
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    listed = client.get("/api/library/cards").json()["cards"][0]
+    detail = client.get("/api/library/card", params={"ref": "reviewed-only"}).json()["card"]
+
+    assert listed["approved_at"] is None
+    assert "approved_at" not in detail
+    assert "reviewed_at" not in detail
+
+
+def test_processing_run_outside_source_path_uses_safe_view(tmp_path: Path, monkeypatch) -> None:
+    """ProcessingRun API 也必须走 source_path_view 安全契约。
+
+    中文学习型说明：Library/Drafts 已经做了 source_path redaction，但 Run detail
+    是 Sources 页轮询的公开 Web API。outside source_path 不能在这里绕过统一
+    contract 泄露完整 absolute path；展示、copy、reveal 权限都必须来自
+    source_path_view。
+    """
+
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir()
+    cfg_path, _vault, _cards = _write_config(cfg_dir)
+    outside_file = tmp_path / "outside-sources" / "run-source.md"
+    outside_file.parent.mkdir()
+    outside_file.write_text("# Run Source\n\nExternal body.", encoding="utf-8")
+    monkeypatch.chdir(cfg_dir)
+    cfg = create_app(config_path=cfg_path, host="127.0.0.1").state.facade.cfg
+    record = ProcessingRunRecord(
+        run_id="pr_safe_source_view",
+        source_ref=f"import:{outside_file}",
+        source_path=str(outside_file),
+        mode="import",
+        status="skipped",
+        started_at=_now(),
+        finished_at=_now(),
+        current_step="completed",
+        summary={"discovered": 1, "processed": 0, "drafts": 0, "skipped": 1, "errors": 0},
+        message="Evaluated source, but no draft was generated. Reason: insufficient_content",
+        skip_reasons=["insufficient_content"],
+    )
+    _save_processing_run_record(cfg, record)
+
+    response = TestClient(create_app(config_path=cfg_path, host="127.0.0.1")).get(
+        "/api/processing/runs/pr_safe_source_view"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    combined = str(data)
+    assert str(outside_file) not in combined
+    assert data["source_ref"] == f"import:{outside_file.name}"
+    assert data["source_path"] is None
+    assert data["source_path_view"]["display_path"] == outside_file.name
+    assert data["source_path_view"]["path_kind"] == "outside_allowed_roots"
+    assert data["source_path_view"]["can_copy_full_path"] is False
+    assert data["source_path_view"]["can_reveal_in_finder"] is False
+
+
+def test_sources_page_uses_source_path_view_not_raw_path_for_display_or_copy() -> None:
+    """SourcesPage 对 path action 必须 fail-closed，不从 raw source.path 取展示/复制值。
+
+    中文学习型说明：当前没有前端 component test 框架，本测试用静态 contract
+    锁住最危险的回退形态：`source.path` 不得进入 Path 展示、copyPath 参数、
+    label fallback。未来引入 Vitest/Playwright component tests 后可替换为
+    真正渲染断言。
+    """
+
+    source = Path("web/src/pages/SourcesPage.tsx").read_text(encoding="utf-8")
+
+    forbidden_fragments = [
+        "{source.path}</div>",
+        "copyPath(source.path)",
+        "source.path.replace",
+        "|| source.path",
+        "?? source.path",
+    ]
+    for fragment in forbidden_fragments:
+        assert fragment not in source
+    assert "source.source_path_view" in source
+    assert "can_copy_full_path" in source
 
 
 # ===========================================================================
