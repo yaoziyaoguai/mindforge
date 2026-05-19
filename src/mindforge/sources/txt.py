@@ -10,12 +10,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from mindforge.sources.adapter_result import (
-    AdapterResult,
-    ExtractionWarning,
-    ProvenanceBlock,
-    SkipReason,
-)
+from mindforge.sources.adapter_result import AdapterResult, ProvenanceBlock, SkipReason
 from mindforge.sources.base import SourceDocument, compute_content_hash
 from mindforge.sources.source_adapter import SourceAdapter
 
@@ -90,25 +85,25 @@ class TxtAdapter(SourceAdapter):
                 skip_reason=SkipReason.DECODE_ERROR,
             )
 
-        warnings = []
-        if text == "":
-            warnings.append(
-                ExtractionWarning(
-                    code=SkipReason.EMPTY_FILE,
-                    message="Empty TXT file.",
-                )
+        if not text.strip():
+            return AdapterResult(
+                status="skipped",
+                skip_reason=SkipReason.EMPTY_FILE,
             )
 
-        document = self._build_document(p, text, warnings)
-        return AdapterResult(status="loaded", document=document, warnings=warnings)
+        document = self._build_document(p, text)
+        return AdapterResult(status="loaded", document=document)
 
     def _build_document(
         self,
         path: Path,
         text: str,
-        warnings: list[ExtractionWarning],
     ) -> SourceDocument:
-        """构造 SourceDocument，并记录 TXT 文件整体的 provenance block。"""
+        """构造 SourceDocument，并记录 TXT 文件整体的 provenance block。
+
+        中文学习型说明：调用方只会在 text 含有非空白正文时进入这里。空内容
+        已在 load() 处 friendly skipped，保证 downstream triage 不收到空文档。
+        """
         title = _title_from_text_or_path(text, path)
         provenance_blocks = [
             ProvenanceBlock(
@@ -127,7 +122,6 @@ class TxtAdapter(SourceAdapter):
             metadata={},
             content_hash=compute_content_hash(text, {"title": title}),
             adapter_name=self.name,
-            extraction_warnings=list(warnings),
             provenance_blocks=provenance_blocks,
         )
 

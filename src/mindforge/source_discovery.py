@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .config import MindForgeConfig
 from .scanner import ScanResult
-from .sources.adapter_result import AdapterResult
+from .sources.adapter_result import AdapterResult, SkipReason
 from .sources.base import SourceAdapter
 from .sources.registry import build_active_adapters
 
@@ -39,6 +39,11 @@ _SKIP_DIR_NAMES: frozenset[str] = frozenset(
         "logs",
         "runs",
     }
+)
+
+_LEGACY_DOC_SKIP_DETAIL = (
+    "Legacy .doc (binary OLE) is not supported in v0.2. "
+    "Please convert to .docx or export as PDF/TXT, then import the converted file."
 )
 
 
@@ -130,7 +135,7 @@ def discover_source_results(
     adapters = build_active_adapters(cfg.sources)
     scan = enumerate_supported_source_files(cfg, targets)
     for skipped in scan.skipped:
-        if skipped.path.is_file() and skipped.reason.startswith("unsupported_legacy_doc"):
+        if skipped.path.is_file() and _is_legacy_doc_skip(skipped.reason):
             yield ScanResult(
                 source_type="docx",
                 adapter_name="DocxTextAdapter",
@@ -231,11 +236,6 @@ def _skip_file_reason(
     if parser_reason is not None:
         return parser_reason
     if not _has_matching_adapter(path, adapters, entries):
-        if path.suffix.lower() == ".doc":
-            return (
-                "unsupported_legacy_doc: Legacy .doc (binary OLE) is not supported in v0.2. "
-                "Please convert to .docx or export as PDF/TXT, then import the converted file."
-            )
         return "unsupported_extension"
     return None
 
@@ -252,10 +252,7 @@ def _parser_skip_reason(path: Path, adapters: dict[str, SourceAdapter], entries)
     for entry in entries:
         adapter = adapters[entry.source_type]
         if path.suffix.lower() == ".doc":
-            return (
-                "unsupported_legacy_doc: Legacy .doc (binary OLE) is not supported in v0.2. "
-                "Please convert to .docx or export as PDF/TXT, then import the converted file."
-            )
+            return _legacy_doc_skip_reason()
         reason_fn = getattr(adapter, "skip_reason", None)
         if not callable(reason_fn):
             continue
@@ -265,6 +262,20 @@ def _parser_skip_reason(path: Path, adapters: dict[str, SourceAdapter], entries)
         if reason:
             return str(reason)
     return None
+
+
+def _legacy_doc_skip_reason() -> str:
+    """统一 legacy .doc 的 scanner-level skip reason。
+
+    中文学习型说明：两代 adapter 并存时，scanner 只需要稳定 reason code；具体
+    解释文案集中在这里，避免 `source_discovery.py` 多处裸字符串漂移。
+    """
+
+    return f"{SkipReason.UNSUPPORTED_LEGACY_DOC}: {_LEGACY_DOC_SKIP_DETAIL}"
+
+
+def _is_legacy_doc_skip(reason: str) -> bool:
+    return reason.startswith(SkipReason.UNSUPPORTED_LEGACY_DOC)
 
 
 def _has_matching_adapter(path: Path, adapters: dict[str, SourceAdapter], entries) -> bool:
@@ -325,6 +336,17 @@ def _safe_load(adapter: SourceAdapter, source_type: str, path: Path) -> ScanResu
             from dataclasses import replace
 
             doc = replace(doc, adapter_name=adapter.name or adapter.__class__.__name__)
+        if not (doc.raw_text or "").strip():
+            # 中文学习型说明：legacy adapter 仍返回 SourceDocument，但 discovery 是
+            # processor 前的统一闸口。空正文在这里转成 friendly skip，避免空
+            # Markdown/TXT/HTML/DOCX 等 source 进入 triage pipeline。
+            return ScanResult(
+                source_type=source_type,
+                adapter_name=adapter.name,
+                path=path,
+                document=None,
+                skip_reason=SkipReason.EMPTY_FILE,
+            )
         return ScanResult(
             source_type=source_type,
             adapter_name=adapter.name,

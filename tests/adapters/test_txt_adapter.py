@@ -114,21 +114,33 @@ class TestTxtAdapterM2Green:
         assert result.document is not None
         assert result.document.raw_text == "one\r\ntwo\nthree\r\n"
 
-    def test_empty_txt_loads_with_empty_file_warning(self, tmp_path: Path) -> None:
-        """RFC_0001 §5.6 / SDD §4.2：空 TXT loaded，raw_text 为空并记录 empty_file warning。"""
+    def test_empty_txt_is_friendly_skip(self, tmp_path: Path) -> None:
+        """空 TXT 应在 source 边界 skipped，不能作为空文档进入 triage。
+
+        中文学习型说明：早期 contract 允许 empty TXT loaded+warning；产品审计后
+        统一语义为“无可提取文本就是 friendly skipped”。这样 processor 只接收
+        有正文的 SourceDocument，避免后续 prompt/triage 处理空内容。
+        """
         txt = tmp_path / "empty.txt"
         txt.write_text("", encoding="utf-8")
 
         result = self.adapter.load(str(txt))
 
-        assert result.status == "loaded"
-        assert result.skip_reason is None
-        assert result.document is not None
-        assert result.document.raw_text == ""
-        warning_codes = {warning.code for warning in result.warnings}
-        document_warning_codes = {warning.code for warning in result.document.extraction_warnings}
-        assert SkipReason.EMPTY_FILE in warning_codes
-        assert SkipReason.EMPTY_FILE in document_warning_codes
+        assert result.status == "skipped"
+        assert result.skip_reason == SkipReason.EMPTY_FILE
+        assert result.document is None
+        assert "empty" in result.skip_reason
+
+    def test_whitespace_only_txt_is_friendly_skip(self, tmp_path: Path) -> None:
+        """只含空白的 TXT 与空 HTML/DOCX 一样，属于 no extractable text。"""
+        txt = tmp_path / "blank.txt"
+        txt.write_text(" \n\t\n", encoding="utf-8")
+
+        result = self.adapter.load(str(txt))
+
+        assert result.status == "skipped"
+        assert result.skip_reason == SkipReason.EMPTY_FILE
+        assert result.document is None
 
     def test_binary_txt_is_friendly_skip(self, tmp_path: Path) -> None:
         """RFC_0001 §5.6 / §5.14：二进制 .txt skipped，skip_reason=binary_file，不 crash。"""

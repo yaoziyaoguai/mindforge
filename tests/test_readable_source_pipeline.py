@@ -267,6 +267,46 @@ def test_legacy_doc_is_friendly_unsupported_without_processing(tmp_path: Path) -
     assert _card_paths(vault) == []
 
 
+def test_empty_txt_is_skipped_before_processing_pipeline(tmp_path: Path) -> None:
+    """空 TXT 不应作为 loaded document 进入后续 pipeline。
+
+    中文学习型说明：source discovery 是 adapter 与 processing 的交界面。这里确认
+    empty TXT 和 HTML/DOCX/PDF 的 no-text 语义一致：都记录为 skipped source，
+    而不是把空 raw_text 交给 triage prompt。
+    """
+
+    cfg_path, _vault = _write_fresh_clone_config(tmp_path)
+    cfg = load_app_config(cfg_path, cwd=tmp_path)
+    empty_txt = tmp_path / "empty.txt"
+    empty_txt.write_text(" \n\t\n", encoding="utf-8")
+
+    results = list(discover_source_results(cfg, empty_txt))
+
+    assert len(results) == 1
+    assert results[0].skip_reason == "empty_file"
+    assert results[0].document is None
+
+
+def test_empty_markdown_is_skipped_before_processing_pipeline(tmp_path: Path) -> None:
+    """空 Markdown 也应在 discovery 边界 skipped。
+
+    中文学习型说明：主链路仍使用 legacy PlainMarkdownAdapter，它的历史契约是
+    `load() -> SourceDocument`。空内容统一语义放在 discovery 适配层，可以避免
+    大规模 adapter 迁移，同时保证 processor 不收到空文档。
+    """
+
+    cfg_path, _vault = _write_fresh_clone_config(tmp_path)
+    cfg = load_app_config(cfg_path, cwd=tmp_path)
+    empty_md = tmp_path / "empty.md"
+    empty_md.write_text("---\ntitle: Empty\n---\n\n   \n", encoding="utf-8")
+
+    results = list(discover_source_results(cfg, empty_md))
+
+    assert len(results) == 1
+    assert results[0].skip_reason == "empty_file"
+    assert results[0].document is None
+
+
 # ---------------------------------------------------------------------------
 # P2-1: PDF/DOCX triage scoring — smart excerpt + prompt guidance
 # ---------------------------------------------------------------------------
