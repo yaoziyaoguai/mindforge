@@ -4752,23 +4752,74 @@ Body.
 
 
 def test_wiki_status_model_not_ready_has_fallback_reason(tmp_path: Path) -> None:
-    """model not ready 时 effective_generation_mode 退化并给出 fallback_reason。
+    """configured llm 但模型缺 key 时 status 必须给出精确 fallback contract。
 
-    中文学习型说明：fake provider 的 type="fake" 跳过 API key 检查，
-    因此 model_ready=True。这里验证 model ready 时 effective_generation_mode
-    等于 configured_mode（llm），fallback_reason 为 None。
-    model not ready 的场景需要真实 provider type + missing API key，不适合
-    在 fake provider 测试中构造。
+    中文学习型说明：这是最终稳定化收尾防回归测试，不是新增功能。
+    用非 fake provider + 临时 config 构造 missing-key readiness，确保 API
+    只表达“会回退到 deterministic”，不会把 configured_mode=llm 误报为
+    当前可执行的 LLM 生成，也不会把已有 deterministic 内容伪装成 llm。
     """
-    cfg_path, _vault, _cards = _write_config(tmp_path)
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    raw["wiki"] = {"mode": "llm", "model": "strict_wiki"}
+    raw["llm"] = {
+        "default_model": "strict_wiki",
+        "models": {
+            "strict_wiki": {
+                "provider": "openai-compatible",
+                "type": "openai_compatible",
+                "base_url": "https://example.invalid/v1",
+                "model": "test-wiki-model",
+                "timeout_seconds": 5,
+                "max_retries": 0,
+            }
+        },
+        "routing": {stage: "strict_wiki" for stage in REQUIRED_STAGES},
+    }
+    cfg_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+
+    wiki_dir = vault / "30-Wiki"
+    wiki_dir.mkdir()
+    (wiki_dir / "Main-Wiki.md").write_text(
+        """# MindForge Main Wiki
+
+> This wiki is generated from human-approved knowledge cards.
+> It is a derived view. Source files are not copied into this wiki.
+> Last rebuilt: 2026-05-18T12:00:00+0800
+> Cards included: 1
+
+## Overview
+
+Deterministic overview.
+
+<!-- WIKI_SECTION_START card_ids=approved-web-1 -->
+### Approved Web Card
+
+Body.
+
+<!-- WIKI_SECTION_END -->
+""",
+        encoding="utf-8",
+    )
+
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     response = client.get("/api/wiki/status")
     assert response.status_code == 200
     data = response.json()
-    # fake provider type 被视为 ready
-    assert data["model_ready"] is True
-    assert data["effective_generation_mode"] == "llm"
-    assert data["fallback_reason"] is None
+    assert data["configured_mode"] == "llm"
+    assert data["model_ready"] is False
+    assert data["model_ready_label"] == "needs setup"
+    assert data["model_id"] == "strict_wiki"
+    assert data["effective_generation_mode"] == "deterministic"
+    assert data["content_mode"] == "deterministic"
+    assert "mode" not in data
+
+    fallback_reason = data["fallback_reason"]
+    assert fallback_reason is not None
+    assert "LLM not ready" in fallback_reason
+    assert "deterministic" in fallback_reason
 
 
 # ===========================================================================

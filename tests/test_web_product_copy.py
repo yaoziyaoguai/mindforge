@@ -283,14 +283,12 @@ def test_setup_sources_section_decenters_cubox_config_fields() -> None:
 
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     sources = _read("pages/SourcesPage.tsx")
-    source_list = _read("components/SourceList.tsx")
-    combined = "\n".join([sources, source_list])
 
-    assert "Copy path" in combined
-    assert "Reveal in Finder" in combined
-    assert "Copied" in combined
-    assert "Processed" in combined
-    assert "Recursive: yes" in combined
+    assert "Copy path" in sources
+    assert "Reveal in Finder" not in sources
+    assert "Copied" in sources
+    assert "files scanned" in sources
+    assert "Recursive: yes" in sources
     assert "Frequency" in sources
     assert "Last scan" in sources
     assert "Next scan" in sources
@@ -309,7 +307,7 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "Process now" in sources
     assert "Edit frequency" in sources
     assert "Processing..." in sources
-    assert "You can keep using MindForge." in combined
+    assert "You can keep using MindForge." in sources
     assert "Last run summary" in sources
     assert "Last updated" in sources
     assert "Processing in the background. You can keep using MindForge." in sources
@@ -334,16 +332,46 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
     assert "folder · default" not in sources
     assert "default cannot be deleted" not in sources
     assert "Built-in inbox" in sources
-    assert "Skipped reasons" in combined
+    assert "Skipped reasons" in sources
     assert "Drafts created" in sources
     assert "Open related knowledge" in sources
     assert "supported=" not in sources
     assert "failed=" not in sources
-    assert "Open generated knowledge" not in combined
+    assert "Open generated knowledge" not in sources
     assert "Adapter ready" not in sources
     assert "Has generated knowledge" not in sources
-    assert "\"ready\"" not in source_list
-    assert "Approved" not in source_list
+
+
+def test_unused_source_list_component_is_removed_to_close_raw_path_callback_shape() -> None:
+    """收尾防回归：删除未使用 SourceList，避免留下 raw path callback 语义入口。"""
+
+    assert not (WEB_SRC / "components" / "SourceList.tsx").exists()
+
+
+def test_source_path_ui_static_contracts_fail_closed_without_component_tests() -> None:
+    """收尾防回归：暂无组件测试栈时，用静态 contract 锁住 source path UI 边界。
+
+    中文学习型说明：这不是替代长期组件测试，只是 final stabilization 的轻量
+    防回归边界。没有 source_path_view 时 UI 必须 fail-closed；不能重新出现
+    onCopyPath(path) / onRevealPath(path) 这类 raw path callback 形状。
+    """
+
+    frontend = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(WEB_SRC.rglob("*.tsx"))
+    )
+    forbidden = (
+        "onRevealPath?: (path: string)",
+        "onCopyPath?: (path: string)",
+        "onRevealPath?.(source.path)",
+        "onCopyPath?.(source.path)",
+        "copyPath(source.path)",
+        "source_path ||",
+        "source_path ??",
+    )
+    for pattern in forbidden:
+        assert pattern not in frontend
+    assert "source_path_view" in frontend
 
 
 def test_web_client_parses_string_and_object_error_detail() -> None:
