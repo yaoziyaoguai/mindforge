@@ -80,7 +80,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
     }
     try {
       await navigator.clipboard.writeText(text);
-      setPathActionMsg(pathView?.can_copy_full_path ? "Copied source path." : "Copied display path.");
+      setPathActionMsg(pathView?.can_copy_full_path ? "Copied source path." : "Copied safe display path only.");
     } catch (err) {
       setPathActionErr(err instanceof Error ? err.message : "Copy failed");
     }

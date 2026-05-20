@@ -46,6 +46,12 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
       <p className="mt-2 text-sm text-muted">
         Approve only after reviewing or editing this draft. Approved knowledge appears in the Knowledge Library and search.
       </p>
+      <p className="mt-2 text-sm">
+        Value score:{" "}
+        <span className="font-semibold">
+          {detail.draft.value_score != null ? detail.draft.value_score : "-"}
+        </span>
+      </p>
       <label className="mt-4 flex items-start gap-2 text-sm text-ink">
         <input checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} type="checkbox" />
         I reviewed the source context and draft content.

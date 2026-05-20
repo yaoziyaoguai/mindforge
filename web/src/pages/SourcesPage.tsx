@@ -77,7 +77,7 @@ export function SourcesPage({
     }
     try {
       await navigator.clipboard?.writeText(targetPath);
-      setResult(view.can_copy_full_path ? "Copied source path." : "Copied display path.");
+      setResult(view.can_copy_full_path ? "Copied source path." : "Copied safe display path only.");
     } catch (error) {
       setResult(error instanceof Error ? error.message : "Copy path failed");
     }

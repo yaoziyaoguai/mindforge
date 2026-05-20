@@ -123,9 +123,11 @@ def test_render_approval_list_table_contains_header_and_row():
     assert "Approve Todo · 1 pending" in out
     assert "ai_draft" in out
     assert "示例卡片" in out
+    assert "value score" in out
     assert "Todo commands" in out
     assert "[1]" in out
     assert "mindforge approve 1 --confirm" in out
+    assert "value_score=5" in out
     assert "full_path=knowledge-cards/general/sample.md" in out
     assert "MindForge 不会自动 approve" in out
 

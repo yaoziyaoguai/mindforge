@@ -182,6 +182,7 @@ def render_approval_list(
         "title",
         "source",
         "created",
+        "value score",
         "short ref",
         "risk / safety",
         "next command",
@@ -189,12 +190,14 @@ def render_approval_list(
         table.add_column(col, overflow="fold")
     for c, ref in zip(rows, refs, strict=False):
         card_id_prefix = (c.id or "")[:8] if c.id else "-"
+        vs = str(c.value_score) if c.value_score is not None else "-"
         table.add_row(
             f"[{ref.number}]",
             card_id_prefix,
             c.title or "?",
             format_card_source_hint(c),
             format_card_created_at(c),
+            vs,
             ref.short_ref,
             "ai_draft，需要人工确认；不会自动 approve",
             f"mindforge approve {ref.number} --confirm",
@@ -203,11 +206,12 @@ def render_approval_list(
     console.print("[bold]Todo commands[/bold]")
     for c, ref in zip(rows, refs, strict=False):
         card_id_prefix = (c.id or "")[:8] if c.id else "-"
+        vs = str(c.value_score) if c.value_score is not None else "-"
         console.print(
             f"- [{ref.number}] {c.title or '?'} · card_id_prefix={card_id_prefix} · "
             f"card_id={c.id or '-'} · short_ref={ref.short_ref} · "
             f"source={format_card_source_hint(c)} · created={format_card_created_at(c)} · "
-            f"full_path={c.rel_path}",
+            f"value_score={vs} · full_path={c.rel_path}",
             markup=False,
         )
         console.print(

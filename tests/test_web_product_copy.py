@@ -286,7 +286,7 @@ def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
 
     assert "Copy path" in sources
     assert "Reveal in Finder" not in sources
-    assert "Copied" in sources
+    assert "Copied safe display path only." in sources
     assert "files scanned" in sources
     assert "Recursive: yes" in sources
     assert "Frequency" in sources
