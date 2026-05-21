@@ -34,11 +34,19 @@ from mindforge.input_safety import (
 
 @pytest.fixture
 def fake_llm_config() -> LLMConfig:
-    """测试专用 fake profile 只在内存注入，不要求用户默认配置暴露 fake。"""
-    from mindforge.app_context import load_app_config
+    """测试专用 fake profile，自包含于内存，不依赖 gitignored runtime config。
 
-    repo_root = Path(__file__).resolve().parents[1]
-    return with_fake_llm_profile(load_app_config(repo_root / "configs" / "mindforge.yaml").llm)
+    中文学习型说明：configs/mindforge.yaml 是用户本地 gitignored 文件，
+    clean checkout 下不存在。测试必须自包含构造 fake config，不能依赖
+    任何 runtime 配置文件、.env 或真实 provider。
+    """
+    return with_fake_llm_profile(LLMConfig(
+        active_profile="",
+        profiles={},
+        models={},
+        default_model=None,
+        routing={},
+    ))
 
 
 def test_synthetic_examples_path_classified_as_synthetic(tmp_path):

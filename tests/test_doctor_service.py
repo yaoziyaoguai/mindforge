@@ -21,7 +21,9 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from mindforge.cli import app
-from mindforge.assets_runtime import bundled_asset_path_for_process
+import yaml
+
+from mindforge.assets_runtime import bundled_asset_path_for_process, bundled_text
 from mindforge.config import MindForgeConfig, load_mindforge_config
 from mindforge.presenters.doctor import doctor_icon, ok_dir
 from mindforge.services.doctor import (
@@ -41,6 +43,20 @@ def _make_cfg(tmp_path: Path) -> MindForgeConfig:
     new_vault = replace(cfg.vault, root=missing_vault)
     new_state = replace(cfg.state, workdir=tmp_path / ".mindforge")
     return replace(cfg, vault=new_vault, state=new_state)
+
+
+def _write_bundled_cfg(tmp_path: Path, vault: Path) -> Path:
+    """用 bundled defaults 写一份自包含 config 到 tmp，不依赖 gitignored runtime config。
+
+    中文学习型说明：configs/mindforge.yaml 是 gitignored 用户本地文件，
+    clean checkout 下不存在。CLI 测试必须自包含构造 config，通过 bundled
+    defaults 获取 schema-stable 的配置模板再覆写 vault root。
+    """
+    cfg = yaml.safe_load(bundled_text("configs", "mindforge.yaml"))
+    cfg["vault"]["root"] = str(vault)
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return cfg_path
 
 
 def test_config_doctor_rows_is_pure_and_returns_quadruples(tmp_path: Path) -> None:
@@ -122,13 +138,15 @@ def test_ok_dir_returns_human_readable_state(tmp_path: Path) -> None:
 def test_doctor_command_still_renders_known_sections(tmp_path: Path) -> None:
     """CLI 端到端：``mindforge doctor`` 输出必须仍包含主要 section 标题。
 
-    用 repo 默认 ``configs/mindforge.yaml`` + ``--vault`` 临时覆写，避免
-    自造一份和生产 schema 漂移的最小 cfg。
+    使用 bundled defaults + --vault 临时覆写，不依赖 gitignored runtime config。
     """
 
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    cfg_path = _write_bundled_cfg(tmp_path, vault)
     res = CliRunner().invoke(
         app,
-        ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(tmp_path / "vault")],
+        ["doctor", "--config", str(cfg_path), "--vault", str(vault)],
     )
     assert res.exit_code == 0, res.output
     out = res.output
@@ -196,7 +214,8 @@ def test_doctor_first_run_actions_do_not_recommend_scan_process_sync_path(tmp_pa
     for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
 
-    res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])
+    cfg_path = _write_bundled_cfg(tmp_path, vault)
+    res = CliRunner().invoke(app, ["doctor", "--config", str(cfg_path), "--vault", str(vault)])
 
     assert res.exit_code == 0, res.output
     assert "mindforge watch add" in res.output or "mindforge import" in res.output
@@ -211,7 +230,8 @@ def test_doctor_output_hides_old_first_run_words(tmp_path: Path) -> None:
     for subdir in ("00-Inbox", "20-Knowledge-Cards", "30-Projects"):
         (vault / subdir).mkdir(parents=True, exist_ok=True)
 
-    res = CliRunner().invoke(app, ["doctor", "--config", "configs/mindforge.yaml", "--vault", str(vault)])
+    cfg_path = _write_bundled_cfg(tmp_path, vault)
+    res = CliRunner().invoke(app, ["doctor", "--config", str(cfg_path), "--vault", str(vault)])
 
     assert res.exit_code == 0, res.output
     assert "Troubleshooting" in res.output or "Action items" in res.output

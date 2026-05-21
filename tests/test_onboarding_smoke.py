@@ -25,7 +25,9 @@ def _copy_fixture_vault(tmp_path: Path) -> tuple[Path, Path]:
     vault = tmp_path / "fixture-vault"
     shutil.copytree(src, vault)
 
-    cfg = yaml.safe_load(Path("configs/mindforge.yaml").read_text(encoding="utf-8"))
+    from mindforge.assets_runtime import bundled_text
+
+    cfg = yaml.safe_load(bundled_text("configs", "mindforge.yaml"))
     cfg["vault"]["root"] = str(vault)
     # configs/mindforge.yaml 现在是 user-level override；测试只覆盖需要改写的
     # 用户字段，完整 state/logging 默认由 runtime defaults 合并。

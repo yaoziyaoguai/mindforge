@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
+from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.scanner import ScanResult, Scanner
 from mindforge.source_mux import SourceMux
 from mindforge.sources.base import SourceDocument
@@ -31,7 +32,7 @@ from mindforge.sources.registry import (
 )
 
 _REPO = Path(__file__).resolve().parent.parent
-_DEFAULT_YAML = _REPO / "configs" / "mindforge.yaml"
+_DEFAULT_YAML = bundled_asset_path_for_process("configs", "mindforge.yaml")
 
 
 # ---------------------------------------------------------------------------

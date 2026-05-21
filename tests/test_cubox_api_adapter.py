@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from mindforge.assets_runtime import bundled_asset_path_for_process
 from mindforge.sources.base import SourceDocument
 from mindforge.sources.cubox_api import (
     CuboxApiAdapter,
@@ -133,7 +134,7 @@ def test_adapter_registered_in_builtin_registry() -> None:
 
 def test_default_config_does_not_enable_cubox_api() -> None:
     """默认 configs/mindforge.yaml 不能启用 cubox_api（必须用户显式 opt-in）。"""
-    cfg = Path(__file__).resolve().parent.parent / "configs" / "mindforge.yaml"
+    cfg = bundled_asset_path_for_process("configs", "mindforge.yaml")
     text = cfg.read_text(encoding="utf-8")
     # 允许以 source_type 字符串出现在注释 / 文档中，但不允许在 enabled 列表中
     # 简化判断：默认配置不包含 cubox_api 这个字符串即可
