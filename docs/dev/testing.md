@@ -1,5 +1,15 @@
 # MindForge Testing And Smoke Guide
 
+## Local Push Gate
+
+推荐开发者 push 前运行统一验证脚本，等价于 full pytest + ruff + diff check：
+
+```bash
+./scripts/check.sh
+```
+
+该脚本不读取 `.env`、不调用真实 provider，所有测试默认使用 fake / safe local 路径。
+
 ## Standard Quality Gate
 
 Run from the repository root:
