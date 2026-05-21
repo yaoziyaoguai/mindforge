@@ -13,9 +13,23 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
+import pytest
+
 from mindforge.cli import app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_runtime_dir(monkeypatch, tmp_path):
+    """隔离 runtime state dir，防止 ``init`` 命令写入真实 ``~/.mindforge``。
+
+    中文学习型说明：``init`` 会调用 ``_auto_set_active_workspace()``
+    → ``set_active_workspace()``，默认写入 ``Path.home()/.mindforge/``。
+    这会导致测试环境中出现 PermissionError。通过 ``MINDFORGE_RUNTIME_DIR``
+    正式注入入口将写入重定向到 ``tmp_path``，保持测试隔离。
+    """
+    monkeypatch.setenv("MINDFORGE_RUNTIME_DIR", str(tmp_path / ".mindforge"))
 
 
 # ---------------------------------------------------------------------------

@@ -4,10 +4,12 @@
 从显式 --config/--workspace → cwd 向上查找 → 全局 active workspace 的优先级链，
 最后找不到时给出友好的可操作错误提示。
 
-全局 active workspace 文件 ``~/.mindforge/current_workspace.json`` 只保存
-workspace path、config path 和 updated_at；不写入 API key、token 或任何 secret。
+全局 active workspace 文件 ``~/.mindforge/current_workspace.json`` 是
+**runtime state metadata**（类似 XDG_STATE_HOME 的职责），只保存 workspace
+path、config path 和 updated_at 三个字段；不写入 API key、token 或任何 secret。
+**它不是 workspace 内容目录** — 不存放 vault、配置、用户知识或卡片内容。
 secret 永远只属于 local secret store (``.mindforge/secrets.json``) 或 env var，
-不进入全局配置。
+不进入全局 runtime metadata。
 """
 
 from __future__ import annotations
@@ -18,9 +20,35 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-_ACTIVE_WORKSPACE_DIR = Path.home() / ".mindforge"
-_ACTIVE_WORKSPACE_FILE = _ACTIVE_WORKSPACE_DIR / "current_workspace.json"
 _DEFAULT_CONFIG_RELATIVE = Path("configs") / "mindforge.yaml"
+
+
+def _active_workspace_dir() -> Path:
+    """active workspace runtime state metadata 目录。
+
+    中文学习型说明：这里是 MindForge 全局运行时元数据（active workspace
+    指针 ``current_workspace.json``）的存放目录，**不是** workspace 内容
+    目录（vault / config / cards）。类比：它类似 XDG_STATE_HOME 的职责，
+    只放进程间需要共享的少量 metadata，不存放用户知识、卡片、配置或 secret。
+
+    默认 ``~/.mindforge``。通过 ``MINDFORGE_RUNTIME_DIR`` 环境变量可重定向
+    到任意目录（用于测试隔离或高级运行时隔离）。这与
+    ``MINDFORGE_WORKSPACE_OVERRIDE`` 的注入模式一致：env var 提供可控入口，
+    不改变默认路径语义，不改变 workspace 内容解析语义。
+    """
+    env_dir = os.environ.get("MINDFORGE_RUNTIME_DIR")
+    if env_dir:
+        return Path(env_dir)
+    return Path.home() / ".mindforge"
+
+
+def _active_workspace_file_path() -> Path:
+    """全局 active workspace 指针文件路径。
+
+    只读/写入均不包含 API key、token 或任何 secret。
+    secret 永远只属于 local secret store (``.mindforge/secrets.json``) 或 env var。
+    """
+    return _active_workspace_dir() / "current_workspace.json"
 
 
 @dataclass(frozen=True)
@@ -46,10 +74,11 @@ class ActiveWorkspace:
 
 def get_active_workspace() -> ActiveWorkspace | None:
     """读取全局 active workspace 指针；不访问 secret。"""
-    if not _ACTIVE_WORKSPACE_FILE.is_file():
+    ws_file = _active_workspace_file_path()
+    if not ws_file.is_file():
         return None
     try:
-        data = json.loads(_ACTIVE_WORKSPACE_FILE.read_text(encoding="utf-8"))
+        data = json.loads(ws_file.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
     if not isinstance(data, dict):
@@ -105,7 +134,7 @@ def set_active_workspace(workspace_path: Path) -> ActiveWorkspace:
             message=f"无法读取配置：{config_path}\n{exc}",
         ) from exc
 
-    _ACTIVE_WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    _active_workspace_dir().mkdir(parents=True, exist_ok=True)
     active = ActiveWorkspace(
         workspace_path=ws,
         config_path=config_path,
@@ -118,7 +147,7 @@ def set_active_workspace(workspace_path: Path) -> ActiveWorkspace:
 def clear_active_workspace() -> None:
     """清除全局 active workspace 指针；不删除任何 workspace 数据。"""
     try:
-        _ACTIVE_WORKSPACE_FILE.unlink(missing_ok=True)
+        _active_workspace_file_path().unlink(missing_ok=True)
     except OSError:
         pass
 
@@ -243,20 +272,35 @@ class WorkspaceResolutionError(ValueError):
 
 def _write_active_workspace(active: ActiveWorkspace) -> None:
     """写入全局 active workspace 文件；不写入 secret。"""
-    _ACTIVE_WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    _active_workspace_dir().mkdir(parents=True, exist_ok=True)
     payload = active.to_dict()
-    tmp = _ACTIVE_WORKSPACE_FILE.with_suffix(".tmp")
+    ws_file = _active_workspace_file_path()
+    tmp = ws_file.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(_ACTIVE_WORKSPACE_FILE)
+    tmp.replace(ws_file)
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
+def active_workspace_file_path() -> Path:
+    """全局 active workspace 指针文件路径（公开 API）。
+
+    中文学习型说明：这是 ``_active_workspace_dir()`` 的公开包装。调用方
+    （如测试）可通过 ``MINDFORGE_RUNTIME_DIR`` 环境变量注入 runtime state
+    metadata 目录，无需 monkeypatch ``Path.home()`` 内部实现。
+
+    正常用户调用不设 env var 时，默认行为仍是
+    ``~/.mindforge/current_workspace.json``，不受影响。
+    """
+    return _active_workspace_file_path()
+
+
 __all__ = [
     "ActiveWorkspace",
     "WorkspaceResolutionError",
+    "active_workspace_file_path",
     "get_active_workspace",
     "set_active_workspace",
     "clear_active_workspace",

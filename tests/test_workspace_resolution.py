@@ -16,12 +16,25 @@ import yaml
 
 from mindforge.workspace_resolver import (
     WorkspaceResolutionError,
+    active_workspace_file_path,
     clear_active_workspace,
     get_active_workspace,
     set_active_workspace,
     global_workspace_override,
     resolve_workspace_config,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_runtime_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """隔离 runtime state dir，防止测试写入真实 ``~/.mindforge``。
+
+    中文学习型说明：``MINDFORGE_RUNTIME_DIR`` 是 ``workspace_resolver``
+    模块提供的正式注入入口。本 fixture 通过 monkeypatch（pytest 内置的
+    环境变量隔离）将全局 active workspace 文件重定向到 tmp_path，
+    而不是 monkeypatch ``Path.home()`` 内部实现。
+    """
+    monkeypatch.setenv("MINDFORGE_RUNTIME_DIR", str(tmp_path / ".mindforge"))
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +264,7 @@ def test_active_workspace_file_no_secrets(tmp_path):
     assert set(data.keys()) == {"workspace_path", "config_path", "updated_at"}
 
     # 读回文件验证
-    ws_file = Path.home() / ".mindforge" / "current_workspace.json"
+    ws_file = active_workspace_file_path()
     raw = json.loads(ws_file.read_text(encoding="utf-8"))
     assert set(raw.keys()) == {"workspace_path", "config_path", "updated_at"}
 

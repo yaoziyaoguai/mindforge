@@ -9,12 +9,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
 from mindforge.cli import app
 
 from .test_v0_4_2 import _make_vault, _write_card
+
+
+@pytest.fixture(autouse=True)
+def _isolate_runtime_dir(monkeypatch, tmp_path):
+    """隔离 runtime state dir，防止 ``init --interactive`` 写入真实 ``~/.mindforge``。"""
+    monkeypatch.setenv("MINDFORGE_RUNTIME_DIR", str(tmp_path / ".mindforge"))
+
 
 runner = CliRunner()
 
