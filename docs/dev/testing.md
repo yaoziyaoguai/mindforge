@@ -10,6 +10,16 @@
 
 该脚本不读取 `.env`、不调用真实 provider，所有测试默认使用 fake / safe local 路径。
 
+## Dogfood Smoke
+
+非敏感 dogfood 闭环一键验证（fake provider，不需要 API key）：
+
+```bash
+./scripts/dogfood_smoke.sh
+```
+
+覆盖 markdown import → process → ai_draft 验证 → approve → recall 全链路。详见 `docs/dogfood.md`。
+
 ## Standard Quality Gate
 
 Run from the repository root:

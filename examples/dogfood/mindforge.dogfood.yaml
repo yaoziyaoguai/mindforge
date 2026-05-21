@@ -1,0 +1,133 @@
+# =============================================================================
+# MindForge Dogfood 配置 — 零密钥、零网络、纯本地验证路径
+#
+# 中文学习型说明：
+# - 本文件是 dogfood / smoke 专用配置，不含任何 secret、API key、真实端点。
+# - 所有 LLM 调用使用 fake provider（确定性、零网络、零密钥），输出 [fake] 前缀占位内容。
+# - 本文件不读取 .env，不连接外部服务，不处理真实私人资料。
+# - 使用方式：mindforge <command> --config examples/dogfood/mindforge.dogfood.yaml
+# - 忘记传 --config 会回退到默认 config（可能使用真实 provider），这是已知风险边界。
+#
+# 安全契约：
+# - fake provider 是默认安全路径，real provider 只能 opt-in。
+# - ai_draft 不会被自动提升为 human_approved，必须显式 mindforge approve --confirm。
+# - 所有运行时状态写入 /tmp，不与真实 workspace 交互。
+# =============================================================================
+
+version: 0.1
+
+# -----------------------------------------------------------------------------
+# Vault — 指向 /tmp 下的临时 dogfood vault，不接触真实 Obsidian vault
+# -----------------------------------------------------------------------------
+vault:
+  root: "/tmp/mindforge-dogfood-vault"
+  inbox_root: "00-Inbox"
+  cards_dir: "20-Knowledge-Cards"
+  archive_dir: "90-Archive/Skipped"
+
+# -----------------------------------------------------------------------------
+# Sources — dogfood 只启用 plain_markdown，覆盖最基础的非敏感 markdown 路径
+# -----------------------------------------------------------------------------
+sources:
+  enabled:
+    - plain_markdown
+
+  registry:
+    plain_markdown:
+      adapter: PlainMarkdownAdapter
+      inbox_subdir: "."
+      file_glob: "*.md"
+      enabled: true
+
+# -----------------------------------------------------------------------------
+# 状态 — 写入 /tmp，不污染项目根目录 .mindforge
+# -----------------------------------------------------------------------------
+state:
+  workdir: "/tmp/mindforge-dogfood-state"
+  state_file: "state.json"
+  runs_dir: "runs"
+  index_file: "index.jsonl"
+  backup_state: true
+
+# -----------------------------------------------------------------------------
+# LLM 配置 — 全部使用 fake provider
+#
+# 中文学习型说明：
+# - default_model + models + routing 是现代 config 格式（不是 profiles 遗留格式）。
+# - fake provider 对每个 pipeline stage 输出确定性 [fake] 前缀占位内容，
+#   不发起任何 HTTP 请求，不需要任何 API key。
+# - base_url: "fake://" 是 fake provider 的哨兵值，防止被误认为真实端点。
+# -----------------------------------------------------------------------------
+llm:
+  default_model: fake-main
+
+  models:
+    fake-main:
+      type: fake
+      provider: fake
+      base_url: "fake://"
+      model: "fake-main"
+      timeout_seconds: 120
+      max_retries: 2
+
+  routing:
+    triage: fake-main
+    distill: fake-main
+    link_suggestion: fake-main
+    review_questions: fake-main
+    action_extraction: fake-main
+
+# -----------------------------------------------------------------------------
+# Prompts — 使用默认 v1 prompt，fake provider 不依赖 prompt 内容
+# -----------------------------------------------------------------------------
+prompts:
+  triage_version: "v1"
+  distill_version: "v1"
+  link_suggestion_version: "v1"
+  review_questions_version: "v1"
+  action_extraction_version: "v1"
+
+# -----------------------------------------------------------------------------
+# Strategy
+# -----------------------------------------------------------------------------
+strategy:
+  active: "knowledge_card"
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  file: "/tmp/mindforge-dogfood-state/mindforge.log"
+  record_prompts: true
+  record_outputs: true
+
+# -----------------------------------------------------------------------------
+# Telemetry — dogfood 环境禁用
+# -----------------------------------------------------------------------------
+telemetry:
+  enabled: false
+  local_only: true
+
+# -----------------------------------------------------------------------------
+# Search — BM25 词法检索，纯本地，不是 RAG
+# -----------------------------------------------------------------------------
+search:
+  bm25:
+    enabled: true
+    k1: 1.5
+    b: 0.75
+    default_limit: 10
+    fields:
+      title: 5.0
+      learning_tracks: 4.0
+      projects: 4.0
+      tags: 3.0
+      summary: 1.0
+      action_items: 1.0
+  hybrid:
+    enabled: true
+    weights:
+      bm25: 0.75
+      value_score: 0.15
+      review_due: 0.10
