@@ -162,8 +162,8 @@ class ProviderErrorClassification:
     """provider error 的结构化分类结果；不包含 raw payload / secret。"""
 
     error_type: str
-    """稳定分类值：``provider_rate_limited`` / ``provider_quota_exceeded`` /
-    ``provider_error`` / ``unknown``。"""
+    """稳定分类值：``model_setup_incomplete`` / ``provider_rate_limited`` /
+    ``provider_quota_exceeded`` / ``provider_error`` / ``unknown``。"""
 
     safe_message: str
     """用户可读的安全消息；不含 raw response body / token / key。"""
@@ -197,6 +197,22 @@ def classify_provider_error(message: str, status_code: int | None = None) -> Pro
     Returns:
         ``ProviderErrorClassification``：稳定 error_type + 不泄密 safe_message。
     """
+    # 中文学习型说明：缺 API key / model setup incomplete 是 provider 构造阶段
+    # 主动抛出的精确错误（openai_compatible.py / anthropic_compatible.py 的
+    # from_model_config）。它不是泛型 provider/network error，必须单独分类，
+    # 给用户 actionable 的诊断："去 Web Setup 配 key"。
+    # 这与真实 network error / endpoint 500 / provider response failed 严格区分：
+    # 后者不包含 "Model setup is incomplete"，不会误入此分支。
+    if "Model setup is incomplete" in message:
+        return ProviderErrorClassification(
+            error_type="model_setup_incomplete",
+            safe_message=MODEL_SETUP_INCOMPLETE_MESSAGE,
+            retry_hint=(
+                "Add a provider API key in Web Setup or the local secret store, "
+                "then retry processing."
+            ),
+        )
+
     # 中文学习型说明：只匹配公认的安全模式；禁止把 raw message 直接拼接进
     # safe_message，防止 provider response body 中的敏感信息泄露给前端。
     if _QUOTA_RE.search(message):
