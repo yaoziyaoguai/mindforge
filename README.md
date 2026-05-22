@@ -333,6 +333,7 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 tr
 | [English README](README.en.md) | English GitHub entry |
 | [English Docs](docs/en/) | English documentation |
 | [发布说明](docs/RELEASE_NOTES.md) | 发布记录 |
+| [真实 LLM Dogfood](docs/real-llm-dogfood.md) | 真实 LLM opt-in 验证指南（Web-first） |
 | [开发者文档](docs/dev/) | 架构、测试、贡献指南 |
 | [设计文档](docs/design/) | RFC、SDD、路线图 |
 
