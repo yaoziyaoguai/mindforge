@@ -5,6 +5,8 @@ export interface NextAction {
   description: string;
   command?: string | null;
   href?: string | null;
+  /** 编程式导航回调（如 pushState）。与 href 互斥使用：href 渲染为 a 标签，onClick 渲染为 button。 */
+  onClick?: (() => void) | null;
 }
 
 export interface StatusItem {

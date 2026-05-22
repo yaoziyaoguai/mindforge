@@ -2,14 +2,14 @@ import { BookOpen, BookMarked, CheckSquare, Home, Inbox, Library, Search, Settin
 import { cx } from "../lib/utils";
 
 const items = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/setup", label: "Setup", icon: Settings },
-  { href: "/sources", label: "Sources", icon: Inbox },
-  { href: "/drafts", label: "Review", icon: CheckSquare },
-  { href: "/library", label: "Knowledge Library", icon: Library },
+  { href: "/", label: "首页", icon: Home },
+  { href: "/setup", label: "连接模型", icon: Settings },
+  { href: "/sources", label: "知识源", icon: Inbox },
+  { href: "/drafts", label: "审阅草稿", icon: CheckSquare },
+  { href: "/library", label: "知识库", icon: Library },
   { href: "/wiki", label: "Wiki", icon: BookMarked },
-  { href: "/recall", label: "Search", icon: Search },
-  { href: "/trash", label: "Trash", icon: Trash2 },
+  { href: "/recall", label: "搜索", icon: Search },
+  { href: "/trash", label: "回收站", icon: Trash2 },
 ];
 
 export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {

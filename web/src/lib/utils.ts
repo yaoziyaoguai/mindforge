@@ -16,13 +16,16 @@ export function truncateMiddle(value: string, max = 72): string {
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
+/** 用户侧状态文案映射 —— 把内部状态码（ai_draft、human_approved 等）转成用户可理解的标签。
+ *  不改数据字段、不改 API 返回值、不改 approval 语义。
+ *  技术原始状态通过 CardWorkspace 的 "Technical details" 折叠区保留，满足开发排查需要。 */
 export function friendlyStatus(status?: string | null): string {
-  if (status === "ai_draft") return "Needs review";
-  if (status === "human_approved") return "Approved";
-  if (status === "processed") return "Processed";
-  if (status === "skipped") return "Skipped";
-  if (status === "failed") return "Failed";
-  if (status === "pending") return "Pending";
-  if (status === "imported") return "Imported";
+  if (status === "ai_draft") return "待确认";
+  if (status === "human_approved") return "已确认";
+  if (status === "processed") return "已处理";
+  if (status === "skipped") return "已跳过";
+  if (status === "failed") return "失败";
+  if (status === "pending") return "等待中";
+  if (status === "imported") return "已导入";
   return status || "-";
 }

@@ -6,20 +6,20 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Home</h1>
-        <p className="mt-1 text-sm text-muted">Choose the next step for your local knowledge workspace.</p>
+        <h1 className="text-2xl font-semibold text-ink">首页</h1>
+        <p className="mt-1 text-sm text-muted">选择本地知识工作台的下一步操作。</p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard label="Review drafts" value={data.safety.pending_drafts_count} status={data.safety.pending_drafts_count > 0 ? "warn" : "ok"} detail="Draft knowledge waiting for your review." href="/drafts" onNavigate={onNavigate} />
-        <StatusCard label="Add or review sources" value={workflow?.inbox_pending_count ?? "-"} status={(workflow?.inbox_pending_count ?? 0) > 0 ? "warn" : "ok"} detail="Bring in original material and see what has been processed." href="/sources" onNavigate={onNavigate} />
-        <StatusCard label="Browse knowledge library" value={data.vault.approved_card_count} status={data.vault.approved_card_count > 0 ? "ok" : "info"} detail="Approved knowledge ready to read, edit, and search." href="/library" onNavigate={onNavigate} />
+        <StatusCard label="审阅 AI 草稿" value={data.safety.pending_drafts_count} status={data.safety.pending_drafts_count > 0 ? "warn" : "ok"} detail="待审阅的 AI 生成知识草稿。" href="/drafts" onNavigate={onNavigate} />
+        <StatusCard label="管理知识源" value={workflow?.inbox_pending_count ?? "-"} status={(workflow?.inbox_pending_count ?? 0) > 0 ? "warn" : "ok"} detail="添加原始资料并查看处理状态。" href="/sources" onNavigate={onNavigate} />
+        <StatusCard label="浏览知识库" value={data.vault.approved_card_count} status={data.vault.approved_card_count > 0 ? "ok" : "info"} detail="已确认的知识卡片，可供阅读、编辑和搜索。" href="/library" onNavigate={onNavigate} />
       </div>
       <section className="grid gap-4 md:grid-cols-2">
-        <StatusCard label="Search approved knowledge" value={data.recall.index_exists ? "Ready" : "Needs index"} status={data.recall.index_exists ? "ok" : "warn"} detail="Search only looks at approved knowledge." nextAction={data.recall.next_action} href="/recall" onNavigate={onNavigate} />
-        <StatusCard label="Check setup" value={data.provider.model_setup === "ready" ? "Ready" : "Review"} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="Review local vault and model setup." href="/setup" onNavigate={onNavigate} />
+        <StatusCard label="搜索知识" value={data.recall.index_exists ? "就绪" : "需建索引"} status={data.recall.index_exists ? "ok" : "warn"} detail="仅搜索已确认的知识卡片。" nextAction={data.recall.next_action} href="/recall" onNavigate={onNavigate} />
+        <StatusCard label="检查配置" value={data.provider.model_setup === "ready" ? "就绪" : "待检查"} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="检查本地知识库和模型配置。" href="/setup" onNavigate={onNavigate} />
       </section>
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-ink">Next actions</h2>
+        <h2 className="text-lg font-semibold text-ink">下一步操作</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {data.next_actions.map((action) => (
             <NextActionCard action={action} key={action.label} onNavigate={onNavigate} />

@@ -27,10 +27,10 @@ export function DraftList({
               <h3 className="font-medium text-ink">{draft.title ?? draft.rel_path}</h3>
               <span className="text-xs text-warn">{friendlyStatus(draft.status)}</span>
             </div>
-            <p className="mt-1 text-sm text-muted">{draft.source_title ?? draft.source_type ?? "No source title"}</p>
+            <p className="mt-1 text-sm text-muted">{draft.source_title ?? draft.source_type ?? ""}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
               <span>
-                Value score:{" "}
+                价值评分:{" "}
                 {draft.value_score != null ? draft.value_score : "-"}
               </span>
               {draft.strategy_label ? <span>{draft.strategy_label}</span> : null}

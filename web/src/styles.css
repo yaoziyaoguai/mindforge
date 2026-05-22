@@ -35,3 +35,8 @@ a:focus-visible,
 input:focus-visible {
   outline: 2px solid #2368d1;
 }
+
+/* 知识卡片阅读视图排版基线 —— 确保 section 标题层次清晰 */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+}

@@ -262,8 +262,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Setup</h1>
-        <p className="mt-1 text-sm text-muted">Local configuration editor. API keys are stored securely — secret values are never returned or shown.</p>
+        <h1 className="text-2xl font-semibold text-ink">连接模型和知识源</h1>
+        <p className="mt-1 text-sm text-muted">本地配置编辑器。连接真实 LLM 是可选的 —— MindForge 支持使用 demo 模型进行安全测试。API key 仅存储于本地安全凭据管理，不会发送给 Agent 或提交到仓库。</p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -276,7 +276,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-ink">Local workspace</h2>
-              <p className="text-sm text-muted">Config saves are limited to non-secret fields. YAML comments may be normalized on save.</p>
+              <p className="text-sm text-muted">配置保存仅涉及非敏感字段。API key 等秘密信息通过本地安全凭据管理存储，不会出现在配置文件中。</p>
             </div>
             <div className="flex gap-2">
               {dirty ? <span className="self-center text-xs font-medium text-warn">Unsaved changes</span> : null}
@@ -354,7 +354,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">Configured models</h2>
-                <p className="mt-1 text-sm text-muted">Models are named endpoints. Each model defines type, URL, model name, and API key.</p>
+                <p className="mt-1 text-sm text-muted">每个模型是一个命名端点，定义类型、URL、模型名称和 API key。真实 LLM 是可选的 —— demo 模型用于安全测试，不会调用外部 API。</p>
               </div>
               <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={startAdd} type="button" disabled={editing !== null}>
                 + Add model
@@ -481,9 +481,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : (
               <div className="rounded-md border border-line p-3 text-sm">
-                <div className="font-medium text-ink">No model configured</div>
-                <div className="mt-1 text-muted">Add a model to generate AI drafts.</div>
-                <div className="mt-1 text-xs text-muted">You can still add and monitor sources, but draft generation requires a configured model.</div>
+                <div className="font-medium text-ink">尚未配置模型</div>
+                <div className="mt-1 text-muted">添加模型以启用 AI 草稿生成。你也可以先不配置模型，仅添加和监控知识源。</div>
+                <div className="mt-1 text-xs text-muted">连接真实 LLM 需要填写 API key，这是可选的。Demo 模型不会调用外部 API，适合安全测试。</div>
               </div>
             )}
           </section>

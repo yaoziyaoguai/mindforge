@@ -70,17 +70,17 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
     setPathActionMsg(null);
     setPathActionErr(null);
     if (!navigator.clipboard?.writeText) {
-      setPathActionErr("Clipboard is not available in this browser.");
+      setPathActionErr("剪贴板不可用。");
       return;
     }
     const text = pathView?.display_path ?? null;
     if (!text) {
-      setPathActionErr("No path to copy.");
+      setPathActionErr("没有可复制的路径。");
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      setPathActionMsg(pathView?.can_copy_full_path ? "Copied source path." : "Copied safe display path only.");
+      setPathActionMsg(pathView?.can_copy_full_path ? "已复制来源路径。" : "已复制安全显示路径。");
     } catch (err) {
       setPathActionErr(err instanceof Error ? err.message : "Copy failed");
     }
@@ -107,8 +107,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
       <header className="border-b border-line p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm text-muted">{mode === "draft" ? "Draft knowledge card" : "Knowledge card"}</div>
-            <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "Untitled knowledge card"}</h2>
+            <div className="text-sm text-muted">{mode === "draft" ? "AI 草稿卡片" : "知识卡片"}</div>
+            <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "未命名卡片"}</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>{friendlyStatus(card.status)}</span>
               {sourceTypeBadge(card) && (
@@ -126,29 +126,29 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
               onClick={() => setEditing(true)}
               type="button"
             >
-              <Edit3 className="h-4 w-4" /> Edit
+              <Edit3 className="h-4 w-4" /> 编辑
             </button>
             {onMoveToTrash ? (
               <button
                 className="inline-flex items-center gap-2 rounded-md border border-danger px-3 py-2 text-sm font-medium text-danger hover:bg-red-50"
                 onClick={() => {
                   if (window.confirm(mode === "draft"
-                    ? "Move this draft card to Trash? This only removes the draft card from Review. It does not delete the source file."
-                    : "Move this approved knowledge card to Trash? This does not delete the source file. You can restore it from Trash."
+                    ? "将此 AI 草稿移至回收站？仅从审阅列表中移除，不删除源文件。"
+                    : "将此知识卡片移至回收站？不删除源文件，可从回收站恢复。"
                   )) {
                     onMoveToTrash();
                   }
                 }}
                 type="button"
               >
-                <Trash2 className="h-4 w-4" /> Move to Trash
+                <Trash2 className="h-4 w-4" /> 移至回收站
               </button>
             ) : null}
           </div>
         </div>
         {mode === "draft" ? (
           <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-warn">
-            Approve only after reviewing or editing this draft. Approved knowledge appears in the Knowledge Library.
+            请先检查 AI 草稿内容，确认无误后再保存为知识卡片。确认后的卡片会出现在知识库和搜索结果中。
           </p>
         ) : null}
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
@@ -161,7 +161,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
       ) : null}
 
       <section className="p-5">
-        <h3 className="text-lg font-semibold text-ink">Knowledge content</h3>
+        <h3 className="text-lg font-semibold text-ink">知识内容</h3>
         {editing ? (
           <div className="mt-4 space-y-3">
             <textarea
@@ -171,10 +171,10 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
             />
             <div className="flex flex-wrap gap-2">
               <button className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={busy} onClick={save} type="button">
-                <Save className="h-4 w-4" /> Save
+                <Save className="h-4 w-4" /> 保存
               </button>
               <button className="inline-flex items-center gap-2 rounded-md border border-line px-4 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy} onClick={() => { setDraftBody(body); setEditing(false); }} type="button">
-                <X className="h-4 w-4" /> Cancel
+                <X className="h-4 w-4" /> 取消
               </button>
             </div>
             {message ? <p className="text-sm text-safe">{message}</p> : null}
@@ -187,7 +187,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
 
       <section className="border-t border-line p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-ink">Source & history</h3>
+          <h3 className="text-sm font-semibold text-ink">来源与历史</h3>
           {/* 中文学习型说明：fail-closed —— 没有 source_path_view 时不显示任何 path action 按钮 */}
           {pathView ? (
             <div className="flex gap-2">
@@ -198,7 +198,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
                   onClick={copyPath}
                   title={pathView.can_copy_full_path ? "Copy source absolute path to clipboard" : "Copy source path basename to clipboard"}
                 >
-                  <Clipboard size={12} /> {pathView.can_copy_full_path ? "Copy path" : "Copy display path"}
+                  <Clipboard size={12} /> {pathView.can_copy_full_path ? "复制路径" : "复制显示路径"}
                 </button>
               ) : null}
               {pathView.can_reveal_in_finder ? (
@@ -218,28 +218,28 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         {pathActionErr ? <p className="mt-2 text-xs text-danger">{pathActionErr}</p> : null}
         {pathView?.warning ? <p className="mt-2 text-xs text-warn">{pathView.warning}</p> : null}
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <Meta label="Source" value={card.source_title ?? pathView?.display_path ?? "Source path not available"} />
-          <Meta label="Source path" value={pathView?.display_path ?? "Source path not available"} />
+          <Meta label="来源" value={card.source_title ?? pathView?.display_path ?? "来源路径不可用"} />
+          <Meta label="来源路径" value={pathView?.display_path ?? "来源路径不可用"} />
           <SourceLocationBadge cardId={card.id ?? ""} hasSource={!!card.source_path} />
-          <Meta label="Archived source path" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
-          <Meta label="Knowledge extraction" value={card.strategy_label ?? card.strategy_id} />
+          <Meta label="已归档来源" value={card.source_archive_path ? truncateMiddle(card.source_archive_path, 80) : null} />
+          <Meta label="知识提取方式" value={card.strategy_label ?? card.strategy_id} />
         </dl>
       </section>
 
       <details className="border-t border-line p-5">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">Technical details</summary>
+        <summary className="cursor-pointer text-sm font-semibold text-ink">技术详情</summary>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <Meta label="Status id" value={card.status} />
-          <Meta label="Strategy id" value={card.strategy_id} />
-          <Meta label="Canonical strategy" value={card.strategy_canonical_id} />
-          <Meta label="Strategy version" value={card.strategy_version} />
-          <Meta label="Schema version" value={card.schema_version} />
-          <Meta label="Source id" value={card.source_id} />
-          <Meta label="Source content hash" value={card.source_content_hash} />
-          <Meta label="Model run" value={card.provider} />
-          <Meta label="Run id" value={card.run_id} />
-          <Meta label="Prompt versions" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
-          <Meta label="Model routing" value={JSON.stringify(card.stage_models ?? {})} />
+          <Meta label="内部状态码" value={card.status} />
+          <Meta label="策略 ID" value={card.strategy_id} />
+          <Meta label="规范策略" value={card.strategy_canonical_id} />
+          <Meta label="策略版本" value={card.strategy_version} />
+          <Meta label="Schema 版本" value={card.schema_version} />
+          <Meta label="来源 ID" value={card.source_id} />
+          <Meta label="来源内容哈希" value={card.source_content_hash} />
+          <Meta label="模型运行" value={card.provider} />
+          <Meta label="运行 ID" value={card.run_id} />
+          <Meta label="提示词版本" value={Object.entries(card.prompt_versions ?? {}).map(([stage, version]) => `${stage}@${version}`).join(", ")} />
+          <Meta label="模型路由" value={JSON.stringify(card.stage_models ?? {})} />
         </dl>
       </details>
     </article>

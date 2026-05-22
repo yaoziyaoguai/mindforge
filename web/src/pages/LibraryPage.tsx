@@ -3,6 +3,7 @@ import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
 import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
 import { CardWorkspace } from "../components/CardWorkspace";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
@@ -40,17 +41,36 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     }
   }
 
+  if (data.cards.length === 0) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-2xl font-semibold text-ink">知识库</h1>
+          <p className="mt-1 text-sm text-muted">已确认的知识卡片，可供阅读、编辑和搜索。</p>
+        </header>
+        <EmptyState
+          title="知识库为空"
+          action={{
+            label: "前往审阅 AI 草稿",
+            description: "在审阅页面确认 AI 生成的草稿后，它们会自动出现在知识库中。也可以先添加知识源。",
+            href: "/drafts",
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Knowledge Library</h1>
-        <p className="mt-1 text-sm text-muted">Approved knowledge cards available for reading, editing, and search.</p>
+        <h1 className="text-2xl font-semibold text-ink">知识库</h1>
+        <p className="mt-1 text-sm text-muted">已确认的知识卡片，可供阅读、编辑和搜索。</p>
       </header>
       <div className="grid gap-4 md:grid-cols-4">
-        <StatusCard label="Approved knowledge" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="Ready to read, edit, and search." />
-        <StatusCard label="Needs review" value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail="Draft knowledge waiting for approval." />
-        <StatusCard label="Search index" value={data.stats.index_exists ? "Ready" : "Needs rebuild"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
-        <StatusCard label="Knowledge notes" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail="Local Knowledge Library items." />
+        <StatusCard label="已确认知识" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="可供阅读、编辑和搜索。" />
+        <StatusCard label="待确认草稿" value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail="等待审阅确认的 AI 草稿。" />
+        <StatusCard label="搜索索引" value={data.stats.index_exists ? "就绪" : "需重建"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
+        <StatusCard label="知识卡片总数" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail="本地知识库条目。" />
       </div>
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="space-y-2">
