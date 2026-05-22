@@ -22,7 +22,11 @@
 
 ## Real LLM Dogfood
 
-真实 LLM opt-in 批量端到端验证（需要 API key，需显式 opt-in）：
+真实 LLM opt-in 端到端验证（需要 API key，需显式 opt-in）：
+
+**推荐路径：Web-first**。新用户通过 Web Setup 页面配置 provider，在 Web UI 中完成 import → process → review → approve → recall 全链路验证。详见 `docs/real-llm-dogfood.md`。
+
+**Advanced path：CLI/YAML batch runner**。`scripts/real_llm_dogfood.sh` 是批量 E2E / CI-like / 开发者验证脚本，不是新用户首选入口：
 
 ```bash
 # preflight — 验证配置就绪，不调用 LLM
@@ -32,7 +36,7 @@
 ./scripts/real_llm_dogfood.sh --real-llm --confirm-cost
 ```
 
-覆盖 6 份非敏感样本的 scan → process（真实 LLM）→ ai_draft 结构校验 → 安全边界验证 → 人工 approve → index rebuild（BM25）→ recall → friction log。详见 `docs/real-llm-dogfood.md`。
+覆盖 6 份非敏感样本的 scan → process（真实 LLM）→ ai_draft 结构校验 → 安全边界验证 → 人工 approve → index rebuild（BM25）→ recall → friction log。
 
 ## Standard Quality Gate
 
