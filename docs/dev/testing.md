@@ -20,6 +20,20 @@
 
 覆盖 markdown import → process → ai_draft 验证 → approve → recall 全链路。详见 `docs/dogfood.md`。
 
+## Real LLM Dogfood
+
+真实 LLM opt-in 批量端到端验证（需要 API key，需显式 opt-in）：
+
+```bash
+# preflight — 验证配置就绪，不调用 LLM
+./scripts/real_llm_dogfood.sh
+
+# real-run — 完整批量端到端 pipeline
+./scripts/real_llm_dogfood.sh --real-llm --confirm-cost
+```
+
+覆盖 6 份非敏感样本的 scan → process（真实 LLM）→ ai_draft 结构校验 → 安全边界验证 → 人工 approve → index rebuild（BM25）→ recall → friction log。详见 `docs/real-llm-dogfood.md`。
+
 ## Standard Quality Gate
 
 Run from the repository root:
