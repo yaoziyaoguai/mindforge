@@ -12,6 +12,8 @@ MindForge 日常开发流程。本文档固定 SPEC/Plan 优先、TDD/SDD、impl
 4. **Exit Code Gate** — 任何 commit 前必须通过 build + diff check，exit code 非 0 不得 commit。
 5. **Fast Lane Main** — 个人项目走 fast lane：直接在 main 上 commit + push，不创建 feature 分支，不开 PR。
 6. **高风险才 PR** — 仅以下情况走 PR 流程：多人协作、跨团队改动、破坏性 API 变更、安全敏感路径（auth/approval/secret handling）。
+7. **文档即合约** — 所有 plan/spec/specification 文档生成后必须经过 `/ce-doc-review`（或等价审查）通过，才能进入实现阶段。审查未通过的文档不得作为实现依据，必须先修文档。
+8. **仓库事实优先** — 仓库内 SPEC / Plan / implementation-notes / tests / commit message 才是工程事实来源。不依赖临场散装 prompt 或聊天上下文作为持久工程知识。跨会话关键决策必须沉淀到仓库文档。
 
 ---
 
@@ -42,9 +44,27 @@ MindForge 日常开发流程。本文档固定 SPEC/Plan 优先、TDD/SDD、impl
 - dependencies 和 sequencing
 - risks 和 non-goals
 
+### 0.4 技能命令
+
+MindForge 开发使用 Compound Engineering / G-Stack / Superpowers 技能体系。优先使用技能命令，不默认发散装 prompt。
+
+| 阶段 | 技能 | 用途 |
+|------|------|------|
+| 需求澄清 | `/ce-brainstorm` | 产出 requirements doc（`docs/brainstorms/`） |
+| 技术方案 | `/ce-plan` | 基于 requirements 产出 implementation plan（`docs/plans/`） |
+| 方案审查 | `/ce-doc-review` | 对 plan/spec 做多角色审查（coherence、feasibility、security、scope） |
+| 设计/UX 审查 | `plan-design-review` | 设计文档、UX 规范审查 |
+| 全局路线审查 | `gstack:geo_review` | 跨里程碑架构/产品路线审计 |
+| 代码审查 | `/ce-code-review` | 对 commit/PR 做 post-merge 或多角色代码审查 |
+| 实现执行 | `/ce-work` | 按已通过 review 的 SPEC/Plan 执行 TDD 实现 |
+
+技能调用顺序：`/ce-brainstorm` → `/ce-plan` → `/ce-doc-review` → `/ce-work`。`/ce-code-review` 在 commit 后或 PR 前独立运行。`plan-design-review` 和 `gstack:geo_review` 按需触发。
+
 ---
 
 ## Phase 1: 实现
+
+大型 plan 推荐通过 `/ce-work` 调度执行（自动 TDD → 实现 → 验证）；小型改动手动按 1.1 的 TDD 循环执行。
 
 ### 1.1 TDD/SDD 执行顺序
 
@@ -87,6 +107,8 @@ MindForge 日常开发流程。本文档固定 SPEC/Plan 优先、TDD/SDD、impl
 
 ## Phase 2: Exit Code Gate
 
+推荐使用 `./scripts/check.sh` 作为统一本地 push gate（等价于 full pytest + ruff + git diff --check）。该脚本不读取 `.env`、不调用真实 provider。前端改动需额外运行 `npm --prefix web run build`。详见 [Testing Guide](testing.md)。
+
 ### 2.1 前端改动
 
 ```bash
@@ -114,7 +136,14 @@ echo "EXIT_CODE_diff_check=$?"
 
 必须 exit code = 0（无空白冲突）。
 
-### 2.4 Gate 失败处理
+### 2.4 纯文档改动 Gate
+
+仅修改 `docs/` 文件、不改代码时：
+- 至少运行 `git diff --check`
+- 若文档影响可执行流程、CLI 命令、release 步骤或 testing 指南，按影响范围运行对应验证
+- 不要求所有纯文档改动都 full pytest
+
+### 2.5 Gate 失败处理
 
 - exit code 非 0 → 停止，修复，重新验证
 - build timeout → 证据不足，不能声称通过，需排查原因
@@ -128,10 +157,13 @@ echo "EXIT_CODE_diff_check=$?"
 
 适用条件（全部满足即可走 fast lane）：
 - 个人项目，无其他活跃贡献者
-- 改动在 `web/src/` 或 `docs/` 范围内
+- 改动在 `web/src/`、`docs/`、`tests/`（仅前端测试）范围内
 - 不改后端 `src/` 语义
 - 不改 API contract（破坏性）
 - 不触碰安全敏感路径
+- 不改 CI / release / packaging 配置
+- 非架构重构
+- 非大范围 Web 重设计
 
 ```bash
 # 1. 同步 main
@@ -175,8 +207,12 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
 - 改 approval 流程
 - 改 secret handling
 - 改 provider/model 配置语义
+- 改 workspace/runtime state 路径安全
+- 涉及真实数据或隐私
 - 多人协作冲突风险
 - 破坏性 UI 架构变更
+- 改 CI / release / packaging
+- 架构重构
 
 PR 命令: `gh pr create --title "..." --body "..."`，base 为 `main`。
 

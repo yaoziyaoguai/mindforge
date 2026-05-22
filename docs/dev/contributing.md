@@ -89,6 +89,13 @@ HOME=/private/tmp/mindforge-test-home python -m pytest -q
 
 ## PR 流程
 
+> **MindForge 个人项目默认遵循 [Engineering Workflow](engineering-workflow.md) 的 Fast Lane。**
+> 低风险文档、小 UI、copy/polish、单文件前端展示改动可在 main 上完成验证后直接 commit/push。
+> 涉及 provider、approval/human_approved、secrets、真实数据、路径安全、workspace/runtime state、架构重构、大范围 Web 改动、多方协作时，才走 PR / 独立审计。
+> 详细规则见 [Engineering Workflow](engineering-workflow.md)。
+
+**高风险改动 PR 流程：**
+
 1. 从 `main` 创建 feature 分支
 2. 写测试 → 实现 → 重构
 3. 运行 `ruff check src tests`
