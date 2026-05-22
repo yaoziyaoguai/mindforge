@@ -71,12 +71,15 @@ class WebPathActionService:
         source_path: str | None,
         *,
         source_title: str | None = None,
+        source_archive_path: str | None = None,
     ):
         """为已知 card/source 对象生成 path safety view model。
 
         Args:
             source_path: card/source 的 source_path（可能为 None）。
             source_title: 展示用的 source 名称。
+            source_archive_path: vault-relative 归档路径（approve 后 source
+                被移动到 _processed/ 时设置）。source_path 不存在时作为 fallback。
 
         Returns:
             SourcePathViewModel with path_kind, can_copy_full_path, can_reveal_in_finder, etc.
@@ -106,19 +109,26 @@ class WebPathActionService:
 
         # 分类
         if not resolved.exists():
-            # 中文学习型说明：missing/not_available 不泄露存在性差异。
-            # 对外统一用 not_available。
-            return SourcePathViewModel(
-                display_source_name=source_title or Path(source_path).name,
-                display_path=_safe_display_path(source_path),
-                path_kind="not_available",
-                full_path_available=False,
-                can_copy_display_path=True,
-                can_copy_full_path=False,
-                can_reveal_in_finder=False,
-                safety_label="Unavailable",
-                warning="Source path is not accessible.",
-            )
+            # 中文学习型说明：approve 后 source 文件可能已被
+            # source_archive_service 移动到 00-Inbox/_processed/，导致原
+            # source_path 不存在。此时尝试用 vault-relative 的
+            # source_archive_path 作为 fallback —— 它仍然必须基于 vault root
+            # 安全解析并通过 allowlist 检查，不能直接信任外部传入路径。
+            archived_resolved = self._resolve_archived_path(source_archive_path)
+            if archived_resolved is not None:
+                resolved = archived_resolved
+            else:
+                return SourcePathViewModel(
+                    display_source_name=source_title or Path(source_path).name,
+                    display_path=_safe_display_path(source_path),
+                    path_kind="not_available",
+                    full_path_available=False,
+                    can_copy_display_path=True,
+                    can_copy_full_path=False,
+                    can_reveal_in_finder=False,
+                    safety_label="Unavailable",
+                    warning="Source path is not accessible.",
+                )
 
         if self._is_allowlisted(resolved):
             # 中文学习型说明：registered_source 枚举保留给未来（当 source
@@ -148,6 +158,24 @@ class WebPathActionService:
             warning="Path is outside allowed local MindForge roots.",
         )
 
+    def _resolve_archived_path(self, source_archive_path: str | None) -> Path | None:
+        """安全解析 vault-relative 归档路径为 absolute path。
+
+        中文学习型说明：source_archive_path 是 vault-relative path（如
+        00-Inbox/_processed/tech-learning.md），必须基于当前 vault root
+        安全解析。解析后仍需通过 _is_allowlisted 检查，不能因为它是
+        archived path 就跳过安全分类。
+        """
+        if not source_archive_path:
+            return None
+        try:
+            candidate = (self.cfg.vault.root / source_archive_path).resolve(strict=False)
+        except Exception:
+            return None
+        if not candidate.exists():
+            return None
+        return candidate
+
     def reveal_by_ref(
         self,
         *,
@@ -165,6 +193,7 @@ class WebPathActionService:
 
         source_path: str | None = None
         source_title: str | None = None
+        source_archive_path: str | None = None
 
         # 查找 card
         if card_id:
@@ -173,6 +202,7 @@ class WebPathActionService:
                 if card.id == card_id or card.rel_path == card_id:
                     source_path = card.source_path
                     source_title = card.source_title
+                    source_archive_path = card.source_archive_path
                     break
             if source_path is None:
                 raise PathActionError(404, "Card not found.")
@@ -190,12 +220,16 @@ class WebPathActionService:
                 if card.id == draft_id or card.rel_path == draft_id:
                     source_path = card.source_path
                     source_title = card.source_title
+                    source_archive_path = card.source_archive_path
                     break
             if source_path is None:
                 raise PathActionError(404, "Draft not found.")
 
         # 通过 view model 校验权限
-        view = self.build_source_path_view(source_path, source_title=source_title)
+        view = self.build_source_path_view(
+            source_path, source_title=source_title,
+            source_archive_path=source_archive_path,
+        )
         if not view.can_reveal_in_finder:
             raise PathActionError(
                 403,
@@ -203,11 +237,16 @@ class WebPathActionService:
                 + (f" ({view.warning})" if view.warning else ""),
             )
 
-        # 执行 reveal
+        # 执行 reveal — 使用与 build_source_path_view 相同的 fallback 逻辑
+        # 找到实际存在的文件路径
         resolved = Path(source_path).expanduser()  # type: ignore[arg-type]
         if not resolved.is_absolute():
             resolved = self.cfg.vault.root / resolved
         resolved = resolved.resolve(strict=False)
+        if not resolved.exists():
+            archived = self._resolve_archived_path(source_archive_path)
+            if archived is not None:
+                resolved = archived
 
         if sys.platform != "darwin":
             return PathActionResponse(

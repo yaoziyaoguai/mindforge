@@ -324,7 +324,8 @@ class WebFacade:
         cards = [_library_card_response(card) for card in inventory.cards]
         for c in cards:
             c.source_path_view = self.path_action_service.build_source_path_view(
-                c.source_path, source_title=c.source_title
+                c.source_path, source_title=c.source_title,
+                source_archive_path=c.source_archive_path,
             )
             # 中文学习型说明：API contract 安全边界 —— source_path 对 unsafe
             # path_kind 必须 redact 为 None，由 source_path_view.display_path
@@ -406,7 +407,8 @@ class WebFacade:
         drafts, errors = self.review_service.list_drafts()
         for d in drafts:
             d.source_path_view = self.path_action_service.build_source_path_view(
-                d.source_path, source_title=d.source_title
+                d.source_path, source_title=d.source_title,
+                source_archive_path=d.source_archive_path,
             )
             d.source_path = self.path_action_service.safe_source_path(
                 d.source_path, d.source_path_view
@@ -424,7 +426,8 @@ class WebFacade:
         result = self.review_service.draft_detail(draft_id)
         if result is not None:
             result.draft.source_path_view = self.path_action_service.build_source_path_view(
-                result.draft.source_path, source_title=result.draft.source_title
+                result.draft.source_path, source_title=result.draft.source_title,
+                source_archive_path=result.draft.source_archive_path,
             )
             result.draft.source_path = self.path_action_service.safe_source_path(
                 result.draft.source_path, result.draft.source_path_view
@@ -725,7 +728,8 @@ def _library_detail_response(
     card = _library_card_response(detail.card)
     if path_action_service is not None:
         card.source_path_view = path_action_service.build_source_path_view(
-            card.source_path, source_title=card.source_title
+            card.source_path, source_title=card.source_title,
+            source_archive_path=card.source_archive_path,
         )
         card.source_path = path_action_service.safe_source_path(
             card.source_path, card.source_path_view
@@ -801,7 +805,8 @@ def _library_card_summary_response(
     source_path_view = None
     if path_action_service is not None:
         source_path_view = path_action_service.build_source_path_view(
-            summary.source_path, source_title=summary.source_title
+            summary.source_path, source_title=summary.source_title,
+            source_archive_path=summary.source_archive_path,
         )
     safe_path = path_action_service.safe_source_path(
         summary.source_path, source_path_view
