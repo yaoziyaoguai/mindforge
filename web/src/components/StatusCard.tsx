@@ -1,4 +1,4 @@
-import { statusTone } from "../lib/utils";
+import { statusIcon, statusLabel, statusTone } from "../lib/utils";
 import type { NextAction, StatusLevel } from "../api/types";
 
 interface Props {
@@ -16,7 +16,10 @@ export function StatusCard({ label, value, status = "info", detail, nextAction, 
     <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium text-muted">{label}</h3>
-        <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(status)}`}>{status}</span>
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${statusTone(status)}`}>
+          {(() => { const Icon = statusIcon(status); return Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null; })()}
+          {statusLabel(status) || status}
+        </span>
       </div>
       <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
       {detail ? <p className="mt-2 text-sm text-muted">{detail}</p> : null}

@@ -1,3 +1,6 @@
+import { AlertTriangle, CheckCircle, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
 export function cx(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -7,6 +10,24 @@ export function statusTone(status: string): string {
   if (status === "warn") return "text-warn bg-amber-50 border-amber-200";
   if (status === "error") return "text-danger bg-red-50 border-red-200";
   return "text-muted bg-stone-50 border-line";
+}
+
+/** 状态图标映射 —— 色盲用户可通过图标形状区分状态，不依赖颜色。
+ *  不改 statusTone() 签名，在 badge 渲染处组合调用。
+ *  返回 LucideIcon 组件或 null（未知状态不渲染图标）。 */
+export function statusIcon(status: string): LucideIcon | null {
+  if (status === "ok") return CheckCircle;
+  if (status === "warn") return AlertTriangle;
+  if (status === "error") return X;
+  return null;
+}
+
+/** 状态中文标签 —— 与 statusIcon(status) 配对用于 badge screen-reader 文本。 */
+export function statusLabel(status: string): string {
+  if (status === "ok") return "正常";
+  if (status === "warn") return "警告";
+  if (status === "error") return "错误";
+  return "";
 }
 
 export function truncateMiddle(value: string, max = 72): string {

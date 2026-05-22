@@ -1,15 +1,26 @@
 import { BookOpen, BookMarked, CheckSquare, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
 import { cx } from "../lib/utils";
 
-const items = [
-  { href: "/", label: "首页", icon: Home },
-  { href: "/setup", label: "连接模型", icon: Settings },
-  { href: "/sources", label: "知识源", icon: Inbox },
-  { href: "/drafts", label: "审阅草稿", icon: CheckSquare },
-  { href: "/library", label: "知识库", icon: Library },
-  { href: "/wiki", label: "Wiki", icon: BookMarked },
-  { href: "/recall", label: "搜索", icon: Search },
-  { href: "/trash", label: "回收站", icon: Trash2 },
+/** 侧边栏导航分组 —— 帮助用户理解页面之间的逻辑关系。分组标签不可点击。 */
+const groups = [
+  {
+    label: "知识处理",
+    items: [
+      { href: "/setup", label: "连接模型", icon: Settings },
+      { href: "/sources", label: "知识源", icon: Inbox },
+      { href: "/drafts", label: "审阅草稿", icon: CheckSquare },
+      { href: "/trash", label: "回收站", icon: Trash2 },
+    ],
+  },
+  {
+    label: "知识使用",
+    items: [
+      { href: "/", label: "首页", icon: Home },
+      { href: "/library", label: "知识库", icon: Library },
+      { href: "/wiki", label: "Wiki", icon: BookMarked },
+      { href: "/recall", label: "搜索", icon: Search },
+    ],
+  },
 ];
 
 export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {
@@ -19,25 +30,32 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
         <BookOpen className="h-5 w-5" aria-hidden="true" />
         MindForge
       </div>
-      <div className="space-y-1">
-        {items.map((item) => {
-          const active = path === item.href || (item.href !== "/" && path.startsWith(item.href));
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => onNavigate(item.href)}
-              className={cx(
-                "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
-                active ? "bg-panel text-ink shadow-subtle" : "text-muted hover:bg-white/60 hover:text-ink",
-              )}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {item.label}
-            </button>
-          );
-        })}
+      <div className="space-y-2">
+        {groups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">{group.label}</p>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const active = path === item.href || (item.href !== "/" && path.startsWith(item.href));
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => onNavigate(item.href)}
+                    className={cx(
+                      "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
+                      active ? "bg-panel text-ink shadow-subtle" : "text-muted hover:bg-white/60 hover:text-ink",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </nav>
   );

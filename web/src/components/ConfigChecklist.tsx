@@ -1,4 +1,4 @@
-import { statusTone } from "../lib/utils";
+import { statusIcon, statusLabel, statusTone } from "../lib/utils";
 import type { StatusItem } from "../api/types";
 
 export function ConfigChecklist({ items }: { items: StatusItem[] }) {
@@ -13,7 +13,10 @@ export function ConfigChecklist({ items }: { items: StatusItem[] }) {
                 <span className="font-medium text-ink">{item.label}</span>
                 <span className="mt-1 block text-sm text-muted">{item.detail ?? item.value}</span>
               </span>
-              <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(item.status)}`}>{item.value}</span>
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${statusTone(item.status)}`}>
+                {(() => { const Icon = statusIcon(item.status); return Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null; })()}
+                {statusLabel(item.status) || item.value}
+              </span>
             </summary>
             <div className="mt-3 rounded-md bg-stone-50 p-3 text-sm text-muted">
               <p>{explainItem(item)}</p>

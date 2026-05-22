@@ -5,7 +5,7 @@ import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
-import { friendlyStatus, truncateMiddle } from "../lib/utils";
+import { friendlyStatus, statusIcon, truncateMiddle } from "../lib/utils";
 
 const sourceTypeLabels: Record<string, string> = {
   plain_markdown: "Markdown",
@@ -110,7 +110,10 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
             <div className="text-sm text-muted">{mode === "draft" ? "AI 草稿卡片" : "知识卡片"}</div>
             <h2 className="mt-1 text-2xl font-semibold text-ink">{card.title ?? "未命名卡片"}</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>{friendlyStatus(card.status)}</span>
+              <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>
+                {(() => { const Icon = statusIcon(card.status === "human_approved" ? "ok" : "warn"); return Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null; })()}
+                {friendlyStatus(card.status)}
+              </span>
               {sourceTypeBadge(card) && (
                 <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card)}</span>
               )}
