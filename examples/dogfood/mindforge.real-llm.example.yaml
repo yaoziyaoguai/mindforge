@@ -1,0 +1,165 @@
+# =============================================================================
+# MindForge Real LLM Dogfood 配置模板
+#
+# 中文学习型说明：
+# - 本文件是真实 LLM dogfood 专用配置模板，需要用户显式 opt-in 才能使用。
+# - 与 mindforge.dogfood.yaml 的区别：LLM provider 从 fake 切换为 openai_compatible。
+# - 用户必须填入 api_key_env（环境变量名）、base_url、model 三个字段。
+# - API key 通过 shell 环境变量传入：export YOUR_ENV_VAR="sk-..."
+# - 脚本不读取 .env 或 secret store。
+#
+# 安全契约：
+# - 真实 LLM 调用必须同时传递 --real-llm --confirm-cost 双 flag。
+# - 默认 preflight 模式不调用 LLM，不创建 HTTP 连接。
+# - ai_draft 不会被自动提升为 human_approved，必须显式 mindforge approve --confirm。
+# - 所有运行时状态写入 /tmp，不与真实 workspace 交互。
+# - record_prompts 和 record_outputs 默认关闭，避免日志中残留 prompt/output 内容。
+#
+# 使用方式：
+#   1. 复制本文件：cp examples/dogfood/mindforge.real-llm.example.yaml /tmp/real-llm.yaml
+#   2. 编辑填入你的 api_key_env / base_url / model
+#   3. export 你的 API key 环境变量
+#   4. 运行 preflight：./scripts/real_llm_dogfood.sh
+#   5. 运行 real-run：./scripts/real_llm_dogfood.sh --real-llm --confirm-cost
+#
+# 注意：忘记 --config 会回退到默认 config（可能使用不同的 provider）。
+# =============================================================================
+
+version: 0.1
+
+# -----------------------------------------------------------------------------
+# Vault — 指向 /tmp 下的临时 dogfood vault，不接触真实 Obsidian vault
+# -----------------------------------------------------------------------------
+vault:
+  root: "/tmp/mindforge-dogfood-vault"
+  inbox_root: "00-Inbox"
+  cards_dir: "20-Knowledge-Cards"
+  archive_dir: "90-Archive/Skipped"
+
+# -----------------------------------------------------------------------------
+# Sources — dogfood 只启用 plain_markdown
+# -----------------------------------------------------------------------------
+sources:
+  enabled:
+    - plain_markdown
+
+  registry:
+    plain_markdown:
+      adapter: PlainMarkdownAdapter
+      inbox_subdir: "."
+      file_glob: "*.md"
+      enabled: true
+
+# -----------------------------------------------------------------------------
+# 状态 — 写入 /tmp，不污染项目根目录 .mindforge
+# -----------------------------------------------------------------------------
+state:
+  workdir: "/tmp/mindforge-dogfood-state"
+  state_file: "state.json"
+  runs_dir: "runs"
+  index_file: "index.jsonl"
+  backup_state: true
+
+# -----------------------------------------------------------------------------
+# LLM 配置 — 真实 LLM provider（openai_compatible）
+#
+# 中文学习型说明：
+# - default_model + models + routing 是现代 config 格式。
+# - type: openai_compatible 覆盖 OpenAI、Ollama、vLLM 及多数第三方代理。
+# - api_key_env 指向用户 export 的环境变量名（非 key 值本身）。
+# - 下方注释中提供了 anthropic_compatible 的替代配置。
+# - timeout_seconds: 120 和 max_retries: 2 是为批量处理 6 份样本设置的保守值。
+# -----------------------------------------------------------------------------
+llm:
+  default_model: real-main
+
+  models:
+    real-main:
+      # ---- 用户必须填入以下三个字段 ----
+      type: openai_compatible                           # 或 anthropic_compatible
+      provider: openai_compatible                       # 或 anthropic_compatible
+      base_url: "https://your-endpoint.example.com/v1"  # ← 填入你的 API endpoint
+      model: "your-model-name"                          # ← 填入模型名称
+      api_key_env: "YOUR_API_KEY_ENV_VAR"               # ← 填入环境变量名
+      # ---- 以下字段可选 ----
+      timeout_seconds: 120
+      max_retries: 2
+
+  routing:
+    triage: real-main
+    distill: real-main
+    link_suggestion: real-main
+    review_questions: real-main
+    action_extraction: real-main
+
+# -----------------------------------------------------------------------------
+# Anthropic-compatible 替代配置（取消注释以替换上面的 openai_compatible）：
+#
+#   real-main:
+#     type: anthropic_compatible
+#     provider: anthropic_compatible
+#     base_url: "https://api.anthropic.com"           # ← 填入 Anthropic endpoint
+#     model: "claude-sonnet-4-6"                       # ← 填入模型名称
+#     api_key_env: "ANTHROPIC_API_KEY"                 # ← 填入环境变量名
+#     timeout_seconds: 120
+#     max_retries: 2
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Prompts — 使用默认 v1 prompt
+# -----------------------------------------------------------------------------
+prompts:
+  triage_version: "v1"
+  distill_version: "v1"
+  link_suggestion_version: "v1"
+  review_questions_version: "v1"
+  action_extraction_version: "v1"
+
+# -----------------------------------------------------------------------------
+# Strategy
+# -----------------------------------------------------------------------------
+strategy:
+  active: "knowledge_card"
+
+# -----------------------------------------------------------------------------
+# Logging — record_prompts 和 record_outputs 默认关闭
+#
+# 安全说明：真实 LLM 场景下，prompt/output 记录可能包含样本内容。
+# 虽然 dogfood 样本是非敏感的，但为降低隐私风险默认关闭。
+# 如需调试可手动改为 true，调试完毕后恢复 false。
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  file: "/tmp/mindforge-dogfood-state/mindforge.log"
+  record_prompts: false
+  record_outputs: false
+
+# -----------------------------------------------------------------------------
+# Telemetry — dogfood 环境禁用
+# -----------------------------------------------------------------------------
+telemetry:
+  enabled: false
+  local_only: true
+
+# -----------------------------------------------------------------------------
+# Search — BM25 词法检索，纯本地，不是 RAG
+# -----------------------------------------------------------------------------
+search:
+  bm25:
+    enabled: true
+    k1: 1.5
+    b: 0.75
+    default_limit: 10
+    fields:
+      title: 5.0
+      learning_tracks: 4.0
+      projects: 4.0
+      tags: 3.0
+      summary: 1.0
+      action_items: 1.0
+  hybrid:
+    enabled: true
+    weights:
+      bm25: 0.75
+      value_score: 0.15
+      review_due: 0.10
