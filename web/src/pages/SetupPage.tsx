@@ -34,6 +34,18 @@ type EditingModel = {
   form: ModelForm;
 };
 
+/** Setup 渐进披露步骤 —— 将配置表单分为 3 个逻辑步骤，降低首次配置的认知负担。
+ *  只改变 UI 组织方式，不改变 provider config model、API 语义或保存逻辑。 */
+type SetupStep = "models" | "sources" | "review";
+
+const STEP_LABELS: Record<SetupStep, { label: string; description: string }> = {
+  models: { label: "连接模型", description: "配置 LLM 模型连接和工作流路由" },
+  sources: { label: "选择知识源", description: "设置知识库路径和 Wiki 选项" },
+  review: { label: "检查配置", description: "查看诊断信息并保存" },
+};
+
+const STEP_ORDER: SetupStep[] = ["models", "sources", "review"];
+
 function emptyModelForm(): ModelForm {
   return {
     type: "openai",
@@ -51,7 +63,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [savedForm, setSavedForm] = useState<SetupForm | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingModel | null>(null);
+  const [step, setStep] = useState<SetupStep>("models");
   const [promptPreview, setPromptPreview] = useState<{ stage: string; version: string; content: string } | null>(null);
 
   useEffect(() => {
@@ -213,10 +228,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     }
   }
 
+  /** 保存配置 —— 独立 loading/error 状态确保用户明确知道保存结果。
+   *  不吞错误：后端返回的任何错误信息都显式展示为红色 inline banner，
+   *  用户可据此修改配置后重试。provider config model 和 API 语义完全不变。 */
   async function save() {
     const current = draftForm;
     if (!current) return;
-    setBusy(true);
+    setSaving(true);
+    setSaveError(null);
     try {
       const response = await saveSetupConfig(patchFromForm(current));
       const next = formFromEditable(response.editable);
@@ -227,9 +246,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       setMessage("Setup saved");
       onRefresh?.();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Save failed");
+      const msg = error instanceof Error ? error.message : "Save failed";
+      setSaveError(msg);
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }
 
@@ -260,24 +280,76 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             </div>
             <div className="flex gap-2">
               {dirty ? <span className="self-center text-xs font-medium text-warn">Unsaved changes</span> : null}
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || !dirty} onClick={revert} type="button">Revert</button>
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy} onClick={validate} type="button">Validate</button>
-              <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy || !dirty} onClick={save} type="button">Save setup</button>
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving || !dirty} onClick={revert} type="button">Revert</button>
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving} onClick={validate} type="button">Validate</button>
+              <button
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
+                disabled={saving || !dirty}
+                onClick={save}
+                type="button"
+              >
+                {saving ? (
+                  <>
+                    {/* 保存中 spinner —— 使用 CSS animate-spin 旋转图标 */}
+                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    保存中...
+                  </>
+                ) : (
+                  "Save setup"
+                )}
+              </button>
             </div>
+          </div>
+
+          {/* 保存错误 inline banner —— 红色醒目展示，不吞错误，用户可据此修改配置后重试 */}
+          {saveError ? (
+            <div className="rounded-md border border-danger bg-red-50 p-3 text-sm text-ink">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 font-medium text-danger">保存失败</span>
+                <span className="flex-1">{saveError}</span>
+                <button className="text-xs text-muted hover:text-ink" onClick={() => setSaveError(null)} type="button">关闭</button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ================================================================ */}
+          {/* 步骤指示器 —— 3 步横向排列，当前步骤用 primary 色高亮 */}
+          {/* ================================================================ */}
+          <div className="flex gap-2 rounded-md border border-line bg-stone-50 p-3">
+            {STEP_ORDER.map((s, index) => {
+              const isCurrent = s === step;
+              const isPast = STEP_ORDER.indexOf(step) > index;
+              return (
+                <button
+                  key={s}
+                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    isCurrent ? "bg-primary text-white" : isPast ? "bg-green-50 text-safe border border-green-200" : "bg-white text-muted border border-line"
+                  }`}
+                  onClick={() => setStep(s)}
+                  type="button"
+                >
+                  <div className="text-xs opacity-70">步骤 {index + 1}</div>
+                  <div>{STEP_LABELS[s].label}</div>
+                </button>
+              );
+            })}
           </div>
 
           {/* 中文学习型说明：Vault 是 MindForge 的本地知识库根目录。普通用户只需要
           知道 approved cards、wiki、trash 会保存在这里；目录创建属于系统责任，
           不把底层目录创建开关暴露在主 UI。 */}
+          {step === "sources" && (
           <div className="rounded-md border border-line bg-stone-50 p-4">
             <div className="text-sm font-semibold text-ink">Knowledge vault</div>
             <div className="mt-2 break-all rounded-md border border-line bg-white px-3 py-2 text-sm text-ink">{form.vault_root}</div>
             <p className="mt-2 text-xs text-muted">MindForge stores approved cards, wiki, and trash here. Created automatically when needed.</p>
           </div>
+          )}
 
           {/* ================================================================ */}
-          {/* Configured models 区域 —— 主 UI */}
+          {/* Configured models / Default model / Processing workflow —— 步骤 1：连接模型 */}
           {/* ================================================================ */}
+          {step === "models" && (<>
           <section className="space-y-4 rounded-md border border-line p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -498,6 +570,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
             <p className="text-xs text-muted">Workflow steps are fixed in this version. Model assignment is configurable. Click View prompt to see the prompt used by each step.</p>
           </section>
+          </>)}  {/* end step "models" */}
 
           {/* Prompt preview modal */}
           {promptPreview ? (
@@ -514,8 +587,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           ) : null}
 
           {/* ================================================================ */}
-          {/* Wiki generation */}
+          {/* Wiki generation / Source Add —— 步骤 2：选择知识源 */}
           {/* ================================================================ */}
+          {step === "sources" && (<>
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
               <h2 className="text-lg font-semibold text-ink">Wiki generation</h2>
@@ -550,10 +624,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </section>
 
           <SourceAddPanel onRefresh={onRefresh} hasModels={hasConfiguredModels} />
+          </>)}  {/* end step "sources" */}
 
           {/* ================================================================ */}
-          {/* Diagnostics for advanced users */}
+          {/* Diagnostics —— 步骤 3：检查配置 */}
           {/* ================================================================ */}
+          {step === "review" && (
           <details className="rounded-md border border-line p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink">Diagnostics for advanced users</summary>
             <div className="mt-3 space-y-4">
@@ -569,6 +645,38 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </dl>
             </div>
           </details>
+          )}  {/* end step "review" */}
+
+          {/* 步骤导航按钮 —— 底部前进/后退，最后一步提示保存 */}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              {STEP_ORDER.indexOf(step) > 0 ? (
+                <button
+                  className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-stone-100"
+                  onClick={() => setStep(STEP_ORDER[STEP_ORDER.indexOf(step) - 1])}
+                  type="button"
+                >
+                  ← 上一步
+                </button>
+              ) : null}
+            </div>
+            <div className="text-xs text-muted">
+              步骤 {STEP_ORDER.indexOf(step) + 1} / {STEP_ORDER.length}
+            </div>
+            <div>
+              {STEP_ORDER.indexOf(step) < STEP_ORDER.length - 1 ? (
+                <button
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
+                  onClick={() => setStep(STEP_ORDER[STEP_ORDER.indexOf(step) + 1])}
+                  type="button"
+                >
+                  下一步 →
+                </button>
+              ) : (
+                <span className="text-xs text-muted">配置完成后请保存</span>
+              )}
+            </div>
+          </div>
 
           {message ? <p className="text-sm text-primary">{message}</p> : null}
         </section>
