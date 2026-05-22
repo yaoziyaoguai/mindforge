@@ -73,3 +73,4 @@ examples/demo-vault/.mindforge/
 # 用户运行 mindforge init 后会在本地创建 vault/，不应被 git track。
 vault/
 vault/**/.mindforge/
+.gstack/

@@ -48,3 +48,50 @@
 ## 回退记录
 
 - 无回退
+
+---
+
+## Browser Smoke Review Result (2026-05-23)
+
+验证目标 commit：
+- `1eef5f6` feat(web): implement ux milestone b — sidebar grouping and status badge icons
+- `3c9489b` docs: finalize ux milestone b implementation notes
+
+### 验证结论
+
+- **browser smoke passed**
+- P0/P1/P2 = 0
+- no hotfix required
+- can proceed to Milestone C
+
+### 已验证页面
+
+| 页面 | 路径 | 结果 |
+|------|------|------|
+| Home | `/` | ✅ StatusCards 显示，NextAction 引导可用 |
+| Setup | `/setup` | ✅ 3 步 stepper，ConfigChecklist badges，Save/Validate/Revert |
+| Drafts | `/drafts` | ✅ 空状态 "没有待确认的 AI 草稿" + "Create drafts" 链接 |
+| Library | `/library` | ✅ 卡片列表 + CardWorkspace（知识内容/来源与历史/技术详情） |
+| Recall | `/recall` | ✅ BM25 词法匹配说明，score 标签 "高相关"，loading/error/empty 三态 |
+| Sources | `/sources` | ✅ Copy path / Edit frequency / Process now / Stop watching，SummaryMetric |
+| Wiki | `/wiki` | ✅ Wiki 内容展示，Table of Contents，Local Graph Preview |
+
+### 已验证能力
+
+- **Sidebar grouping** (U4): "知识处理" (连接模型/知识源/审阅草稿/回收站) + "知识使用" (首页/知识库/Wiki/搜索) ✅
+- **Active navigation state**: 每页导航后对应 sidebar 按钮正确高亮 ✅
+- **Status badge icons** (U5): Home StatusCard、Setup ConfigChecklist、Library CardWorkspace badge 均显示图标 + 中文标签 ✅
+- **Empty states** (U3): Drafts/Library/Home 空状态提供下一步 action ✅
+- **console**: 无 error/warn，仅 accessibility hint（form field 缺 id/name）— P3 非阻塞
+- **network**: 所有 XHR/fetch 请求均返回 200，无 4xx/5xx
+
+### 已知非阻塞问题
+
+- **P3**: Console accessibility hint — 部分 form fields 缺 id/name attribute（Sources 页 12 处，Recall 页 1 处）
+- **P4**: Inline IIFE icon 渲染模式 (`{(() => { const Icon = ...; return ... })()}`) 可读性一般 — implementation notes 已记录为已知 tradeoff
+
+### 后续建议
+
+- Milestone C 可继续
+- P3 accessibility hint 可纳入 Milestone C 或后续 UI quality pass
+- P4 inline IIFE 可作为代码质量 polish，非阻塞

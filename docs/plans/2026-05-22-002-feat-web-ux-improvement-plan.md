@@ -2,8 +2,17 @@
 title: MindForge Web UX Improvement Plan
 type: feat
 status: active
-date: 2026-05-22
+date: 2026-05-23
 ---
+
+## Milestone Status
+
+| Milestone | Status | Date |
+|-----------|--------|------|
+| A | done | 2026-05-22 |
+| B | done | 2026-05-23 |
+| C | planned | — |
+
 
 # MindForge Web UX Improvement Plan
 
@@ -44,6 +53,7 @@ Web-first real LLM dogfood 跑通后暴露出 Web 的工程感过重、用户引
 ### Deferred to Follow-Up Work
 
 - **P3 设计系统演进**（响应式断点、loading skeleton、图标系统规范化）: 后续独立 plan
+- **P3 前端 accessibility**（form field id/name/aria-label 关联修复）: → 已纳入 Milestone C (U12)
 - **P4 品牌视觉**（插图、空状态图形、情感化设计）: 后续独立 plan
 - **前端测试基础设施**（vitest + testing-library 搭建、页面 smoke test）: 后续独立 plan
 - **Setup 页面深度重构**（从表单式改为对话式引导、provider 自动检测）: 待 P0 修复收集更多 dogfood 反馈后决定
@@ -404,6 +414,206 @@ Web-first real LLM dogfood 跑通后暴露出 Web 的工程感过重、用户引
 - 卡片只读正文不使用 `font-mono`
 - Section 标题和正文有清晰的视觉层次
 - 编辑模式体验不变
+
+---
+
+---
+
+## Milestone C: UX Polish, Accessibility & i18n
+
+### Status
+
+Milestone A 和 B 已完成（7 个 Implementation Unit 全部实现并 push main，browser smoke 通过）。Milestone C 为本次 plan 的下一阶段。
+
+### Milestone C Requirements
+
+- **R9.** Review card 视觉层级进一步优化 — 审批面板信息层次更清晰，用户一眼可见"需要我做什么"
+- **R10.** Source History / provenance 展示更友好 — 来源追溯链路简化为用户可理解的路径和操作
+- **R11.** Recall 页面文案和状态继续优化 — 搜索引导、结果展示、错误提示精炼
+- **R12.** spacing / typography 小范围统一 — 页面间排版不一致处修正，不涉及设计 token 重定义
+- **R13.** P3 accessibility hint 修复 — form field 增加合理 `id`/`name`/`aria-label` 关联
+- **R14.** 中英文 UI 可切换 — 用户可在中文和英文界面之间自由切换，消除当前中英混杂状态
+
+### R14: i18n / 中英文切换详细说明
+
+**目标:**
+
+当前 Web UI 存在中英文混杂问题（部分文案已中文化，部分仍为英文）。Milestone C 需要引入轻量 locale 方案，让用户可以在中文和英文 UI 之间自由切换。
+
+**约束:**
+
+1. **不引入大型 i18n 框架** — 除非 review 后证明现有技术栈无法支撑轻量方案
+2. **优先做轻量 locale dictionary / copy map** — 一个按语言 key 索引的文案字典，组件按 key 取值
+3. **不改变后端 API** — locale 切换纯前端行为，API 请求/响应不变
+4. **不改变业务状态字段** — `ai_draft`、`human_approved`、`source_id` 等内部字段保持英文
+5. **内部字段仍可以是 ai_draft / human_approved** — 仅用户侧展示通过 locale copy 映射
+6. **不要把中英文 copy 散落在各页面里** — copy 需集中在 locale 模块中，页面只引用 key
+
+**待 Milestone C mini spec / review 决定的设计点:**
+
+7. **默认语言策略**: 默认中文，或跟随浏览器语言 (`navigator.language`)，具体由 review 决定
+8. **语言切换入口位置**: Settings / Setup / sidebar footer，具体由 review 决定
+9. **locale 文件结构**: 单一 JSON/TS 字典 vs 按模块拆分，具体由 review 决定
+10. **切换后状态持久化**: localStorage vs sessionStorage vs 不持久化（每次恢复默认）
+
+**非目标:**
+
+- 不做完整 CMS 级多语言管理系统
+- 不做后端 API 错误信息国际化
+- 不做 RTL 语言支持
+- 不做 a11y 多语言 screen reader 优化（超出 Milestone C 范围）
+
+### Milestone C Implementation Units
+
+#### U8. Review Card 视觉层级优化
+
+**Goal:** 优化 ApprovalPanel 和 CardWorkspace review 模式的信息层次
+
+**Requirements:** R9
+
+**Files:**
+- Modify: `web/src/components/ApprovalPanel.tsx`
+- Modify: `web/src/components/CardWorkspace.tsx`
+
+**Dependencies:** U2 (审批 UX 修正已完成)
+
+**Verification:**
+- Review card 的信息层次清晰：标题 → 状态 → 内容摘要 → 操作区
+- 审批按钮视觉权重正确（主操作突出，次要操作降级）
+
+---
+
+#### U9. Source History / Provenance 展示优化
+
+**Goal:** 简化来源追溯链路展示，用户可理解来源路径和操作
+
+**Requirements:** R10
+
+**Files:**
+- Modify: `web/src/components/CardWorkspace.tsx`（来源与历史区域）
+
+**Dependencies:** U7 (CardWorkspace 排版优化已完成)
+
+**Verification:**
+- 来源路径展示用户友好，不暴露内部结构
+- 来源追溯操作（Copy path / Reveal in Finder）fail-closed 策略不变
+
+---
+
+#### U10. Recall 文案和状态精炼
+
+**Goal:** 继续优化 Recall 页面搜索引导、结果展示、错误提示
+
+**Requirements:** R11
+
+**Files:**
+- Modify: `web/src/pages/RecallPage.tsx`
+
+**Dependencies:** U6 (Recall 搜索结果优化已完成)
+
+**Verification:**
+- 搜索引导文案清晰，说明 BM25 词法匹配
+- 结果展示不暴露技术评分格式
+- Error/loading/empty 三态完整且文案合理
+
+---
+
+#### U11. Spacing / Typography 小范围统一
+
+**Goal:** 修正页面间排版不一致处，不涉及设计 token 重定义
+
+**Requirements:** R12
+
+**Files:**
+- Modify: `web/src/styles.css`（可能）
+- Modify: 涉及排版不一致的页面组件
+
+**Dependencies:** None (独立视觉修正)
+
+**Verification:**
+- 页面间标题层级、段落间距、卡片间距视觉一致
+- 不改变 Tailwind 设计 token
+
+---
+
+#### U12. Form Field Accessibility 修复
+
+**Goal:** 为 form field 增加合理 id/name/aria-label 关联
+
+**Requirements:** R13
+
+**Files:**
+- Modify: `web/src/pages/RecallPage.tsx`（搜索框）
+- Modify: `web/src/pages/SourcesPage.tsx`（频率 combobox）
+
+**Dependencies:** None
+
+**Verification:**
+- Sources 页 frequency combobox 有 id/name 关联
+- Recall 页搜索输入框有 id/name/label 关联
+- Chrome DevTools accessibility audit 不再报告对应 hint
+
+---
+
+#### U13. 中英文 UI 可切换 (i18n)
+
+**Goal:** 引入轻量 locale dictionary，用户可在中文和英文界面之间切换
+
+**Requirements:** R14
+
+**Files (预期):**
+- Create: `web/src/lib/locale.ts`（locale dictionary 和切换逻辑）
+- Modify: 各页面和组件中硬编码的中文/英文文案替换为 locale key 引用
+
+**Approach:**
+- 第一步：创建 `locale.ts`，定义 `LocaleDict` 类型和 `zh`/`en` 两套 copy map
+- 第二步：定义 `useLocale()` hook 或 context，暴露 `t(key)` 翻译函数和 `setLocale(locale)` 切换函数
+- 第三步：逐步替换各页面/组件中的硬编码文案为 `t('key')` 调用
+- 第四步：添加语言切换入口（具体位置由 mini spec/review 决定）
+
+**Patterns to follow:**
+- 轻量字典模式（非 react-intl / i18next 等重型框架）
+- 现有 React `useState` + props 模式
+
+**Test scenarios:**
+- Happy path: 用户在中文 UI 下看到中文文案
+- Happy path: 切换到英文 UI 后所有文案变为英文
+- Edge case: 语言切换后不影响页面路由和 API 调用
+- Edge case: 未知 locale key 有 fallback（英文 key 本身）
+
+**Verification:**
+- 存在集中管理的 locale dictionary（非各页面散落）
+- 语言切换入口可用，切换后所有页面文案跟随变化
+- 切换不触发页面刷新（纯 React state）
+- 不引入新 npm 依赖（或仅引入极轻量依赖，需 review 批准）
+
+---
+
+### Milestone C Execution Flow
+
+Milestone C 的执行顺序必须是：
+
+1. **先写 Milestone C mini spec** — 尤其是 i18n/copy strategy 和 locale 文件结构设计
+2. **mini spec 必须 review** — 使用 `/ce:review` 或等效 review 流程
+3. **review 通过后才实现** — 不在 review 前写实现代码
+4. **实现时维护 implementation notes** — 记录决策、tradeoffs、deviations
+5. **执行 gate**:
+   - `npm --prefix web run build` (exit code 必须为 0)
+   - `git diff --check` (exit code 必须为 0)
+   - 必要时 browser smoke
+6. **fast lane commit/push main** — 低风险前端改动，走 fast lane
+7. **完成后 browser smoke review** — 参考 Milestone B smoke review 流程
+
+### Milestone C Non-Goals
+
+- 大型设计系统重写
+- 新 UI framework
+- 后端重构
+- provider / approval / recall 语义改动
+- RAG / embedding
+- 真实 LLM 调用
+- 前端测试基础设施搭建（已在 Deferred to Follow-Up Work 中）
+- P4 品牌视觉（插图、空状态图形、情感化设计）
 
 ---
 
