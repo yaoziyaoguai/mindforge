@@ -18,19 +18,30 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const q = query.trim();
-    if (!q) return;
+  /* 中文学习型说明：提取 runSearch 为纯搜索副作用函数（接收明确的 query 参数）。
+   *  这是前端事件处理重构 —— 只改变 submit 和 retry 共享搜索逻辑的方式，
+   *  不改变 BM25 / recall 后端语义，不改 API 请求参数，不改请求路径/方法。
+   *
+   *  submit handler 只负责 event.preventDefault() + 调用 runSearch。
+   *  retry handler 不再伪造 React.FormEvent，直接调用 runSearch(query.trim())。
+   *  两者 type-check 完全真实，不再需要 as unknown as 绕过 TypeScript。
+   */
+  async function runSearch(queryText: string): Promise<void> {
+    if (!queryText) return;
     setError(null);
     setSearching(true);
     try {
-      setData(await recall(q));
+      setData(await recall(queryText));
     } catch (err) {
       setError(err instanceof Error ? err.message : "搜索失败");
     } finally {
       setSearching(false);
     }
+  }
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    runSearch(query.trim());
   }
 
   return (
@@ -39,7 +50,7 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
         <h1 className="text-2xl font-semibold text-ink">搜索知识</h1>
         <p className="mt-1 text-sm text-muted">搜索已确认的知识卡片。当前使用 BM25 词法匹配，非语义 RAG 检索。</p>
       </header>
-      <form className="flex gap-2" onSubmit={submit}>
+      <form className="flex gap-2" onSubmit={handleSubmit}>
         <input
           className="min-w-0 flex-1 rounded-md border border-line bg-panel px-3 py-2"
           onChange={(event) => setQuery(event.target.value)}
@@ -67,7 +78,10 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
           <div className="flex items-start gap-2">
             <span className="mt-0.5 font-medium text-danger">搜索失败</span>
             <span className="flex-1">{error}</span>
-            <button className="text-xs text-muted hover:text-ink" onClick={() => { setError(null); submit(new Event("submit") as unknown as React.FormEvent); }} type="button">重试</button>
+            {/* 中文学习型说明：retry 不再伪造 React.FormEvent，直接调用 runSearch。
+               当前的 query 值即上次搜索关键词（搜索失败时不会清空输入框），
+               重试时复用该关键词。 */}
+            <button className="text-xs text-muted hover:text-ink" onClick={() => runSearch(query.trim())} type="button">重试</button>
           </div>
         </div>
       ) : null}
