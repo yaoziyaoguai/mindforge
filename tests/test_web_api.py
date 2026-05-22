@@ -4596,6 +4596,226 @@ def test_registered_source_not_falsely_claimed(tmp_path: Path) -> None:
     assert view.path_kind in ("workspace",), f"不应返回 registered_source，实际返回 {view.path_kind}"
 
 
+def test_source_path_view_archived_source_fallback(tmp_path: Path) -> None:
+    """approve 后 source 被归档到 _processed/ 时，通过 source_archive_path fallback 仍可访问。
+
+    中文学习型说明：approve 后 source_archive_service 会把原始文件移动到
+    00-Inbox/_processed/，此时 source_path 不再存在，但 source_archive_path
+    指向归档位置。build_source_path_view 应通过 source_archive_path fallback
+    找到归档文件，并返回 workspace path_kind（允许 copy/reveal）。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    # 创建归档目录和文件（模拟 approve 后的 source 归档）
+    archived_dir = vault / "00-Inbox" / "_processed"
+    archived_dir.mkdir(parents=True, exist_ok=True)
+    archived_file = archived_dir / "archived-note.md"
+    archived_file.write_text("# Archived\n\nContent.", encoding="utf-8")
+
+    # source_path 指向不存在的原始位置
+    original_path = vault / "00-Inbox" / "ManualNotes" / "archived-note.md"
+    # 确保原始路径不存在
+    if original_path.exists():
+        original_path.unlink()
+
+    # source_archive_path 是 vault-relative 归档路径
+    archive_rel = "00-Inbox/_processed/archived-note.md"
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+    view = svc.build_source_path_view(
+        str(original_path),
+        source_title="Archived Note",
+        source_archive_path=archive_rel,
+    )
+
+    assert view.path_kind == "workspace", (
+        f"归档文件存在于 vault 内，应返回 workspace，实际返回 {view.path_kind}"
+    )
+    assert view.full_path_available is True
+    assert view.can_copy_full_path is True
+    assert view.can_reveal_in_finder is True
+    # display_path 应为完整归档路径，而非仅 basename
+    assert str(archived_file) in (view.display_path or "")
+
+
+def test_source_path_view_archived_path_outside_vault_not_revealable(tmp_path: Path) -> None:
+    """source_archive_path 指向 vault 外路径时不可 reveal。
+
+    中文学习型说明：source_archive_path 虽然是 vault-relative，但恶意构造的
+    路径（如 ../outside/secret.txt）解析后可能落在 vault 外。此时 fallback 解析
+    后仍需通过 _is_allowlisted 检查，不能因为是 archived path 就跳过安全分类。
+    """
+    cfg_path, vault, cards = _write_config(tmp_path)
+    _write_approved_card(cards)
+
+    # 创建 vault 外的文件
+    outside_dir = tmp_path / "outside-vault"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "secret.txt"
+    outside_file.write_text("secret", encoding="utf-8")
+
+    # source_path 指向不存在的 vault 内文件
+    original_path = vault / "00-Inbox" / "ManualNotes" / "missing.md"
+
+    # source_archive_path 尝试路径穿越到 vault 外
+    archive_rel = "../../outside-vault/secret.txt"
+
+    from mindforge.config import load_mindforge_config
+    from mindforge_web.services.web_path_action_service import WebPathActionService
+
+    cfg = load_mindforge_config(cfg_path)
+    svc = WebPathActionService(cfg, config_path=cfg_path)
+    view = svc.build_source_path_view(
+        str(original_path),
+        source_title="Path Traversal Attempt",
+        source_archive_path=archive_rel,
+    )
+
+    # 路径穿越解析后不在 vault allowlist 内 → 不可 reveal
+    assert view.can_reveal_in_finder is False, (
+        f"vault 外路径不应可 reveal，path_kind={view.path_kind}"
+    )
+    assert view.path_kind in ("outside_allowed_roots", "not_available"), (
+        f"vault 外路径应返回 outside_allowed_roots 或 not_available，实际返回 {view.path_kind}"
+    )
+
+
+# =============================================================================
+# P2 Knowledge Card Template 空 section 隐藏测试
+# 中文学习型说明：action_items / suggested_links 为空时模板不应输出 section
+# 标题和"暂无"占位文本，避免 Web Review/Library 页面出现空 section 噪音。
+# =============================================================================
+
+
+def _render_knowledge_card_template(card: dict, source: dict | None = None, run: dict | None = None) -> str:
+    """渲染 knowledge_card.md.j2 模板的 helper。"""
+    from jinja2 import DictLoader, Environment, select_autoescape
+
+    from mindforge.assets_runtime import bundled_text
+
+    template_text = bundled_text("templates", "knowledge_card.md.j2")
+    env = Environment(
+        loader=DictLoader({"knowledge_card.md.j2": template_text}),
+        autoescape=select_autoescape(disabled_extensions=("md", "j2")),
+        keep_trailing_newline=True,
+    )
+    template = env.get_template("knowledge_card.md.j2")
+    return template.render(
+        card=card,
+        source=source or {
+            "source_id": "test-src",
+            "source_type": "markdown",
+            "adapter_name": "plain_markdown",
+            "source_path": "test/source.md",
+        },
+        run=run or {
+            "run_id": "test",
+            "source_content_hash": "abc",
+            "created_at": "2026-01-01",
+            "strategy_id": "test",
+            "strategy_version": "1",
+            "schema_version": "1",
+            "prompt_versions": {},
+            "profile": "test",
+            "model_routing": {},
+            "prompts": {"distill_version": "v1"},
+        },
+    )
+
+
+def _base_card() -> dict:
+    return {
+        "id": "test-1",
+        "title": "Test Card",
+        "track": "test",
+        "projects": [],
+        "tags": [],
+        "value_score": 8,
+        "confidence": 0.9,
+        "source_excerpt": "Test excerpt.",
+        "ai_summary_bullets": ["Summary point 1"],
+        "ai_inference_bullets": [],
+        "reusable_prompts_or_principles": [],
+        "project_hooks": [],
+        "review_questions": [],
+        "action_items": [],
+        "suggested_links": [],
+    }
+
+
+def test_template_empty_action_items_hides_section() -> None:
+    """action_items 为空时不输出 ## Action Items 标题和占位文本。"""
+    card = _base_card()
+    card["action_items"] = []
+    rendered = _render_knowledge_card_template(card)
+
+    assert "## Action Items" not in rendered, (
+        "action_items 为空时不应输出 ## Action Items 标题"
+    )
+    assert "暂无行动项" not in rendered, (
+        "action_items 为空时不应输出'暂无行动项'占位文本"
+    )
+
+
+def test_template_empty_suggested_links_hides_section() -> None:
+    """suggested_links 为空时不输出 ## Suggested Links 标题和占位文本。"""
+    card = _base_card()
+    card["suggested_links"] = []
+    rendered = _render_knowledge_card_template(card)
+
+    assert "## Suggested Links" not in rendered, (
+        "suggested_links 为空时不应输出 ## Suggested Links 标题"
+    )
+    assert "暂无双链建议" not in rendered, (
+        "suggested_links 为空时不应输出'暂无双链建议'占位文本"
+    )
+
+
+def test_template_with_action_items_renders_section() -> None:
+    """有 action_items 时正常渲染 ## Action Items 和条目。"""
+    card = _base_card()
+    card["action_items"] = [
+        {"project_id": "proj-1", "action": "Do the thing", "reason": "Important", "priority": "high"},
+    ]
+    rendered = _render_knowledge_card_template(card)
+
+    assert "## Action Items" in rendered
+    assert "Do the thing" in rendered
+    assert "proj-1" in rendered
+
+
+def test_template_with_suggested_links_renders_section() -> None:
+    """有 suggested_links 时正常渲染 ## Suggested Links 和条目。"""
+    card = _base_card()
+    card["suggested_links"] = [
+        {"card_id": "card-2", "card_title": "Related Card", "reason": "Related topic"},
+    ]
+    rendered = _render_knowledge_card_template(card)
+
+    assert "## Suggested Links" in rendered
+    assert "Related Card" in rendered
+    assert "card-2" in rendered
+
+
+def test_template_both_sections_hidden_when_empty() -> None:
+    """两个 section 都为空时，渲染结果中两个标题都不出现。"""
+    card = _base_card()
+    card["action_items"] = []
+    card["suggested_links"] = []
+    rendered = _render_knowledge_card_template(card)
+
+    assert "## Action Items" not in rendered
+    assert "## Suggested Links" not in rendered
+    # 但其他 section 仍然存在
+    assert "## AI Summary" in rendered
+    assert "## Source Excerpt" in rendered
+
+
 # =============================================================================
 # P1 Wiki Mode Metadata Tests
 # 中文学习型说明：这些测试验证 configured_mode / effective_generation_mode /

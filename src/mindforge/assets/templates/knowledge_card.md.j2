@@ -92,25 +92,20 @@ _（本卡片未关联任何项目）_
 _（本卡片暂无复习题）_
 {%- endif %}
 
+{% if card.action_items -%}
 ## Action Items
 
-{% if card.action_items -%}
 {% for a in card.action_items -%}
 - [{{ a.priority }}] [[{{ a.project_id }}]] — {{ a.action }}（理由：{{ a.reason }}）
 {% endfor %}
-{%- else -%}
-_（本卡片暂无行动项）_
-{%- endif %}
-
+{% endif -%}
+{% if card.suggested_links -%}
 ## Suggested Links
 
-{% if card.suggested_links -%}
 {% for link in card.suggested_links -%}
 - [[{{ link.card_id }}]]（{{ link.card_title }}）— {{ link.reason }}
 {% endfor %}
-{%- else -%}
-_（本卡片暂无双链建议）_
-{%- endif %}
+{% endif -%}
 
 ---
 <!--
