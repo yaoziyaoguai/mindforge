@@ -46,6 +46,8 @@ Exit Code Gate  ──→ 不通过 → 回到 Implementation
 Commit / Push
 ```
 
+大 loop 是完整流程的上界，不是所有任务的强制全路径。低风险 fast lane 改动（docs-only、小 copy、小 UI polish、单文件低风险改动）按 Phase 0.1 跳过 SPEC/Plan → Document Review → TDD → Test Review 前半段，从 Implementation 或 Gate 直接进入。skip 不是绕过工程纪律，而是基于风险分级选择更轻的入口——即便 fast lane，也必须满足对应 gate（git diff --check、build、专项测试、exit code = 0）。
+
 ### 每一步的小 Loop
 
 每个阶段内部也有自己的回退循环：
@@ -69,6 +71,7 @@ Coding Agent 在流程中必须遵循以下判断规则：
 5. **不为通过而修 case** — 不能为了让测试变绿而削弱断言、删除覆盖、放宽边界。测试失败先怀疑实现，再怀疑测试，最后怀疑 spec。
 6. **不忽略 plan 错误** — 实现过程中发现 plan 本身有问题，必须回到 SPEC/Plan 修正文档，不能在代码里"将就一下"。
 7. **Debug 必须查根因** — 不能把 debug 变成表面补丁。必须查日志、状态、事件链、真实证据。根因在上游时，回到上游修正，不在表面贴膏药。
+8. **回退有上限** — 同一问题在同一阶段来回修 2 次仍无法通过 review / gate，必须停止并升级给用户。升级时说明：已尝试的路径、失败证据、当前判断、需要用户决策的问题。不允许第三次无证据地继续尝试。这条规则不削弱正常的小修复（typo、lint、格式），只防止 plan↔review、test↔implementation、debug↔patch 无限振荡。
 
 ### Implementation Notes 中的回退记录
 
