@@ -4,7 +4,7 @@ import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigRespons
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 import { useLocale } from "../lib/i18n";
-import { strategyNameLabel, strategyStatusLabel, workflowStepLabel, nextActionDescription } from "../lib/utils";
+import { strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription } from "../lib/utils";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -268,8 +268,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard label={t("setup.knowledge_vault")} value={data.vault.exists ? t("setup.status_ready") : t("setup.vault_auto_created")} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} />
-        <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
+        <StatusCard label={t("setup.knowledge_vault")} value={data.vault.exists ? t("setup.status_ready") : t("setup.vault_auto_created")} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} locale={locale} />
+        <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail={t("setup.api_key_status_detail")} locale={locale} />
       </div>
 
       {/* 中文学习型说明：provider 安全边界说明 —— 帮助用户理解 fake/real provider 区别。
@@ -556,7 +556,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                           <span className="font-semibold text-ink">{workflowStepLabel(step.id, locale)}</span>
                           <span className="text-xs text-muted">{step.id}</span>
                         </div>
-                        <p className="mt-1 text-xs text-muted">{step.purpose}</p>
+                        <p className="mt-1 text-xs text-muted">{workflowStepPurpose(step.id, step.purpose, locale)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button className="rounded-md border border-line bg-white px-2 py-0.5 text-xs text-primary hover:bg-stone-50" onClick={() => viewPrompt(step.id, step.prompt_version)} type="button">{t("setup.workflow_view_prompt")} ({step.prompt_version})</button>

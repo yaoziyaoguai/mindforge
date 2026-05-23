@@ -97,6 +97,29 @@ export function workflowStepLabel(stepId: string, locale?: Locale): string {
   return labels[locale ?? "zh"]?.[stepId] ?? stepId;
 }
 
+/** workflow step id → 本地化 purpose 文案。
+ *  后端返回的 step.purpose 是中文描述，en 模式下需要前端做 display mapping。
+ *  与 workflowStepLabel() 同模式：按 step.id 匹配，未匹配时 fallback 到原始 purpose。 */
+export function workflowStepPurpose(stepId: string, fallback: string, locale?: Locale): string {
+  const purposes: Record<Locale, Record<string, string>> = {
+    zh: {
+      triage: "初筛：快速扫描来源文件，过滤明显不相关内容，标记候选片段。",
+      distill: "提炼：从候选片段中提取核心知识点，生成结构化摘要。",
+      link_suggestion: "关联建议：检测与已有知识卡片的潜在关联，建议双向链接。",
+      review_questions: "复习问题：基于提炼结果生成复习问题，辅助间隔重复。",
+      action_extraction: "行动项提取：识别可操作的任务项，生成行动建议。",
+    },
+    en: {
+      triage: "Triage: scan source files, filter irrelevant content, and mark candidate segments.",
+      distill: "Distill: extract core knowledge points from candidate segments and generate structured summaries.",
+      link_suggestion: "Link Suggestion: detect potential connections to existing knowledge cards and suggest bidirectional links.",
+      review_questions: "Review Questions: generate review questions based on distilled results for spaced repetition.",
+      action_extraction: "Action Extraction: identify actionable tasks and generate action suggestions.",
+    },
+  };
+  return purposes[locale ?? "zh"]?.[stepId] ?? fallback;
+}
+
 /** 后端 active_strategy_status → 本地化展示标签。 */
 export function strategyStatusLabel(status: string, locale?: Locale): string {
   const labels: Record<Locale, Record<string, string>> = {

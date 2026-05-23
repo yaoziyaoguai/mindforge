@@ -429,6 +429,24 @@ const copy: Record<Locale, LocaleDict> = {
     "status.pending": "等待中",
     "status.imported": "已导入",
 
+    // ---- SafetyBar ----
+    "safety.local_only": "本地运行",
+    "safety.host_warning": "主机警告",
+    "safety.model_setup": "模型配置：",
+    "safety.model_ready": "就绪",
+    "safety.model_check": "待检查",
+    "safety.explicit_approval": "需显式确认",
+    "safety.read_only": "只读模式",
+    "safety.needs_review": "待审阅：",
+    "safety.safe_local_read": "安全本地读取",
+    "safety.loading": "正在加载安全状态...",
+
+    // ---- Setup detail strings ----
+    "setup.api_key_status_detail": "API Key 状态仅显示已配置/未配置，不显示实际 Key 值。",
+
+    // ---- Sources ----
+    "sources.advanced_note_default": "使用命令行进行高级导入操作和故障排查。scan/process 命令仅用于高级/故障排查场景。",
+
     // ---- Shared ----
     "shared.close": "关闭",
     "shared.yes": "是",
@@ -851,6 +869,24 @@ const copy: Record<Locale, LocaleDict> = {
     "status.failed": "Failed",
     "status.pending": "Pending",
     "status.imported": "Imported",
+
+    // ---- SafetyBar ----
+    "safety.local_only": "Local only",
+    "safety.host_warning": "Host warning",
+    "safety.model_setup": "Model setup: ",
+    "safety.model_ready": "ready",
+    "safety.model_check": "check",
+    "safety.explicit_approval": "Explicit approval required",
+    "safety.read_only": "Read-only",
+    "safety.needs_review": "Needs review: ",
+    "safety.safe_local_read": "Safe local read",
+    "safety.loading": "Loading safety state...",
+
+    // ---- Setup detail strings ----
+    "setup.api_key_status_detail": "API key status is shown as present/missing only.",
+
+    // ---- Sources ----
+    "sources.advanced_note_default": "Use the command line for advanced import operations and troubleshooting. scan/process remain available only for Advanced / Troubleshooting scenarios.",
 
     // ---- Shared ----
     "shared.close": "Close",

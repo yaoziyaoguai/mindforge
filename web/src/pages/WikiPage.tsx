@@ -99,7 +99,7 @@ export function WikiPage() {
         if (data.warnings?.length) {
           setMessage(
             (prev) =>
-              (prev ?? "") + " — Warnings: " + data.warnings!.join("; "),
+              (prev ?? "") + " — " + t("wiki.warnings") + ": " + data.warnings!.join("; "),
           );
         }
         if (data.last_rebuilt_at) {
