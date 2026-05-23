@@ -65,7 +65,7 @@
 
 3. **"API key" stays as "API key"**: Universal technical term, Chinese speakers commonly use it in English. zh value intentionally kept identical to en.
 
-4. **Rebuild status messages**: WikiPage rebuild results like "Wiki rebuilt (llm): 5 cards, 3 sections" are technical status messages, not primary UI copy.
+4. **Rebuild status messages** (NOW FIXED in follow-up): WikiPage rebuild results now use i18n template `wiki.rebuild_result` / `wiki.rebuild_server_error`. Warnings appended to the message remain in English as they are technical/debug data.
 
 5. **SafetyBar labels**: "Local only", "Explicit approval required", "Safe local read" — these come from backend and are part of the safety/security contract. Not translated to avoid misrepresenting security posture.
 
@@ -107,8 +107,37 @@ Also fixed existing test assertions that compared zh values against English stri
 
 3. **EmptyState.tsx not i18n-ized**: This component receives translated strings via props (`title`, `action.label`). Adding useLocale would be redundant since its parent already translates.
 
-## Remaining P3/P4
+## Remaining P3/P4 (triaged 2026-05-23)
 
-- P3: NextAction backend labels still mixed language (requires backend change, out of scope)
-- P3: Source type format names (Markdown/HTML/PDF) kept as proper nouns
-- P4: Rebuild status messages are technical/developer-facing, kept in English
+### P3-1: NextAction backend labels — ENTERED FUTURE BACKLOG
+
+**现状**: `NextAction.label` 和 `description` 在 `src/mindforge_web/services/web_facade.py` 的 `_next_actions()` 中硬编码。label 为英文（"Review drafts", "Watch or import source" 等），description 为中英混合。
+
+**为何不能纯前端修**: NextAction 结构只有 `{label, description, command, href, onClick}` 五个字段，没有 `type`/`action_key` 可用于前端 display mapping。label 是后端动态生成的自由文本，前端做字符串匹配太脆弱。
+
+**需要的后端改动** (future spec):
+1. 在 `NextAction` schemas 中增加 `action_key: str | None` 字段
+2. 后端生成 NextAction 时填入稳定的 `action_key`（如 `"init_vault"`, `"review_drafts"`, `"watch_source"`, `"search_knowledge"`）
+3. 前端根据 `action_key` 做 display mapping，`label`/`description` 降级为 fallback
+
+**记录位置**: 建议新增 `docs/specs/2026-05-XX-003-web-next-action-i18n-spec.md` 或纳入下一轮 Web UX plan。
+
+### P3-2: Source type format names — INTENTIONAL RETENTION
+
+**保留原因**:
+1. Markdown / HTML / PDF / Word / Text 是文件格式的专有名词（proper nouns），不是 UI copy
+2. 在中文软件开发中，"PDF 文档"、"Markdown 文件" 是标准用法，格式名本身不翻译
+3. 展示样式为 `font-mono text-[10px] uppercase tracking-wide` badge — 视觉上明确是技术元数据标签，不是主文案
+4. 映射已在 `WikiReferenceCard.sourceTypeLabels` 中完成（`plain_markdown` → `Markdown`），将 internal id 转为可读格式名，已满足用户友好要求
+
+**不做的事**: 将这些格式名加入 i18n 字典。它们是格式标识符，翻译反而降低可辨识度。
+
+### P4: Rebuild status messages — FIXED
+
+**修复内容**:
+- 新增 i18n key `wiki.rebuild_result`：zh `"Wiki 已重新生成（{mode}）：{cards} 张卡片，{sections} 个章节，模型：{model}"` / en `"Wiki rebuilt ({mode}): {cards} cards, {sections} sections, model: {model}"`
+- 新增 i18n key `wiki.rebuild_server_error`：zh `"重新生成失败：{error}"` / en `"Rebuild failed: {error}"`
+- `WikiPage.tsx` 中 rebuild 成功/失败消息改为通过 `t()` 获取并使用 `.replace()` 模板替换
+- 原动态拼接 `parts.join(", ")` 逻辑替换为单一模板
+
+**Warnings 附加逻辑保留**: warnings 通过 `setMessage(prev => prev + " — Warnings: ...")` 追加，这部分是技术/调试信息，保持英文。

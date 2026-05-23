@@ -89,12 +89,13 @@ export function WikiPage() {
       });
       const data: WikiRebuildResult = await resp.json();
       if (data.ok) {
-        const parts: string[] = [
-          `Wiki rebuilt (${data.mode}): ${data.included_cards} cards`,
-        ];
-        if (data.section_count) parts.push(`${data.section_count} sections`);
-        if (data.model_id) parts.push(`model: ${data.model_id}`);
-        setMessage(parts.join(", "));
+        setMessage(
+          t("wiki.rebuild_result")
+            .replace("{mode}", data.mode ?? "?")
+            .replace("{cards}", String(data.included_cards ?? 0))
+            .replace("{sections}", String(data.section_count ?? 0))
+            .replace("{model}", data.model_id ?? "-"),
+        );
         if (data.warnings?.length) {
           setMessage(
             (prev) =>
@@ -114,7 +115,7 @@ export function WikiPage() {
           );
         }
       } else {
-        setError(`Rebuild failed: ${data.error ?? "unknown error"}`);
+        setError(t("wiki.rebuild_server_error").replace("{error}", data.error ?? "unknown error"));
       }
       await load();
     } catch {

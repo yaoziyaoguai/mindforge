@@ -488,6 +488,8 @@ def test_i18n_wiki_keys_complete() -> None:
         "wiki.untitled_section",
         "wiki.load_failed",
         "wiki.rebuild_failed",
+        "wiki.rebuild_result",
+        "wiki.rebuild_server_error",
         "wiki.knowledge_sources",
         "wiki.references",
         "wiki.approved_badge",
