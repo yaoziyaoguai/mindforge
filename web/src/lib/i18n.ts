@@ -405,6 +405,13 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.reader_mode_off": "退出阅读",
     "wiki.related_sections": "相关章节",
     "wiki.toc_label": "本页目录",
+    "wiki.quality_title": "知识质量",
+    "wiki.quality_coverage": "覆盖率",
+    "wiki.quality_faithfulness": "忠实度",
+    "wiki.quality_unused": "未引用卡片",
+    "wiki.quality_stale": "过期章节",
+    "wiki.quality_gaps": "知识缺口",
+    "wiki.quality_conflicts": "矛盾声明",
 
     // ---- SourceAddPanel ----
     "source_add.title": "添加文件或文件夹",
@@ -864,6 +871,13 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.reader_mode_off": "Exit Reader",
     "wiki.related_sections": "Related Sections",
     "wiki.toc_label": "On This Page",
+    "wiki.quality_title": "Knowledge Quality",
+    "wiki.quality_coverage": "Coverage",
+    "wiki.quality_faithfulness": "Faithfulness",
+    "wiki.quality_unused": "Unused",
+    "wiki.quality_stale": "Stale Sections",
+    "wiki.quality_gaps": "Knowledge Gaps",
+    "wiki.quality_conflicts": "Conflicts",
 
     // ---- SourceAddPanel ----
     "source_add.title": "Add a file or folder",

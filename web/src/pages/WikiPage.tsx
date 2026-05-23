@@ -17,7 +17,7 @@ import { WikiEmptyState } from "../components/wiki/WikiEmptyState";
 import { WikiErrorState } from "../components/wiki/WikiErrorState";
 import { WikiLoadingState } from "../components/wiki/WikiLoadingState";
 import { useLocale } from "../lib/i18n";
-import type { WikiPageViewModel } from "../api/wiki";
+import type { WikiPageViewModel, WikiQualityResponse } from "../api/wiki";
 
 interface WikiStatus {
   wiki_path: string;
@@ -52,14 +52,16 @@ export function WikiPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [readerMode, setReaderMode] = useState(false);
+  const [quality, setQuality] = useState<WikiQualityResponse | null>(null);
   const { t } = useLocale();
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [s, p] = await Promise.all([
+      const [s, p, q] = await Promise.all([
         fetch("/api/wiki/status").then((r) => r.json()),
         fetch("/api/wiki/page").then((r) => r.json()),
+        fetch("/api/wiki/quality").then((r) => r.json()),
       ]);
       setStatus(s as WikiStatus);
       if ((p as Record<string, unknown>).exists === false) {
@@ -67,6 +69,7 @@ export function WikiPage() {
       } else {
         setPage(p as WikiPageViewModel);
       }
+      setQuality(q as WikiQualityResponse);
     } catch {
       setError(t("wiki.load_failed"));
     } finally {
@@ -233,6 +236,41 @@ export function WikiPage() {
         <div className="flex gap-6">
           {!readerMode && <WikiTOC sections={page.sections} />}
           <WikiReadingPane page={page} readerMode={readerMode} />
+        </div>
+      )}
+
+      {quality?.exists && quality.coverage && (
+        <div className="border rounded-lg p-4 bg-surface text-sm">
+          <h3 className="font-semibold mb-2">{t("wiki.quality_title")}</h3>
+          <div className="flex flex-wrap gap-3">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 text-blue-700">
+              {t("wiki.quality_coverage")}: {quality.coverage.used}/{quality.coverage.total} ({Math.round(quality.coverage.rate * 100)}%)
+            </span>
+            {quality.faithfulness && (
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${
+                quality.faithfulness.average >= 0.7 ? "bg-green-50 text-green-700" :
+                quality.faithfulness.average >= 0.4 ? "bg-amber-50 text-amber-700" :
+                "bg-red-50 text-red-700"
+              }`}>
+                {t("wiki.quality_faithfulness")}: {Math.round(quality.faithfulness.average * 100)}%
+              </span>
+            )}
+            {quality.unused_cards && quality.unused_cards.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 text-amber-700">
+                {t("wiki.quality_unused")}: {quality.unused_cards.length}
+              </span>
+            )}
+            {quality.stale_sections && quality.stale_sections.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 text-amber-700">
+                {t("wiki.quality_stale")}: {quality.stale_sections.length}
+              </span>
+            )}
+            {quality.knowledge_gaps && quality.knowledge_gaps.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-700">
+                {t("wiki.quality_gaps")}: {quality.knowledge_gaps.length}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

@@ -26,6 +26,38 @@ export interface WikiQuestionView {
   question: string;
 }
 
+export interface WikiQualityCoverage {
+  used: number;
+  unused: number;
+  total: number;
+  rate: number;
+}
+
+export interface WikiQualityUnusedCard {
+  id: string;
+  title: string;
+  reason: string;
+}
+
+export interface WikiQualityFaithfulness {
+  average: number;
+  by_section: Record<string, number>;
+}
+
+export interface WikiQualityResponse {
+  exists: boolean;
+  coverage?: WikiQualityCoverage;
+  unused_cards?: WikiQualityUnusedCard[];
+  used_cards?: string[];
+  faithfulness?: WikiQualityFaithfulness;
+  faithfulness_issues?: string[];
+  stale_sections?: string[];
+  knowledge_gaps?: string[];
+  conflicting_claims?: { card_a: string; card_b: string; topic: string }[];
+  section_count?: number;
+  error?: string;
+}
+
 export interface WikiPageViewModel {
   title: string;
   mode: string;

@@ -18,6 +18,12 @@ from pathlib import Path
 
 from .cards import CardSummary, extract_section, iter_cards, read_card_body
 from .config import MindForgeConfig
+from .wiki.wiki_quality import (
+    compute_coverage,
+    compute_faithfulness_score,
+    compute_knowledge_gaps,
+    detect_stale_sections,
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,190 @@ def _wiki_root(cfg: MindForgeConfig) -> Path:
 
 def _wiki_path(cfg: MindForgeConfig) -> Path:
     return _wiki_root(cfg) / "Main-Wiki.md"
+
+
+def _generate_quality_report_appendix(
+    wiki_content: str,
+    approved_cards: list[CardSummary],
+) -> str:
+    """从已生成的 Wiki 内容 + approved cards 生成 quality report appendix。
+
+    解析 WIKI_SECTION_START 标记提取 used card ids，计算 coverage、
+    faithfulness、staleness，生成 markdown appendix + 嵌入式 JSON。
+    """
+    import json as _json
+
+    # 解析 used card IDs
+    used_ids: list[str] = []
+    section_card_map: dict[str, list[str]] = {}
+    section_title_map: dict[int, str] = {}
+    sec_idx = 0
+
+    for line in wiki_content.split("\n"):
+        m = re.search(r"<!-- WIKI_SECTION_START card(_ids)?=(.+?) -->", line)
+        if m:
+            ids_str = m.group(2)
+            ids = [cid.strip() for cid in ids_str.split(",") if cid.strip()]
+            used_ids.extend(ids)
+            sec_title = f"Section {sec_idx + 1}"
+            section_card_map[sec_title] = ids
+            # 尝试从下一行读取 section 标题
+            section_title_map[sec_idx] = sec_title
+            sec_idx += 1
+        # 检测 heading 作为 section title
+        if sec_idx > 0 and line.startswith("### "):
+            title = line[4:].strip()
+            section_title_map[sec_idx - 1] = title
+
+    # 全部 approved card IDs
+    all_approved_ids = [c.id for c in approved_cards if c.id]
+
+    # 去重 used_ids
+    used_ids_unique = list(dict.fromkeys(used_ids))
+
+    # Reason map（简单版）
+    reason_map: dict[str, str] = {}
+    for cid in all_approved_ids:
+        if cid not in used_ids_unique:
+            reason_map[cid] = "Not included in any Wiki section"
+
+    # Coverage
+    unused_ids, reasons = compute_coverage(all_approved_ids, used_ids_unique, reason_map)
+
+    # Faithfulness per section
+    faithfulness_scores: dict[str, float] = {}
+    faithfulness_issues: list[str] = []
+    for sec_title, card_ids in section_card_map.items():
+        bodies: dict[str, str] = {}
+        for cid in card_ids:
+            card = next((c for c in approved_cards if c.id == cid), None)
+            if card:
+                try:
+                    bodies[cid] = read_card_body(card.path) or ""
+                except Exception:
+                    bodies[cid] = ""
+        if bodies:
+            # 从 wiki content 提取 section body text
+            score = _compute_section_faithfulness(wiki_content, sec_title, bodies)
+            faithfulness_scores[sec_title] = score
+            if score < 0.3:
+                faithfulness_issues.append(f"{sec_title}: faithfulness {score:.2f}")
+        else:
+            faithfulness_scores[sec_title] = 1.0
+
+    # Staleness
+    topic_keywords = _derive_topic_keywords(section_card_map, approved_cards)
+    stale = detect_stale_sections(
+        [type("_SR", (), {"section_title": t, "card_ids": tuple(ids), "relevance": "primary"})()
+         for t, ids in section_card_map.items()],
+        new_card_titles={c.title or "" for c in approved_cards},
+        topic_keywords=topic_keywords,
+    )
+
+    # Knowledge gaps
+    used_tags: set[str] = set()
+    for cid in used_ids_unique:
+        card = next((c for c in approved_cards if c.id == cid), None)
+        if card:
+            used_tags.update(card.tags)
+    gaps = compute_knowledge_gaps(
+        list(section_title_map.values()),
+        used_tags,
+        topic_keywords,
+    )
+
+    # 构造 Quality Report
+    cov_pct = round((len(used_ids_unique) / max(len(all_approved_ids), 1)) * 100)
+    faith_avg = (
+        round(sum(faithfulness_scores.values()) / max(len(faithfulness_scores), 1), 2)
+        if faithfulness_scores else 0
+    )
+
+    quality_json = {
+        "coverage": {
+            "used": len(used_ids_unique),
+            "unused": len(unused_ids),
+            "total": len(all_approved_ids),
+            "rate": round(len(used_ids_unique) / max(len(all_approved_ids), 1), 2),
+        },
+        "unused_cards": [
+            {"id": cid, "title": next((c.title for c in approved_cards if c.id == cid), ""), "reason": reasons.get(cid, "")}
+            for cid in unused_ids
+        ],
+        "used_cards": used_ids_unique,
+        "faithfulness": {
+            "average": faith_avg,
+            "by_section": faithfulness_scores,
+        },
+        "faithfulness_issues": faithfulness_issues,
+        "stale_sections": stale,
+        "knowledge_gaps": gaps,
+        "conflicting_claims": [],
+        "section_count": len(section_card_map),
+    }
+
+    json_str = _json.dumps(quality_json, ensure_ascii=False, indent=2)
+
+    appendix = (
+        f"\n\n## Wiki Quality Report\n\n"
+        f"<!-- WIKI_QUALITY_REPORT_START -->\n"
+        f"- **Coverage**: {len(used_ids_unique)}/{len(all_approved_ids)} approved cards used ({cov_pct}%)\n"
+        f"- **Faithfulness**: avg {faith_avg}\n"
+    )
+    if unused_ids:
+        appendix += f"- **Unused cards**: {len(unused_ids)} cards not referenced in any section\n"
+    if stale:
+        appendix += f"- **Stale sections**: {len(stale)} sections may need review\n"
+    if gaps:
+        appendix += f"- **Knowledge gaps**: {len(gaps)} topics not covered\n"
+    if faithfulness_issues:
+        appendix += f"- **Faithfulness issues**: {len(faithfulness_issues)} sections below threshold\n"
+    appendix += (
+        f"<!-- WIKI_QUALITY_REPORT_END -->\n"
+        f"\n<!-- WIKI_QUALITY_JSON\n{json_str}\n-->"
+    )
+
+    return appendix
+
+
+def _compute_section_faithfulness(
+    wiki_content: str,
+    section_title: str,
+    card_bodies: dict[str, str],
+) -> float:
+    """计算单个 wiki section 的 faithfulness score。"""
+    # 从 wiki content 提取该 section 的 body text
+    pattern = rf"### {re.escape(section_title)}\n(.*?)(?=\n### |\n<!-- WIKI_SECTION_END|\Z)"
+    m = re.search(pattern, wiki_content, re.DOTALL)
+    if not m:
+        return 1.0
+    section_text = m.group(1).strip()
+    if not section_text:
+        return 1.0
+    return compute_faithfulness_score(section_text, card_bodies)
+
+
+def _derive_topic_keywords(
+    section_card_map: dict[str, list[str]],
+    approved_cards: list[CardSummary],
+) -> dict[str, set[str]]:
+    """从 section → card 映射中推导 topic keywords。"""
+    keywords: dict[str, set[str]] = {}
+    for sec_title, card_ids in section_card_map.items():
+        kw_set: set[str] = set()
+        for cid in card_ids:
+            card = next((c for c in approved_cards if c.id == cid), None)
+            if card:
+                if card.title:
+                    for word in card.title.lower().split():
+                        word = word.strip(".,;:!?()[]{}'\"")
+                        if len(word) > 2:
+                            kw_set.add(word)
+                for tag in card.tags:
+                    kw_set.add(tag.lower())
+        if kw_set:
+            keywords[sec_title] = kw_set
+    return keywords
 
 
 def rebuild_main_wiki(cfg: MindForgeConfig) -> WikiRebuildResult:
@@ -108,6 +298,10 @@ def rebuild_main_wiki(cfg: MindForgeConfig) -> WikiRebuildResult:
         lines.append("")
 
     content = "".join(lines)
+
+    # M2: 追加 Wiki Quality Report appendix
+    quality_appendix = _generate_quality_report_appendix(content, approved)
+    content += quality_appendix
 
     # Atomic write
     tmp = wiki_path.with_suffix(".tmp")
@@ -323,6 +517,7 @@ def llm_rebuild_wiki(
 
     # 2) 构建 CardDigest
     scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    approved_cards = [c for c in scan.cards if c.status == "human_approved"]
     digests: list[CardDigest] = []
     for c in scan.cards:
         d = _build_card_digest(c, max_body_chars=max_digest_chars)
@@ -476,6 +671,10 @@ def llm_rebuild_wiki(
                 md_lines.append(f"- **{q.get('question', '?')}**\n")
 
     content = "".join(md_lines)
+
+    # M2: 追加 Wiki Quality Report appendix
+    quality_appendix = _generate_quality_report_appendix(content, approved_cards)
+    content += quality_appendix
 
     # Atomic write
     tmp = wiki_path.with_suffix(".tmp")

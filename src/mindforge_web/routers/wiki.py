@@ -316,3 +316,31 @@ def wiki_references(facade: WebFacade = Depends(get_facade)):
     for s in vm.sections:
         result.extend(asdict(r) for r in s.card_refs)
     return result
+
+
+@router.get("/quality")
+def wiki_quality(facade: WebFacade = Depends(get_facade)):
+    """返回 Wiki Quality Report 结构化数据。
+
+    从已生成 Wiki markdown 的 <!-- WIKI_QUALITY_JSON --> comment 中解析。
+    无 quality report 时返回 {"exists": false}。
+    """
+    import json as _json
+    import re as _re
+
+    from mindforge.wiki_service import read_main_wiki
+
+    markdown = read_main_wiki(facade.cfg)
+    if markdown is None:
+        return {"exists": False}
+
+    m = _re.search(r"<!-- WIKI_QUALITY_JSON\n(.*?)\n-->", markdown, _re.DOTALL)
+    if not m:
+        return {"exists": False}
+
+    try:
+        data = _json.loads(m.group(1))
+    except _json.JSONDecodeError:
+        return {"exists": False, "error": "Failed to parse quality report JSON"}
+
+    return {"exists": True, **data}

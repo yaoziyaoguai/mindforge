@@ -157,6 +157,45 @@ def detect_stale_sections(
 
 
 # ──────────────────────────────────────────────
+# Knowledge Gap Detection (keyword-based)
+# ──────────────────────────────────────────────
+
+
+def compute_knowledge_gaps(
+    section_titles: list[str],
+    used_tags: set[str],
+    topic_keywords: dict[str, set[str]],
+) -> list[str]:
+    """检测 Wiki 未覆盖的知识主题。
+
+    检查 topic_keywords 中定义的每个主题关键词是否至少出现在
+    一个 section title 或 used tags 中。未出现的主题即 knowledge gap。
+
+    Args:
+        section_titles: Wiki 中各 section 标题
+        used_tags: Wiki 中引用的卡片 tag 集合
+        topic_keywords: 主题 → 关键词集合映射
+    """
+    gaps: list[str] = []
+    for topic, keywords in topic_keywords.items():
+        found = False
+        for title in section_titles:
+            title_lower = title.lower()
+            if any(kw in title_lower for kw in keywords):
+                found = True
+                break
+        if not found:
+            for tag in used_tags:
+                tag_lower = tag.lower()
+                if any(kw in tag_lower for kw in keywords):
+                    found = True
+                    break
+        if not found:
+            gaps.append(topic)
+    return gaps
+
+
+# ──────────────────────────────────────────────
 # Conflicting Claims Detection (Rule-based)
 # ──────────────────────────────────────────────
 
