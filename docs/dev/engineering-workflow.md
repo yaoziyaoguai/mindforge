@@ -100,6 +100,51 @@ Coding Agent 在流程中必须遵循以下判断规则：
 
 ---
 
+## Autopilot 模式
+
+MindForge 支持 `/mf-autopilot` 命令，让 Agent 按工程闭环自主推进工作，不在每个 milestone 完成后停下来问用户。
+
+### 启用方式
+
+在新会话中运行：
+
+```
+/mf-autopilot
+```
+
+Agent 将自动完成：建立工程事实 → 读取宪法文档 → 判断当前阶段 → 执行完整 loop（spec → review → impl → gate → smoke → commit）→ 判断下一阶段 → 继续。
+
+### Autopilot 规则文件
+
+完整 autopilot 行为规范定义在 `.claude/commands/mf-autopilot.md`。
+
+### 适用场景
+
+Autopilot 适用于以下范围（自动继续，无需用户确认）：
+- `docs/` 文档编写和更新
+- Web UX 改进（`web/src/`）
+- i18n / copy 新增和修改
+- Library / Wiki / Card UI 功能
+- Browser smoke / fake dogfood
+- Product copy 合同测试
+- 低风险前端 polish
+- Implementation notes / roadmap / spec 更新
+
+### 停止场景
+
+Autopilot 在以下情况自动停止并询问用户：
+- 需要真实 secret / API key / LLM 调用
+- 需要改后端 API 语义且 spec 未授权
+- P0/P1 无法在 2 轮内关闭
+- 需要产品判断
+- context 低于 15%
+
+### 与手动流程的关系
+
+Autopilot 是手动工程流程的自动化执行层。其每一步仍然遵循本文档定义的 SPEC/Plan → Review → TDD → Implementation → Gate → Commit 闭环规则。Autopilot 不改变流程，只消除"每步等用户确认"的中断。
+
+---
+
 ## Phase 0: 从请求到 Plan
 
 ### 0.1 判断是否需要 Plan

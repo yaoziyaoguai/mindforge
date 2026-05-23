@@ -89,6 +89,10 @@ cd6d23f docs: record real llm dogfood run
 
 ## Execution Checklist (for next session)
 
+**推荐方式：** 在新会话中直接运行 `/mf-autopilot`。Agent 将自动完成 Phase 0-5 的全部流程（环境检查 → spec review → 实现 → gate → smoke → commit + push），无需手动逐步执行。
+
+**手动方式（备选）：**
+
 ### Phase 0: Environment
 - [ ] `git pull --ff-only origin main`
 - [ ] Confirm working tree clean
