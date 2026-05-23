@@ -152,7 +152,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     setEditing(null);
   }
 
-  function saveModelEdit() {
+  /** 确认模型编辑并持久化到后端。
+   *  真实 dogfood 发现：此前此函数仅更新本地 React 状态（setForm），不调用 API，
+   *  导致用户点击模型编辑区的"保存"按钮后以为已持久化，但实际必须再点全局"保存配置"才生效。
+   *  现在改为确认后自动触发后端保存，单次操作完成持久化，消除双保存按钮的认知歧义。 */
+  async function saveModelEdit() {
     if (!form || !editing) return;
     const { modelId: originalId, isNew, form: editForm } = editing;
     const newId = (isNew ? originalId.trim() : originalId) || originalId;
@@ -185,11 +189,16 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       nextModels[originalId] = { ...editForm };
     }
 
-    setForm({
+    // 先计算最终表单，更新 React 状态（表单保留编辑态以显示 loading），再调用后端保存
+    const finalForm: SetupForm = {
       ...form,
       models: nextModels,
       ...(isNew && !form.default_model ? { default_model: newId! } : {}),
-    });
+    };
+    setForm(finalForm);
+    // 直接传入 finalForm 避免依赖 React 异步批处理后的 draftForm
+    await save(finalForm);
+    // 保存成功后才关闭编辑表单，确保用户能看到 loading 和 success/error 反馈
     setEditing(null);
   }
 
@@ -232,8 +241,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     }
   }
 
-  async function save() {
-    const current = draftForm;
+  /** 保存配置到后端。接受可选的 formOverride 参数，允许 saveModelEdit 在 React 状态批处理完成前直接传入计算好的表单。
+   *  真实 dogfood 发现：saveModelEdit 只更新了本地状态，用户点击模型编辑区的"保存"后以为已持久化，但实际必须再点全局保存。
+   *  现在 saveModelEdit 也会调用这个函数，确保单次保存行为一致。 */
+  async function save(formOverride?: SetupForm) {
+    const current = formOverride ?? draftForm;
     if (!current) return;
     setSaving(true);
     setSaveError(null);
@@ -300,7 +312,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <button
                 className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
                 disabled={saving || !dirty}
-                onClick={save}
+                onClick={() => save()}
                 type="button"
               >
                 {saving ? (
@@ -446,8 +458,22 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   <p className="mt-1 text-xs text-muted">{t("setup.model_api_key_optional_hint")}</p>
                 </details>
                 <div className="mt-4 flex gap-2">
-                  <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={saveModelEdit} type="button">{t("setup.model_save")}</button>
-                  <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={cancelEdit} type="button">{t("setup.model_cancel")}</button>
+                  <button
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
+                    onClick={saveModelEdit}
+                    disabled={saving}
+                    type="button"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        {t("setup.saving")}
+                      </>
+                    ) : (
+                      t("setup.model_save")
+                    )}
+                  </button>
+                  <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" onClick={cancelEdit} disabled={saving} type="button">{t("setup.model_cancel")}</button>
                 </div>
               </div>
             ) : null}
