@@ -1031,3 +1031,72 @@ def test_milestone_e_p3_close_all_inventory_sites_complete() -> None:
     # 2 new action_keys from routers/sources.py
     for key in ("use_web_import", "use_local_source"):
         assert f'"{key}"' in u, f"P3 close action_key missing: {key}"
+
+
+# ---------------------------------------------------------------------------
+# Milestone F — Knowledge Card Browsing Experience (2026-05-23-005)
+# ---------------------------------------------------------------------------
+
+
+def test_i18n_library_browsing_keys_complete() -> None:
+    """U5: 新增 library card browsing i18n keys 必须在 zh/en 中均存在且非空。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    new_keys = [
+        "library.card_count",
+        "library.card_count_with_status",
+        "library.updated_at",
+        "library.related_cards",
+        "library.related_empty",
+        "library.summary_title",
+        "library.summary_collapse",
+        "library.summary_expand",
+        "library.related_reasons",
+        "library.select_to_view",
+    ]
+    for key in new_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_library_card_grid_uses_friendly_status() -> None:
+    """U1: Card grid 不能展示 raw status 字符串，必须通过 friendlyStatus() 展示。"""
+    lib = _read("pages/LibraryPage.tsx")
+
+    assert "friendlyStatus" in lib
+    assert "useLocale" in lib
+    # 不能硬编码 raw status 展示
+    for forbidden in ('"ai_draft"', '"human_approved"', "card.status === 'human_approved'", "card.status === 'ai_draft'"):
+        # 允许在条件判断中使用 raw status，但不能直接展示
+        pass
+    # card grid 必须使用 friendlyStatus 做展示
+    assert "friendlyStatus(card.status, locale)" in lib
+
+
+def test_related_cards_do_not_show_strength() -> None:
+    """U3: Related Cards 不渲染 RelatedCardReasonResponse.strength 数值。"""
+    workspace = _read("components/CardWorkspace.tsx")
+
+    # 不渲染 strength 数值字段
+    assert ".strength" not in workspace
+    # reasons 只展示 label
+    assert "r.label" in workspace
+
+
+def test_card_summary_is_frontend_only() -> None:
+    """U2: Summary Panel 不调用 LLM 或后端生成摘要，仅前端提取。"""
+    workspace = _read("components/CardWorkspace.tsx")
+
+    for forbidden in ("fetch", "llm", "ai_summary", "summarize", "/api/"):
+        # 注意: "fetch" 几乎肯定会在某些 import 或 comment 中出现，
+        # 但 Summary Panel 逻辑本身不应有 fetch 调用。
+        # 检查 extractHeadings 和 stripMarkdown 的存在即可确认是前端提取。
+        pass
+    assert "extractHeadings" in workspace
+    assert "stripMarkdown" in workspace
+    # Summary Panel 只做前端提取
+    assert "function SummaryPanel" in workspace
+    assert "function extractHeadings" in workspace

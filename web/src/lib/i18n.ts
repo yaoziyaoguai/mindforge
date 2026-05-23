@@ -191,6 +191,16 @@ const copy: Record<Locale, LocaleDict> = {
     "library.stats_index_rebuild": "需重建",
     "library.stats_total": "知识卡片总数",
     "library.stats_total_detail": "本地知识库条目。",
+    "library.card_count": "{count} 张卡片",
+    "library.card_count_with_status": "{count} 张（{status}）",
+    "library.updated_at": "更新于 {date}",
+    "library.related_cards": "相关卡片",
+    "library.related_empty": "暂无相关卡片",
+    "library.summary_title": "卡片概览",
+    "library.summary_collapse": "收起概览",
+    "library.summary_expand": "展开概览",
+    "library.related_reasons": "关联原因",
+    "library.select_to_view": "选择卡片查看详情",
 
     // ---- CardWorkspace ----
     "card.draft_label": "AI 草稿卡片",
@@ -632,6 +642,16 @@ const copy: Record<Locale, LocaleDict> = {
     "library.stats_index_rebuild": "Needs Rebuild",
     "library.stats_total": "Total Cards",
     "library.stats_total_detail": "Local knowledge base entries.",
+    "library.card_count": "{count} cards",
+    "library.card_count_with_status": "{count} ({status})",
+    "library.updated_at": "Updated {date}",
+    "library.related_cards": "Related Cards",
+    "library.related_empty": "No related cards",
+    "library.summary_title": "Card Overview",
+    "library.summary_collapse": "Collapse Overview",
+    "library.summary_expand": "Expand Overview",
+    "library.related_reasons": "Related via",
+    "library.select_to_view": "Select a card to view details",
 
     // ---- CardWorkspace ----
     "card.draft_label": "AI Draft Card",

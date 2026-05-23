@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clipboard, Edit3, FolderOpen, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { revealSourceByRef } from "../api/sources";
 import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
@@ -24,9 +24,18 @@ interface Props {
   onSave: (body: string) => Promise<CardBodyUpdateResponse>;
   onSaved?: () => void;
   onMoveToTrash?: () => void;
+  onSelectCard?: (ref: string) => void;
 }
 
-export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: Props) {
+const sourceTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  plain_markdown: FileText,
+  txt: FileText,
+  html: FileCode,
+  pdf: FileType,
+  docx: FileEdit,
+};
+
+export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, onSelectCard }: Props) {
   const card = "draft" in detail ? detail.draft : detail.card;
   const body = detail.body ?? "";
   const sections = useMemo(() => parseSections(body), [body]);
@@ -37,6 +46,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
   const [busy, setBusy] = useState(false);
   const [pathActionMsg, setPathActionMsg] = useState<string | null>(null);
   const [pathActionErr, setPathActionErr] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(true);
   const { locale, t } = useLocale();
 
   useEffect(() => {
@@ -148,6 +158,17 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
       </header>
 
+      {mode === "library" ? (
+        <SummaryPanel
+          body={body}
+          card={card}
+          open={summaryOpen}
+          onToggle={() => setSummaryOpen((v) => !v)}
+          t={t}
+          locale={locale}
+        />
+      ) : null}
+
       <QualityPanel cardId={card.id ?? ""} />
 
       {mode === "library" && "local_graph" in detail ? (
@@ -219,6 +240,14 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash }: 
         </dl>
       </section>
 
+      {mode === "library" && "related_cards" in detail && detail.related_cards.length > 0 ? (
+        <RelatedCardsStrip
+          relatedCards={detail.related_cards}
+          onSelectCard={onSelectCard}
+          t={t}
+        />
+      ) : null}
+
       <details className="border-t border-line p-5">
         <summary className="cursor-pointer text-sm font-semibold text-ink">{t("card.tech_details")}</summary>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
@@ -286,4 +315,112 @@ function sourceLabel(card: Pick<LibraryCardResponse, "source_title" | "source_pa
 function sourceTypeBadge(card: Pick<LibraryCardResponse, "source_type">) {
   if (!card.source_type) return null;
   return sourceTypeLabels[card.source_type] ?? card.source_type;
+}
+
+function sourceTypeIcon(st: string | null | undefined): React.ComponentType<{ className?: string }> {
+  if (!st) return File;
+  return sourceTypeIcons[st] ?? File;
+}
+
+function extractHeadings(body: string): Array<{ level: number; text: string }> {
+  const re = /^(#{2,3})\s+(.+?)\s*$/gm;
+  const result: Array<{ level: number; text: string }> = [];
+  let match;
+  while ((match = re.exec(body)) !== null) {
+    result.push({ level: match[1].length, text: match[2] });
+  }
+  return result;
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
+    .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[>*\-+]/g, "")
+    .replace(/\n+/g, " ")
+    .trim();
+}
+
+function SummaryPanel({ body, card, open, onToggle, t, locale }: {
+  body: string;
+  card: Pick<LibraryCardResponse, "track" | "strategy_label">;
+  open: boolean;
+  onToggle: () => void;
+  t: (key: string) => string;
+  locale: string;
+}) {
+  const headings = extractHeadings(body);
+
+  return (
+    <div className="border-b border-line p-5">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between text-sm font-semibold text-ink"
+        onClick={onToggle}
+      >
+        <span>{t("library.summary_title")}</span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open ? (
+        <div className="mt-3 space-y-2">
+          {headings.length > 0 ? (
+            <ul className="space-y-1 text-sm text-muted">
+              {headings.map((h, i) => (
+                <li key={i} className={h.level === 3 ? "ml-4" : ""}>
+                  {h.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted">{stripMarkdown(body).slice(0, 150)}{body.length > 150 ? "..." : ""}</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
+            {card.track ? <span className="rounded bg-muted/20 px-1.5 py-0.5">track: {card.track}</span> : null}
+            {card.strategy_label ? <span className="rounded bg-muted/20 px-1.5 py-0.5">{card.strategy_label}</span> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RelatedCardsStrip({ relatedCards, onSelectCard, t }: {
+  relatedCards: Array<{ card: LibraryCardResponse; reasons: Array<{ label: string; detail: string }> }>;
+  onSelectCard?: (ref: string) => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <section className="border-t border-line p-5">
+      <h3 className="text-sm font-semibold text-ink">{t("library.related_cards")}</h3>
+      <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        {relatedCards.map((rc) => {
+          const ref = rc.card.id ?? rc.card.rel_path;
+          const Icon = sourceTypeIcon(rc.card.source_type);
+          return (
+            <button
+              key={ref}
+              type="button"
+              className="flex-shrink-0 w-48 rounded-md border border-line bg-white p-3 text-left hover:border-primary transition"
+              onClick={() => onSelectCard?.(ref)}
+            >
+              <h4 className="text-sm font-medium text-ink line-clamp-2">{rc.card.title ?? rc.card.rel_path}</h4>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted">
+                <Icon className="h-3 w-3" />
+                <span className="uppercase">{sourceTypeBadge(rc.card) ?? rc.card.source_type}</span>
+                <span className={`ml-auto h-1.5 w-1.5 rounded-full ${rc.card.status === "human_approved" ? "bg-safe" : "bg-warn"}`} />
+              </div>
+              {rc.reasons.length > 0 ? (
+                <p className="mt-1.5 text-[10px] text-muted leading-relaxed">
+                  {rc.reasons.map((r) => r.label).join(" · ")}
+                </p>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
