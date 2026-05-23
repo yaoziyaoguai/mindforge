@@ -138,6 +138,22 @@ export function strategyNameLabel(name: string, locale?: Locale): string {
   return labels[locale ?? "zh"]?.[name] ?? name;
 }
 
+/** 后端 active_strategy_description → 本地化展示文案。
+ *  与 strategyNameLabel() 同模式：按 description 原文匹配，未匹配时 fallback 到原始文案。 */
+export function strategyDescriptionLabel(description: string, locale?: Locale): string {
+  const descriptions: Record<Locale, Record<string, string>> = {
+    zh: {
+      "默认 Knowledge Card Workflow：内部执行 triage → distill → link_suggestion → review_questions → action_extraction 五段 prompt pipeline，生成 ai_draft Knowledge Card，必须经人工 approve 才成为正式知识。":
+        "默认 Knowledge Card Workflow：内部执行 triage → distill → link_suggestion → review_questions → action_extraction 五段 prompt pipeline，生成 ai_draft Knowledge Card，必须经人工 approve 才成为正式知识。",
+    },
+    en: {
+      "默认 Knowledge Card Workflow：内部执行 triage → distill → link_suggestion → review_questions → action_extraction 五段 prompt pipeline，生成 ai_draft Knowledge Card，必须经人工 approve 才成为正式知识。":
+        "Default Knowledge Card Workflow: executes a five-stage prompt pipeline internally — triage → distill → link_suggestion → review_questions → action_extraction — generating ai_draft Knowledge Cards that must be explicitly approved before becoming official knowledge.",
+    },
+  };
+  return descriptions[locale ?? "zh"]?.[description] ?? description;
+}
+
 /** source.status → 本地化展示标签。 */
 export function sourceStatusLabel(status: string, locale?: Locale): string {
   const labels: Record<Locale, Record<string, string>> = {

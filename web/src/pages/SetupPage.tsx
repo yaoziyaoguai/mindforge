@@ -4,7 +4,7 @@ import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigRespons
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 import { useLocale } from "../lib/i18n";
-import { strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription } from "../lib/utils";
+import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription } from "../lib/utils";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -405,27 +405,27 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <div className="rounded-md border border-line bg-stone-50 p-4">
                 <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? t("setup.add_model_title") : `${t("setup.edit_model")}${editing.modelId}`}</h3>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-sm" htmlFor="model-id-input">
                     <span className="font-medium text-ink">{t("setup.model_id")} {editing.isNew ? "*" : t("setup.model_id_readonly")}</span>
-                    <input id="model-id-input" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.modelId} onChange={(event) => setEditing({ ...editing, modelId: event.target.value })} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
+                    <input id="model-id-input" name="model-id" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.modelId} onChange={(event) => setEditing({ ...editing, modelId: event.target.value })} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
                   </label>
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-sm" htmlFor="model-type-select">
                     <span className="font-medium text-ink">{t("setup.model_type")} *</span>
-                    <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.type} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, type: event.target.value } })}>
+                    <select id="model-type-select" name="model-type" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.type} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, type: event.target.value } })}>
                       {supportedTypes.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                     </select>
                   </label>
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-sm" htmlFor="model-base-url-input">
                     <span className="font-medium text-ink">{t("setup.model_base_url")} *</span>
-                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.base_url} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, base_url: event.target.value } })} placeholder="https://api.anthropic.com" />
+                    <input id="model-base-url-input" name="model-base-url" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.base_url} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, base_url: event.target.value } })} placeholder="https://api.anthropic.com" />
                   </label>
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-sm" htmlFor="model-name-input">
                     <span className="font-medium text-ink">{t("setup.model_name")} *</span>
-                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.model} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, model: event.target.value } })} placeholder="claude-3-5-haiku-latest" />
+                    <input id="model-name-input" name="model-name" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.model} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, model: event.target.value } })} placeholder="claude-3-5-haiku-latest" />
                   </label>
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-sm" htmlFor="model-api-key-input">
                     <span className="font-medium text-ink">{t("setup.model_api_key")}</span>
-                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? t("setup.model_api_key_placeholder_new") : t("setup.model_api_key_placeholder_edit")} />
+                    <input id="model-api-key-input" name="model-api-key" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? t("setup.model_api_key_placeholder_new") : t("setup.model_api_key_placeholder_edit")} />
                     <span className="text-xs text-muted">{editing.isNew ? "" : t("setup.model_api_key_hint_edit")}</span>
                   </label>
                   {!editing.isNew ? (
@@ -439,8 +439,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 </div>
                 <details className="mt-4 rounded-md border border-line p-2">
                   <summary className="cursor-pointer text-xs font-medium text-muted">{t("setup.model_advanced")}</summary>
-                  <label className="mt-2 flex items-center gap-2 text-sm text-ink">
-                    <input checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
+                  <label className="mt-2 flex items-center gap-2 text-sm text-ink" htmlFor="model-api-key-optional-checkbox">
+                    <input id="model-api-key-optional-checkbox" name="model-api-key-optional" checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
                     {t("setup.model_api_key_optional")}
                   </label>
                   <p className="mt-1 text-xs text-muted">{t("setup.model_api_key_optional_hint")}</p>
@@ -515,7 +515,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <h2 className="text-lg font-semibold text-ink">{t("setup.default_model")}</h2>
               <p className="mt-1 text-sm text-muted">{t("setup.default_model_desc")}</p>
             </div>
-            <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.default_model} onChange={(event) => setForm({ ...form, default_model: event.target.value })}>
+            <select id="default-model-select" name="default-model" className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.default_model} onChange={(event) => setForm({ ...form, default_model: event.target.value })}>
               {!hasConfiguredModels ? <option value="">{t("setup.no_model_configured")}</option> : null}
               {modelIds.map((modelId) => {
                 return <option key={modelId} value={modelId}>{modelId}</option>;
@@ -536,7 +536,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   <div>
                     <div className="text-xs text-muted">{t("setup.workflow_active")}</div>
                     <div className="font-semibold text-ink">{strategyNameLabel(editable.llm.processing_workflow.active_strategy_label, locale)}</div>
-                    <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
+                    <div className="mt-1 text-xs text-muted">{strategyDescriptionLabel(editable.llm.processing_workflow.active_strategy_description, locale)}</div>
                   </div>
                   <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{strategyStatusLabel(editable.llm.processing_workflow.active_strategy_status, locale)}</span>
                 </div>
@@ -563,8 +563,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      <label className="text-xs text-muted">{t("setup.model_name")}</label>
-                      <select className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
+                      <label className="text-xs text-muted" htmlFor={`routing-${step.id}`}>{t("setup.model_name")}</label>
+                      <select id={`routing-${step.id}`} name={`routing-${step.id}`} className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
                         {modelIds.map((modelId) => {
                           return <option key={modelId} value={modelId}>{modelId}</option>;
                         })}
@@ -613,9 +613,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <p className="mt-1 text-sm text-muted">{t("setup.wiki_generation_desc")}</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1 text-sm">
+              <label className="space-y-1 text-sm" htmlFor="wiki-model-select">
                 <span className="font-medium text-ink">{t("setup.model_wiki_synthesis")}</span>
-                <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100"
+                <select id="wiki-model-select" name="wiki-model" className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100"
                   disabled={!hasConfiguredModels}
                   value={form.wiki_model || ""}
                   onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
@@ -630,9 +630,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     : t("setup.model_wiki_fallback")}
                 </span>
               </label>
-              <label className="flex flex-col gap-1 text-sm text-ink">
+              <label className="flex flex-col gap-1 text-sm text-ink" htmlFor="wiki-auto-rebuild-checkbox">
                 <span className="flex items-center gap-2">
-                  <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
+                  <input id="wiki-auto-rebuild-checkbox" name="wiki-auto-rebuild" checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
                   <span className="font-medium">{t("setup.model_wiki_auto")}</span>
                 </span>
                 <span className="text-xs text-muted ml-6">{t("setup.model_wiki_auto_desc")}</span>

@@ -71,7 +71,7 @@ export default function App() {
   if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} onRefresh={load} />;
   if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
-  if (!content && path.startsWith("/recall")) content = <RecallPage onNavigate={navigate} />;
+  if (!content && (path.startsWith("/recall") || path.startsWith("/search"))) content = <RecallPage onNavigate={navigate} />;
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;

@@ -768,10 +768,10 @@ def test_status_card_uses_next_action_label() -> None:
 
     assert "nextActionLabel" in sc
     assert "nextAction.action_key" in sc
-    # fallback chain: localized label → label → command → description
+    # fallback chain: localized label → label (command/description should NOT appear as label text)
     assert "nextAction.label" in sc
-    assert "nextAction.command" in sc
-    assert "nextAction.description" in sc
+    assert "nextAction.command" not in sc
+    assert "nextAction.description" not in sc
 
 
 def test_next_action_does_not_use_label_string_matching() -> None:
