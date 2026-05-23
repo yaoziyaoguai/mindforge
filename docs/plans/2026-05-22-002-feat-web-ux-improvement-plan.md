@@ -11,7 +11,11 @@ date: 2026-05-23
 |-----------|--------|------|
 | A | done | 2026-05-22 |
 | B | done | 2026-05-23 |
-| C | planned | — |
+| C | done | 2026-05-23 |
+| D | done | 2026-05-23 |
+| E | done | 2026-05-23 |
+| F | done | 2026-05-23 |
+| G | planned | 2026-05-23 |
 
 
 # MindForge Web UX Improvement Plan
