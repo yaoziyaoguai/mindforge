@@ -218,7 +218,7 @@ export function SourcesPage({
       </section>
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <h2 className="text-lg font-semibold text-ink">{t("sources.advanced_tech_details")}</h2>
-        <p className="mt-2 text-sm text-muted">{data.ingestion.advanced_note || t("sources.advanced_note_default")}</p>
+        <p className="mt-2 text-sm text-muted">{t("sources.advanced_note_default")}</p>
         <code className="mt-3 block text-xs text-ink">mindforge import /path/to/source</code>
       </section>
     </div>
