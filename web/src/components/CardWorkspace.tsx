@@ -121,6 +121,15 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
               {sourceTypeBadge(card) && (
                 <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card)}</span>
               )}
+              {"quality_score" in card && card.quality_score != null ? (
+                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                  card.quality_level === "high" ? "bg-green-50 text-green-700" :
+                  card.quality_level === "medium" ? "bg-amber-50 text-amber-700" :
+                  "bg-red-50 text-red-700"
+                }`} title={`${t("card.quality_score")}: ${card.quality_score}`}>
+                  {qualityLevelLabel(card.quality_level ?? "", t)} {card.quality_score}
+                </span>
+              ) : null}
               {card.track ? <span>track:{card.track}</span> : null}
               {card.strategy_label ? <span>{card.strategy_label}</span> : null}
               {mode === "library" && "approved_at" in card && card.approved_at ? <span>approved:{card.approved_at.slice(0, 10)}</span> : null}
@@ -315,6 +324,13 @@ function sourceLabel(card: Pick<LibraryCardResponse, "source_title" | "source_pa
 function sourceTypeBadge(card: Pick<LibraryCardResponse, "source_type">) {
   if (!card.source_type) return null;
   return sourceTypeLabels[card.source_type] ?? card.source_type;
+}
+
+function qualityLevelLabel(level: string, t: (key: string) => string): string {
+  if (level === "high") return t("card.quality_high");
+  if (level === "medium") return t("card.quality_medium");
+  if (level === "low") return t("card.quality_low");
+  return level;
 }
 
 function sourceTypeIcon(st: string | null | undefined): React.ComponentType<{ className?: string }> {

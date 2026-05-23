@@ -476,6 +476,9 @@ class LibraryCardResponse(BaseModel):
     updated_at: str | None = None
     rel_path: str
     fallback_provider_note: str | None = None
+    # M1 quality 字段（来自 frontmatter；旧卡片无 quality 块时为 None）
+    quality_score: int | None = None
+    quality_level: str | None = None
     # 中文学习型说明：后端生成的 source path 安全视图；前端只展示，不做安全决策。
     source_path_view: SourcePathViewModel | None = None
 

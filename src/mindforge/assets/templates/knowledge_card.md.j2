@@ -35,6 +35,30 @@ model_routing:{% if run.model_routing %}
 {% endfor %}{% else %} {}
 {% endif %}
 run_id: "{{ run.run_id }}"
+{%- if quality %}
+# ── 质量元数据（M1） ──
+quality:
+  overall_score: {{ quality.overall_score }}
+  overall_level: {{ quality.overall_level }}
+  card_type: {{ quality.card_type }}
+  {%- if quality.dimensions %}
+  dimensions:
+  {%- for d in quality.dimensions %}
+    {{ d.name }}: {{ d.score }}
+  {%- endfor %}
+  {%- endif %}
+  {%- if quality.warnings %}
+  warnings:
+  {%- for w in quality.warnings %}
+    - { code: {{ w.code }}, severity: {{ w.severity }}, message: "{{ w.message }}"{%- if w.suggestion %}, suggestion: "{{ w.suggestion }}"{%- endif %} }
+  {%- endfor %}
+  {%- endif %}
+  {%- if quality.regenerate_suggestion %}
+  regenerate_suggestion: "{{ quality.regenerate_suggestion }}"
+  {%- endif %}
+  split_candidate: {{ quality.split_candidate | lower }}
+  merge_candidate: {{ quality.merge_candidate | lower }}
+{%- endif %}
 ---
 
 ## Source Excerpt

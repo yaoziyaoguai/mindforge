@@ -68,6 +68,7 @@ class CardWriter:
         source: dict[str, Any],
         run: dict[str, Any],
         now: datetime | None = None,
+        quality: dict[str, Any] | None = None,
     ) -> WriteResult:
         now = now or datetime.now()
         # v0.10 Slice 5：所有 strategy 输出统一公共 envelope，writer 通过
@@ -98,6 +99,7 @@ class CardWriter:
             card=card,
             source=source,
             run=run,
+            quality=quality,
         )
 
         # 不覆盖：如果文件已存在且内容不同，写到 .conflict.md

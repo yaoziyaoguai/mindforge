@@ -66,6 +66,9 @@ class CardSummary:
     stage_models: dict[str, Any] = field(default_factory=dict)
     run_id: str | None = None
     source_location_index: int | None = None
+    # M1 quality 字段
+    quality_score: int | None = None
+    quality_level: str | None = None
 
 
 @dataclass(frozen=True)
@@ -262,7 +265,17 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         stage_models=_dict_or_empty(data.get("stage_models")),
         run_id=_str_or_none(data.get("run_id")),
         source_location_index=_source_location_index(data),
+        quality_score=_int_or_none(_quality_field(data, "overall_score")),
+        quality_level=_str_or_none(_quality_field(data, "overall_level")),
     )
+
+
+def _quality_field(data: dict, key: str) -> Any:
+    """从嵌套 quality frontmatter 中提取字段值。"""
+    quality = data.get("quality")
+    if not isinstance(quality, dict):
+        return None
+    return quality.get(key)
 
 
 def _str_or_none(v: Any) -> str | None:

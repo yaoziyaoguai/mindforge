@@ -16,6 +16,11 @@ from .checkpoint import Checkpoint
 from .config import MindForgeConfig
 from .models import ItemState, StageRecord
 from .process_service import ProcessRuntime, summarize_outcome
+from .quality.models import CardQuality
+from .quality.rubric import score_quality
+from .quality.warnings import detect_warnings
+from .quality.card_type import classify_card_type
+from .quality.suggestions import generate_suggestions
 from .run_logger import EVENT_SOURCE_ERROR, EVENT_STATE_WRITTEN
 from .scanner import Scanner
 from .strategies import (
@@ -285,6 +290,117 @@ def processed_run_dict(*, cfg: MindForgeConfig, outcome, logger, now: datetime) 
     }
 
 
+def _compute_card_quality(
+    *,
+    title: str,
+    body: str,
+    source_id: str | None = None,
+    source_path: str | None = None,
+    source_type: str | None = None,
+) -> CardQuality | None:
+    """计算卡片质量元数据 — try/except 包裹，失败返回 None 不阻塞主线。"""
+    try:
+        card_type_str = classify_card_type(title, body)
+        warnings_tuple = tuple(detect_warnings(body))
+        quality = score_quality(
+            title=title,
+            body=body,
+            source_id=source_id,
+            source_path=source_path,
+            source_type=source_type,
+            warnings=warnings_tuple,
+            card_type=card_type_str,
+        )
+        suggestions = generate_suggestions(quality)
+        return CardQuality(
+            overall_level=quality.overall_level,
+            overall_score=quality.overall_score,
+            rubric_scores=quality.rubric_scores,
+            warnings=quality.warnings,
+            card_type=quality.card_type,
+            regenerate_suggestion=suggestions.regenerate_suggestion,
+            split_candidate=suggestions.split_candidate,
+            merge_candidate=suggestions.merge_candidate,
+            dedup_candidates=suggestions.dedup_candidates,
+        )
+    except Exception:
+        return None
+
+
+def _quality_to_dict(quality: CardQuality) -> dict:
+    """序列化 CardQuality 为 writer template 可用的纯 dict。"""
+    return {
+        "overall_score": quality.overall_score,
+        "overall_level": quality.overall_level.value,
+        "card_type": quality.card_type.value if quality.card_type else "unknown",
+        "dimensions": [
+            {"name": rs.dimension, "score": rs.score, "max": rs.max_score, "notes": rs.notes}
+            for rs in quality.rubric_scores
+        ],
+        "warnings": [
+            {"code": w.code, "severity": w.severity, "message": w.message, "suggestion": w.suggestion}
+            for w in quality.warnings
+        ],
+        "regenerate_suggestion": quality.regenerate_suggestion,
+        "split_candidate": quality.split_candidate,
+        "merge_candidate": quality.merge_candidate,
+    }
+
+
+def _compute_quality_for_card(
+    *,
+    card_payload: dict,
+    source_id: str | None = None,
+    source_path: str | None = None,
+    source_type: str | None = None,
+) -> dict | None:
+    """从 card_payload 提取数据、计算 quality、返回序列化 dict。"""
+    try:
+        structured = card_payload.get("structured_payload", {})
+        card = structured.get("card", {})
+        title = str(card.get("title", ""))
+        if not title:
+            return None
+
+        # 从 card fields 构建近似 body（供 rubric scoring 使用）
+        parts: list[str] = []
+        excerpt = str(card.get("source_excerpt", ""))
+        if excerpt:
+            parts.append(f"## Source Excerpt\n{excerpt}")
+
+        bullets = card.get("ai_summary_bullets", []) or []
+        if bullets:
+            parts.append("## Summary\n" + "\n".join(f"- {b}" for b in bullets))
+
+        inference = card.get("ai_inference_bullets", []) or []
+        if inference:
+            parts.append("## Details\n" + "\n".join(f"- {b}" for b in inference))
+
+        questions = card.get("review_questions", []) or []
+        if questions:
+            q_text = "\n".join(f"- {q.get('question', '')}" for q in questions)
+            parts.append(f"## Review Questions\n{q_text}")
+
+        principles = card.get("reusable_prompts_or_principles", []) or []
+        if principles:
+            parts.append("## Details\n" + "\n".join(f"- {p}" for p in principles))
+
+        body = "\n\n".join(parts) if parts else title
+
+        quality = _compute_card_quality(
+            title=title,
+            body=body,
+            source_id=source_id,
+            source_path=source_path,
+            source_type=source_type,
+        )
+        if quality is None:
+            return None
+        return _quality_to_dict(quality)
+    except Exception:
+        return None
+
+
 def process_one_result(
     *,
     result,
@@ -358,10 +474,19 @@ def process_one_result(
         )
         return "processed", None
 
+    # 计算 quality metadata（确定性评分，无 LLM 调用）
+    quality_dict = _compute_quality_for_card(
+        card_payload=outcome.card_payload or {},
+        source_id=doc.source_id,
+        source_path=doc.source_path,
+        source_type=doc.source_type,
+    )
+
     wr = writer.write(
         card_payload=outcome.card_payload or {},
         source=item_result.source_dict,
         run=processed_run_dict(cfg=cfg, outcome=outcome, logger=logger, now=now),
+        quality=quality_dict,
     )
     item.card_path = str(wr.path.relative_to(cfg.vault.root))
     logger.emit(

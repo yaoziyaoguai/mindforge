@@ -415,6 +415,8 @@ export interface LibraryCardResponse {
   updated_at?: string | null;
   rel_path: string;
   fallback_provider_note?: string | null;
+  quality_score?: number | null;
+  quality_level?: string | null;
   source_path_view?: SourcePathViewModel | null;
 }
 

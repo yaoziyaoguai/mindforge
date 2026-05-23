@@ -741,7 +741,10 @@ def _library_card_response(card) -> LibraryCardResponse:
         updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
         rel_path=summary.rel_path,
         fallback_provider_note=card.fallback_provider_note,
+        quality_score=summary.quality_score,
+        quality_level=summary.quality_level,
     )
+
 
 
 def _library_detail_response(
@@ -872,6 +875,8 @@ def _library_card_summary_response(
         rel_path=summary.rel_path,
         fallback_provider_note=None,
         source_path_view=source_path_view,
+        quality_score=summary.quality_score,
+        quality_level=summary.quality_level,
     )
 
 
