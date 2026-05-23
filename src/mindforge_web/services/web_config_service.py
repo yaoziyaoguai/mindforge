@@ -155,6 +155,8 @@ class WebConfigService:
                 label="Use local sources",
                 description="第一阶段请添加本地文件或文件夹 source；外部账号同步尚未开放。",
                 href="/sources",
+                action_key="setup.configure_cubox",
+                description_key="setup.configure_cubox.desc",
             ),
         )
 
@@ -219,6 +221,8 @@ class WebConfigService:
                     label="Open Sources",
                     description="管理 watched source 与一次性 import。",
                     href="/sources",
+                    action_key="setup.manage_watched_sources",
+                    description_key="setup.manage_watched_sources.desc",
                 ),
             ),
         )

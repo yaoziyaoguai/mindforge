@@ -4,7 +4,7 @@ import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigRespons
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 import { useLocale } from "../lib/i18n";
-import { strategyNameLabel, strategyStatusLabel, workflowStepLabel } from "../lib/utils";
+import { strategyNameLabel, strategyStatusLabel, workflowStepLabel, nextActionDescription } from "../lib/utils";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -272,6 +272,20 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
       </div>
 
+      {/* 中文学习型说明：provider 安全边界说明 —— 帮助用户理解 fake/real provider 区别。
+          Setup 是 onboarding，不是配置文件搬运。这些文案不改变任何后端行为。 */}
+      <section className="rounded-md border border-blue-200 bg-blue-50 p-4">
+        <h2 className="text-sm font-semibold text-ink">{t("setup.api_key_safety")}</h2>
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 font-medium text-green-800">
+            {t("setup.provider_type_fake")}: {t("setup.provider_type_fake_desc")}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-800">
+            {t("setup.provider_type_real")}: {t("setup.provider_type_real_desc")}
+          </span>
+        </div>
+      </section>
+
       {form && editable ? (
         <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -342,7 +356,28 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
           {/* 步骤 1：连接模型 */}
           {step === "models" && (<>
+          {/* 中文学习型说明：onboarding 解释文案 —— 每个 step 回答用户"为什么需要这一步"。 */}
+          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3" open>
+            <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_model")}</summary>
+            <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_model_answer")}</p>
+          </details>
           <section className="space-y-4 rounded-md border border-line p-4">
+            {/* Provider readiness 摘要 —— 让用户一眼看到当前模型是否可用 */}
+            {editable && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md bg-stone-50 px-3 py-2 text-sm">
+                <span className="font-medium text-ink">{t("setup.provider_readiness")}:</span>
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                  editable.llm.readiness.model_setup === "ready" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                }`}>
+                  {editable.llm.readiness.model_setup === "ready" ? t("setup.provider_readiness_ready") : t("setup.provider_readiness_incomplete")}
+                </span>
+                {editable.llm.active_provider ? (
+                  <span className="text-xs text-muted">
+                    {t("setup.active_provider")}: {editable.llm.active_provider}
+                  </span>
+                ) : null}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">{t("setup.configured_models")}</h2>
@@ -567,6 +602,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
           {/* 步骤 2：选择知识源 */}
           {step === "sources" && (<>
+          {/* 中文学习型说明：onboarding 解释 —— 帮助用户理解 source/workflow/processing 关系。 */}
+          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3" open>
+            <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_sources")}</summary>
+            <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_sources_answer")}</p>
+          </details>
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
               <h2 className="text-lg font-semibold text-ink">{t("setup.wiki_generation")}</h2>

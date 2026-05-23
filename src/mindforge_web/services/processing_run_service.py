@@ -294,6 +294,8 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
                 label="View source status",
                 description="Processing is running in the background.",
                 href="/sources",
+                action_key="processing.view_run_status",
+                description_key="processing.view_run_status.desc",
             )
         ]
     if record.summary.get("drafts", 0) > 0:
@@ -302,11 +304,15 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
                 label="Go to Review",
                 description="Review generated AI drafts before approving.",
                 href="/drafts",
+                action_key="processing.review_drafts",
+                description_key="processing.review_drafts.desc",
             ),
             NextAction(
                 label="View source status",
                 description="See the processing summary for this source.",
                 href="/sources",
+                action_key="processing.view_source_status",
+                description_key="processing.view_source_status.desc",
             ),
         ]
     if record.status in {"failed", "partial_failed"}:
@@ -315,11 +321,15 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
                 label="View error",
                 description="Open Sources to inspect the latest processing error.",
                 href="/sources",
+                action_key="processing.view_error",
+                description_key="processing.view_error.desc",
             ),
             NextAction(
                 label="Retry processing",
                 description="Try Process now again after fixing the issue.",
                 href="/sources",
+                action_key="processing.retry_processing",
+                description_key="processing.retry_processing.desc",
             ),
         ]
     return [
@@ -327,6 +337,8 @@ def next_actions_for_record(record: ProcessingRunRecord) -> list[NextAction]:
             label="View source status",
             description="No draft was generated; Sources shows the reason.",
             href="/sources",
+            action_key="processing.view_sources",
+            description_key="processing.view_sources.desc",
         )
     ]
 

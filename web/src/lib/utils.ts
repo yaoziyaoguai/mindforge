@@ -168,6 +168,32 @@ export function nextActionLabel(key: string | null | undefined, locale?: Locale)
       adjust_query: "调整查询",
       try_another_query: "换一个关键词",
       rebuild_index: "重建索引",
+      // Milestone D — HomePage / EmptyState action_key
+      "home.go_to_review": "审阅 AI 草稿",
+      "home.go_to_library": "浏览知识库",
+      "home.configure_sources": "管理知识源",
+      "home.go_to_setup": "检查配置",
+      "empty.no_drafts": "添加知识源",
+      "empty.no_approved": "审阅 AI 草稿",
+      "empty.no_sources": "添加知识源",
+      "empty.no_results": "调整查询",
+      "empty.no_wiki": "重建 Wiki",
+      // Milestone E — Setup / Sources / Processing action_key
+      "setup.configure_cubox": "使用本地知识源",
+      "setup.manage_watched_sources": "管理知识源",
+      "sources.create_source_folder": "创建知识源目录",
+      "sources.add_watched_source": "添加监控知识源",
+      "sources.back_to_watch_list": "返回监控列表",
+      "sources.view_source_status": "查看知识源状态",
+      "sources.review_drafts": "审阅草稿",
+      "sources.add_watch_from_import": "添加监控",
+      "sources.import_once": "一次性导入",
+      "processing.view_run_status": "查看知识源状态",
+      "processing.review_drafts": "审阅草稿",
+      "processing.view_source_status": "查看知识源状态",
+      "processing.view_error": "查看错误",
+      "processing.retry_processing": "重试处理",
+      "processing.view_sources": "查看知识源",
     },
     en: {
       init_vault: "Initialize vault",
@@ -179,7 +205,101 @@ export function nextActionLabel(key: string | null | undefined, locale?: Locale)
       adjust_query: "Adjust query",
       try_another_query: "Try another query",
       rebuild_index: "Rebuild index",
+      // Milestone D — HomePage / EmptyState action_key
+      "home.go_to_review": "Review drafts",
+      "home.go_to_library": "Browse library",
+      "home.configure_sources": "Manage sources",
+      "home.go_to_setup": "Check setup",
+      "empty.no_drafts": "Add sources",
+      "empty.no_approved": "Review drafts",
+      "empty.no_sources": "Add sources",
+      "empty.no_results": "Adjust query",
+      "empty.no_wiki": "Rebuild wiki",
+      // Milestone E — Setup / Sources / Processing action_key
+      "setup.configure_cubox": "Use local sources",
+      "setup.manage_watched_sources": "Manage sources",
+      "sources.create_source_folder": "Create source folder",
+      "sources.add_watched_source": "Add watched source",
+      "sources.back_to_watch_list": "Back to watch list",
+      "sources.view_source_status": "View source status",
+      "sources.review_drafts": "Review drafts",
+      "sources.add_watch_from_import": "Add watch",
+      "sources.import_once": "Import once",
+      "processing.view_run_status": "View source status",
+      "processing.review_drafts": "Review drafts",
+      "processing.view_source_status": "View source status",
+      "processing.view_error": "View error",
+      "processing.retry_processing": "Retry processing",
+      "processing.view_sources": "View sources",
     },
   };
   return labels[locale ?? "zh"]?.[key] ?? null;
+}
+
+/* NextAction description_key → 本地化 description 文案。
+ * 与 nextActionLabel() 同模式：后端提供稳定的 description_key，
+ * 前端据此做 localized display mapping。缺 key 或未匹配时返回 null，
+ * 调用方应 fallback 到 action.description。
+ *
+ * 中文学习型说明：description_key 解决 EmptyState / NextActionCard 中
+ * action.description 为原始英文、无法随 zh/en 切换的问题。不翻译用户内容。 */
+export function nextActionDescription(key: string | null | undefined, locale?: Locale): string | null {
+  if (!key) return null;
+  const descriptions: Record<Locale, Record<string, string>> = {
+    zh: {
+      "home.go_to_review.desc": "审核 AI 生成的草稿，决定批准或驳回。",
+      "home.go_to_library.desc": "浏览已确认的知识卡片和 Wiki。",
+      "home.configure_sources.desc": "管理知识源和自动处理流程。",
+      "home.go_to_setup.desc": "配置模型连接和处理参数。",
+      "empty.no_drafts.desc": "添加知识源并开始处理，生成第一批 AI 草稿。",
+      "empty.no_approved.desc": "审核 AI 草稿并确认优质卡片，构建知识库。",
+      "empty.no_sources.desc": "添加 Markdown、PDF 或 DOCX 文件作为知识源。",
+      "empty.no_results.desc": "调整搜索词或筛选条件后重试。",
+      "empty.no_wiki.desc": "确认知识卡片后重建 Wiki，生成结构化知识视图。",
+      // Setup / Sources / Processing descriptions
+      "setup.configure_cubox.desc": "第一阶段请添加本地文件或文件夹作为知识源。",
+      "setup.manage_watched_sources.desc": "管理已监控的知识源和一次性导入。",
+      "sources.create_source_folder.desc": "创建 inbox 子目录后再放入本地知识源文件。",
+      "sources.add_watched_source.desc": "注册文件或文件夹并后台处理当前内容。",
+      "sources.back_to_watch_list.desc": "确认默认 inbox 和用户添加的监控项。",
+      "sources.view_source_status.desc": "查看知识源处理状态、跳过原因或错误信息。",
+      "sources.review_drafts.desc": "新生成的 AI 草稿需要手动审核确认。",
+      "sources.add_watch_from_import.desc": "支持文件和文件夹；后续自动处理暂未实现。",
+      "sources.import_once.desc": "适合一次性导入外部文件或文件夹。",
+      "processing.view_run_status.desc": "后台处理正在进行中，可继续使用 MindForge。",
+      "processing.review_drafts.desc": "审核生成的 AI 草稿后再确认保存。",
+      "processing.view_source_status.desc": "查看此知识源的处理摘要。",
+      "processing.view_error.desc": "打开知识源页面查看最新处理错误。",
+      "processing.retry_processing.desc": "修复问题后重新点击「立即处理」。",
+      "processing.view_sources.desc": "未生成草稿；知识源页面显示跳过原因。",
+    },
+    en: {
+      "home.go_to_review.desc": "Review AI-generated drafts and decide to approve or reject.",
+      "home.go_to_library.desc": "Browse approved knowledge cards and wiki.",
+      "home.configure_sources.desc": "Manage knowledge sources and processing.",
+      "home.go_to_setup.desc": "Configure model connections and processing parameters.",
+      "empty.no_drafts.desc": "Add sources to start processing and generate your first AI drafts.",
+      "empty.no_approved.desc": "Review drafts and approve quality cards to build your knowledge base.",
+      "empty.no_sources.desc": "Add markdown, PDF, or DOCX files as knowledge sources.",
+      "empty.no_results.desc": "Try adjusting your search terms or filters.",
+      "empty.no_wiki.desc": "Approve cards and rebuild the wiki to generate a structured knowledge view.",
+      // Setup / Sources / Processing descriptions
+      "setup.configure_cubox.desc": "Phase 1: add local files or folders as knowledge sources.",
+      "setup.manage_watched_sources.desc": "Manage watched sources and one-time imports.",
+      "sources.create_source_folder.desc": "Create the inbox subdirectory before adding local source files.",
+      "sources.add_watched_source.desc": "Register a file or folder and process current content in background.",
+      "sources.back_to_watch_list.desc": "Verify default inbox and remaining user-added watches.",
+      "sources.view_source_status.desc": "Check source processing status, skip reasons, or errors.",
+      "sources.review_drafts.desc": "New AI drafts require manual review before approval.",
+      "sources.add_watch_from_import.desc": "Supports files and folders; automated processing not yet available.",
+      "sources.import_once.desc": "Suitable for one-time import of external files or folders.",
+      "processing.view_run_status.desc": "Processing is running in the background; you can keep using MindForge.",
+      "processing.review_drafts.desc": "Review generated AI drafts before approving.",
+      "processing.view_source_status.desc": "See the processing summary for this source.",
+      "processing.view_error.desc": "Open Sources to inspect the latest processing error.",
+      "processing.retry_processing.desc": "Try Process now again after fixing the issue.",
+      "processing.view_sources.desc": "No draft was generated; Sources shows the reason.",
+    },
+  };
+  return descriptions[locale ?? "zh"]?.[key] ?? null;
 }

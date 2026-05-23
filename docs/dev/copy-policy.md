@@ -35,12 +35,14 @@ MindForge Web 的用户界面文案本地化策略。本条适用于所有面向
 - 格式名周围的说明性文本（"支持格式：Markdown, PDF, HTML"）必须本地化
 - 技术标识同理：BM25、LLM、API key 保留原名，说明文案本地化
 
-### 5. NextAction action_key 契约
+### 5. NextAction action_key / description_key 契约
 
-后端 `NextAction` schema 包含可选字段 `action_key: str | None`：
+后端 `NextAction` schema 包含可选字段 `action_key: str | None` 和 `description_key: str | None`：
 - `action_key` 是稳定的 machine-readable identifier，不对应具体语种的文案
 - 前端通过 `nextActionLabel(action_key, locale)` 做 display mapping
+- `description_key` 同理，前端通过 `nextActionDescription(description_key, locale)` 做 description 本地化
 - 缺 `action_key` 时，安全 fallback 到 `action.label`
+- 缺 `description_key` 时，安全 fallback 到 `action.description`
 - 禁止用 `action.label` 做字符串匹配判断语言
 
 ### 6. 后端不翻译，前端处理 display mapping
@@ -59,6 +61,7 @@ MindForge Web 的用户界面文案本地化策略。本条适用于所有面向
 | 新增页面 | 未注册 i18n key | 在 i18n.ts 的 zh/en 两处添加 key |
 | 操作按钮文案 | 直接用英文 label | 使用 `t()` 包装 |
 | 空状态提示 | 硬编码混合文案 | 使用 EmptyState 组件 + 传入 locale |
+| 空状态 action description | action.description 为英文不回退 | 添加 description_key + nextActionDescription() 映射 |
 | 格式/技术说明 | 周围中文夹杂英文名词 | 名词保留，说明本地化 |
 
 ## 已有 display mapping 函数
@@ -68,6 +71,7 @@ MindForge Web 的用户界面文案本地化策略。本条适用于所有面向
 | `friendlyStatus(status, locale?)` | ai_draft → "待确认" / "Pending Review" |
 | `statusLabel(status, locale?)` | ok → "正常" / "OK" |
 | `nextActionLabel(key, locale?)` | init_vault → "初始化知识库" / "Initialize vault" |
+| `nextActionDescription(key, locale?)` | home.go_to_review.desc → "审核 AI 生成的草稿..." |
 | `workflowStepLabel(stepId, locale?)` | triage → "初筛" / "Triage" |
 | `strategyStatusLabel(status, locale?)` | default workflow → "默认工作流" |
 | `sourceStatusLabel(status, locale?)` | active → "监控中" / "Watching" |

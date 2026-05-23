@@ -9,6 +9,8 @@ export interface NextAction {
   onClick?: (() => void) | null;
   /** 稳定展示映射键，前端据此做 nextActionLabel() 本地化。可选，缺省时 fallback 到 label。 */
   action_key?: string | null;
+  /** action.description 本地化键，与 action_key 同模式。可选，缺省时 fallback 到原始 description。 */
+  description_key?: string | null;
 }
 
 export interface StatusItem {

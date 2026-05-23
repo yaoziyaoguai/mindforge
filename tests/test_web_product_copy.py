@@ -219,13 +219,14 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
     setup = _read("pages/SetupPage.tsx")
 
     # 禁止的工程/debug 字段不能出现在 SetupPage 源码中
+    # Milestone E: "Provider readiness" 现在是正式用户侧功能（provider 就绪状态展示），
+    # 已从禁止列表移除 —— 用户需要知道当前 provider 是否可用
     for forbidden in (
         "Environment variable overrides",
         "API key env",
         "Base URL env",
         "Model env",
         "Technical internal route",
-        "Provider readiness",
         "Raw config path",
         "Config file",
         "Token status",
@@ -271,10 +272,10 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
     assert "只读诊断" in zh.get("setup.diagnostics_desc", "")
 
     # 禁止的字段不在源码中出现
+    # Milestone E: "Provider readiness" 已从禁止列表移除 —— 这是正式用户侧功能
     for forbidden in (
         "Default base URL",
         "Environment variable overrides",
-        "Provider readiness",
         "Raw config path",
         "Token status",
         "Configuration checklist",
@@ -790,3 +791,154 @@ def test_next_action_does_not_use_label_string_matching() -> None:
         "containsChinese",
     ):
         assert pattern not in combined, f"Forbidden language detection pattern: {pattern}"
+
+
+# ---------------------------------------------------------------------------
+# Milestone E — Setup Deep Restructure regression guard
+# ---------------------------------------------------------------------------
+
+
+def test_next_action_description_function_exists_and_has_entries() -> None:
+    """nextActionDescription() 必须存在于 utils.ts，且 zh/en 均有 description 映射。"""
+    u = _read("lib/utils.ts")
+
+    assert "export function nextActionDescription" in u
+    # zh descriptions
+    assert "home.go_to_review.desc" in u
+    # en descriptions
+    assert "Review AI-generated drafts" in u
+    # 至少覆盖 Setup / Sources / Processing 三类 key
+    assert "setup.configure_cubox.desc" in u
+    assert "sources.create_source_folder.desc" in u
+    assert "processing.view_run_status.desc" in u
+    # 缺 key 返回 null
+    assert "?? null" in u
+    assert "if (!key) return null" in u
+
+
+def test_empty_state_and_next_action_card_use_description_key() -> None:
+    """EmptyState 和 NextActionCard 必须通过 description_key 做本地化 description。"""
+    empty = _read("components/EmptyState.tsx")
+    card = _read("components/NextActionCard.tsx")
+
+    for comp, name in [(empty, "EmptyState"), (card, "NextActionCard")]:
+        assert "nextActionDescription" in comp, f"{name} must import nextActionDescription"
+        assert "description_key" in comp, f"{name} must reference description_key"
+        # fallback chain: localized description → action.description
+        assert "action?.description" in comp or "action.description" in comp, (
+            f"{name} must fallback to action.description"
+        )
+
+
+def test_next_action_description_fallback_null_for_unknown_key() -> None:
+    """nextActionDescription 对未知 key 必须返回 null（触发 fallback）。"""
+    u = _read("lib/utils.ts")
+
+    assert "?? null" in u or "return null" in u
+    # null guard on input
+    assert "if (!key) return null" in u
+
+
+def test_provider_safety_i18n_keys_exist() -> None:
+    """Milestone E provider safety copy 的 i18n key 必须同时存在于 zh 和 en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    safety_keys = [
+        "setup.provider_type_fake",
+        "setup.provider_type_fake_desc",
+        "setup.provider_type_real",
+        "setup.provider_type_real_desc",
+        "setup.api_key_safety",
+        "setup.provider_readiness",
+        "setup.provider_readiness_ready",
+        "setup.provider_readiness_incomplete",
+        "setup.active_provider",
+        "setup.api_key_status",
+        "setup.api_key_present",
+        "setup.api_key_missing",
+        "setup.base_url_source",
+        "setup.model_source",
+        "setup.advanced_config",
+        "setup.advanced_config_desc",
+    ]
+
+    for key in safety_keys:
+        assert key in zh, f"Provider safety zh key missing: {key}"
+        assert key in en, f"Provider safety en key missing: {key}"
+
+
+def test_onboarding_explanation_i18n_keys_exist() -> None:
+    """Milestone E onboarding explanation 的 i18n key 必须同时存在于 zh 和 en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    onboarding_keys = [
+        "setup.onboarding_why_model",
+        "setup.onboarding_why_model_answer",
+        "setup.onboarding_why_sources",
+        "setup.onboarding_why_sources_answer",
+    ]
+
+    for key in onboarding_keys:
+        assert key in zh, f"Onboarding zh key missing: {key}"
+        assert key in en, f"Onboarding en key missing: {key}"
+
+
+def test_milestone_e_action_keys_in_next_action_label_mapping() -> None:
+    """Milestone E 新增的 13 个 action_key 必须同时有 zh/en label 映射。"""
+    u = _read("lib/utils.ts")
+
+    e_keys = [
+        "setup.configure_cubox",
+        "setup.manage_watched_sources",
+        "sources.create_source_folder",
+        "sources.add_watched_source",
+        "sources.back_to_watch_list",
+        "sources.view_source_status",
+        "sources.review_drafts",
+        "sources.add_watch_from_import",
+        "sources.import_once",
+        "processing.view_run_status",
+        "processing.review_drafts",
+        "processing.view_source_status",
+        "processing.view_error",
+        "processing.retry_processing",
+        "processing.view_sources",
+    ]
+
+    for key in e_keys:
+        # 每个 key 应该至少在 zh 和 en section 中各出现一次
+        assert u.count(f'"{key}"') >= 2, f"action_key {key} must appear in both zh and en label mappings (found {u.count(f'"{key}"')} times)"
+
+
+def test_setup_page_has_provider_safety_banner() -> None:
+    """SetupPage 必须有 provider safety copy banner。"""
+    sp = _read("pages/SetupPage.tsx")
+
+    assert "setup.provider_type_fake" in sp
+    assert "setup.api_key_safety" in sp
+    assert "setup.provider_readiness" in sp
+
+
+def test_setup_page_has_onboarding_explanations() -> None:
+    """SetupPage 必须有 onboarding explanation details 元素。"""
+    sp = _read("pages/SetupPage.tsx")
+
+    assert "setup.onboarding_why_model" in sp
+    assert "setup.onboarding_why_sources" in sp
+
+
+def test_sources_page_no_hardcoded_english_error_messages() -> None:
+    """SourcesPage 错误消息必须通过 i18n，不允许硬编码英文。"""
+    sp = _read("pages/SourcesPage.tsx")
+
+    # 这些曾经是硬编码英文错误消息，现已修复为 t() 调用
+    forbidden_hardcoded = [
+        '"Edit frequency failed"',
+        '"Process failed"',
+        '"Scan failed"',
+        '"Delete failed"',
+    ]
+    for pattern in forbidden_hardcoded:
+        assert pattern not in sp, f"SourcesPage must not hardcode English error: {pattern}"

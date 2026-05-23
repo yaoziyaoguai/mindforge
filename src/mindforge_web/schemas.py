@@ -21,6 +21,7 @@ class NextAction(BaseModel):
     command: str | None = None
     href: str | None = None
     action_key: str | None = None  # 稳定展示映射键，前端据此做本地化。可选，缺省时前端 fallback 到 label
+    description_key: str | None = None  # action.description 本地化键，与 action_key 同模式。可选，缺省时前端 fallback 到原始 description
 
 
 class StatusItem(BaseModel):

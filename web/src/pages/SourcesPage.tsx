@@ -42,7 +42,7 @@ export function SourcesPage({
       setResult(response.message);
       await onRefresh?.();
     } catch (error) {
-      setResult(error instanceof Error ? error.message : "Edit frequency failed");
+      setResult(error instanceof Error ? error.message : t("source_add.request_failed"));
     } finally {
       setBusy(false);
     }
@@ -56,7 +56,7 @@ export function SourcesPage({
       setResult(formatRunSummary(response.message, response.counts, response.run_id));
       await onRefresh?.();
     } catch (error) {
-      setResult(error instanceof Error ? error.message : "Process failed");
+      setResult(error instanceof Error ? error.message : t("source_add.request_failed"));
     } finally {
       setBusy(false);
     }

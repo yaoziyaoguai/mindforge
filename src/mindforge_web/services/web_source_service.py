@@ -105,6 +105,8 @@ class WebSourceService:
                         label="Create source folder",
                         description="创建该 inbox 子目录后再放入本地 source 文件。",
                         command=f"mkdir -p {path}",
+                        action_key="sources.create_source_folder",
+                        description_key="sources.create_source_folder.desc",
                     ),
                 )
             )
@@ -126,6 +128,8 @@ class WebSourceService:
                     description=(
                         "注册 file/folder 并在后台处理当前内容；folder 默认递归扫描，只会生成 ai_draft。"
                     ),
+                    action_key="sources.add_watched_source",
+                    description_key="sources.add_watched_source.desc",
                 )
             ],
         )
@@ -274,6 +278,8 @@ class WebSourceService:
                     label="Watch list",
                     description="确认 default 00-Inbox 和剩余 user-added watches。",
                     href="/sources",
+                    action_key="sources.back_to_watch_list",
+                    description_key="sources.back_to_watch_list.desc",
                 )
             ],
         )
@@ -411,6 +417,8 @@ class WebSourceService:
                 next_action=NextAction(
                     label="Add watch",
                     description="支持 file/folder；后续 daemon/hook 不在本阶段。",
+                    action_key="sources.add_watch_from_import",
+                    description_key="sources.add_watch_from_import.desc",
                 ),
             ),
             StatusItem(
@@ -425,6 +433,8 @@ class WebSourceService:
                 next_action=NextAction(
                     label="Import once",
                     description="适合一次性导入外部 file/folder。",
+                    action_key="sources.import_once",
+                    description_key="sources.import_once.desc",
                 ),
             ),
         ]
@@ -685,6 +695,8 @@ def _ingestion_next_actions(counts: dict[str, int] | None = None) -> list[NextAc
             label="View source status",
             description="查看 source processing 状态、skipped reason 或错误。",
             href="/sources",
+            action_key="sources.view_source_status",
+            description_key="sources.view_source_status.desc",
         )
     ]
     if counts.get("processed", 0) > 0:
@@ -694,6 +706,8 @@ def _ingestion_next_actions(counts: dict[str, int] | None = None) -> list[NextAc
                 label="Review drafts",
                 description="新生成内容仍是 ai_draft；human_approved 必须显式 approve。",
                 href="/drafts",
+                action_key="sources.review_drafts",
+                description_key="sources.review_drafts.desc",
             ),
         )
     return actions
