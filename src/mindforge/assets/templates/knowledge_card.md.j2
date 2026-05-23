@@ -18,6 +18,33 @@ source_archive_path: ""
 source_missing: false
 source_url: "{{ source.source_url | default('') }}"
 source_title: "{{ source.title | default('') }}"
+{%- if location %}
+# ── 来源位置（M4） ──
+source_location:
+  source_type: {{ location.source_type }}
+  display: "{{ location.display }}"
+{%- if location.heading_path %}
+  heading_path: {{ location.heading_path | tojson }}
+{%- endif %}
+{%- if location.line_start is not none %}
+  line_start: {{ location.line_start }}
+{%- endif %}
+{%- if location.line_end is not none %}
+  line_end: {{ location.line_end }}
+{%- endif %}
+{%- if location.page_number is not none %}
+  page_number: {{ location.page_number }}
+{%- endif %}
+{%- if location.paragraph_start is not none %}
+  paragraph_start: {{ location.paragraph_start }}
+{%- endif %}
+{%- if location.paragraph_end is not none %}
+  paragraph_end: {{ location.paragraph_end }}
+{%- endif %}
+{%- if location.css_selector %}
+  css_selector: "{{ location.css_selector }}"
+{%- endif %}
+{%- endif %}
 
 # ── 加工证据链 ──
 created_at: {{ run.created_at }}
