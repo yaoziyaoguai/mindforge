@@ -7,6 +7,7 @@ import { getSources } from "./api/sources";
 import type { ConfigStatusResponse, DraftsResponse, HomeStatusResponse, LibraryCardsResponse, SafetySummary, SourcesResponse, WorkflowSummaryResponse } from "./api/types";
 import { AppShell } from "./components/AppShell";
 import { ErrorState } from "./components/ErrorState";
+import { LocaleProvider } from "./lib/i18n";
 import { HomePage } from "./pages/HomePage";
 import { SetupPage } from "./pages/SetupPage";
 import { SourcesPage } from "./pages/SourcesPage";
@@ -77,8 +78,10 @@ export default function App() {
   if (!content) content = <div className="text-sm text-muted">Loading...</div>;
 
   return (
-    <AppShell path={path} safety={safety} onNavigate={navigate}>
-      {content}
-    </AppShell>
+    <LocaleProvider>
+      <AppShell path={path} safety={safety} onNavigate={navigate}>
+        {content}
+      </AppShell>
+    </LocaleProvider>
   );
 }

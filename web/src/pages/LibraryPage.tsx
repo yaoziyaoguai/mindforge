@@ -7,6 +7,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
+import { useLocale } from "../lib/i18n";
 
 export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; onRefresh?: () => void }) {
   const initialRef = new URLSearchParams(window.location.search).get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
@@ -14,6 +15,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { locale, t } = useLocale();
 
   useEffect(() => {
     if (!selected) return;
@@ -45,14 +47,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     return (
       <div className="space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-ink">知识库</h1>
-          <p className="mt-1 text-sm text-muted">已确认的知识卡片，可供阅读、编辑和搜索。</p>
+          <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
+          <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
         </header>
         <EmptyState
-          title="知识库为空"
+          title={t("library.empty_title")}
           action={{
-            label: "前往审阅 AI 草稿",
-            description: "在审阅页面确认 AI 生成的草稿后，它们会自动出现在知识库中。也可以先添加知识源。",
+            label: t("library.empty_label"),
+            description: t("library.empty_desc"),
             href: "/drafts",
           }}
         />
@@ -63,14 +65,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">知识库</h1>
-        <p className="mt-1 text-sm text-muted">已确认的知识卡片，可供阅读、编辑和搜索。</p>
+        <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
       </header>
       <div className="grid gap-4 md:grid-cols-4">
-        <StatusCard label="已确认知识" value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail="可供阅读、编辑和搜索。" />
-        <StatusCard label="待确认草稿" value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail="等待审阅确认的 AI 草稿。" />
-        <StatusCard label="搜索索引" value={data.stats.index_exists ? "就绪" : "需重建"} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} />
-        <StatusCard label="知识卡片总数" value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail="本地知识库条目。" />
+        <StatusCard label={t("library.stats_approved")} value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail={t("library.stats_approved_detail")} locale={locale} />
+        <StatusCard label={t("library.stats_drafts")} value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail={t("library.stats_drafts_detail")} locale={locale} />
+        <StatusCard label={t("library.stats_index")} value={data.stats.index_exists ? t("library.stats_index_ready") : t("library.stats_index_rebuild")} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} locale={locale} />
+        <StatusCard label={t("library.stats_total")} value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={t("library.stats_total_detail")} locale={locale} />
       </div>
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="space-y-2">
@@ -85,7 +87,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-medium text-ink">{card.title ?? card.rel_path}</h3>
-                  <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{friendlyStatus(card.status)}</span>
+                  <span className={card.status === "human_approved" ? "text-xs text-safe" : "text-xs text-warn"}>{friendlyStatus(card.status, locale)}</span>
                 </div>
                 <p className="mt-1 text-sm text-muted">{card.source_title ?? card.source_path_view?.display_path ?? "No source title"}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">

@@ -3,13 +3,14 @@ import { recall } from "../api/recall";
 import type { RecallResponse } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { useLocale } from "../lib/i18n";
 
 /** 将 BM25 分数映射为用户可理解的相关性标签，不暴露原始浮点数。
  *  BM25 是词法匹配算法（非语义 RAG），分数区间和语义模型不可直接比较。 */
-function scoreLabel(score: number): { label: string; tone: string } {
-  if (score >= 0.7) return { label: "高相关", tone: "text-safe" };
-  if (score >= 0.4) return { label: "相关", tone: "text-warn" };
-  return { label: "低相关", tone: "text-muted" };
+function scoreLabel(score: number, t: (key: string) => string): { label: string; tone: string } {
+  if (score >= 0.7) return { label: t("recall.score_high"), tone: "text-safe" };
+  if (score >= 0.4) return { label: t("recall.score_medium"), tone: "text-warn" };
+  return { label: t("recall.score_low"), tone: "text-muted" };
 }
 
 export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void }) {
@@ -17,15 +18,8 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   const [data, setData] = useState<RecallResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const { t } = useLocale();
 
-  /* 中文学习型说明：提取 runSearch 为纯搜索副作用函数（接收明确的 query 参数）。
-   *  这是前端事件处理重构 —— 只改变 submit 和 retry 共享搜索逻辑的方式，
-   *  不改变 BM25 / recall 后端语义，不改 API 请求参数，不改请求路径/方法。
-   *
-   *  submit handler 只负责 event.preventDefault() + 调用 runSearch。
-   *  retry handler 不再伪造 React.FormEvent，直接调用 runSearch(query.trim())。
-   *  两者 type-check 完全真实，不再需要 as unknown as 绕过 TypeScript。
-   */
   async function runSearch(queryText: string): Promise<void> {
     if (!queryText) return;
     setError(null);
@@ -33,7 +27,7 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
     try {
       setData(await recall(queryText));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "搜索失败");
+      setError(err instanceof Error ? err.message : t("recall.error_fallback"));
     } finally {
       setSearching(false);
     }
@@ -47,14 +41,16 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">搜索知识</h1>
-        <p className="mt-1 text-sm text-muted">搜索已确认的知识卡片。当前使用 BM25 词法匹配，非语义 RAG 检索。</p>
+        <h1 className="text-2xl font-semibold text-ink">{t("recall.title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("recall.subtitle")}</p>
       </header>
       <form className="flex gap-2" onSubmit={handleSubmit}>
         <input
+          id="recall-search"
           className="min-w-0 flex-1 rounded-md border border-line bg-panel px-3 py-2"
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索知识卡片..."
+          placeholder={t("recall.placeholder")}
+          aria-label={t("recall.placeholder")}
           value={query}
           disabled={searching}
         />
@@ -66,41 +62,38 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
           {searching ? (
             <>
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              搜索中...
+              {t("recall.searching")}
             </>
           ) : (
-            "搜索"
+            t("recall.search")
           )}
         </button>
       </form>
       {error ? (
         <div className="rounded-md border border-danger bg-red-50 p-3 text-sm text-ink">
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 font-medium text-danger">搜索失败</span>
+            <span className="mt-0.5 font-medium text-danger">{t("recall.error_title")}</span>
             <span className="flex-1">{error}</span>
-            {/* 中文学习型说明：retry 不再伪造 React.FormEvent，直接调用 runSearch。
-               当前的 query 值即上次搜索关键词（搜索失败时不会清空输入框），
-               重试时复用该关键词。 */}
-            <button className="text-xs text-muted hover:text-ink" onClick={() => runSearch(query.trim())} type="button">重试</button>
+            <button className="text-xs text-muted hover:text-ink" onClick={() => runSearch(query.trim())} type="button">{t("recall.retry")}</button>
           </div>
         </div>
       ) : null}
       {!data && !error ? (
         <EmptyState
-          title="输入关键词开始搜索"
+          title={t("recall.empty_prompt_title")}
           action={{
-            label: "搜索已确认知识",
-            description: "输入关键词后查询已确认的知识卡片。如果没有结果，请先确认一些 AI 草稿或尝试其他关键词。",
+            label: t("recall.empty_prompt_label"),
+            description: t("recall.empty_prompt_desc"),
           }}
         />
       ) : null}
-      {data?.empty_state && data.hits.length === 0 ? <EmptyState title="没有找到匹配的知识卡片" action={data.empty_state} /> : null}
+      {data?.empty_state && data.hits.length === 0 ? <EmptyState title={t("recall.empty_no_results_title")} action={data.empty_state} /> : null}
       {data && data.hits.length === 0 && !data.empty_state ? (
         <EmptyState
-          title="没有找到匹配的知识卡片"
+          title={t("recall.empty_no_results_title")}
           action={{
-            label: "前往审阅 AI 草稿",
-            description: "确认更多知识卡片后再搜索，或尝试不同的关键词。当前使用 BM25 词法匹配，非语义检索。",
+            label: t("recall.empty_no_results_label"),
+            description: t("recall.empty_no_results_desc"),
             href: "/drafts",
           }}
         />
@@ -108,20 +101,20 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
       {data?.hits.length ? (
         <div className="space-y-3">
           {data.hits.map((hit) => {
-            const sl = scoreLabel(hit.score);
+            const sl = scoreLabel(hit.score, t);
             return (
               <article key={hit.rel_path} className="rounded-md border border-line bg-panel p-4">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="font-semibold text-ink">{hit.title ?? hit.rel_path}</h2>
                   <span className={`text-sm font-medium ${sl.tone}`}>{sl.label}</span>
                 </div>
-                <p className="mt-2 text-sm text-muted">匹配原因: {hit.why_this_matched}</p>
+                <p className="mt-2 text-sm text-muted">{t("recall.match_reason")}: {hit.why_this_matched}</p>
                 <button
                   className="mt-3 rounded-md border border-line px-3 py-1.5 text-sm font-medium text-primary"
                   onClick={() => onNavigate(hit.detail_href ?? `/library?card=${encodeURIComponent(hit.card_ref ?? hit.rel_path)}`)}
                   type="button"
                 >
-                  打开知识卡片
+                  {t("recall.open_card")}
                 </button>
               </article>
             );

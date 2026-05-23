@@ -3,6 +3,7 @@ import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
+import { useLocale } from "../lib/i18n";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -38,11 +39,13 @@ type EditingModel = {
  *  只改变 UI 组织方式，不改变 provider config model、API 语义或保存逻辑。 */
 type SetupStep = "models" | "sources" | "review";
 
-const STEP_LABELS: Record<SetupStep, { label: string; description: string }> = {
-  models: { label: "连接模型", description: "配置 LLM 模型连接和工作流路由" },
-  sources: { label: "选择知识源", description: "设置知识库路径和 Wiki 选项" },
-  review: { label: "检查配置", description: "查看诊断信息并保存" },
-};
+function getStepLabels(t: (key: string) => string): Record<SetupStep, { label: string; description: string }> {
+  return {
+    models: { label: t("setup.step.models"), description: t("setup.step.models_desc") },
+    sources: { label: t("setup.step.sources"), description: t("setup.step.sources_desc") },
+    review: { label: t("setup.step.review"), description: t("setup.step.review_desc") },
+  };
+}
 
 const STEP_ORDER: SetupStep[] = ["models", "sources", "review"];
 
@@ -68,6 +71,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [editing, setEditing] = useState<EditingModel | null>(null);
   const [step, setStep] = useState<SetupStep>("models");
   const [promptPreview, setPromptPreview] = useState<{ stage: string; version: string; content: string } | null>(null);
+  const { locale, t } = useLocale();
+  const STEP_LABELS = getStepLabels(t);
 
   useEffect(() => {
     void loadEditable();
@@ -173,7 +178,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     if (isNew) {
       nextModels[newId!] = { ...editForm };
     } else if (originalId !== newId) {
-      // 允许改 id → delete old + add new
       delete nextModels[originalId];
       nextModels[newId!] = { ...editForm };
     } else {
@@ -190,7 +194,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
   function deleteModel(modelId: string) {
     if (!form) return;
-    // 前端预检：不允许删除 default_model 或 routing 引用的模型
     if (form.default_model === modelId) {
       setMessage(`Cannot delete model ${modelId!}: it is the default model. Change default model first.`);
       return;
@@ -220,7 +223,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     setBusy(true);
     try {
       const response = await validateSetupConfig(patchFromForm(current));
-      setMessage(response.ok ? "Validation passed" : response.errors.join(" "));
+      setMessage(response.ok ? t("setup.validation_passed") : response.errors.join(" "));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Validation failed");
     } finally {
@@ -228,9 +231,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     }
   }
 
-  /** 保存配置 —— 独立 loading/error 状态确保用户明确知道保存结果。
-   *  不吞错误：后端返回的任何错误信息都显式展示为红色 inline banner，
-   *  用户可据此修改配置后重试。provider config model 和 API 语义完全不变。 */
   async function save() {
     const current = draftForm;
     if (!current) return;
@@ -243,7 +243,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       setForm(next);
       setSavedForm(next);
       setEditing(null);
-      setMessage("Setup saved");
+      setMessage(t("setup.saved"));
       onRefresh?.();
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Save failed";
@@ -256,14 +256,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   function revert() {
     setForm(savedForm);
     setEditing(null);
-    setMessage("Reverted");
+    setMessage(t("setup.reverted"));
   }
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">连接模型和知识源</h1>
-        <p className="mt-1 text-sm text-muted">本地配置编辑器。连接真实 LLM 是可选的 —— MindForge 支持使用 demo 模型进行安全测试。API key 仅存储于本地安全凭据管理，不会发送给 Agent 或提交到仓库。</p>
+        <h1 className="text-2xl font-semibold text-ink">{t("setup.title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("setup.subtitle")}</p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -275,13 +275,13 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Local workspace</h2>
-              <p className="text-sm text-muted">配置保存仅涉及非敏感字段。API key 等秘密信息通过本地安全凭据管理存储，不会出现在配置文件中。</p>
+              <h2 className="text-lg font-semibold text-ink">{t("setup.local_workspace")}</h2>
+              <p className="text-sm text-muted">{t("setup.local_workspace_desc")}</p>
             </div>
             <div className="flex gap-2">
-              {dirty ? <span className="self-center text-xs font-medium text-warn">Unsaved changes</span> : null}
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving || !dirty} onClick={revert} type="button">Revert</button>
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving} onClick={validate} type="button">Validate</button>
+              {dirty ? <span className="self-center text-xs font-medium text-warn">{t("setup.unsaved")}</span> : null}
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving || !dirty} onClick={revert} type="button">{t("setup.revert")}</button>
+              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving} onClick={validate} type="button">{t("setup.validate")}</button>
               <button
                 className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
                 disabled={saving || !dirty}
@@ -290,31 +290,27 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               >
                 {saving ? (
                   <>
-                    {/* 保存中 spinner —— 使用 CSS animate-spin 旋转图标 */}
                     <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    保存中...
+                    {t("setup.saving")}
                   </>
                 ) : (
-                  "Save setup"
+                  t("setup.save")
                 )}
               </button>
             </div>
           </div>
 
-          {/* 保存错误 inline banner —— 红色醒目展示，不吞错误，用户可据此修改配置后重试 */}
           {saveError ? (
             <div className="rounded-md border border-danger bg-red-50 p-3 text-sm text-ink">
               <div className="flex items-start gap-2">
-                <span className="mt-0.5 font-medium text-danger">保存失败</span>
+                <span className="mt-0.5 font-medium text-danger">{t("setup.save_failed")}</span>
                 <span className="flex-1">{saveError}</span>
-                <button className="text-xs text-muted hover:text-ink" onClick={() => setSaveError(null)} type="button">关闭</button>
+                <button className="text-xs text-muted hover:text-ink" onClick={() => setSaveError(null)} type="button">{t("shared.close")}</button>
               </div>
             </div>
           ) : null}
 
-          {/* ================================================================ */}
-          {/* 步骤指示器 —— 3 步横向排列，当前步骤用 primary 色高亮 */}
-          {/* ================================================================ */}
+          {/* 步骤指示器 */}
           <div className="flex gap-2 rounded-md border border-line bg-stone-50 p-3">
             {STEP_ORDER.map((s, index) => {
               const isCurrent = s === step;
@@ -328,42 +324,37 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   onClick={() => setStep(s)}
                   type="button"
                 >
-                  <div className="text-xs opacity-70">步骤 {index + 1}</div>
+                  <div className="text-xs opacity-70">{t("setup.step_number")} {index + 1}</div>
                   <div>{STEP_LABELS[s].label}</div>
                 </button>
               );
             })}
           </div>
 
-          {/* 中文学习型说明：Vault 是 MindForge 的本地知识库根目录。普通用户只需要
-          知道 approved cards、wiki、trash 会保存在这里；目录创建属于系统责任，
-          不把底层目录创建开关暴露在主 UI。 */}
           {step === "sources" && (
           <div className="rounded-md border border-line bg-stone-50 p-4">
-            <div className="text-sm font-semibold text-ink">Knowledge vault</div>
+            <div className="text-sm font-semibold text-ink">{t("setup.knowledge_vault")}</div>
             <div className="mt-2 break-all rounded-md border border-line bg-white px-3 py-2 text-sm text-ink">{form.vault_root}</div>
-            <p className="mt-2 text-xs text-muted">MindForge stores approved cards, wiki, and trash here. Created automatically when needed.</p>
+            <p className="mt-2 text-xs text-muted">{t("setup.knowledge_vault_desc")}</p>
           </div>
           )}
 
-          {/* ================================================================ */}
-          {/* Configured models / Default model / Processing workflow —— 步骤 1：连接模型 */}
-          {/* ================================================================ */}
+          {/* 步骤 1：连接模型 */}
           {step === "models" && (<>
           <section className="space-y-4 rounded-md border border-line p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Configured models</h2>
-                <p className="mt-1 text-sm text-muted">每个模型是一个命名端点，定义类型、URL、模型名称和 API key。真实 LLM 是可选的 —— demo 模型用于安全测试，不会调用外部 API。</p>
+                <h2 className="text-lg font-semibold text-ink">{t("setup.configured_models")}</h2>
+                <p className="mt-1 text-sm text-muted">{t("setup.configured_models_desc")}</p>
               </div>
               <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={startAdd} type="button" disabled={editing !== null}>
-                + Add model
+                {t("setup.add_model")}
               </button>
             </div>
 
             {editable.llm.legacy_config_detected ? (
               <div className="rounded-md border border-warn bg-amber-50 p-3 text-sm text-ink">
-                Legacy LLM config detected. Save to migrate to the new llm.models/default_model/routing format.
+                {t("setup.legacy_detected")}
               </div>
             ) : null}
 
@@ -373,68 +364,64 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : null}
 
-            {/* ---- Add/Edit form (inline) ---- */}
+            {/* Add/Edit form */}
             {editing ? (
               <div className="rounded-md border border-line bg-stone-50 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? "Add model" : `Edit model: ${editing.modelId}`}</h3>
+                <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? t("setup.add_model_title") : `${t("setup.edit_model")}${editing.modelId}`}</h3>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-ink">Model id {editing.isNew ? "*" : "(read-only)"}</span>
+                    <span className="font-medium text-ink">{t("setup.model_id")} {editing.isNew ? "*" : t("setup.model_id_readonly")}</span>
                     <input id="model-id-input" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.modelId} onChange={(event) => setEditing({ ...editing, modelId: event.target.value })} disabled={!editing.isNew} placeholder="e.g. main, claude, openai" />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-ink">Type *</span>
+                    <span className="font-medium text-ink">{t("setup.model_type")} *</span>
                     <select className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.type} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, type: event.target.value } })}>
-                      {supportedTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {supportedTypes.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                     </select>
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-ink">Base URL *</span>
+                    <span className="font-medium text-ink">{t("setup.model_base_url")} *</span>
                     <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.base_url} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, base_url: event.target.value } })} placeholder="https://api.anthropic.com" />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-ink">Model *</span>
+                    <span className="font-medium text-ink">{t("setup.model_name")} *</span>
                     <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.model} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, model: event.target.value } })} placeholder="claude-3-5-haiku-latest" />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-ink">API key</span>
-                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? "Enter API key" : "Leave empty to keep current key"} />
-                    <span className="text-xs text-muted">{editing.isNew ? "" : "Leave empty to preserve existing API key."}</span>
+                    <span className="font-medium text-ink">{t("setup.model_api_key")}</span>
+                    <input className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? t("setup.model_api_key_placeholder_new") : t("setup.model_api_key_placeholder_edit")} />
+                    <span className="text-xs text-muted">{editing.isNew ? "" : t("setup.model_api_key_hint_edit")}</span>
                   </label>
                   {!editing.isNew ? (
                     <div className="flex items-center gap-2">
                       <button className="text-xs text-danger" onClick={() => setEditing({ ...editing, form: { ...editing.form, api_key: "", api_key_action: "clear" } })} type="button">
-                        Clear stored key
+                        {t("setup.model_clear_key")}
                       </button>
-                      {editing.form.api_key_action === "clear" ? <span className="text-xs font-medium text-danger">Key will be removed on save</span> : null}
+                      {editing.form.api_key_action === "clear" ? <span className="text-xs font-medium text-danger">{t("setup.model_key_will_clear")}</span> : null}
                     </div>
                   ) : null}
                 </div>
                 <details className="mt-4 rounded-md border border-line p-2">
-                  <summary className="cursor-pointer text-xs font-medium text-muted">Advanced</summary>
+                  <summary className="cursor-pointer text-xs font-medium text-muted">{t("setup.model_advanced")}</summary>
                   <label className="mt-2 flex items-center gap-2 text-sm text-ink">
                     <input checked={editing.form.api_key_optional} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key_optional: event.target.checked } })} type="checkbox" />
-                    API key optional (local endpoints)
+                    {t("setup.model_api_key_optional")}
                   </label>
-                  <p className="mt-1 text-xs text-muted">Only enable this for local or self-hosted model endpoints that do not require an API key. Most hosted providers require an API key.</p>
+                  <p className="mt-1 text-xs text-muted">{t("setup.model_api_key_optional_hint")}</p>
                 </details>
                 <div className="mt-4 flex gap-2">
-                  <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={saveModelEdit} type="button">Save</button>
-                  <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={cancelEdit} type="button">Cancel</button>
+                  <button className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white" onClick={saveModelEdit} type="button">{t("setup.model_save")}</button>
+                  <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={cancelEdit} type="button">{t("setup.model_cancel")}</button>
                 </div>
               </div>
             ) : null}
 
-            {/* ---- Model cards ----
-              中文学习型说明：当 editing.modelId 与列表中某个 model 匹配时，
-              该 model 处于编辑态。此时 Edit/Delete 按钮应替换为 "Editing..."
-              标签，避免用户误认为有两个同名模型，或误点 Delete/Edit。 */}
+            {/* Model cards */}
             {hasConfiguredModels ? (
               <div className="space-y-3">
                 {modelIds.map((modelId) => {
                   const item = form.models[modelId];
                   const status = editable.llm.configured_models[modelId];
-                  {/* keySource 值来自后端 api_key_source 枚举；前端仅映射为用户友好标签，不直接展示 "env"/"demo" 原始值 */}
                   const keySource = status?.api_key_source ?? "missing";
                   const apiKeyLabel = keySource === "local_secret"
                     ? `configured · ${status?.api_key_masked_value ?? "****"}`
@@ -443,7 +430,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     : keySource === "demo"
                     ? "missing"
                     : "missing";
-                  {/* 该 model 是否正在编辑：编辑态时隐藏 Edit/Delete，显示 Editing 标签 */}
                   const currentlyEditing = editing && !editing.isNew && editing.modelId === modelId;
                   return (
                     <article key={modelId} className={`rounded-md border p-3 ${currentlyEditing ? "border-primary bg-blue-50" : "border-line"}`}>
@@ -451,7 +437,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                         <div className="flex items-center gap-2">
                           <div className="font-semibold text-ink">{modelId}</div>
                           {currentlyEditing ? (
-                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-white">Editing</span>
+                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-white">{t("setup.model_editing")}</span>
                           ) : null}
                         </div>
                         <div className="flex items-center gap-2">
@@ -459,12 +445,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                             API key: {apiKeyLabel}
                           </span>
                           {currentlyEditing ? (
-                            /* 编辑态：不显示 Edit/Delete 按钮；编辑表单在上方，用户用 Save/Cancel 操作 */
-                            <span className="text-xs text-muted">Editing...</span>
+                            <span className="text-xs text-muted">{t("setup.model_editing_label")}</span>
                           ) : (
                             <>
-                              <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">Edit</button>
-                              <button className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-red-50" onClick={() => deleteModel(modelId)} type="button">Delete</button>
+                              <button className="rounded border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => startEdit(modelId)} type="button">{t("setup.model_edit")}</button>
+                              <button className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-red-50" onClick={() => deleteModel(modelId)} type="button">{t("setup.model_delete")}</button>
                             </>
                           )}
                         </div>
@@ -481,44 +466,39 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : (
               <div className="rounded-md border border-line p-3 text-sm">
-                <div className="font-medium text-ink">尚未配置模型</div>
-                <div className="mt-1 text-muted">添加模型以启用 AI 草稿生成。你也可以先不配置模型，仅添加和监控知识源。</div>
-                <div className="mt-1 text-xs text-muted">连接真实 LLM 需要填写 API key，这是可选的。Demo 模型不会调用外部 API，适合安全测试。</div>
+                <div className="font-medium text-ink">{t("setup.no_models")}</div>
+                <div className="mt-1 text-muted">{t("setup.no_models_desc")}</div>
+                <div className="mt-1 text-xs text-muted">{t("setup.no_models_hint")}</div>
               </div>
             )}
           </section>
 
-          {/* ================================================================ */}
           {/* Default model */}
-          {/* ================================================================ */}
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Default model</h2>
-              <p className="mt-1 text-sm text-muted">Workflow steps without an explicit route use this model.</p>
+              <h2 className="text-lg font-semibold text-ink">{t("setup.default_model")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("setup.default_model_desc")}</p>
             </div>
             <select className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={form.default_model} onChange={(event) => setForm({ ...form, default_model: event.target.value })}>
-              {!hasConfiguredModels ? <option value="">No model configured</option> : null}
+              {!hasConfiguredModels ? <option value="">{t("setup.no_model_configured")}</option> : null}
               {modelIds.map((modelId) => {
                 return <option key={modelId} value={modelId}>{modelId}</option>;
               })}
             </select>
           </section>
 
-          {/* ================================================================ */}
           {/* Processing workflow */}
-          {/* ================================================================ */}
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Processing workflow</h2>
-              <p className="mt-1 text-sm text-muted">MindForge turns sources into draft knowledge cards through a workflow. Each step has a purpose, a prompt, and a model assignment.</p>
+              <h2 className="text-lg font-semibold text-ink">{t("setup.processing_workflow")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("setup.processing_workflow_desc")}</p>
             </div>
 
-            {/* Active strategy */}
             {editable.llm.processing_workflow ? (
               <div className="rounded-md border border-line bg-stone-50 p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs text-muted">Active workflow</div>
+                    <div className="text-xs text-muted">{t("setup.workflow_active")}</div>
                     <div className="font-semibold text-ink">{editable.llm.processing_workflow.active_strategy_label}</div>
                     <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
                   </div>
@@ -527,7 +507,6 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </div>
             ) : null}
 
-            {/* Workflow steps */}
             <div className="space-y-3">
               {(editable.llm.processing_workflow?.workflow_steps ?? []).map((step) => {
                 const current = form.routing[step.id] ?? form.default_model;
@@ -544,7 +523,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                         <p className="mt-1 text-xs text-muted">{step.purpose}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button className="rounded-md border border-line bg-white px-2 py-0.5 text-xs text-primary hover:bg-stone-50" onClick={() => viewPrompt(step.id, step.prompt_version)} type="button">View prompt ({step.prompt_version})</button>
+                        <button className="rounded-md border border-line bg-white px-2 py-0.5 text-xs text-primary hover:bg-stone-50" onClick={() => viewPrompt(step.id, step.prompt_version)} type="button">{t("setup.workflow_view_prompt")} ({step.prompt_version})</button>
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
@@ -554,23 +533,22 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                           return <option key={modelId} value={modelId}>{modelId}</option>;
                         })}
                       </select>
-                      {!isCustomModel ? <span className="text-xs text-muted">(uses default)</span> : null}
+                      {!isCustomModel ? <span className="text-xs text-muted">{t("setup.workflow_uses_default")}</span> : null}
                     </div>
                   </article>
                 );
               })}
             </div>
 
-            {/* Reset routing */}
             {form.routing_is_explicit ? (
               <button className="text-xs text-muted hover:text-ink" onClick={() => { setForm({ ...form, routing_is_explicit: false, routing: {} }); }} type="button">
-                Reset all steps to use default model
+                {t("setup.workflow_reset")}
               </button>
             ) : null}
 
-            <p className="text-xs text-muted">Workflow steps are fixed in this version. Model assignment is configurable. Click View prompt to see the prompt used by each step.</p>
+            <p className="text-xs text-muted">{t("setup.workflow_fixed_note")}</p>
           </section>
-          </>)}  {/* end step "models" */}
+          </>)}
 
           {/* Prompt preview modal */}
           {promptPreview ? (
@@ -578,26 +556,24 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-md border border-line bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-ink">Prompt: {promptPreview.stage} @ {promptPreview.version}</h3>
-                  <button className="text-sm text-muted hover:text-ink" onClick={() => setPromptPreview(null)} type="button">Close</button>
+                  <button className="text-sm text-muted hover:text-ink" onClick={() => setPromptPreview(null)} type="button">{t("setup.prompt_close")}</button>
                 </div>
-                <p className="text-xs text-muted mb-3">Read-only — this is the prompt currently used by the workflow step.</p>
+                <p className="text-xs text-muted mb-3">{t("setup.prompt_readonly")}</p>
                 <pre className="whitespace-pre-wrap rounded-md border border-line bg-stone-50 p-4 text-sm text-ink max-h-[60vh] overflow-y-auto">{promptPreview.content}</pre>
               </div>
             </div>
           ) : null}
 
-          {/* ================================================================ */}
-          {/* Wiki generation / Source Add —— 步骤 2：选择知识源 */}
-          {/* ================================================================ */}
+          {/* 步骤 2：选择知识源 */}
           {step === "sources" && (<>
           <section className="space-y-4 rounded-md border border-line p-4">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Wiki generation</h2>
-              <p className="mt-1 text-sm text-muted">MindForge uses LLM synthesis to build the Main Wiki from human-approved cards. The Wiki is a derived view; source files are not modified.</p>
+              <h2 className="text-lg font-semibold text-ink">{t("setup.wiki_generation")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("setup.wiki_generation_desc")}</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="font-medium text-ink">Model for Wiki synthesis</span>
+                <span className="font-medium text-ink">{t("setup.model_wiki_synthesis")}</span>
                 <select className="w-full rounded-md border border-line bg-white px-3 py-2 disabled:bg-stone-100"
                   disabled={!hasConfiguredModels}
                   value={form.wiki_model || ""}
@@ -610,33 +586,28 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     ? "Complete model setup to generate Wiki."
                     : form.wiki_model
                     ? `Will use ${form.wiki_model} for Wiki synthesis.`
-                    : "Falls back to default model."}
+                    : t("setup.model_wiki_fallback")}
                 </span>
               </label>
               <label className="flex flex-col gap-1 text-sm text-ink">
                 <span className="flex items-center gap-2">
                   <input checked={form.wiki_auto_rebuild} onChange={(event) => setForm({ ...form, wiki_auto_rebuild: event.target.checked })} type="checkbox" />
-                  <span className="font-medium">Auto update Wiki after approval</span>
+                  <span className="font-medium">{t("setup.model_wiki_auto")}</span>
                 </span>
-                <span className="text-xs text-muted ml-6">When enabled, MindForge updates the Main Wiki after each approval. LLM synthesis is never run automatically — trigger it manually from the Wiki page.</span>
+                <span className="text-xs text-muted ml-6">{t("setup.model_wiki_auto_desc")}</span>
               </label>
             </div>
           </section>
 
           <SourceAddPanel onRefresh={onRefresh} hasModels={hasConfiguredModels} />
-          </>)}  {/* end step "sources" */}
+          </>)}
 
-          {/* ================================================================ */}
-          {/* Diagnostics —— 步骤 3：检查配置 */}
-          {/* ================================================================ */}
+          {/* 步骤 3：检查配置 */}
           {step === "review" && (
           <details className="rounded-md border border-line p-3">
-            <summary className="cursor-pointer text-sm font-medium text-ink">Diagnostics for advanced users</summary>
+            <summary className="cursor-pointer text-sm font-medium text-ink">{t("setup.diagnostics")}</summary>
             <div className="mt-3 space-y-4">
-              <p className="text-xs text-muted">These are read-only diagnostics for advanced users and troubleshooting. They summarize the same user-facing setup state without exposing legacy runtime internals.</p>
-              {/* 中文学习型说明：Diagnostics 不是第二套配置入口。这里只展示用户能
-              理解的只读状态，避免把测试替身、历史路由或内部配置字段重新暴露为
-              普通用户需要操作的产品概念。 */}
+              <p className="text-xs text-muted">{t("setup.diagnostics_desc")}</p>
               <dl className="space-y-2 text-sm text-muted">
                 <div><dt className="font-medium text-ink">Knowledge vault</dt><dd className="break-all">{editable.vault.root}</dd></div>
                 <div><dt className="font-medium text-ink">Model configured</dt><dd>{hasConfiguredModels ? "Yes" : "No"}</dd></div>
@@ -645,9 +616,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               </dl>
             </div>
           </details>
-          )}  {/* end step "review" */}
+          )}
 
-          {/* 步骤导航按钮 —— 底部前进/后退，最后一步提示保存 */}
+          {/* 步骤导航按钮 */}
           <div className="flex items-center justify-between gap-3">
             <div>
               {STEP_ORDER.indexOf(step) > 0 ? (
@@ -656,12 +627,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   onClick={() => setStep(STEP_ORDER[STEP_ORDER.indexOf(step) - 1])}
                   type="button"
                 >
-                  ← 上一步
+                  {t("setup.prev_step")}
                 </button>
               ) : null}
             </div>
             <div className="text-xs text-muted">
-              步骤 {STEP_ORDER.indexOf(step) + 1} / {STEP_ORDER.length}
+              {t("setup.step_number")} {STEP_ORDER.indexOf(step) + 1} / {STEP_ORDER.length}
             </div>
             <div>
               {STEP_ORDER.indexOf(step) < STEP_ORDER.length - 1 ? (
@@ -670,10 +641,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   onClick={() => setStep(STEP_ORDER[STEP_ORDER.indexOf(step) + 1])}
                   type="button"
                 >
-                  下一步 →
+                  {t("setup.next_step")}
                 </button>
               ) : (
-                <span className="text-xs text-muted">配置完成后请保存</span>
+                <span className="text-xs text-muted">{t("setup.save_reminder")}</span>
               )}
             </div>
           </div>

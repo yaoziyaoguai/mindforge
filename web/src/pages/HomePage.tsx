@@ -1,25 +1,27 @@
 import type { HomeStatusResponse, WorkflowSummaryResponse } from "../api/types";
 import { NextActionCard } from "../components/NextActionCard";
 import { StatusCard } from "../components/StatusCard";
+import { useLocale } from "../lib/i18n";
 
 export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusResponse; workflow?: WorkflowSummaryResponse; onNavigate: (href: string) => void }) {
+  const { locale, t } = useLocale();
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">首页</h1>
-        <p className="mt-1 text-sm text-muted">选择本地知识工作台的下一步操作。</p>
+        <h1 className="text-2xl font-semibold text-ink">{t("home.title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("home.subtitle")}</p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard label="审阅 AI 草稿" value={data.safety.pending_drafts_count} status={data.safety.pending_drafts_count > 0 ? "warn" : "ok"} detail="待审阅的 AI 生成知识草稿。" href="/drafts" onNavigate={onNavigate} />
-        <StatusCard label="管理知识源" value={workflow?.inbox_pending_count ?? "-"} status={(workflow?.inbox_pending_count ?? 0) > 0 ? "warn" : "ok"} detail="添加原始资料并查看处理状态。" href="/sources" onNavigate={onNavigate} />
-        <StatusCard label="浏览知识库" value={data.vault.approved_card_count} status={data.vault.approved_card_count > 0 ? "ok" : "info"} detail="已确认的知识卡片，可供阅读、编辑和搜索。" href="/library" onNavigate={onNavigate} />
+        <StatusCard label={t("home.review_drafts")} value={data.safety.pending_drafts_count} status={data.safety.pending_drafts_count > 0 ? "warn" : "ok"} detail={t("home.review_drafts_detail")} href="/drafts" onNavigate={onNavigate} locale={locale} />
+        <StatusCard label={t("home.manage_sources")} value={workflow?.inbox_pending_count ?? "-"} status={(workflow?.inbox_pending_count ?? 0) > 0 ? "warn" : "ok"} detail={t("home.manage_sources_detail")} href="/sources" onNavigate={onNavigate} locale={locale} />
+        <StatusCard label={t("home.browse_library")} value={data.vault.approved_card_count} status={data.vault.approved_card_count > 0 ? "ok" : "info"} detail={t("home.browse_library_detail")} href="/library" onNavigate={onNavigate} locale={locale} />
       </div>
       <section className="grid gap-4 md:grid-cols-2">
-        <StatusCard label="搜索知识" value={data.recall.index_exists ? "就绪" : "需建索引"} status={data.recall.index_exists ? "ok" : "warn"} detail="仅搜索已确认的知识卡片。" nextAction={data.recall.next_action} href="/recall" onNavigate={onNavigate} />
-        <StatusCard label="检查配置" value={data.provider.model_setup === "ready" ? "就绪" : "待检查"} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="检查本地知识库和模型配置。" href="/setup" onNavigate={onNavigate} />
+        <StatusCard label={t("home.search_knowledge")} value={data.recall.index_exists ? t("home.ready") : t("home.needs_setup")} status={data.recall.index_exists ? "ok" : "warn"} detail={t("home.search_knowledge_detail")} nextAction={data.recall.next_action} href="/recall" onNavigate={onNavigate} locale={locale} />
+        <StatusCard label={t("home.check_setup")} value={data.provider.model_setup === "ready" ? t("home.ready") : t("home.pending_check")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail={t("home.check_setup_detail")} href="/setup" onNavigate={onNavigate} locale={locale} />
       </section>
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-ink">下一步操作</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("home.next_actions")}</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {data.next_actions.map((action) => (
             <NextActionCard action={action} key={action.label} onNavigate={onNavigate} />

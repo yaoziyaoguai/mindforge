@@ -1,5 +1,6 @@
 import type { DraftSummary } from "../api/types";
 import { friendlyStatus } from "../lib/utils";
+import { useLocale } from "../lib/i18n";
 
 export function DraftList({
   drafts,
@@ -10,6 +11,7 @@ export function DraftList({
   selected?: string;
   onSelect: (id: string) => void;
 }) {
+  const { locale, t } = useLocale();
   return (
     <div className="space-y-2">
       {drafts.map((draft) => {
@@ -25,12 +27,12 @@ export function DraftList({
           >
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-medium text-ink">{draft.title ?? draft.rel_path}</h3>
-              <span className="text-xs text-warn">{friendlyStatus(draft.status)}</span>
+              <span className="text-xs text-warn">{friendlyStatus(draft.status, locale)}</span>
             </div>
             <p className="mt-1 text-sm text-muted">{draft.source_title ?? draft.source_type ?? ""}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
               <span>
-                价值评分:{" "}
+                {t("draftlist.value_score")}:{" "}
                 {draft.value_score != null ? draft.value_score : "-"}
               </span>
               {draft.strategy_label ? <span>{draft.strategy_label}</span> : null}

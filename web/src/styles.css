@@ -40,3 +40,8 @@ input:focus-visible {
 h1, h2, h3, h4, h5, h6 {
   line-height: 1.3;
 }
+
+/* 页面间卡片网格间距一致性 —— 不改变 Tailwind token，仅补全局基线 */
+.page-grid {
+  gap: 1rem;
+}

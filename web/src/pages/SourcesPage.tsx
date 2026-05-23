@@ -151,9 +151,11 @@ export function SourcesPage({
                     <div className="text-xs font-medium uppercase text-muted">Frequency</div>
                     <div className="mt-1 text-sm text-ink">{source.frequency}</div>
                     <select
+                      id={`frequency-${source.id}`}
                       className="mt-2 w-full max-w-[220px] rounded-md border border-line bg-white px-2 py-1 text-xs disabled:bg-stone-100"
                       disabled={busy}
                       onChange={(event) => setRowFrequencies({ ...rowFrequencies, [source.id]: event.target.value })}
+                      aria-label="编辑监测频率"
                       title="Edit frequency"
                       value={rowFrequencies[source.id] ?? source.frequency}
                     >

@@ -417,8 +417,6 @@ Web-first real LLM dogfood 跑通后暴露出 Web 的工程感过重、用户引
 
 ---
 
----
-
 ## Milestone C: UX Polish, Accessibility & i18n
 
 ### Status
@@ -525,8 +523,11 @@ Milestone A 和 B 已完成（7 个 Implementation Unit 全部实现并 push mai
 **Requirements:** R12
 
 **Files:**
-- Modify: `web/src/styles.css`（可能）
-- Modify: 涉及排版不一致的页面组件
+- Modify: `web/src/styles.css`
+- Modify: `web/src/pages/SetupPage.tsx`（stepper/表单间距）
+- Modify: `web/src/pages/RecallPage.tsx`（搜索区域间距）
+- Modify: `web/src/pages/LibraryPage.tsx`（卡片列表间距）
+- Modify: `web/src/components/CardWorkspace.tsx`（section 间距）
 
 **Dependencies:** None (独立视觉修正)
 
@@ -561,31 +562,32 @@ Milestone A 和 B 已完成（7 个 Implementation Unit 全部实现并 push mai
 
 **Requirements:** R14
 
-**Files (预期):**
-- Create: `web/src/lib/locale.ts`（locale dictionary 和切换逻辑）
-- Modify: 各页面和组件中硬编码的中文/英文文案替换为 locale key 引用
+**Execution order note:** U13 必须排在 U10 之后执行。U10 先 settle Recall copy/wording 终态，U13 再从各页面抽取 hardcoded copy 到 locale dictionary。颠倒顺序会导致 U10 在英文 locale key 上再做修改，产生重复劳动。
+
+**Files:**
+- Create: `web/src/lib/i18n.ts`（locale dictionary + `t()` 函数 + `useLocale` hook）
+- Modify: `web/src/pages/RecallPage.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/pages/SetupPage.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/pages/LibraryPage.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/pages/DraftsPage.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/pages/HomePage.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/components/ApprovalPanel.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/components/CardWorkspace.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/components/EmptyState.tsx`（硬编码文案 → `t('key')`）
+- Modify: `web/src/components/Sidebar.tsx`（语言切换入口 + 导航标签 → `t('key')`）
 
 **Approach:**
-- 第一步：创建 `locale.ts`，定义 `LocaleDict` 类型和 `zh`/`en` 两套 copy map
-- 第二步：定义 `useLocale()` hook 或 context，暴露 `t(key)` 翻译函数和 `setLocale(locale)` 切换函数
-- 第三步：逐步替换各页面/组件中的硬编码文案为 `t('key')` 调用
-- 第四步：添加语言切换入口（具体位置由 mini spec/review 决定）
-
-**Patterns to follow:**
-- 轻量字典模式（非 react-intl / i18next 等重型框架）
-- 现有 React `useState` + props 模式
-
-**Test scenarios:**
-- Happy path: 用户在中文 UI 下看到中文文案
-- Happy path: 切换到英文 UI 后所有文案变为英文
-- Edge case: 语言切换后不影响页面路由和 API 调用
-- Edge case: 未知 locale key 有 fallback（英文 key 本身）
+- 第一步：创建 `i18n.ts`，定义 `LocaleDict` 类型和 `zh`/`en` 两套 copy map
+- 第二步：定义 `useLocale()` hook，暴露 `t(key)` 翻译函数和 `setLocale(locale)` 切换函数，locale 选择通过 `localStorage` 持久化
+- 第三步：按 U10（Recall 终态）→ 其他页面顺序，逐步替换硬编码文案为 `t('key')` 调用
+- 第四步：在 Sidebar footer 添加语言切换入口（简体中文 / English toggle）
 
 **Verification:**
 - 存在集中管理的 locale dictionary（非各页面散落）
 - 语言切换入口可用，切换后所有页面文案跟随变化
 - 切换不触发页面刷新（纯 React state）
-- 不引入新 npm 依赖（或仅引入极轻量依赖，需 review 批准）
+- 不引入新 npm 依赖
+- 未知 locale key fallback 到 key 自身（英文文案）
 
 ---
 
@@ -641,6 +643,11 @@ Milestone C 的执行顺序必须是：
 | 新增 `statusIcon()`/`statusLabel()` 需在各 badge 渲染处组合调用 | 调用点集中在 StatusCard/ConfigChecklist/CardWorkspace 三处，改动量小且 TypeScript 编译器会捕获遗漏 |
 | 空状态引导按钮的目标页面在 Edge case 下可能不存在（如 Sources 未配置时导航到 Sources 无意义） | 导航按钮始终可用 — 空状态下的用户正是需要去配置的人 |
 | 无前端测试覆盖，改动后回归依赖手动验证 | P0 范围小且改动集中，手工 smoke test 可覆盖。测试基础设施作为 deferred item 规划 |
+| **Milestone C — i18n locale key 散落风险**: 部分页面文案未被 `t('key')` 替换，出现中英混杂残留 | U13 的 `t()` 函数对未知 key fallback 到 key 自身（英文），TypeScript 类型系统约束 locale key 为已知字符串。browser smoke 逐页切换语言验证 |
+| **Milestone C — U10/U13 Recall 文案合并冲突**: U10 优化 Recall 文案后 U13 抽取 copy，若顺序颠倒导致重复劳动 | 强制执行 U10 → U13 顺序：U10 settle Recall 终态文案 → U13 统一抽取到 locale dictionary |
+| **Milestone C — locale 切换后 React re-render / 状态一致性**: 切换语言导致组件树 re-render，表单草稿、编辑状态丢失 | `useLocale` 仅修改 locale state，不触发页面级 `location.reload()`。表单 state 在各组件 `useState` 中独立持有，locale 切片不触碰 |
+| **Milestone C — 硬编码 copy 漏抽取**: 大范围替换后仍有 hardcoded 中文/英文残留 | 抽取完成后 `grep` 逐文件检查残留中文硬编码模式；browser smoke 中英切换逐页比对 |
+| **Milestone C — 大规模 copy 替换导致 UX regression**: `t()` 调用替换文案时 key 映射错误，用户看到错误标签 | 每个 `t('key')` key 与原始 hardcoded 文案一一对应；locale dict 中 zh/en 双写对照原始 UI 文案 |
 
 ---
 
