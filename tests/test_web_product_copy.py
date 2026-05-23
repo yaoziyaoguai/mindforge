@@ -81,7 +81,7 @@ def test_main_pages_use_friendly_status_and_action_copy() -> None:
 
     # 中文文案在 i18n 字典中
     assert zh.get("home.review_drafts") == "审阅 AI 草稿"
-    assert "待审阅" in zh.get("home.review_drafts_detail", "")
+    assert "待审核" in zh.get("home.review_drafts_pending", "")
     assert zh.get("library.stats_approved") == "已确认知识"
     assert zh.get("recall.subtitle", "").startswith("搜索已确认的知识卡片")
     assert zh.get("approval.title") == "确认知识卡片"
@@ -749,6 +749,28 @@ def test_copy_policy_document_exists() -> None:
     assert "nextActionLabel" in content
     assert "display mapping" in content
     assert "防回归" in content or "防回归" in content or "regression" in content
+
+
+def test_obsolete_homepage_detail_keys_removed() -> None:
+    """HomePage refactor 后 3 个旧 detail key 必须已删除。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    for key in ("home.review_drafts_detail", "home.manage_sources_detail", "home.browse_library_detail"):
+        assert key not in zh, f"Obsolete zh key still present: {key}"
+        assert key not in en, f"Obsolete en key still present: {key}"
+
+
+def test_status_card_uses_next_action_label() -> None:
+    """StatusCard 必须使用 nextActionLabel 做本地化 inline action 展示。"""
+    sc = _read("components/StatusCard.tsx")
+
+    assert "nextActionLabel" in sc
+    assert "nextAction.action_key" in sc
+    # fallback chain: localized label → label → command → description
+    assert "nextAction.label" in sc
+    assert "nextAction.command" in sc
+    assert "nextAction.description" in sc
 
 
 def test_next_action_does_not_use_label_string_matching() -> None:

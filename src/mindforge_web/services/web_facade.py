@@ -226,6 +226,7 @@ class WebFacade:
                 label="Watch or import source",
                 description="Web 主入口是 watch/import；自动化只生成 ai_draft。",
                 href="/sources",
+                action_key="watch_source",
             )
         ]
         watches = self.source_service.watch_sources()
@@ -585,6 +586,7 @@ class WebFacade:
                 label="Approve drafts",
                 description="Recall 默认只查询 human_approved cards。",
                 href="/drafts",
+                action_key="review_drafts",
             )
             if count == 0
             else None,

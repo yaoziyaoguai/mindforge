@@ -1,4 +1,4 @@
-import { statusIcon, statusLabel, statusTone } from "../lib/utils";
+import { nextActionLabel, statusIcon, statusLabel, statusTone } from "../lib/utils";
 import type { Locale } from "../lib/i18n";
 import type { NextAction, StatusLevel } from "../api/types";
 
@@ -27,7 +27,7 @@ export function StatusCard({ label, value, status = "info", detail, nextAction, 
       {detail ? <p className="mt-2 text-sm text-muted">{detail}</p> : null}
       {nextAction ? (
         <p className="mt-3 text-sm text-primary">
-          {nextAction.command ?? nextAction.description}
+          {nextActionLabel(nextAction.action_key, locale) ?? nextAction.label ?? nextAction.command ?? nextAction.description}
         </p>
       ) : null}
     </section>

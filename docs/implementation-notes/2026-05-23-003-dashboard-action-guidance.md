@@ -127,3 +127,55 @@ git diff --check              → EXIT_CODE=0
 ## 12. 回退记录
 
 无回退。实现一次通过，未触发 spec review 或 code review 的回退上限。
+
+---
+
+## 13. P3/P4 Closure Round (2026-05-23)
+
+### 13.1 已修复
+
+| Item | Change | Files |
+|------|--------|-------|
+| P3-1: 补齐 web_facade 剩余 NextAction action_key | Lines 225, 584 添加 action_key | `web_facade.py` |
+| P3-2: 清理 3 个旧 i18n key | home.review_drafts_detail, home.manage_sources_detail, home.browse_library_detail 已删除 | `i18n.ts` |
+| P4-1: StatusCard inline nextAction 本地化 | StatusCard 现在使用 nextActionLabel() 优先展示，fallback: label → command → description | `StatusCard.tsx` |
+
+### 13.2 保留（Recorded for later）
+
+| Item | Reason |
+|------|--------|
+| P3-1 其余 17 站点 | 分布在 web_config_service.py, web_source_service.py, web_review_service.py, processing_run_service.py, routers/sources.py 等 6 个文件。超出 5 文件 scope 上限。每个文件的 NextAction 服务于不同 UI 上下文（Setup, Sources, Processing），需要按页面独立评估 action_key。 |
+| P3-3: EmptyState description mapping | action.description 的本地化需要一套平行的 description_key 映射机制，或是将 description source of truth 移到前端 i18n。当前 action.description 是后端生成文案，可能包含动态内容。评估后认为 scope 超出本轮 P3 closure。 |
+
+### 13.3 StatusCard fallback chain
+
+```
+nextActionLabel(action_key, locale)  →  localized display
+  ?? nextAction.label                 →  English label fallback
+  ?? nextAction.command               →  CLI command
+  ?? nextAction.description           →  description
+```
+
+所有现有 StatusCard（无论有无 action_key）兼容。
+
+### 13.4 Tests
+
+新增 2 个回归测试（total: 33 tests）：
+- `test_obsolete_homepage_detail_keys_removed` — 确认 3 个旧 key 已删除
+- `test_status_card_uses_next_action_label` — 确认 StatusCard 使用 nextActionLabel + fallback chain
+
+### 13.5 Gate
+
+```
+npm --prefix web run build    → EXIT_CODE=0
+pytest test_web_product_copy.py → 33 passed, EXIT_CODE=0
+git diff --check              → EXIT_CODE=0
+```
+
+### 13.6 最终剩余 P3/P4
+
+| Level | Item |
+|-------|------|
+| P3 | web_facade.py 外 17 个 NextAction 站点（6 个文件）需要 action_key |
+| P3 | EmptyState action.description 本地化 |
+| P4 | Setup / Sources / Processing 页面级 NextAction 一致性审查 |
