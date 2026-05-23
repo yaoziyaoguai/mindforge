@@ -397,6 +397,10 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.source_prefix": "来源: {name}",
     "wiki.local_graph_empty": "此章节暂无可见关系。局部图谱预览使用共享来源、标签、Wiki 章节、审阅批次及相近来源位置中的确定性关系。",
     "wiki.toc_toggle": "切换目录",
+    "wiki.reader_mode_on": "阅读模式",
+    "wiki.reader_mode_off": "退出阅读",
+    "wiki.related_sections": "相关章节",
+    "wiki.toc_label": "本页目录",
 
     // ---- SourceAddPanel ----
     "source_add.title": "添加文件或文件夹",
@@ -848,6 +852,10 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.source_prefix": "Source: {name}",
     "wiki.local_graph_empty": "This section has no visible relationships yet. Local Graph Preview uses deterministic relationships from shared source, tags, wiki section, review batches, and nearby source location.",
     "wiki.toc_toggle": "Toggle table of contents",
+    "wiki.reader_mode_on": "Reader Mode",
+    "wiki.reader_mode_off": "Exit Reader",
+    "wiki.related_sections": "Related Sections",
+    "wiki.toc_label": "On This Page",
 
     // ---- SourceAddPanel ----
     "source_add.title": "Add a file or folder",

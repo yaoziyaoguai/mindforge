@@ -51,6 +51,7 @@ export function WikiPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [readerMode, setReaderMode] = useState(false);
   const { t } = useLocale();
 
   const load = useCallback(async () => {
@@ -182,6 +183,8 @@ export function WikiPage() {
             modelReadyLabel={status.model_ready_label}
             busy={busy}
             onRebuild={() => rebuild("llm")}
+            readerMode={false}
+            onToggleReaderMode={() => {}}
           />
         )}
 
@@ -208,31 +211,37 @@ export function WikiPage() {
       {error ? <p className="text-sm text-danger">{error}</p> : null}
 
       {status && (
-        <WikiStatusBar
-          exists={status.exists}
-          lastRebuiltAt={status.last_rebuilt_at}
-          wikiCardCount={status.wiki_card_count}
-          approvedCardCount={status.approved_card_count}
-          isStale={status.is_stale}
-          newApprovedCount={status.new_approved_count}
-          modelReady={status.model_ready}
-          modelReadyLabel={status.model_ready_label}
-          busy={busy}
-          onRebuild={() => rebuild("llm")}
-        />
+        <div className={readerMode ? "wiki-chrome" : ""}>
+          <WikiStatusBar
+            exists={status.exists}
+            lastRebuiltAt={status.last_rebuilt_at}
+            wikiCardCount={status.wiki_card_count}
+            approvedCardCount={status.approved_card_count}
+            isStale={status.is_stale}
+            newApprovedCount={status.new_approved_count}
+            modelReady={status.model_ready}
+            modelReadyLabel={status.model_ready_label}
+            busy={busy}
+            onRebuild={() => rebuild("llm")}
+            readerMode={readerMode}
+            onToggleReaderMode={() => setReaderMode((prev) => !prev)}
+          />
+        </div>
       )}
 
       {page && (
         <div className="flex gap-6">
-          <WikiTOC sections={page.sections} />
-          <WikiReadingPane page={page} />
+          {!readerMode && <WikiTOC sections={page.sections} />}
+          <WikiReadingPane page={page} readerMode={readerMode} />
         </div>
       )}
 
-      <WikiAdvancedActions
-        busy={busy}
-        onFallbackRebuild={() => rebuild("deterministic")}
-      />
+      <div className="wiki-chrome">
+        <WikiAdvancedActions
+          busy={busy}
+          onFallbackRebuild={() => rebuild("deterministic")}
+        />
+      </div>
     </div>
   );
 }

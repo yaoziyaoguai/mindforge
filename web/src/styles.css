@@ -45,3 +45,51 @@ h1, h2, h3, h4, h5, h6 {
 .page-grid {
   gap: 1rem;
 }
+
+/* ── Wiki 阅读排版优化 (Milestone G U4) ── */
+
+.wiki-prose {
+  line-height: 1.8;
+}
+
+.wiki-prose h2 {
+  font-size: 1.35rem;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.wiki-prose h3 {
+  font-size: 1.15rem;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Print Styles (Milestone G U1) ── */
+
+@media print {
+  /* 隐藏全局导航和交互元素 */
+  aside,
+  button,
+  section[aria-label="Safety Bar"] {
+    display: none !important;
+  }
+
+  /* 隐藏 Wiki 页面 chrome：header、status bar、TOC、advanced actions */
+  .wiki-chrome {
+    display: none !important;
+  }
+
+  body {
+    font-family: Georgia, "Times New Roman", serif !important;
+    font-size: 12pt;
+    line-height: 1.6;
+    color: #000;
+    background: #fff;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #555;
+  }
+}

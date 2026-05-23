@@ -6,7 +6,7 @@
  * SDD_WIKI_WEB_PRESENTATION_ADDENDUM §5.1, §12.
  */
 
-import { RefreshCw } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useLocale } from "../../lib/i18n";
 
 interface WikiStatusBarProps {
@@ -20,6 +20,8 @@ interface WikiStatusBarProps {
   modelReadyLabel: string;
   busy: boolean;
   onRebuild: () => void;
+  readerMode: boolean;
+  onToggleReaderMode: () => void;
 }
 
 export function WikiStatusBar({
@@ -33,6 +35,8 @@ export function WikiStatusBar({
   modelReadyLabel,
   busy,
   onRebuild,
+  readerMode,
+  onToggleReaderMode,
 }: WikiStatusBarProps) {
   const { t } = useLocale();
 
@@ -95,6 +99,19 @@ export function WikiStatusBar({
         <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
         {exists ? t("wiki.refresh") : t("wiki.generate")}
       </button>
+
+      {/* Reader mode toggle */}
+      {exists && (
+        <button
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-3 py-2 text-sm font-medium text-ink hover:bg-hover transition-colors"
+          onClick={onToggleReaderMode}
+          type="button"
+          title={readerMode ? t("wiki.reader_mode_off") : t("wiki.reader_mode_on")}
+        >
+          {readerMode ? <EyeOff size={14} /> : <Eye size={14} />}
+          {readerMode ? t("wiki.reader_mode_off") : t("wiki.reader_mode_on")}
+        </button>
+      )}
     </div>
   );
 }

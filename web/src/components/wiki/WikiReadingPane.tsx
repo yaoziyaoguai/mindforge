@@ -15,18 +15,19 @@ import type { WikiPageViewModel } from "../../api/wiki";
 
 interface WikiReadingPaneProps {
   page: WikiPageViewModel;
+  readerMode: boolean;
 }
 
-export function WikiReadingPane({ page }: WikiReadingPaneProps) {
+export function WikiReadingPane({ page, readerMode }: WikiReadingPaneProps) {
   const { t } = useLocale();
 
   return (
-    <div className="min-w-0 flex-1 space-y-10">
+    <div className="min-w-0 flex-1 space-y-10 wiki-prose">
       {/* Overview */}
       {page.overview && (
         <section>
           <div
-            className="prose prose-sm max-w-[720px] text-ink leading-relaxed"
+            className={`prose prose-sm max-w-[680px] text-ink ${readerMode ? "max-w-[800px]" : ""}`}
             dangerouslySetInnerHTML={{
               __html: renderMarkdown(page.overview),
             }}
@@ -36,16 +37,16 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
 
       {/* Sections */}
       {page.sections.map((sec) => (
-        <WikiSection key={sec.id} section={sec} />
+        <WikiSection key={sec.id} section={sec} readerMode={readerMode} />
       ))}
 
       {/* Open questions */}
       {page.open_questions.length > 0 && (
-        <section className="max-w-[720px]">
+        <section className={`max-w-[680px] ${readerMode ? "max-w-[800px]" : ""}`}>
           <h2 className="mb-3 text-lg font-semibold text-ink">
             {t("wiki.open_questions")}
           </h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-ink leading-relaxed">
+          <ul className="list-disc space-y-1 pl-5 text-sm text-ink">
             {page.open_questions.map((q, i) => (
               <li key={i}>{q.question}</li>
             ))}
@@ -55,7 +56,7 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
 
       {/* Additional cards (uncited approved cards) */}
       {page.additional_cards.length > 0 && (
-        <div className="max-w-[720px]">
+        <div className={`max-w-[680px] ${readerMode ? "max-w-[800px]" : ""}`}>
           <WikiReferencePanel
             refs={page.additional_cards}
             title={t("wiki.additional_cards")}
@@ -65,7 +66,7 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
 
       {/* Warnings */}
       {page.warnings.length > 0 && (
-        <div className="max-w-[720px] rounded-md border border-warn/30 bg-warn/5 p-3">
+        <div className={`max-w-[680px] ${readerMode ? "max-w-[800px]" : ""} rounded-md border border-warn/30 bg-warn/5 p-3`}>
           <p className="text-sm font-medium text-warn">{t("wiki.warnings")}</p>
           <ul className="mt-1 list-disc pl-5 text-xs text-muted">
             {page.warnings.map((w, i) => (

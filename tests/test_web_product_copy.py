@@ -501,6 +501,11 @@ def test_i18n_wiki_keys_complete() -> None:
         "wiki.source_prefix",
         "wiki.local_graph_empty",
         "wiki.toc_toggle",
+        # Milestone G U5: reader mode + related sections
+        "wiki.reader_mode_on",
+        "wiki.reader_mode_off",
+        "wiki.related_sections",
+        "wiki.toc_label",
     ]
     for key in wiki_keys:
         assert key in zh, f"Missing zh key: {key}"

@@ -14,20 +14,23 @@ import { WikiSectionRelationshipPreview } from "./WikiSectionRelationshipPreview
 
 interface WikiSectionProps {
   section: WikiSectionView;
+  readerMode?: boolean;
 }
 
-export function WikiSection({ section }: WikiSectionProps) {
+export function WikiSection({ section, readerMode }: WikiSectionProps) {
   const { t } = useLocale();
 
   return (
     <section id={section.anchor.replace("#", "")} className="scroll-mt-6">
       <h2 className="mb-3 text-xl font-semibold text-ink">{section.title}</h2>
       <div
-        className="prose prose-sm max-w-[720px] text-ink leading-relaxed"
+        className={`prose prose-sm max-w-[680px] text-ink ${readerMode ? "max-w-[800px]" : ""}`}
         dangerouslySetInnerHTML={{ __html: renderMarkdown(section.body) }}
       />
-      <WikiSectionRelationshipPreview sectionTitle={section.title} refs={section.card_refs} />
-      {section.card_refs.length > 0 && (
+      {!readerMode && (
+        <WikiSectionRelationshipPreview sectionTitle={section.title} refs={section.card_refs} />
+      )}
+      {!readerMode && section.card_refs.length > 0 && (
         <WikiReferencePanel
           refs={section.card_refs}
           title={t("wiki.knowledge_sources")}
