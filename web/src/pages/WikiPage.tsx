@@ -16,6 +16,7 @@ import { WikiAdvancedActions } from "../components/wiki/WikiAdvancedActions";
 import { WikiEmptyState } from "../components/wiki/WikiEmptyState";
 import { WikiErrorState } from "../components/wiki/WikiErrorState";
 import { WikiLoadingState } from "../components/wiki/WikiLoadingState";
+import { useLocale } from "../lib/i18n";
 import type { WikiPageViewModel } from "../api/wiki";
 
 interface WikiStatus {
@@ -50,6 +51,7 @@ export function WikiPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { t } = useLocale();
 
   const load = useCallback(async () => {
     setError(null);
@@ -65,11 +67,11 @@ export function WikiPage() {
         setPage(p as WikiPageViewModel);
       }
     } catch {
-      setError("Failed to load wiki content from server.");
+      setError(t("wiki.load_failed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -116,7 +118,7 @@ export function WikiPage() {
       }
       await load();
     } catch {
-      setError("Wiki rebuild failed due to a network or server error.");
+      setError(t("wiki.rebuild_failed"));
     } finally {
       setBusy(false);
     }

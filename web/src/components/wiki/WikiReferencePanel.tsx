@@ -8,6 +8,7 @@
  */
 
 import { WikiReferenceCard } from "./WikiReferenceCard";
+import { useLocale } from "../../lib/i18n";
 import type { WikiReferenceView } from "../../api/wiki";
 
 interface WikiReferencePanelProps {
@@ -16,12 +17,14 @@ interface WikiReferencePanelProps {
 }
 
 export function WikiReferencePanel({ refs, title }: WikiReferencePanelProps) {
+  const { t } = useLocale();
+
   if (refs.length === 0) return null;
 
   return (
     <div className="mt-4">
       <h3 className="mb-2 text-sm font-semibold text-muted">
-        {title ?? "References"} ({refs.length})
+        {title ?? t("wiki.references")} ({refs.length})
       </h3>
       <ul className="space-y-2">
         {refs.map((ref) => (

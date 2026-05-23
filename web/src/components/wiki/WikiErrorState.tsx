@@ -7,6 +7,7 @@
  */
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useLocale } from "../../lib/i18n";
 
 interface WikiErrorStateProps {
   message: string;
@@ -14,10 +15,12 @@ interface WikiErrorStateProps {
 }
 
 export function WikiErrorState({ message, onRetry }: WikiErrorStateProps) {
+  const { t } = useLocale();
+
   return (
     <div className="flex flex-col items-center justify-center rounded-md border border-line bg-panel p-12 text-center">
       <AlertTriangle size={48} className="mb-4 text-warn" />
-      <h2 className="mb-2 text-lg font-semibold text-ink">Wiki unavailable</h2>
+      <h2 className="mb-2 text-lg font-semibold text-ink">{t("wiki.error_unavailable")}</h2>
       <p className="mb-4 max-w-md text-sm text-muted">{message}</p>
       <button
         onClick={onRetry}
@@ -25,7 +28,7 @@ export function WikiErrorState({ message, onRetry }: WikiErrorStateProps) {
         type="button"
       >
         <RefreshCw size={14} />
-        Retry
+        {t("wiki.retry")}
       </button>
     </div>
   );

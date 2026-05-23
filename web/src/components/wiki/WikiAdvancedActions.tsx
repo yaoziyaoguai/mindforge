@@ -8,6 +8,7 @@
  */
 
 import { Wrench } from "lucide-react";
+import { useLocale } from "../../lib/i18n";
 
 interface WikiAdvancedActionsProps {
   busy: boolean;
@@ -18,17 +19,17 @@ export function WikiAdvancedActions({
   busy,
   onFallbackRebuild,
 }: WikiAdvancedActionsProps) {
+  const { t } = useLocale();
+
   return (
     <details className="rounded-md border border-line p-3">
       <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted">
         <Wrench size={14} />
-        Troubleshooting
+        {t("wiki.troubleshooting")}
       </summary>
       <div className="mt-3 space-y-3">
         <p className="text-xs text-muted leading-relaxed">
-          Safe fallback uses template-based synthesis that does not require a
-          model. Use this only when LLM synthesis is unavailable or
-          troubleshooting wiki generation issues.
+          {t("wiki.troubleshooting_desc")}
         </p>
         <button
           className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-hover transition-colors"
@@ -36,7 +37,7 @@ export function WikiAdvancedActions({
           onClick={onFallbackRebuild}
           type="button"
         >
-          Safe fallback rebuild
+          {t("wiki.safe_fallback_rebuild")}
         </button>
       </div>
     </details>

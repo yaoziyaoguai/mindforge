@@ -57,3 +57,89 @@ export function friendlyStatus(status?: string | null, locale?: Locale): string 
   }
   return status || "-";
 }
+
+/* ── Display Mapping 函数 ─────────────────────────────────────────────
+ * 中文学习型说明：以下函数将后端 internal id / status code 映射为用户可读的本地化文案。
+ * 不改后端 API、不改数据字段 —— 仅前端 presentation 层做 localized display mapping。
+ * 后端 internal id 保留在次要位置（小字、灰色、括号内）满足开发排查需要。
+ *
+ * 为什么不在后端翻译：
+ * - 后端应返回 machine-readable identifiers，前端负责 human-readable labels
+ * - 多语言切换是纯前端关注点，不应耦合到 API contract
+ * - 后端 id 可能用于 route/逻辑判断，不应随着 locale 变化
+ *
+ * 为什么用户内容 / 专有名词不翻译：
+ * - 用户创建的内容（卡片正文、source title）是用户数据，翻译会引入语义偏差
+ * - 产品名 "MindForge"、算法名 "BM25"、adapter 名是专有标识，翻译反而降低可辨识度
+ * - 技术标识（modelId、run_id）是用户自定义或系统生成，保留原名是唯一正确的引用方式
+ * ─────────────────────────────────────────────────────────────────── */
+
+/** workflow step id → 本地化展示标签。
+ *  后端 config.py REQUIRED_STAGES 固定为 triage/distill/link_suggestion/
+ *  review_questions/action_extraction，前端按 step.id 匹配。 */
+export function workflowStepLabel(stepId: string, locale?: Locale): string {
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: {
+      triage: "初筛",
+      distill: "提炼",
+      link_suggestion: "关联建议",
+      review_questions: "复习问题",
+      action_extraction: "行动项提取",
+    },
+    en: {
+      triage: "Triage",
+      distill: "Distill",
+      link_suggestion: "Link Suggestion",
+      review_questions: "Review Questions",
+      action_extraction: "Action Extraction",
+    },
+  };
+  return labels[locale ?? "zh"]?.[stepId] ?? stepId;
+}
+
+/** 后端 active_strategy_status → 本地化展示标签。 */
+export function strategyStatusLabel(status: string, locale?: Locale): string {
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: { "default workflow": "默认工作流" },
+    en: { "default workflow": "Default workflow" },
+  };
+  return labels[locale ?? "zh"]?.[status] ?? status;
+}
+
+/** 后端 active_strategy_label → 本地化展示标签。 */
+export function strategyNameLabel(name: string, locale?: Locale): string {
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: { "Knowledge Card Workflow": "知识卡片工作流" },
+    en: { "Knowledge Card Workflow": "Knowledge Card Workflow" },
+  };
+  return labels[locale ?? "zh"]?.[name] ?? name;
+}
+
+/** source.status → 本地化展示标签。 */
+export function sourceStatusLabel(status: string, locale?: Locale): string {
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: { active: "监控中", paused: "已暂停", error: "异常" },
+    en: { active: "Watching", paused: "Paused", error: "Error" },
+  };
+  return labels[locale ?? "zh"]?.[status] ?? status;
+}
+
+/** source.processing_status → 本地化展示标签。 */
+export function sourceRunStatusLabel(status?: string | null, locale?: Locale): string {
+  if (!status) return "-";
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: { idle: "空闲", queued: "排队中", running: "处理中", completed: "已完成", failed: "失败", partial_failed: "部分失败" },
+    en: { idle: "Idle", queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", partial_failed: "Partial failure" },
+  };
+  return labels[locale ?? "zh"]?.[status] ?? status.replace(/_/g, " ");
+}
+
+/** source.due_status → 本地化展示标签。 */
+export function sourceDueStatusLabel(status?: string | null, locale?: Locale): string {
+  if (!status) return "-";
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: { due: "到期", overdue: "已逾期", upcoming: "未到", manual: "手动" },
+    en: { due: "Due", overdue: "Overdue", upcoming: "Upcoming", manual: "Manual" },
+  };
+  return labels[locale ?? "zh"]?.[status] ?? status;
+}

@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { useLocale } from "../../lib/i18n";
 import type { WikiSectionView } from "../../api/wiki";
 
 interface WikiTOCProps {
@@ -18,13 +19,14 @@ interface WikiTOCProps {
 
 export function WikiTOC({ sections }: WikiTOCProps) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useLocale();
 
   if (sections.length === 0) return null;
 
   const tocContent = (
     <div className="rounded-md border border-line bg-panel p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-        Contents
+        {t("wiki.contents")}
       </h2>
       <ul className="space-y-1">
         {sections.map((sec) => (
@@ -34,7 +36,7 @@ export function WikiTOC({ sections }: WikiTOCProps) {
               className="block rounded px-2 py-1 text-sm text-muted hover:bg-hover hover:text-ink transition-colors"
               onClick={() => setExpanded(false)}
             >
-              {sec.title || "(untitled)"}
+              {sec.title || t("wiki.untitled_section")}
             </a>
           </li>
         ))}
@@ -43,7 +45,7 @@ export function WikiTOC({ sections }: WikiTOCProps) {
   );
 
   return (
-    <nav aria-label="Table of Contents">
+    <nav aria-label={t("wiki.contents")}>
       {/* Mobile toggle button */}
       <div className="md:hidden mb-3">
         <button
@@ -52,9 +54,9 @@ export function WikiTOC({ sections }: WikiTOCProps) {
           onClick={() => setExpanded((prev) => !prev)}
           aria-expanded={expanded}
           aria-controls="wiki-toc-content"
-          aria-label="Toggle table of contents"
+          aria-label={t("wiki.toc_toggle")}
         >
-          {expanded ? "Hide Contents" : "Contents"}
+          {expanded ? t("wiki.hide_contents") : t("wiki.contents")}
           <span className="text-xs text-muted">({sections.length})</span>
         </button>
       </div>

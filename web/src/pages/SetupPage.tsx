@@ -4,6 +4,7 @@ import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigRespons
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 import { useLocale } from "../lib/i18n";
+import { strategyNameLabel, strategyStatusLabel, workflowStepLabel } from "../lib/utils";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -157,19 +158,19 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     const newId = (isNew ? originalId.trim() : originalId) || originalId;
 
     if (!newId) {
-      setMessage("Model id is required.");
+      setMessage(t("setup.validation.model_id_required"));
       return;
     }
     if (isNew && modelIds.includes(newId)) {
-      setMessage(`Model id ${newId!} already exists.`);
+      setMessage(t("setup.validation.model_id_exists").replace("{id}", newId!));
       return;
     }
     if (!editForm.type) {
-      setMessage("Type is required.");
+      setMessage(t("setup.validation.type_required"));
       return;
     }
     if (!editForm.model) {
-      setMessage("Model name is required.");
+      setMessage(t("setup.validation.model_name_required"));
       return;
     }
 
@@ -195,14 +196,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   function deleteModel(modelId: string) {
     if (!form) return;
     if (form.default_model === modelId) {
-      setMessage(`Cannot delete model ${modelId!}: it is the default model. Change default model first.`);
+      setMessage(t("setup.validation.cannot_delete_default").replace("{id}", modelId!));
       return;
     }
     const routingRefs = Object.entries(form.routing)
       .filter(([, mid]) => mid === modelId)
       .map(([step]) => step);
     if (routingRefs.length) {
-      setMessage(`Cannot delete model ${modelId!}: it is referenced by routing steps: ${routingRefs.join(", ")}. Update routing first.`);
+      setMessage(t("setup.validation.cannot_delete_routed").replace("{id}", modelId!).replace("{steps}", routingRefs.join(", ")));
       return;
     }
     const next = { ...form.models };
@@ -267,8 +268,8 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard label="Knowledge vault" value={data.vault.exists ? "Ready" : "Created automatically"} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} />
-        <StatusCard label="Model config" value={data.provider.model_setup === "ready" ? "Configured" : "Check setup"} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
+        <StatusCard label={t("setup.knowledge_vault")} value={data.vault.exists ? t("setup.status_ready") : t("setup.vault_auto_created")} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} />
+        <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail="API key status is shown as present/missing only." />
       </div>
 
       {form && editable ? (
@@ -442,7 +443,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`rounded-md px-2 py-0.5 text-xs ${keySource === "local_secret" || keySource === "env" ? "bg-green-100 text-green-700" : "bg-stone-100 text-muted"}`}>
-                            API key: {apiKeyLabel}
+                            {t("setup.model_api_key")}: {apiKeyLabel}
                           </span>
                           {currentlyEditing ? (
                             <span className="text-xs text-muted">{t("setup.model_editing_label")}</span>
@@ -455,10 +456,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted md:grid-cols-4">
-                        <div><span className="text-xs text-muted">type</span><div className="text-ink">{item.type}</div></div>
-                        <div><span className="text-xs text-muted">base URL</span><div className="truncate text-ink">{item.base_url || "—"}</div></div>
-                        <div><span className="text-xs text-muted">model</span><div className="text-ink">{item.model}</div></div>
-                        <div><span className="text-xs text-muted">default</span><div className="text-ink">{modelId === form.default_model ? "Yes" : "No"}</div></div>
+                        <div><span className="text-xs text-muted">{t("setup.model_type")}</span><div className="text-ink">{item.type}</div></div>
+                        <div><span className="text-xs text-muted">{t("setup.model_base_url")}</span><div className="truncate text-ink">{item.base_url || "—"}</div></div>
+                        <div><span className="text-xs text-muted">{t("setup.model_name")}</span><div className="text-ink">{item.model}</div></div>
+                        <div><span className="text-xs text-muted">{t("setup.model_is_default")}</span><div className="text-ink">{modelId === form.default_model ? t("shared.yes") : t("shared.no")}</div></div>
                       </div>
                     </article>
                   );
@@ -499,10 +500,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-muted">{t("setup.workflow_active")}</div>
-                    <div className="font-semibold text-ink">{editable.llm.processing_workflow.active_strategy_label}</div>
+                    <div className="font-semibold text-ink">{strategyNameLabel(editable.llm.processing_workflow.active_strategy_label, locale)}</div>
                     <div className="mt-1 text-xs text-muted">{editable.llm.processing_workflow.active_strategy_description}</div>
                   </div>
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{editable.llm.processing_workflow.active_strategy_status}</span>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{strategyStatusLabel(editable.llm.processing_workflow.active_strategy_status, locale)}</span>
                 </div>
               </div>
             ) : null}
@@ -517,7 +518,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-ink">{step.label}</span>
+                          <span className="font-semibold text-ink">{workflowStepLabel(step.id, locale)}</span>
                           <span className="text-xs text-muted">{step.id}</span>
                         </div>
                         <p className="mt-1 text-xs text-muted">{step.purpose}</p>
@@ -527,7 +528,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      <label className="text-xs text-muted">Model</label>
+                      <label className="text-xs text-muted">{t("setup.model_name")}</label>
                       <select className="rounded-md border border-line bg-white px-2 py-1 text-sm disabled:bg-stone-100" disabled={!hasConfiguredModels} value={current} onChange={(event) => updateRouting(step.id, event.target.value)}>
                         {modelIds.map((modelId) => {
                           return <option key={modelId} value={modelId}>{modelId}</option>;
@@ -555,7 +556,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setPromptPreview(null)}>
               <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-md border border-line bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-ink">Prompt: {promptPreview.stage} @ {promptPreview.version}</h3>
+                  <h3 className="text-lg font-semibold text-ink">{t("setup.prompt_preview_title")}: {promptPreview.stage} @ {promptPreview.version}</h3>
                   <button className="text-sm text-muted hover:text-ink" onClick={() => setPromptPreview(null)} type="button">{t("setup.prompt_close")}</button>
                 </div>
                 <p className="text-xs text-muted mb-3">{t("setup.prompt_readonly")}</p>
@@ -578,14 +579,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   disabled={!hasConfiguredModels}
                   value={form.wiki_model || ""}
                   onChange={(event) => setForm({ ...form, wiki_model: event.target.value })}>
-                  <option value="">Use default model</option>
+                  <option value="">{t("setup.wiki_use_default")}</option>
                   {modelIds.map((modelId) => <option key={modelId} value={modelId}>{modelId}</option>)}
                 </select>
                 <span className="text-xs text-muted">
                   {!hasConfiguredModels
-                    ? "Complete model setup to generate Wiki."
+                    ? t("setup.wiki_no_model_hint")
                     : form.wiki_model
-                    ? `Will use ${form.wiki_model} for Wiki synthesis.`
+                    ? t("setup.wiki_will_use_model").replace("{modelId}", form.wiki_model)
                     : t("setup.model_wiki_fallback")}
                 </span>
               </label>
@@ -609,10 +610,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             <div className="mt-3 space-y-4">
               <p className="text-xs text-muted">{t("setup.diagnostics_desc")}</p>
               <dl className="space-y-2 text-sm text-muted">
-                <div><dt className="font-medium text-ink">Knowledge vault</dt><dd className="break-all">{editable.vault.root}</dd></div>
-                <div><dt className="font-medium text-ink">Model configured</dt><dd>{hasConfiguredModels ? "Yes" : "No"}</dd></div>
-                <div><dt className="font-medium text-ink">Secret configured</dt><dd>{modelIds.some((modelId) => editable.llm.configured_models[modelId]?.api_key_secret_present) ? "Yes" : "No"}</dd></div>
-                <div><dt className="font-medium text-ink">Last validation result</dt><dd>{editable.llm.validation_errors.length ? editable.llm.validation_errors.join(" ") : "Ready"}</dd></div>
+                <div><dt className="font-medium text-ink">{t("setup.knowledge_vault")}</dt><dd className="break-all">{editable.vault.root}</dd></div>
+                <div><dt className="font-medium text-ink">{t("setup.diag_model_configured")}</dt><dd>{hasConfiguredModels ? t("shared.yes") : t("shared.no")}</dd></div>
+                <div><dt className="font-medium text-ink">{t("setup.diag_secret_configured")}</dt><dd>{modelIds.some((modelId) => editable.llm.configured_models[modelId]?.api_key_secret_present) ? t("shared.yes") : t("shared.no")}</dd></div>
+                <div><dt className="font-medium text-ink">{t("setup.diag_last_validation")}</dt><dd>{editable.llm.validation_errors.length ? editable.llm.validation_errors.join(" ") : t("setup.status_ready")}</dd></div>
               </dl>
             </div>
           </details>

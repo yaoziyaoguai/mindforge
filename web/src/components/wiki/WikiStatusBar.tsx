@@ -7,6 +7,7 @@
  */
 
 import { RefreshCw } from "lucide-react";
+import { useLocale } from "../../lib/i18n";
 
 interface WikiStatusBarProps {
   exists: boolean;
@@ -33,6 +34,8 @@ export function WikiStatusBar({
   busy,
   onRebuild,
 }: WikiStatusBarProps) {
+  const { t } = useLocale();
+
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       {/* Exists indicator */}
@@ -42,9 +45,9 @@ export function WikiStatusBar({
             exists ? "bg-safe" : "bg-warn"
           }`}
         />
-        <span className="text-muted">Status: </span>
+        <span className="text-muted">{t("wiki.status_label")}: </span>
         <span className={exists ? "text-safe font-medium" : "text-warn font-medium"}>
-          {exists ? "Ready" : "Not built"}
+          {exists ? t("wiki.status_ready") : t("wiki.status_not_built")}
         </span>
       </div>
 
@@ -52,13 +55,13 @@ export function WikiStatusBar({
       {exists && (
         <>
           <div className="rounded-md border border-line bg-panel px-3 py-2">
-            <span className="text-muted">Last rebuilt: </span>
+            <span className="text-muted">{t("wiki.last_rebuilt")}: </span>
             <span className="text-ink">
               {lastRebuiltAt?.slice(0, 19) ?? "—"}
             </span>
           </div>
           <div className="rounded-md border border-line bg-panel px-3 py-2">
-            <span className="text-muted">Cards in Wiki: </span>
+            <span className="text-muted">{t("wiki.cards_in_wiki")}: </span>
             <span className="text-ink">{wikiCardCount}</span>
           </div>
         </>
@@ -66,14 +69,14 @@ export function WikiStatusBar({
 
       {/* Approved card count (always shown) */}
       <div className="rounded-md border border-line bg-panel px-3 py-2">
-        <span className="text-muted">Knowledge cards: </span>
+        <span className="text-muted">{t("wiki.knowledge_cards")}: </span>
         <span className="text-ink">{approvedCardCount}</span>
       </div>
 
       {/* Stale indicator */}
       {isStale && (
         <div className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
-          New approved knowledge is available ({newApprovedCount} new card{newApprovedCount !== 1 ? "s" : ""}). Rebuild Wiki to include it.
+          {t("wiki.new_approved_hint").replace("{count}", String(newApprovedCount))}
         </div>
       )}
 
@@ -85,12 +88,12 @@ export function WikiStatusBar({
         type="button"
         title={
           modelReady
-            ? "Rebuild Wiki with LLM synthesis"
+            ? t("wiki.rebuild_tooltip")
             : modelReadyLabel
         }
       >
         <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
-        {exists ? "Refresh Wiki" : "Generate Wiki"}
+        {exists ? t("wiki.refresh") : t("wiki.generate")}
       </button>
     </div>
   );

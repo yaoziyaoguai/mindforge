@@ -7,6 +7,7 @@
  */
 
 import { renderMarkdown } from "../../lib/wiki-renderer";
+import { useLocale } from "../../lib/i18n";
 import type { WikiSectionView } from "../../api/wiki";
 import { WikiReferencePanel } from "./WikiReferencePanel";
 import { WikiSectionRelationshipPreview } from "./WikiSectionRelationshipPreview";
@@ -16,6 +17,8 @@ interface WikiSectionProps {
 }
 
 export function WikiSection({ section }: WikiSectionProps) {
+  const { t } = useLocale();
+
   return (
     <section id={section.anchor.replace("#", "")} className="scroll-mt-6">
       <h2 className="mb-3 text-xl font-semibold text-ink">{section.title}</h2>
@@ -27,7 +30,7 @@ export function WikiSection({ section }: WikiSectionProps) {
       {section.card_refs.length > 0 && (
         <WikiReferencePanel
           refs={section.card_refs}
-          title="Knowledge sources"
+          title={t("wiki.knowledge_sources")}
         />
       )}
     </section>

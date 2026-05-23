@@ -1,4 +1,5 @@
 import { GitBranch } from "lucide-react";
+import { useLocale } from "../../lib/i18n";
 import type { WikiReferenceView } from "../../api/wiki";
 
 interface Props {
@@ -7,15 +8,16 @@ interface Props {
 }
 
 export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
+  const { t } = useLocale();
   const sources = unique(refs.map((ref) => ref.source_title).filter(isString));
   const tags = unique(refs.flatMap((ref) => ref.tags));
 
   return (
     <div className="mt-4 rounded-md border border-line bg-white p-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-        <GitBranch className="h-4 w-4" /> Local Graph Preview
+        <GitBranch className="h-4 w-4" /> {t("wiki.local_graph_preview")}
       </h3>
-      <p className="mt-1 text-xs text-muted">{sectionTitle} relationship preview links {refs.length} approved knowledge cards.</p>
+      <p className="mt-1 text-xs text-muted">{t("wiki.local_graph_desc").replace("{title}", sectionTitle).replace("{count}", String(refs.length))}</p>
 
       {refs.length > 0 ? (
         <>
@@ -28,7 +30,7 @@ export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
               >
                 <span className="font-medium">{ref.card_title}</span>
                 <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                  Wiki section reference
+                  {t("wiki.wiki_section_reference")}
                 </span>
               </a>
             ))}
@@ -37,7 +39,7 @@ export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
           <div className="mt-3 flex flex-wrap gap-1">
             {sources.map((source) => (
               <span className="rounded bg-muted/10 px-1.5 py-0.5 text-[10px] text-muted" key={`source-${source}`}>
-                Source: {source}
+                {t("wiki.source_prefix").replace("{name}", source)}
               </span>
             ))}
             {tags.map((tag) => (
@@ -48,10 +50,10 @@ export function WikiSectionRelationshipPreview({ sectionTitle, refs }: Props) {
           </div>
         </>
       ) : (
-        // 中文学习型说明：这是 Wiki 内的局部关系预览 empty-state，不是全局 Graph 页面；
-        // 关系只来自 shared source/tag/wiki section/review batch 等确定性信号。
+        /* 中文学习型说明：这是 Wiki 内的局部关系预览 empty-state，不是全局 Graph 页面；
+           关系只来自 shared source/tag/wiki section/review batch 等确定性信号。 */
         <p className="mt-3 rounded-md border border-line bg-muted/5 px-3 py-2 text-sm text-muted">
-          This section has no visible relationships yet. Local Graph Preview uses deterministic relationships from shared source, tags, wiki section, review batches, and nearby source location.
+          {t("wiki.local_graph_empty")}
         </p>
       )}
     </div>

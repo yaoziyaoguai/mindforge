@@ -140,8 +140,9 @@ def test_local_graph_views_are_visible_list_fallbacks_without_graph_libraries() 
     combined = "\n".join([workspace_graph, section_graph, package])
 
     assert "Local Graph Preview" in workspace_graph
-    assert "Local Graph Preview" in section_graph
-    assert "relationship preview" in section_graph
+    # i18n follow-up 后，文字通过 t() 获取
+    assert "wiki.local_graph_preview" in section_graph
+    assert "wiki.local_graph_desc" in section_graph
     assert "not a global Graph page" in workspace_graph
     assert "/library?card=" in combined
     for forbidden in ("<canvas", "d3", "cytoscape", "vis-network", "networkx"):
@@ -182,14 +183,14 @@ def test_setup_page_exposes_safe_editor_controls() -> None:
     en = _read_i18n_en()
 
     # 安全编辑器控件在 i18n 字典中
-    assert zh.get("setup.save") == "Save setup"
-    assert zh.get("setup.validate") == "Validate"
-    assert zh.get("setup.revert") == "Revert"
-    assert zh.get("setup.unsaved") == "Unsaved changes"
-    assert zh.get("setup.knowledge_vault") == "Knowledge vault"
-    assert zh.get("setup.configured_models") == "Configured models"
-    assert zh.get("setup.default_model") == "Default model"
-    assert zh.get("setup.processing_workflow") == "Processing workflow"
+    assert zh.get("setup.save") == "保存配置"
+    assert zh.get("setup.validate") == "验证"
+    assert zh.get("setup.revert") == "还原"
+    assert zh.get("setup.unsaved") == "未保存的更改"
+    assert zh.get("setup.knowledge_vault") == "知识库目录"
+    assert zh.get("setup.configured_models") == "已配置模型"
+    assert zh.get("setup.default_model") == "默认模型"
+    assert zh.get("setup.processing_workflow") == "处理工作流"
     assert en.get("setup.model_api_key") == "API key"
     assert en.get("setup.save") == "Save setup"
 
@@ -241,13 +242,13 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
 
     # 产品语义的 i18n key 存在于字典中
     zh = _read_i18n_zh()
-    assert zh.get("setup.knowledge_vault") == "Knowledge vault"
-    assert zh.get("setup.configured_models") == "Configured models"
-    assert zh.get("setup.default_model") == "Default model"
-    assert zh.get("setup.processing_workflow") == "Processing workflow"
-    assert zh.get("setup.wiki_generation") == "Wiki generation"
-    assert zh.get("setup.workflow_view_prompt") == "View prompt"
-    assert "Created automatically" in zh.get("setup.knowledge_vault_desc", "")
+    assert zh.get("setup.knowledge_vault") == "知识库目录"
+    assert zh.get("setup.configured_models") == "已配置模型"
+    assert zh.get("setup.default_model") == "默认模型"
+    assert zh.get("setup.processing_workflow") == "处理工作流"
+    assert zh.get("setup.wiki_generation") == "Wiki 生成"
+    assert zh.get("setup.workflow_view_prompt") == "查看提示词"
+    assert "自动创建" in zh.get("setup.knowledge_vault_desc", "")
 
 
 def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
@@ -266,8 +267,8 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
     en = _read_i18n_en()
 
     # i18n 字典中有 diagnostics 键
-    assert zh.get("setup.diagnostics") == "Diagnostics for advanced users"
-    assert "read-only diagnostics" in zh.get("setup.diagnostics_desc", "")
+    assert zh.get("setup.diagnostics") == "高级诊断"
+    assert "只读诊断" in zh.get("setup.diagnostics_desc", "")
 
     # 禁止的字段不在源码中出现
     for forbidden in (
@@ -317,12 +318,12 @@ def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
     en = _read_i18n_en()
 
     # i18n 字典中有模型路由语义的键
-    assert zh.get("setup.configured_models") == "Configured models"
-    assert zh.get("setup.default_model") == "Default model"
-    assert zh.get("setup.processing_workflow") == "Processing workflow"
+    assert zh.get("setup.configured_models") == "已配置模型"
+    assert zh.get("setup.default_model") == "默认模型"
+    assert zh.get("setup.processing_workflow") == "处理工作流"
     assert en.get("setup.workflow_uses_default") == "(uses default)"
-    assert zh.get("setup.legacy_detected", "").startswith("Legacy LLM config detected")
-    assert zh.get("setup.model_id") == "Model id"
+    assert zh.get("setup.legacy_detected", "").startswith("检测到旧版")
+    assert zh.get("setup.model_id") == "模型 ID"
     assert zh.get("setup.model_api_key") == "API key"
 
     # 组件源码禁止旧 provider/profile 语言
@@ -344,8 +345,8 @@ def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     en = _read_i18n_en()
 
     # i18n 字典中有 sources 相关的键
-    assert zh.get("setup.local_workspace") == "Local workspace"
-    assert zh.get("setup.configured_models") == "Configured models"
+    assert zh.get("setup.local_workspace") == "本地工作区"
+    assert zh.get("setup.configured_models") == "已配置模型"
 
     # SourceAddPanel 存在且有正确的英文文案
     add_panel = _read("components/SourceAddPanel.tsx")
@@ -369,64 +370,33 @@ def test_setup_sources_section_decenters_cubox_config_fields() -> None:
 
 
 def test_sources_path_actions_and_status_copy_are_user_safe() -> None:
+    """i18n follow-up 后，SourcesPage 所有用户文案通过 t() 获取，
+    测试改为验证 i18n key 存在和组件使用 useLocale。"""
     sources = _read("pages/SourcesPage.tsx")
 
-    assert "Copy path" in sources
+    assert "useLocale" in sources
     assert "Reveal in Finder" not in sources
-    assert "Copied safe display path only." in sources
-    assert "files scanned" in sources
-    assert "Recursive: yes" in sources
-    assert "Frequency" in sources
-    assert "Last scan" in sources
-    assert "Next scan" in sources
-    assert "Due" in sources
-    assert "Changed since last scan" not in sources
-    assert "Deleted since last scan" not in sources
-    assert "New since last scan" not in sources
-    assert "New=" not in sources
-    assert "Changed=" not in sources
-    assert "Skipped=" not in sources
-    assert "Drafts created=" not in sources
-    assert "Add source in Setup" in sources
-    assert "Add a file or folder" not in sources
-    assert "Path input" not in sources
-    assert "Add and process now" not in sources
-    assert "Process now" in sources
-    assert "Edit frequency" in sources
-    assert "Processing..." in sources
-    assert "You can keep using MindForge." in sources
-    assert "Last run summary" in sources
-    assert "Last updated" in sources
-    assert "Processing in the background. You can keep using MindForge." in sources
-    assert "Try Process now again after fixing the issue." in sources
-    assert "No draft was generated. Sources shows the reason." in sources
-    assert "source.last_run_summary?.skipped ?? source.skipped_count" in sources
-    assert "source.last_run_summary?.errors ?? source.failed_count" in sources
-    assert "SummaryMetric" in sources
-    assert "Diagnostics" in sources
-    assert "Source details" in sources
-    assert "This only stops future monitoring. It does not delete the folder, source files, or knowledge cards." in sources
-    assert "Stop watching" in sources
-    assert "Built-in inbox cannot be removed." not in sources
-    assert "Built-in inbox frequency is fixed." not in sources
-    assert "More actions" not in sources
-    assert "Process all due sources" not in sources
-    assert "Process all sources now" not in sources
-    assert "Add watched file" not in sources
-    assert "Add watched folder" not in sources
-    assert "Import once" not in sources
-    assert "Scan now" not in sources
-    assert "folder · default" not in sources
-    assert "default cannot be deleted" not in sources
-    assert "Built-in inbox" in sources
-    assert "Skipped reasons" in sources
-    assert "Drafts created" in sources
-    assert "Open related knowledge" in sources
-    assert "supported=" not in sources
-    assert "failed=" not in sources
-    assert "Open generated knowledge" not in sources
-    assert "Adapter ready" not in sources
-    assert "Has generated knowledge" not in sources
+    # i18n keys 存在
+    assert 't("sources.copy_path")' in sources or "t(\"sources.copy_display_path\")" in sources
+    assert 't("sources.process_now")' in sources
+    assert 't("sources.edit_frequency")' in sources
+    assert 't("sources.stop_watching")' in sources
+    assert 't("sources.diagnostics")' in sources
+    assert 't("sources.last_run_summary")' in sources
+    assert "sourceStatusLabel" in sources
+    assert "sourceRunStatusLabel" in sources
+    assert "sourceDueStatusLabel" in sources
+    assert "getFrequencyOptions" in sources
+    # 旧的硬编码英文不在源码中
+    assert "Copy path" not in sources
+    assert "Process now" not in sources
+    # "Edit frequency" 在 catch block 中作为 error fallback 文案，无需排除
+    assert "Stop watching" not in sources
+    assert "Last run summary" not in sources
+    assert "Open related knowledge" not in sources
+    assert "Add source in Setup" not in sources
+    # 安全边界
+    assert "source_path_view" in sources
 
 
 def test_unused_source_list_component_is_removed_to_close_raw_path_callback_shape() -> None:
@@ -474,3 +444,206 @@ def test_web_client_parses_string_and_object_error_detail() -> None:
     assert 'typeof payload?.detail === "string"' in client
     assert "payload?.detail?.message" in client
     assert "response.statusText" in client
+
+
+# ── i18n Mixed-language Follow-up (2026-05-23-002) ──────────────────────
+
+
+def test_i18n_wiki_keys_complete() -> None:
+    """Wiki 组件族的 i18n 键必须完整覆盖 zh 和 en 字典。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    wiki_keys = [
+        "wiki.title",
+        "wiki.subtitle",
+        "wiki.status_label",
+        "wiki.status_ready",
+        "wiki.status_not_built",
+        "wiki.last_rebuilt",
+        "wiki.cards_in_wiki",
+        "wiki.knowledge_cards",
+        "wiki.new_approved_hint",
+        "wiki.rebuild_tooltip",
+        "wiki.refresh",
+        "wiki.generate",
+        "wiki.empty_no_approved",
+        "wiki.empty_no_approved_desc",
+        "wiki.empty_model_required",
+        "wiki.empty_model_required_desc",
+        "wiki.empty_not_built",
+        "wiki.empty_not_built_desc",
+        "wiki.error_unavailable",
+        "wiki.retry",
+        "wiki.building",
+        "wiki.building_desc",
+        "wiki.troubleshooting",
+        "wiki.troubleshooting_desc",
+        "wiki.safe_fallback_rebuild",
+        "wiki.open_questions",
+        "wiki.additional_cards",
+        "wiki.warnings",
+        "wiki.contents",
+        "wiki.hide_contents",
+        "wiki.untitled_section",
+        "wiki.load_failed",
+        "wiki.rebuild_failed",
+        "wiki.knowledge_sources",
+        "wiki.references",
+        "wiki.approved_badge",
+        "wiki.approved_tooltip",
+        "wiki.local_graph_preview",
+        "wiki.local_graph_desc",
+        "wiki.wiki_section_reference",
+        "wiki.source_prefix",
+        "wiki.local_graph_empty",
+        "wiki.toc_toggle",
+    ]
+    for key in wiki_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_trash_keys_complete() -> None:
+    """TrashPage 的 i18n 键必须完整。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    trash_keys = [
+        "trash.title",
+        "trash.subtitle",
+        "trash.empty",
+        "trash.previous_status",
+        "trash.trashed_at",
+        "trash.original_path",
+        "trash.source_title",
+        "trash.restore",
+        "trash.select_to_preview",
+        "trash.load_failed",
+        "trash.restore_failed",
+        "trash.track",
+        "trash.trashed_date",
+    ]
+    for key in trash_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_source_add_keys_complete() -> None:
+    """SourceAddPanel 的 i18n 键必须完整。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    sa_keys = [
+        "source_add.title",
+        "source_add.desc",
+        "source_add.manual_desc",
+        "source_add.no_model_warning",
+        "source_add.add_model_link",
+        "source_add.path_input",
+        "source_add.pick_file",
+        "source_add.pick_file_tooltip",
+        "source_add.pick_folder",
+        "source_add.pick_folder_tooltip",
+        "source_add.frequency",
+        "source_add.add_source",
+        "source_add.add_and_process",
+        "source_add.path_hint",
+        "source_add.view_in_sources",
+        "source_add.configure_model_first",
+        "source_add.starting_background",
+        "source_add.adding",
+        "source_add.request_failed",
+        "source_add.freq_manual",
+        "source_add.freq_hourly",
+        "source_add.freq_daily",
+        "source_add.freq_weekly",
+        "source_add.freq_every_1h",
+        "source_add.freq_every_6h",
+        "source_add.freq_every_12h",
+        "source_add.freq_every_24h",
+    ]
+    for key in sa_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_all_pages_use_locale() -> None:
+    """所有页面和关键组件必须通过 useLocale 获取翻译函数。"""
+    pages = [
+        "pages/HomePage.tsx",
+        "pages/SetupPage.tsx",
+        "pages/SourcesPage.tsx",
+        "pages/DraftsPage.tsx",
+        "pages/LibraryPage.tsx",
+        "pages/RecallPage.tsx",
+        "pages/WikiPage.tsx",
+        "pages/TrashPage.tsx",
+        "components/Sidebar.tsx",
+        "components/ApprovalPanel.tsx",
+        "components/CardWorkspace.tsx",
+        "components/DraftList.tsx",
+        "components/SourceAddPanel.tsx",
+        "components/wiki/WikiHeader.tsx",
+        "components/wiki/WikiStatusBar.tsx",
+        "components/wiki/WikiEmptyState.tsx",
+        "components/wiki/WikiErrorState.tsx",
+        "components/wiki/WikiLoadingState.tsx",
+        "components/wiki/WikiReadingPane.tsx",
+        "components/wiki/WikiTOC.tsx",
+        "components/wiki/WikiSection.tsx",
+        "components/wiki/WikiReferenceCard.tsx",
+        "components/wiki/WikiReferencePanel.tsx",
+        "components/wiki/WikiSectionRelationshipPreview.tsx",
+        "components/wiki/WikiAdvancedActions.tsx",
+    ]
+    for path in pages:
+        content = _read(path)
+        assert "useLocale" in content, f"{path} missing useLocale"
+
+
+def test_display_mapping_functions_exist() -> None:
+    """前端 display mapping 函数必须存在，用于将后端 internal id 映射为用户文案。"""
+    utils = _read("lib/utils.ts")
+
+    # workflow/stage display mapping
+    assert "workflowStepLabel" in utils
+    assert "triage" in utils
+    assert "distill" in utils
+    assert "link_suggestion" in utils
+    assert "review_questions" in utils
+    assert "action_extraction" in utils
+
+    # strategy display mapping
+    assert "strategyStatusLabel" in utils
+    assert "strategyNameLabel" in utils
+
+    # source status display mapping
+    assert "sourceStatusLabel" in utils
+    assert "sourceRunStatusLabel" in utils
+    assert "sourceDueStatusLabel" in utils
+
+
+def test_setup_page_uses_display_mappings() -> None:
+    """SetupPage 必须使用 display mapping 函数代替直接展示后端 id。"""
+    setup = _read("pages/SetupPage.tsx")
+
+    assert "workflowStepLabel" in setup
+    assert "strategyNameLabel" in setup
+    assert "strategyStatusLabel" in setup
+
+
+def test_sources_page_uses_display_mappings() -> None:
+    """SourcesPage 必须使用 source display mapping 函数。"""
+    sources = _read("pages/SourcesPage.tsx")
+
+    assert "sourceStatusLabel" in sources
+    assert "sourceRunStatusLabel" in sources
+    assert "sourceDueStatusLabel" in sources
+    assert "getFrequencyOptions" in sources

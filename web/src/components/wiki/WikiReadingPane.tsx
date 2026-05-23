@@ -10,6 +10,7 @@
 import { renderMarkdown } from "../../lib/wiki-renderer";
 import { WikiSection } from "./WikiSection";
 import { WikiReferencePanel } from "./WikiReferencePanel";
+import { useLocale } from "../../lib/i18n";
 import type { WikiPageViewModel } from "../../api/wiki";
 
 interface WikiReadingPaneProps {
@@ -17,6 +18,8 @@ interface WikiReadingPaneProps {
 }
 
 export function WikiReadingPane({ page }: WikiReadingPaneProps) {
+  const { t } = useLocale();
+
   return (
     <div className="min-w-0 flex-1 space-y-10">
       {/* Overview */}
@@ -40,7 +43,7 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
       {page.open_questions.length > 0 && (
         <section className="max-w-[720px]">
           <h2 className="mb-3 text-lg font-semibold text-ink">
-            Open Questions
+            {t("wiki.open_questions")}
           </h2>
           <ul className="list-disc space-y-1 pl-5 text-sm text-ink leading-relaxed">
             {page.open_questions.map((q, i) => (
@@ -55,7 +58,7 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
         <div className="max-w-[720px]">
           <WikiReferencePanel
             refs={page.additional_cards}
-            title="Additional knowledge cards"
+            title={t("wiki.additional_cards")}
           />
         </div>
       )}
@@ -63,7 +66,7 @@ export function WikiReadingPane({ page }: WikiReadingPaneProps) {
       {/* Warnings */}
       {page.warnings.length > 0 && (
         <div className="max-w-[720px] rounded-md border border-warn/30 bg-warn/5 p-3">
-          <p className="text-sm font-medium text-warn">Warnings</p>
+          <p className="text-sm font-medium text-warn">{t("wiki.warnings")}</p>
           <ul className="mt-1 list-disc pl-5 text-xs text-muted">
             {page.warnings.map((w, i) => (
               <li key={i}>{w}</li>

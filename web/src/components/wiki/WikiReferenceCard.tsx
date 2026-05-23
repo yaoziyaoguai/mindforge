@@ -8,12 +8,16 @@
  */
 
 import { FileText, Tag, Star, CheckCircle } from "lucide-react";
+import { useLocale } from "../../lib/i18n";
 import type { WikiReferenceView } from "../../api/wiki";
 
 interface WikiReferenceCardProps {
   ref: WikiReferenceView;
 }
 
+/* 中文学习型说明：source_type 是 adapter 内部标识符（plain_markdown/txt/html/pdf/docx），
+   属于技术分类标签而非用户 UI copy。此处仅做简短格式名映射，不进入 i18n 字典。
+   未来如需完整本地化，可扩展为 sourceTypeLabel(ref.source_type, locale) 函数。 */
 const sourceTypeLabels: Record<string, string> = {
   plain_markdown: "Markdown",
   txt: "Text",
@@ -23,6 +27,8 @@ const sourceTypeLabels: Record<string, string> = {
 };
 
 export function WikiReferenceCard({ ref }: WikiReferenceCardProps) {
+  const { t } = useLocale();
+
   const sourceLabel =
     (ref.source_type ? sourceTypeLabels[ref.source_type] : null) ??
     ref.source_type ??
@@ -41,10 +47,10 @@ export function WikiReferenceCard({ ref }: WikiReferenceCardProps) {
           </span>
           <span
             className="inline-flex shrink-0 items-center gap-1 rounded bg-safe/10 px-1.5 py-0.5 text-[10px] font-medium text-safe"
-            title="Human-approved knowledge card"
+            title={t("wiki.approved_tooltip")}
           >
             <CheckCircle size={10} />
-            Approved
+            {t("wiki.approved_badge")}
           </span>
         </div>
 
@@ -95,7 +101,7 @@ export function WikiReferenceCard({ ref }: WikiReferenceCardProps) {
         <a
           href={`/library?card=${encodeURIComponent(cardRef)}`}
           className="block w-full rounded-md border border-line bg-panel p-3 text-left text-sm no-underline transition-colors hover:border-primary hover:bg-blue-50/40"
-          aria-label={`Open knowledge card: ${ref.card_title}`}
+          aria-label={`${t("library.title")}: ${ref.card_title}`}
         >
           {cardContent}
         </a>
