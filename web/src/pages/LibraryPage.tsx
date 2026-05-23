@@ -57,6 +57,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             description: t("library.empty_desc"),
             href: "/drafts",
           }}
+          locale={locale}
         />
       </div>
     );

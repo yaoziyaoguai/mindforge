@@ -1,6 +1,12 @@
 import type { NextAction } from "../api/types";
+import type { Locale } from "../lib/i18n";
+import { nextActionLabel } from "../lib/utils";
 
-export function EmptyState({ title, action }: { title: string; action?: NextAction | null }) {
+/* 中文学习型说明：action_key 优先用于本地化展示空状态操作标签。
+ * label 是兼容 fallback，缺 action_key 时直接展示原始文案。
+ * i18n 只改变 presentation，不改变 action 行为。 */
+export function EmptyState({ title, action, locale }: { title: string; action?: NextAction | null; locale?: Locale }) {
+  const displayLabel = nextActionLabel(action?.action_key, locale) ?? action?.label;
   return (
     <section className="rounded-md border border-dashed border-line bg-panel p-8">
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
@@ -16,7 +22,7 @@ export function EmptyState({ title, action }: { title: string; action?: NextActi
               className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-white no-underline"
               href={action.href}
             >
-              {action.label}
+              {displayLabel}
             </a>
           ) : action.onClick ? (
             <button
@@ -24,7 +30,7 @@ export function EmptyState({ title, action }: { title: string; action?: NextActi
               onClick={action.onClick}
               type="button"
             >
-              {action.label}
+              {displayLabel}
             </button>
           ) : null}
         </>

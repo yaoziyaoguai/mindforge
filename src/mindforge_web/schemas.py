@@ -20,6 +20,7 @@ class NextAction(BaseModel):
     description: str
     command: str | None = None
     href: str | None = None
+    action_key: str | None = None  # 稳定展示映射键，前端据此做本地化。可选，缺省时前端 fallback 到 label
 
 
 class StatusItem(BaseModel):

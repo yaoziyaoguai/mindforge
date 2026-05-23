@@ -419,6 +419,7 @@ class WebFacade:
                 label="Create drafts",
                 description="没有 ai_draft。先在 Sources 页 watch add 或 import 文件/文件夹。",
                 href="/sources",
+                action_key="create_drafts",
             )
         return DraftsResponse(drafts=drafts, scan_errors=errors, empty_state=empty)
 
@@ -454,6 +455,7 @@ class WebFacade:
                 empty_state=NextAction(
                     label="Search approved cards",
                     description="输入关键词后会用本地 lexical recall 查询 human_approved cards。",
+                    action_key="search_approved_cards",
                 ),
             )
         try:
@@ -483,6 +485,7 @@ class WebFacade:
                 empty_state=NextAction(
                     label="Adjust query",
                     description="Recall query 无法执行，请缩短或调整关键词。",
+                    action_key="adjust_query",
                 ),
             )
         return RecallResponse(
@@ -512,6 +515,7 @@ class WebFacade:
                     label="Rebuild index",
                     description="索引缺失或 stale 时可重建本地 BM25 index。",
                     command="mindforge index rebuild",
+                    action_key="rebuild_index",
                 )
                 if result.index.suggest_rebuild
                 else None,
@@ -522,6 +526,7 @@ class WebFacade:
             else NextAction(
                 label="Try another query",
                 description="没有命中 approved cards；换一个关键词或先 approve draft。",
+                action_key="try_another_query",
             ),
         )
 
@@ -621,12 +626,16 @@ class WebFacade:
     @staticmethod
     def _next_actions(vault: VaultStatus, safety: SafetySummary, recall: RecallStatus) -> list[NextAction]:
         actions: list[NextAction] = []
+        # 中文学习型说明：action_key 是稳定的展示映射键，前端通过 nextActionLabel(action_key, locale)
+        # 生成本地化文案。label/description 保留为 fallback，缺 action_key 时兜底展示。
+        # i18n 只改变 presentation 层，不改变 action 行为（href/command 不变）。
         if not vault.exists:
             actions.append(
                 NextAction(
                     label="Initialize vault",
                     description="当前 vault 路径不存在；先创建本地 vault 或传 --vault。",
                     command="mindforge init",
+                    action_key="init_vault",
                 )
             )
         if safety.pending_drafts_count > 0:
@@ -635,6 +644,7 @@ class WebFacade:
                     label="Review drafts",
                     description="有 ai_draft 等待人工 review 和显式 approve/reject。",
                     href="/drafts",
+                    action_key="review_drafts",
                 )
             )
         if recall.approved_card_count == 0:
@@ -643,6 +653,7 @@ class WebFacade:
                     label="Watch or import source",
                     description="还没有 approved cards；先添加 source 生成 ai_draft，再显式 approve。",
                     href="/sources",
+                    action_key="watch_source",
                 )
             )
         if not actions:
@@ -651,6 +662,7 @@ class WebFacade:
                     label="Search knowledge",
                     description="本地状态已可用；可以进入 Recall 搜索 approved cards。",
                     href="/recall",
+                    action_key="search_knowledge",
                 )
             )
         return actions

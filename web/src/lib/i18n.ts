@@ -46,6 +46,15 @@ const copy: Record<Locale, LocaleDict> = {
     "home.needs_setup": "需建索引",
     "home.pending_check": "待检查",
     "home.next_actions": "下一步操作",
+    "home.section_system_status": "系统状态",
+    "home.section_config_check": "配置检查",
+    "home.section_next_actions": "下一步行动",
+    "home.review_drafts_pending": "{count} 张待审核卡片",
+    "home.review_drafts_clear": "暂无待审核草稿",
+    "home.inbox_pending_detail": "{count} 个待处理文件",
+    "home.inbox_clear": "收件箱已空",
+    "home.library_approved_detail": "{count} 张已确认卡片",
+    "home.library_empty_detail": "知识库为空，请先审核草稿",
 
     // ---- SetupPage ----
     "setup.title": "连接模型和知识源",
@@ -442,6 +451,15 @@ const copy: Record<Locale, LocaleDict> = {
     "home.needs_setup": "Needs Index",
     "home.pending_check": "Needs Check",
     "home.next_actions": "Next Actions",
+    "home.section_system_status": "System Status",
+    "home.section_config_check": "Configuration",
+    "home.section_next_actions": "Next Actions",
+    "home.review_drafts_pending": "{count} drafts pending review",
+    "home.review_drafts_clear": "No drafts pending review",
+    "home.inbox_pending_detail": "{count} files pending in inbox",
+    "home.inbox_clear": "Inbox is clear",
+    "home.library_approved_detail": "{count} approved cards",
+    "home.library_empty_detail": "Library is empty — approve drafts first",
 
     // ---- SetupPage ----
     "setup.title": "Connect Models & Sources",

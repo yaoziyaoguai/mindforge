@@ -18,7 +18,7 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   const [data, setData] = useState<RecallResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   async function runSearch(queryText: string): Promise<void> {
     if (!queryText) return;
@@ -79,7 +79,7 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
         </div>
       ) : null}
       {!data && !error ? (
-        <EmptyState
+        <EmptyState locale={locale}
           title={t("recall.empty_prompt_title")}
           action={{
             label: t("recall.empty_prompt_label"),
@@ -87,9 +87,9 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
           }}
         />
       ) : null}
-      {data?.empty_state && data.hits.length === 0 ? <EmptyState title={t("recall.empty_no_results_title")} action={data.empty_state} /> : null}
+      {data?.empty_state && data.hits.length === 0 ? <EmptyState locale={locale} title={t("recall.empty_no_results_title")} action={data.empty_state} /> : null}
       {data && data.hits.length === 0 && !data.empty_state ? (
-        <EmptyState
+        <EmptyState locale={locale}
           title={t("recall.empty_no_results_title")}
           action={{
             label: t("recall.empty_no_results_label"),

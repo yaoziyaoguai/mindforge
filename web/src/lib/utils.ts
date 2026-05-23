@@ -143,3 +143,43 @@ export function sourceDueStatusLabel(status?: string | null, locale?: Locale): s
   };
   return labels[locale ?? "zh"]?.[status] ?? status;
 }
+
+/* NextAction action_key → 本地化展示标签。
+ * 中文学习型说明：action_key 是后端提供的稳定 machine-readable identifier，
+ * 前端据此做 localized display mapping。label/description 作为兼容 fallback，
+ * 缺 action_key 的 NextAction 直接展示 label。
+ *
+ * 为什么用 action_key 而非 label 匹配：
+ * - label 是后端生成的自由文本，无稳定性保证，后续可能修改措辞
+ * - action_key 是 contract 的一部分，不随 locale 或措辞调整变化
+ * - 不用字符串匹配做语言检测，避免脆弱性
+ *
+ * 返回 null 表示 key 不在映射表中，调用方应 fallback 到 action.label。 */
+export function nextActionLabel(key: string | null | undefined, locale?: Locale): string | null {
+  if (!key) return null;
+  const labels: Record<Locale, Record<string, string>> = {
+    zh: {
+      init_vault: "初始化知识库",
+      review_drafts: "审核草稿",
+      watch_source: "添加知识源",
+      search_knowledge: "搜索知识",
+      create_drafts: "新建草稿",
+      search_approved_cards: "搜索已确认知识",
+      adjust_query: "调整查询",
+      try_another_query: "换一个关键词",
+      rebuild_index: "重建索引",
+    },
+    en: {
+      init_vault: "Initialize vault",
+      review_drafts: "Review drafts",
+      watch_source: "Watch or import source",
+      search_knowledge: "Search knowledge",
+      create_drafts: "Create drafts",
+      search_approved_cards: "Search approved cards",
+      adjust_query: "Adjust query",
+      try_another_query: "Try another query",
+      rebuild_index: "Rebuild index",
+    },
+  };
+  return labels[locale ?? "zh"]?.[key] ?? null;
+}

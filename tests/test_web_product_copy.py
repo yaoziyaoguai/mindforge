@@ -649,3 +649,122 @@ def test_sources_page_uses_display_mappings() -> None:
     assert "sourceRunStatusLabel" in sources
     assert "sourceDueStatusLabel" in sources
     assert "getFrequencyOptions" in sources
+
+
+# ── Milestone D: Dashboard & Action Guidance (2026-05-23-003) ──────────────
+
+
+def test_next_action_display_mapping_exists() -> None:
+    """nextActionLabel() 函数必须存在，包含 HomePage 和 EmptyState 的所有 action_key。"""
+    utils = _read("lib/utils.ts")
+
+    assert "nextActionLabel" in utils
+    # HomePage _next_actions 的 4 个 key
+    for key in ("init_vault", "review_drafts", "watch_source", "search_knowledge"):
+        # 验证映射表中包含该 key（中文 label ≠ key 名）
+        assert f'{key}:' in utils or f"{key}:" in utils, f"Missing nextActionLabel key: {key}"
+    # EmptyState 的 5 个 key
+    for key in ("create_drafts", "search_approved_cards", "adjust_query", "try_another_query", "rebuild_index"):
+        assert f'{key}:' in utils or f"{key}:" in utils, f"Missing nextActionLabel key: {key}"
+
+
+def test_next_action_card_uses_localized_display() -> None:
+    """NextActionCard 必须使用 nextActionLabel() 做本地化展示，fallback 到 action.label。"""
+    card = _read("components/NextActionCard.tsx")
+
+    assert "nextActionLabel" in card
+    assert "displayLabel" in card
+    assert "action_key" in card
+    assert "action.label" in card  # fallback
+
+
+def test_empty_state_uses_localized_action_label() -> None:
+    """EmptyState 必须使用 nextActionLabel() 做本地化，并接受 locale prop。"""
+    empty = _read("components/EmptyState.tsx")
+
+    assert "nextActionLabel" in empty
+    assert "displayLabel" in empty
+    assert "locale" in empty
+
+
+def test_homepage_i18n_section_keys_complete() -> None:
+    """HomePage 3-section layout 的 i18n 键必须完整覆盖。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    section_keys = [
+        "home.section_system_status",
+        "home.section_config_check",
+        "home.section_next_actions",
+    ]
+    for key in section_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_homepage_action_guidance_keys_complete() -> None:
+    """HomePage 行动引导文案（参数化的 count 状态）的 i18n 键必须完整。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    guidance_keys = [
+        "home.review_drafts_pending",
+        "home.review_drafts_clear",
+        "home.inbox_pending_detail",
+        "home.inbox_clear",
+        "home.library_approved_detail",
+        "home.library_empty_detail",
+    ]
+    for key in guidance_keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+        # 参数化的键必须包含 {count} 占位符
+        if key.endswith("_pending") or key.endswith("_detail") and "empty" not in key:
+            assert "{count}" in zh[key], f"zh {key} missing {{count}} placeholder"
+
+
+def test_homepage_uses_localized_action_cards() -> None:
+    """HomePage 必须将 locale 传递给 NextActionCard 以进行本地化。"""
+    home = _read("pages/HomePage.tsx")
+
+    assert "useLocale" in home
+    assert "locale={locale}" in home or "locale={locale}" in home
+    # NextActionCard 接收 locale prop
+    assert "locale" in home
+
+
+def test_copy_policy_document_exists() -> None:
+    """copy-policy.md 必须存在，包含核心规则说明。"""
+    policy = (ROOT / "docs" / "dev" / "copy-policy.md")
+
+    assert policy.exists(), "docs/dev/copy-policy.md missing"
+    content = policy.read_text(encoding="utf-8")
+
+    assert "UI copy 必须本地化" in content or "must be localized" in content
+    assert "action_key" in content
+    assert "nextActionLabel" in content
+    assert "display mapping" in content
+    assert "防回归" in content or "防回归" in content or "regression" in content
+
+
+def test_next_action_does_not_use_label_string_matching() -> None:
+    """严禁用 label 字符串匹配推断语言 —— 必须用 action_key 做 mapping。"""
+    card = _read("components/NextActionCard.tsx")
+    empty = _read("components/EmptyState.tsx")
+
+    combined = card + empty
+    # 不能有启发式语言检测
+    for pattern in (
+        "label.includes(",
+        "label.startsWith(",
+        "label.match(",
+        "action.label ===",
+        '/[\\u4e00-\\u9fa5]/.test',
+        "isChinese",
+        "containsChinese",
+    ):
+        assert pattern not in combined, f"Forbidden language detection pattern: {pattern}"

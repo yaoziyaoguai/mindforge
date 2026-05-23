@@ -14,7 +14,7 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
   const [detail, setDetail] = useState<DraftDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   useEffect(() => {
     if (!selected) return;
@@ -53,6 +53,7 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
           description: t("drafts.empty_desc"),
           href: "/sources",
         }}
+        locale={locale}
       />
     );
   }

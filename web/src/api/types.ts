@@ -7,6 +7,8 @@ export interface NextAction {
   href?: string | null;
   /** 编程式导航回调（如 pushState）。与 href 互斥使用：href 渲染为 a 标签，onClick 渲染为 button。 */
   onClick?: (() => void) | null;
+  /** 稳定展示映射键，前端据此做 nextActionLabel() 本地化。可选，缺省时 fallback 到 label。 */
+  action_key?: string | null;
 }
 
 export interface StatusItem {
