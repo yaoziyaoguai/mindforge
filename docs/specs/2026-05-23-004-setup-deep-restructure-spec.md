@@ -27,11 +27,12 @@ Setup 页面是 MindForge Web 最大的用户摩擦点：
 
 Dashboard Action Guidance (Milestone D) 的 closure commit `da9d586` 完成后，仍有以下 P3/P4：
 
-- **P3**: `web_facade.py` 外 17 个 NextAction 构造点分布在 6 个文件中，仍未补充 action_key。
+- **P3**: 全站共 14 个 NextAction 构造点仍缺少 action_key 或 description_key，分布在 `web_facade.py`（11 sites，有 action_key 缺 description_key）、`web_review_service.py`（1 site，全缺）、`routers/sources.py`（2 sites，全缺）中。
 - **P3**: EmptyState `action.description` 为原始英文，需要 description_key 或等价本地化机制。
 - **P3**: Setup / Sources / Processing 页面级 NextAction 一致性审查。
+- **P4**: 相关页面 action guidance / status copy polish。
 
-以上 P3/P4 全部并入 Milestone E scope，不单独开 milestone。
+以上全部并入 Milestone E。每项 defer 必须有具体阻塞原因，不允许笼统 "scope creep"。
 
 ## 2. Goals
 

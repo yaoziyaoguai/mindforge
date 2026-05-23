@@ -886,7 +886,7 @@ def test_onboarding_explanation_i18n_keys_exist() -> None:
 
 
 def test_milestone_e_action_keys_in_next_action_label_mapping() -> None:
-    """Milestone E 新增的 13 个 action_key 必须同时有 zh/en label 映射。"""
+    """Milestone E 新增的 15 个 action_key（13 from prior session + 2 from P3 close）必须同时有 zh/en label 映射。"""
     u = _read("lib/utils.ts")
 
     e_keys = [
@@ -905,6 +905,9 @@ def test_milestone_e_action_keys_in_next_action_label_mapping() -> None:
         "processing.view_error",
         "processing.retry_processing",
         "processing.view_sources",
+        # P3 close — routers/sources.py
+        "use_web_import",
+        "use_local_source",
     ]
 
     for key in e_keys:
@@ -942,3 +945,89 @@ def test_sources_page_no_hardcoded_english_error_messages() -> None:
     ]
     for pattern in forbidden_hardcoded:
         assert pattern not in sp, f"SourcesPage must not hardcode English error: {pattern}"
+
+
+# ---------------------------------------------------------------------------
+# Milestone E P3 close — web_facade.py + routers/sources.py action_key/description_key
+# ---------------------------------------------------------------------------
+
+
+def test_web_facade_description_keys_in_mapping() -> None:
+    """web_facade.py 中 9 个唯一的 description_key 必须在 nextActionDescription() 中含 zh/en 映射。"""
+    u = _read("lib/utils.ts")
+
+    facade_desc_keys = [
+        "init_vault.desc",
+        "review_drafts.desc",
+        "watch_source.desc",
+        "search_knowledge.desc",
+        "create_drafts.desc",
+        "search_approved_cards.desc",
+        "adjust_query.desc",
+        "rebuild_index.desc",
+        "try_another_query.desc",
+    ]
+
+    for key in facade_desc_keys:
+        assert u.count(f'"{key}"') >= 2, (
+            f"web_facade description_key {key} must appear in both zh and en mappings "
+            f"(found {u.count(f'\"{key}\"')} times)"
+        )
+
+
+def test_routers_sources_action_keys_in_next_action_label_mapping() -> None:
+    """routers/sources.py 的 2 个新 action_key 必须有 zh/en label 映射。"""
+    u = _read("lib/utils.ts")
+
+    source_keys = ["use_web_import", "use_local_source"]
+
+    for key in source_keys:
+        assert u.count(f'"{key}"') >= 2, (
+            f"routers/sources action_key {key} must appear in both zh and en label mappings "
+            f"(found {u.count(f'\"{key}\"')} times)"
+        )
+
+
+def test_routers_sources_description_keys_in_mapping() -> None:
+    """routers/sources.py 的 2 个新 description_key 必须有 zh/en 映射。"""
+    u = _read("lib/utils.ts")
+
+    source_desc_keys = ["use_web_import.desc", "use_local_source.desc"]
+
+    for key in source_desc_keys:
+        assert u.count(f'"{key}"') >= 2, (
+            f"routers/sources description_key {key} must appear in both zh and en mappings "
+            f"(found {u.count(f'\"{key}\"')} times)"
+        )
+
+
+def test_milestone_e_p3_close_all_inventory_sites_complete() -> None:
+    """所有本轮 in-scope NextAction 站点必须已补齐 action_key 或 description_key。
+
+    中文学习型说明：本轮 inventory 共 13 个可补齐站点：
+    - web_facade.py: 11 sites — description_key 补齐
+    - routers/sources.py: 2 sites — action_key + description_key 补齐
+    - web_review_service.py: 1 site — 诚实 defer（reject 功能不存在，占位文案）
+    """
+    u = _read("lib/utils.ts")
+
+    # 13 in-scope sites → 11 unique description_keys (web_facade 9 + routers/sources 2)
+    all_desc_keys = [
+        "init_vault.desc",
+        "review_drafts.desc",
+        "watch_source.desc",
+        "search_knowledge.desc",
+        "create_drafts.desc",
+        "search_approved_cards.desc",
+        "adjust_query.desc",
+        "rebuild_index.desc",
+        "try_another_query.desc",
+        "use_web_import.desc",
+        "use_local_source.desc",
+    ]
+    for key in all_desc_keys:
+        assert f'"{key}"' in u, f"P3 close description_key missing: {key}"
+
+    # 2 new action_keys from routers/sources.py
+    for key in ("use_web_import", "use_local_source"):
+        assert f'"{key}"' in u, f"P3 close action_key missing: {key}"

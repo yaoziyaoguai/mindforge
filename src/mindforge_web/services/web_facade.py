@@ -227,6 +227,7 @@ class WebFacade:
                 description="Web 主入口是 watch/import；自动化只生成 ai_draft。",
                 href="/sources",
                 action_key="watch_source",
+                description_key="watch_source.desc",
             )
         ]
         watches = self.source_service.watch_sources()
@@ -421,6 +422,7 @@ class WebFacade:
                 description="没有 ai_draft。先在 Sources 页 watch add 或 import 文件/文件夹。",
                 href="/sources",
                 action_key="create_drafts",
+                description_key="create_drafts.desc",
             )
         return DraftsResponse(drafts=drafts, scan_errors=errors, empty_state=empty)
 
@@ -457,6 +459,7 @@ class WebFacade:
                     label="Search approved cards",
                     description="输入关键词后会用本地 lexical recall 查询 human_approved cards。",
                     action_key="search_approved_cards",
+                    description_key="search_approved_cards.desc",
                 ),
             )
         try:
@@ -487,6 +490,7 @@ class WebFacade:
                     label="Adjust query",
                     description="Recall query 无法执行，请缩短或调整关键词。",
                     action_key="adjust_query",
+                    description_key="adjust_query.desc",
                 ),
             )
         return RecallResponse(
@@ -517,6 +521,7 @@ class WebFacade:
                     description="索引缺失或 stale 时可重建本地 BM25 index。",
                     command="mindforge index rebuild",
                     action_key="rebuild_index",
+                    description_key="rebuild_index.desc",
                 )
                 if result.index.suggest_rebuild
                 else None,
@@ -528,6 +533,7 @@ class WebFacade:
                 label="Try another query",
                 description="没有命中 approved cards；换一个关键词或先 approve draft。",
                 action_key="try_another_query",
+                description_key="try_another_query.desc",
             ),
         )
 
@@ -587,6 +593,7 @@ class WebFacade:
                 description="Recall 默认只查询 human_approved cards。",
                 href="/drafts",
                 action_key="review_drafts",
+                description_key="review_drafts.desc",
             )
             if count == 0
             else None,
@@ -638,6 +645,7 @@ class WebFacade:
                     description="当前 vault 路径不存在；先创建本地 vault 或传 --vault。",
                     command="mindforge init",
                     action_key="init_vault",
+                    description_key="init_vault.desc",
                 )
             )
         if safety.pending_drafts_count > 0:
@@ -647,6 +655,7 @@ class WebFacade:
                     description="有 ai_draft 等待人工 review 和显式 approve/reject。",
                     href="/drafts",
                     action_key="review_drafts",
+                    description_key="review_drafts.desc",
                 )
             )
         if recall.approved_card_count == 0:
@@ -656,6 +665,7 @@ class WebFacade:
                     description="还没有 approved cards；先添加 source 生成 ai_draft，再显式 approve。",
                     href="/sources",
                     action_key="watch_source",
+                    description_key="watch_source.desc",
                 )
             )
         if not actions:
@@ -665,6 +675,7 @@ class WebFacade:
                     description="本地状态已可用；可以进入 Recall 搜索 approved cards。",
                     href="/recall",
                     action_key="search_knowledge",
+                    description_key="search_knowledge.desc",
                 )
             )
         return actions

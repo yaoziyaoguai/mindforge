@@ -194,6 +194,9 @@ export function nextActionLabel(key: string | null | undefined, locale?: Locale)
       "processing.view_error": "查看错误",
       "processing.retry_processing": "重试处理",
       "processing.view_sources": "查看知识源",
+      // Milestone E P3 close — routers/sources.py
+      "use_web_import": "使用 Web 导入",
+      "use_local_source": "使用本地知识源",
     },
     en: {
       init_vault: "Initialize vault",
@@ -231,6 +234,9 @@ export function nextActionLabel(key: string | null | undefined, locale?: Locale)
       "processing.view_error": "View error",
       "processing.retry_processing": "Retry processing",
       "processing.view_sources": "View sources",
+      // Milestone E P3 close — routers/sources.py
+      "use_web_import": "Use Web import",
+      "use_local_source": "Use local source",
     },
   };
   return labels[locale ?? "zh"]?.[key] ?? null;
@@ -272,6 +278,19 @@ export function nextActionDescription(key: string | null | undefined, locale?: L
       "processing.view_error.desc": "打开知识源页面查看最新处理错误。",
       "processing.retry_processing.desc": "修复问题后重新点击「立即处理」。",
       "processing.view_sources.desc": "未生成草稿；知识源页面显示跳过原因。",
+      // Milestone E P3 close — web_facade.py description_key
+      "init_vault.desc": "当前知识库路径不存在；请先创建本地知识库。",
+      "review_drafts.desc": "有 AI 草稿等待人工审核和显式确认。",
+      "watch_source.desc": "添加文件或文件夹作为知识源，自动生成 AI 草稿。",
+      "search_knowledge.desc": "本地知识库已就绪；可以搜索已确认的知识卡片。",
+      "create_drafts.desc": "没有 AI 草稿。先在知识源页面添加或导入文件/文件夹。",
+      "search_approved_cards.desc": "输入关键词后使用本地 BM25 词法匹配查询已确认的知识卡片。",
+      "adjust_query.desc": "搜索查询无法执行，请缩短或调整关键词后重试。",
+      "rebuild_index.desc": "索引缺失或过期时可重建本地 BM25 索引。",
+      "try_another_query.desc": "没有命中已确认的知识卡片；换一个关键词或先确认 AI 草稿。",
+      // Milestone E P3 close — routers/sources.py description_key
+      "use_web_import.desc": "Web 导入不加入监控知识源，也不会自动确认。",
+      "use_local_source.desc": "请先添加本地文件或文件夹知识源；不会联网或自动确认。",
     },
     en: {
       "home.go_to_review.desc": "Review AI-generated drafts and decide to approve or reject.",
@@ -299,6 +318,19 @@ export function nextActionDescription(key: string | null | undefined, locale?: L
       "processing.view_error.desc": "Open Sources to inspect the latest processing error.",
       "processing.retry_processing.desc": "Try Process now again after fixing the issue.",
       "processing.view_sources.desc": "No draft was generated; Sources shows the reason.",
+      // Milestone E P3 close — web_facade.py description_key
+      "init_vault.desc": "The vault path does not exist. Create a local vault first.",
+      "review_drafts.desc": "AI drafts are waiting for human review and explicit approval.",
+      "watch_source.desc": "Add files or folders as knowledge sources to auto-generate AI drafts.",
+      "search_knowledge.desc": "Local knowledge base is ready. Search approved knowledge cards.",
+      "create_drafts.desc": "No AI drafts yet. Add or import files/folders on the Sources page first.",
+      "search_approved_cards.desc": "Enter keywords to search approved cards using local BM25 lexical matching.",
+      "adjust_query.desc": "Search query cannot be executed. Try shortening or adjusting your keywords.",
+      "rebuild_index.desc": "Rebuild the local BM25 index when missing or stale.",
+      "try_another_query.desc": "No approved cards matched. Try another keyword or approve drafts first.",
+      // Milestone E P3 close — routers/sources.py description_key
+      "use_web_import.desc": "Web import does not add to watched sources or auto-approve.",
+      "use_local_source.desc": "Add a local file or folder source first. No network calls or auto-approval.",
     },
   };
   return descriptions[locale ?? "zh"]?.[key] ?? null;

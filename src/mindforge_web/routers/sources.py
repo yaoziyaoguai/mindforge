@@ -138,6 +138,8 @@ def import_local(_facade: WebFacade = Depends(get_facade)) -> UnavailableRespons
             label="Use Web import",
             description="Web import 不加入 watched sources，也不会自动 approve。",
             href="/sources",
+            action_key="use_web_import",
+            description_key="use_web_import.desc",
         ),
     )
 
@@ -150,5 +152,7 @@ def import_cubox_json(_facade: WebFacade = Depends(get_facade)) -> UnavailableRe
             label="Use local source",
             description="请先添加本地文件或文件夹 source；不会联网或自动 approve。",
             href="/sources",
+            action_key="use_local_source",
+            description_key="use_local_source.desc",
         ),
     )
