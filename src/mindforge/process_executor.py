@@ -21,6 +21,7 @@ from .quality.rubric import score_quality
 from .quality.warnings import detect_warnings
 from .quality.card_type import classify_card_type
 from .quality.suggestions import generate_suggestions
+from .provenance import parse_source_location, source_location_to_dict
 from .run_logger import EVENT_SOURCE_ERROR, EVENT_STATE_WRITTEN
 from .scanner import Scanner
 from .strategies import (
@@ -401,6 +402,22 @@ def _compute_quality_for_card(
         return None
 
 
+def _compute_location_for_card(
+    *,
+    source_type: str,
+    provenance_blocks: list | None = None,
+) -> dict | None:
+    """从 source provenance_blocks 计算卡片 source_location（M4 — SDD §8.1）。
+
+    纯规则转换，不读源文件、不调 LLM。
+    """
+    try:
+        loc = parse_source_location(source_type, provenance_blocks)
+        return source_location_to_dict(loc)
+    except Exception:
+        return None
+
+
 def process_one_result(
     *,
     result,
@@ -482,11 +499,18 @@ def process_one_result(
         source_type=doc.source_type,
     )
 
+    # 计算 source location（M4 — SDD §8.1）
+    location_dict = _compute_location_for_card(
+        source_type=doc.source_type,
+        provenance_blocks=getattr(doc, "provenance_blocks", None),
+    )
+
     wr = writer.write(
         card_payload=outcome.card_payload or {},
         source=item_result.source_dict,
         run=processed_run_dict(cfg=cfg, outcome=outcome, logger=logger, now=now),
         quality=quality_dict,
+        location=location_dict,
     )
     item.card_path = str(wr.path.relative_to(cfg.vault.root))
     logger.emit(
