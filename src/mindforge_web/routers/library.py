@@ -9,6 +9,8 @@ from mindforge_web.schemas import (
     CardBodyUpdateResponse,
     ExportCardsRequest,
     ExportCardsResponse,
+    ImportCardRequest,
+    ImportCardResponse,
     KnowledgeCommunitiesResponse,
     LibraryCardDetailResponse,
     LibraryCardsResponse,
@@ -152,6 +154,19 @@ def export_cards(
         format=export_format,
         card_count=len(cards),
     )
+
+
+@router.post("/knowledge/import", response_model=ImportCardResponse)
+def import_card(
+    payload: ImportCardRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> ImportCardResponse:
+    """从 Markdown 内容导入新卡片（ai_draft 状态，不调用 LLM）。"""
+    if not payload.title.strip():
+        raise user_error(400, "import_title_required", "请输入卡片标题。", "标题不能为空。")
+    if not payload.body.strip():
+        raise user_error(400, "import_body_required", "请输入卡片内容。", "内容不能为空。")
+    return facade.import_card(payload.title, payload.body, payload.source_name)
 
 
 @router.get("/knowledge/communities", response_model=KnowledgeCommunitiesResponse)

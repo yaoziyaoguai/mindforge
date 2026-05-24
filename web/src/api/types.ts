@@ -762,3 +762,11 @@ export interface KnowledgeCommunityResponse {
 export interface KnowledgeCommunitiesResponse {
   communities: KnowledgeCommunityResponse[];
 }
+
+export interface ImportCardResponse {
+  id: string;
+  title: string;
+  rel_path: string;
+  status: string;
+  created_at: string;
+}

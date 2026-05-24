@@ -62,6 +62,7 @@ from mindforge_web.schemas import (
     HealthReportResponse,
     HealthResponse,
     HomeStatusResponse,
+    ImportCardResponse,
     IngestionActionResponse,
     LibraryCardDetailResponse,
     LibraryCardResponse,
@@ -556,6 +557,49 @@ class WebFacade:
             index_updated=result.index_updated,
             index_path=str(result.index_path) if result.index_path else None,
             index_error=result.index_error,
+        )
+
+    def import_card(self, title: str, body: str, source_name: str = "") -> ImportCardResponse:
+        """从 Markdown 内容创建 ai_draft 卡片（fake dogfood 场景）。
+
+        不调用 LLM / provider / external service。
+        卡片创建在 cards_dir 下，文件名从标题生成。
+        """
+        import re
+        import uuid
+        from datetime import datetime, timezone
+
+        slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "-", title.strip()).strip("-")[:60] or "imported"
+        card_id = f"{slug}-{uuid.uuid4().hex[:6]}"
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        filename = f"{card_id}.md"
+
+        cards_dir = self.cfg.vault.cards_path
+        cards_dir.mkdir(parents=True, exist_ok=True)
+
+        frontmatter_lines = [
+            f"id: {card_id}",
+            f"title: {title.strip()}",
+            "status: ai_draft",
+            "source_type: imported_markdown",
+            f"created_at: {now}",
+        ]
+        if source_name.strip():
+            frontmatter_lines.append(f"source_title: {source_name.strip()}")
+        frontmatter = "\n".join(frontmatter_lines)
+
+        content = f"---\n{frontmatter}\n---\n{body if body.endswith(chr(10)) else body + chr(10)}"
+        card_path = cards_dir / filename
+        card_path.write_text(content, encoding="utf-8")
+
+        rel_path = card_path.resolve().relative_to(self.cfg.vault.root.resolve()).as_posix()
+
+        return ImportCardResponse(
+            id=card_id,
+            title=title.strip(),
+            rel_path=rel_path,
+            status="ai_draft",
+            created_at=now,
         )
 
     def drafts(self) -> DraftsResponse:

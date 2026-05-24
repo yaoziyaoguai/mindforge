@@ -673,6 +673,20 @@ class ExportCardsResponse(BaseModel):
     card_count: int = 0
 
 
+class ImportCardRequest(BaseModel):
+    title: str
+    body: str
+    source_name: str = ""
+
+
+class ImportCardResponse(BaseModel):
+    id: str
+    title: str
+    rel_path: str
+    status: str
+    created_at: str
+
+
 class WorkflowSummaryResponse(BaseModel):
     vault_root: str
     cards_dir: str
