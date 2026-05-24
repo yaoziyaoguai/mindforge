@@ -1,13 +1,23 @@
 ---
 title: MindForge v0.6 — Search & Discovery Spec
 type: feat
-status: spec
+status: superseded
 date: 2026-05-24
 roadmap: V0_6_SEARCH_DISCOVERY
 parent: 2026-05-24-022-v0_6-next-phase-planning-review.md
+superseded_by: 2026-05-24-024-v0_6-knowledge-graph-retrieval-foundation-research.md
+supersession_note: >
+  Direction C Search & Discovery 是可用但过于常规的候选方向。用户已将 v0.6 重定向为
+  Knowledge Graph & Retrieval Foundation (Graph-First Knowledge Discovery)。
+  Search/filter/sort 能力将作为 Graph-aware Discovery UI 的后续内置子能力被吸收，
+  而非 v0.6 主线。详见 research 文档和正式 SPEC。
 ---
 
-# v0.6: Search & Discovery
+# v0.6: Search & Discovery [SUPERSEDED]
+
+> **本 spec 已被 superseded。** v0.6 方向已重定向为 Knowledge Graph & Retrieval Foundation。
+> Search/filter/sort 将作为 graph-aware discovery UI 的后续子能力。
+> 详见: `docs/specs/2026-05-24-025-v0_6-knowledge-graph-retrieval-foundation-spec.md`
 
 ## 1. Background
 
