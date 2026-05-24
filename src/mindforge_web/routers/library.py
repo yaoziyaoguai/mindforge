@@ -10,6 +10,7 @@ from mindforge_web.schemas import (
     LibraryCardDetailResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
+    ProvenanceTrailResponse,
     WorkflowSummaryResponse,
 )
 from mindforge_web.services.web_facade import WebFacade
@@ -46,6 +47,17 @@ def library_card(
     if detail is None:
         raise user_error(404, "card_not_found", "未找到该 Knowledge Card。", "回到 Library 列表重新选择。")
     return detail
+
+
+@router.get("/library/trail", response_model=ProvenanceTrailResponse)
+def provenance_trail(
+    ref: str = Query(..., description="Card id, filename, absolute path, or vault-relative path"),
+    facade: WebFacade = Depends(get_facade),
+) -> ProvenanceTrailResponse:
+    trail = facade.provenance_trail(ref)
+    if trail is None:
+        raise user_error(404, "card_not_found", "未找到该 Knowledge Card。", "回到 Library 列表重新选择。")
+    return trail
 
 
 @router.patch("/library/card", response_model=CardBodyUpdateResponse)

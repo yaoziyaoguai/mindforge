@@ -480,6 +480,32 @@ export interface LibraryCardDetailResponse {
   related_cards: RelatedCardResponse[];
 }
 
+// -- U3 Provenance Trail -------------------------------------------------------
+
+export interface ProvenanceTrailSource {
+  source_id?: string | null;
+  source_title?: string | null;
+}
+
+export interface ProvenanceTrailSiblingCard {
+  card_id: string;
+  title: string;
+  quality_level?: string | null;
+  quality_score?: number | null;
+}
+
+export interface ProvenanceTrailSection {
+  title: string;
+  card_count: number;
+}
+
+export interface ProvenanceTrailResponse {
+  card_id: string;
+  source: ProvenanceTrailSource;
+  sibling_cards: ProvenanceTrailSiblingCard[];
+  wiki_sections: ProvenanceTrailSection[];
+}
+
 export interface CardBodyUpdateResponse {
   ok: boolean;
   status: string;

@@ -541,6 +541,32 @@ class LibraryCardDetailResponse(BaseModel):
     related_cards: list[RelatedCardResponse] = Field(default_factory=list)
 
 
+# -- U3 Provenance Trail ------------------------------------------------------
+
+class ProvenanceTrailSource(BaseModel):
+    source_id: str | None = None
+    source_title: str | None = None
+
+
+class ProvenanceTrailSiblingCard(BaseModel):
+    card_id: str
+    title: str
+    quality_level: str | None = None
+    quality_score: float | None = None
+
+
+class ProvenanceTrailSection(BaseModel):
+    title: str
+    card_count: int
+
+
+class ProvenanceTrailResponse(BaseModel):
+    card_id: str
+    source: ProvenanceTrailSource = Field(default_factory=ProvenanceTrailSource)
+    sibling_cards: list[ProvenanceTrailSiblingCard] = Field(default_factory=list)
+    wiki_sections: list[ProvenanceTrailSection] = Field(default_factory=list)
+
+
 class CardBodyUpdateRequest(BaseModel):
     body: str
 

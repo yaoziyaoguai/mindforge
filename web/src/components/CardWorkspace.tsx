@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { revealSourceByRef } from "../api/sources";
+import { getProvenanceTrail } from "../api/library";
 import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
-import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse } from "../api/types";
+import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse, ProvenanceTrailResponse } from "../api/types";
 import { friendlyStatus, statusIcon, truncateMiddle } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
@@ -47,7 +48,14 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
   const [pathActionMsg, setPathActionMsg] = useState<string | null>(null);
   const [pathActionErr, setPathActionErr] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(true);
+  const [trail, setTrail] = useState<ProvenanceTrailResponse | null>(null);
   const { locale, t } = useLocale();
+
+  useEffect(() => {
+    const ref = card.id ?? card.rel_path;
+    if (!ref || mode !== "library") return;
+    getProvenanceTrail(ref).then((t) => setTrail(t)).catch(() => setTrail(null));
+  }, [card.id, card.rel_path, mode]);
 
   useEffect(() => {
     setDraftBody(body);
@@ -179,6 +187,10 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
       ) : null}
 
       <QualityPanel cardId={card.id ?? ""} />
+
+      {mode === "library" && trail && (trail.source.source_title || trail.sibling_cards.length > 0 || trail.wiki_sections.length > 0) ? (
+        <ProvenanceTrail trail={trail} onSelectCard={onSelectCard} t={t} />
+      ) : null}
 
       {mode === "library" && "local_graph" in detail ? (
         <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} />
@@ -427,7 +439,7 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
   }
 
   // Group related cards by each reason. A card with multiple reasons appears in multiple groups.
-  const groups: Record<string, Array<{ card: LibraryCardResponse; ref: string; reasons: Array<{ label: string; detail: string }> }>> = {};
+  const groups: Record<string, Array<{ card: LibraryCardResponse; ref: string; reasons: Array<{ reason: string; label: string; detail: string }> }>> = {};
   for (const rc of relatedCards) {
     const ref = rc.card.id ?? rc.card.rel_path;
     for (const r of rc.reasons) {
@@ -444,10 +456,9 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
       <h3 className="text-sm font-semibold text-ink">{t("library.related_cards")}</h3>
       <div className="mt-3 space-y-4">
         {sortedReasons.map((reason) => {
-          const firstReasons = cards[0]?.reasons ?? [];
-          const reasonObj = firstReasons.find(r => r.reason === reason);
-          const groupLabel = t(REASON_GROUP_KEYS[reason] ?? reason) || reasonObj?.label || reason;
           const cards = groups[reason];
+          const reasonLabel = cards[0]?.reasons.find(r => r.reason === reason)?.label;
+          const groupLabel = t(REASON_GROUP_KEYS[reason] ?? reason) || reasonLabel || reason;
           return (
             <div key={reason}>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -489,6 +500,66 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
             </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function ProvenanceTrail({ trail, onSelectCard, t }: {
+  trail: ProvenanceTrailResponse;
+  onSelectCard?: (ref: string) => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <section className="border-t border-line px-5 py-3">
+      <h3 className="text-xs font-semibold text-muted mb-2">{t("card.provenance_trail")}</h3>
+      <div className="flex items-center gap-2 text-xs flex-wrap">
+        {/* Step 1: Source */}
+        {trail.source.source_title ? (
+          <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
+            <span className="text-muted">{t("card.provenance_source")}:</span>
+            <span className="font-medium text-ink">{trail.source.source_title}</span>
+          </span>
+        ) : null}
+
+        {/* Step 2: Sibling cards */}
+        {trail.sibling_cards.length > 0 ? (
+          <>
+            <span className="text-muted">→</span>
+            <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
+              <span className="text-muted">{t("card.provenance_siblings")}:</span>
+              {trail.sibling_cards.map((sc, i) => (
+                <span key={sc.card_id}>
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => onSelectCard?.(sc.card_id)}
+                  >
+                    {sc.title}
+                  </button>
+                  {i < trail.sibling_cards.length - 1 ? <span className="text-muted">, </span> : null}
+                </span>
+              ))}
+            </span>
+          </>
+        ) : null}
+
+        {/* Step 3: Wiki sections */}
+        {trail.wiki_sections.length > 0 ? (
+          <>
+            <span className="text-muted">→</span>
+            <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
+              <span className="text-muted">{t("card.provenance_sections")}:</span>
+              {trail.wiki_sections.map((sec, i) => (
+                <span key={sec.title}>
+                  <span className="font-medium text-ink">{sec.title}</span>
+                  <span className="text-muted ml-0.5">({sec.card_count})</span>
+                  {i < trail.wiki_sections.length - 1 ? <span className="text-muted">, </span> : null}
+                </span>
+              ))}
+            </span>
+          </>
+        ) : null}
       </div>
     </section>
   );

@@ -1,5 +1,5 @@
 import { apiGet, apiPatch } from "./client";
-import type { CardBodyUpdateResponse, LibraryCardDetailResponse, LibraryCardsResponse, WorkflowSummaryResponse } from "./types";
+import type { CardBodyUpdateResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -15,4 +15,8 @@ export function getLibraryCardDetail(ref: string) {
 
 export function saveLibraryCardBody(ref: string, body: string) {
   return apiPatch<CardBodyUpdateResponse>(`/api/library/card?ref=${encodeURIComponent(ref)}`, { body });
+}
+
+export function getProvenanceTrail(ref: string) {
+  return apiGet<ProvenanceTrailResponse>(`/api/library/trail?ref=${encodeURIComponent(ref)}`);
 }

@@ -48,6 +48,10 @@ from mindforge_web.schemas import (
     RecallHit,
     RecallResponse,
     RecallStatus,
+    ProvenanceTrailResponse,
+    ProvenanceTrailSection,
+    ProvenanceTrailSiblingCard,
+    ProvenanceTrailSource,
     RelatedCardReasonResponse,
     RelatedCardResponse,
     SafetySummary,
@@ -345,6 +349,13 @@ class WebFacade:
         if isinstance(detail, LibraryLookupError):
             return None
         return _library_detail_response(self.cfg, detail, path_action_service=self.path_action_service)
+
+    def provenance_trail(self, ref: str) -> ProvenanceTrailResponse | None:
+        """U3 Provenance Trail — source → sibling cards → wiki sections。"""
+        detail = show_library_card(self.cfg, ref, show_content=False)
+        if isinstance(detail, LibraryLookupError):
+            return None
+        return _provenance_trail_response(self.cfg, detail)
 
     def compute_card_quality(self, card_id: str):
         """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
@@ -937,3 +948,62 @@ def _relation_reason_label(reason: str) -> str:
         "manual_link": "Manual link",
     }
     return labels.get(reason, reason.replace("_", " ").title())
+
+
+def _provenance_trail_response(
+    cfg: MindForgeConfig,
+    detail: LibraryCardDetail,
+) -> ProvenanceTrailResponse:
+    """U3: 构建 provenance trail — source → siblings → wiki sections。"""
+    card = detail.card
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    approved = [c for c in scan.cards if c.status == "human_approved"]
+
+    summary = card.summary
+    card_id = summary.id or summary.rel_path
+    source_id = summary.source_id
+    source_title = summary.source_title
+
+    # Sibling cards: same source, excluding self, ≤ 5
+    siblings: list[ProvenanceTrailSiblingCard] = []
+    if source_id:
+        for c in approved:
+            if c.source_id != source_id:
+                continue
+            cid = c.id or c.rel_path
+            if cid == card_id:
+                continue
+            siblings.append(ProvenanceTrailSiblingCard(
+                card_id=cid,
+                title=c.title or Path(c.rel_path).stem,
+                quality_level=c.quality_level,
+                quality_score=c.quality_score,
+            ))
+            if len(siblings) >= 5:
+                break
+
+    # Wiki sections from siblings and self
+    seen_sections: dict[str, int] = {}
+    for c in approved:
+        csid = c.source_id
+        if csid != source_id:
+            continue
+        for sec in c.wiki_sections:
+            seen_sections[sec] = seen_sections.get(sec, 0) + 1
+
+    # Top 5 sections by card count
+    sorted_sections = sorted(seen_sections.items(), key=lambda x: x[1], reverse=True)[:5]
+    wiki_sections = [
+        ProvenanceTrailSection(title=title, card_count=count)
+        for title, count in sorted_sections
+    ]
+
+    return ProvenanceTrailResponse(
+        card_id=card_id,
+        source=ProvenanceTrailSource(
+            source_id=source_id,
+            source_title=source_title,
+        ),
+        sibling_cards=siblings,
+        wiki_sections=wiki_sections,
+    )
