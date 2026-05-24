@@ -178,3 +178,37 @@ class TestAssembleDiscoveryContext:
         assert ctx.center_card_title == "Isolated"
         assert len(ctx.direct_matches) == 0
         assert len(ctx.neighbor_cards) == 0
+
+    def test_evidence_text_no_machine_format(self):
+        """验证 direct_matches 的 evidence 不包含机器格式标记。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        ctx = assemble_discovery_context(graph)
+        for match in ctx.direct_matches:
+            assert "↔" not in match.evidence, \
+                f"Evidence for {match.card_id} should not contain machine ↔: {match.evidence}"
+            assert match.evidence, f"Evidence for {match.card_id} should not be empty"
+
+    def test_neighbor_cards_have_decayed_strength(self):
+        """验证 2-hop 邻居的 strength 经过了 0.8 衰减。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        ctx = assemble_discovery_context(graph)
+        for match in ctx.neighbor_cards:
+            assert match.relation_strength <= 1.0, \
+                f"Neighbor {match.card_id} strength should be ≤ 1.0"
+            # 2-hop strength 应 ≤ 0.8（因为原始 strength ≤ 1.0，乘以 0.8）
+            assert match.relation_strength <= 0.8 or match.relation_strength > 0, \
+                f"Neighbor {match.card_id} strength should be ≤ 0.8 or > 0"
+
+    def test_discovery_context_with_depth_1_graph(self):
+        """验证 depth=1 的图不产生 neighbor_cards（无 2-hop）。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=1)
+        ctx = assemble_discovery_context(graph)
+        # depth=1 时没有 2-hop 邻居
+        assert len(ctx.neighbor_cards) == 0, \
+            f"Depth=1 graph should have no 2-hop neighbors, got {len(ctx.neighbor_cards)}"

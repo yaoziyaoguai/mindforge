@@ -563,6 +563,12 @@ const copy: Record<Locale, LocaleDict> = {
     "graph.collapse_2hop": "收起 2 跳关系",
     "graph.loading": "正在加载图谱...",
     "graph.load_failed": "图谱加载失败",
+    "graph.node_type_source": "来源",
+    "graph.node_type_tag": "标签",
+    "graph.node_type_wiki_section": "Wiki 章节",
+    "graph.placeholder_source": "来源 ID...",
+    "graph.placeholder_tag": "标签名称...",
+    "graph.placeholder_wiki_section": "Wiki 章节标题...",
 
     // ---- Navigation ----
     "nav.health": "健康报告",
@@ -1117,6 +1123,12 @@ const copy: Record<Locale, LocaleDict> = {
     "graph.collapse_2hop": "Collapse 2-hop",
     "graph.loading": "Loading graph...",
     "graph.load_failed": "Graph load failed",
+    "graph.node_type_source": "Source",
+    "graph.node_type_tag": "Tag",
+    "graph.node_type_wiki_section": "Wiki Section",
+    "graph.placeholder_source": "source ID...",
+    "graph.placeholder_tag": "tag name...",
+    "graph.placeholder_wiki_section": "wiki section title...",
 
     // ---- Navigation ----
     "nav.health": "Health Report",

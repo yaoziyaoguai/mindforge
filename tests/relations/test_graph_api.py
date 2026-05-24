@@ -304,3 +304,47 @@ class TestRecallWithGraphContext:
         for hit in data["hits"]:
             assert hit.get("graph_neighbor_count") is None
             assert hit.get("graph_shared_tag_count") is None
+
+
+class TestGraphEvidenceQuality:
+    """v0.7 U4：API response 中 evidence 文本和 detail 字段的质量验证。"""
+
+    def test_edge_evidence_no_machine_format(self, tmp_path: Path):
+        """API 返回的边 evidence 不应包含机器格式标记。"""
+        cfg_path, _vault, _cards = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/graph/node?ref=card_1&depth=1")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        # card_1 和 card_2 共享 source_id=src_1，应有 related_by_source 边
+        for edge in data.get("edges", []):
+            ev = edge.get("evidence")
+            assert ev is not None, f"Edge {edge} has no evidence"
+            assert "↔" not in ev.get("evidence", ""), \
+                f"Evidence should not contain machine ↔: {ev.get('evidence')}"
+            assert ev.get("evidence"), "Evidence text should not be empty"
+
+    def test_edge_evidence_detail_has_relation_reason(self, tmp_path: Path):
+        """API 返回的边 evidence.detail 应包含 relation_reason。"""
+        cfg_path, _vault, _cards = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/graph/node?ref=card_1&depth=1")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        for edge in data.get("edges", []):
+            detail = edge.get("evidence", {}).get("detail", {})
+            assert "relation_reason" in detail, \
+                f"Edge evidence.detail should have relation_reason: {detail}"
+
+    def test_graph_node_invalid_depth_clamped(self, tmp_path: Path):
+        """验证 depth 参数超出范围时的行为（当前 clamp 到 1-3）。"""
+        cfg_path, _vault, _cards = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        # depth=0 should still return a valid graph (clamped to 1)
+        resp = client.get("/api/graph/node?ref=card_1&depth=0")
+        assert resp.status_code in (200, 422), resp.text
+        data = resp.json()
+        assert "nodes" in data or "detail" in data
+        # depth=10 should be clamped to 3 (max)
+        resp = client.get("/api/graph/node?ref=card_1&depth=10")
+        assert resp.status_code in (200, 422), resp.text

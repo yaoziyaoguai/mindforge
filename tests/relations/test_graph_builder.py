@@ -352,3 +352,175 @@ class TestPerformance:
         elapsed = time.perf_counter() - start
         assert elapsed < 1.0, f"Graph build took {elapsed:.3f}s, expected < 1.0s"
         assert len(graph.nodes) > 0
+
+
+# ── v0.7: Evidence Quality ──────────────────────────
+
+
+class TestEvidenceTextQuality:
+    """v0.7 U1：验证 evidence 文本包含共享实体名称，不包含机器格式。"""
+
+    def test_evidence_contains_shared_source_name(self):
+        """same_source evidence 应包含实际 source path 而非 card_id 引用。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="reading/ai.md")),
+            _to_record(SyntheticRelationCard(id="c2", source_id="reading/ai.md")),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("c1", NodeType.CARD, depth=1)
+        # 查找 c1→c2 的 same_source 边
+        edges_between_cards = [
+            e for e in graph.edges
+            if e.edge_type == EdgeType.RELATED_BY_SOURCE
+            and e.source_id == "c1"
+            and e.target_id == "c2"
+        ]
+        assert len(edges_between_cards) == 1
+        evidence_text = edges_between_cards[0].evidence.evidence
+        assert "reading/ai.md" in evidence_text, \
+            f"Evidence should contain source path, got: {evidence_text}"
+        assert "↔" not in evidence_text, \
+            f"Evidence should not contain machine-format ↔, got: {evidence_text}"
+
+    def test_evidence_contains_shared_tag_name(self):
+        """same_tag evidence 应包含实际 tag 名称。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", tags=("llm",))),
+            _to_record(SyntheticRelationCard(id="c2", tags=("llm",))),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("c1", NodeType.CARD, depth=1)
+        edges_between_cards = [
+            e for e in graph.edges
+            if e.edge_type == EdgeType.SHARES_TAG
+            and e.source_id == "c1"
+            and e.target_id == "c2"
+        ]
+        assert len(edges_between_cards) == 1
+        assert "#llm" in edges_between_cards[0].evidence.evidence
+
+    def test_evidence_contains_shared_section_name(self):
+        """same_wiki_section evidence 应包含实际 section 名称。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", wiki_sections=("LLM 基础",))),
+            _to_record(SyntheticRelationCard(id="c2", wiki_sections=("LLM 基础",))),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("c1", NodeType.CARD, depth=1)
+        edges_between_cards = [
+            e for e in graph.edges
+            if e.edge_type == EdgeType.RELATED_BY_WIKI_SECTION
+            and e.source_id == "c1"
+            and e.target_id == "c2"
+        ]
+        assert len(edges_between_cards) == 1
+        assert "LLM 基础" in edges_between_cards[0].evidence.evidence
+
+    def test_evidence_no_machine_format_for_cards(self):
+        """卡片间关系的 evidence 不应使用机器格式 c1 ↔ c2。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_x")),
+            _to_record(SyntheticRelationCard(id="c2", source_id="src_x")),
+            _to_record(SyntheticRelationCard(id="c3", source_id="src_x")),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("c1", NodeType.CARD, depth=1)
+        for edge in graph.edges:
+            if edge.source_id != "c1":
+                continue
+            target_is_card = edge.target_id in ("c2", "c3")
+            if target_is_card:
+                assert "↔" not in edge.evidence.evidence, \
+                    f"Card-card edge should not use ↔: {edge.evidence.evidence}"
+                assert edge.evidence.evidence, \
+                    "Evidence text should not be empty"
+
+
+class TestEvidenceDetailDict:
+    """v0.7 U2：验证 RelationEvidence.detail 保留原始 relation_reason。"""
+
+    def test_get_edges_detail_has_relation_reason(self):
+        """get_edges() 返回的 evidence.detail 应包含 relation_reason。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_a", source_location_index=0)),
+            _to_record(SyntheticRelationCard(id="c2", source_id="src_a", source_location_index=1)),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        edges = builder.get_edges("c1")
+        # c2 在位置 1 即 c1 的邻居 → SOURCE_LOCATION_NEIGHBOR
+        neighbor_edges = [
+            e for e in edges
+            if e.target_id == "c2"
+        ]
+        for edge in neighbor_edges:
+            detail = edge.evidence.detail
+            assert "relation_reason" in detail, \
+                f"detail should have relation_reason, got keys: {list(detail.keys())}"
+            assert detail["relation_reason"] in (
+                "same_source", "source_location_neighbor",
+            ), f"Unexpected relation_reason: {detail['relation_reason']}"
+
+    def test_local_graph_edge_detail_present(self):
+        """_local_graph_edge_to_graph_edge 转换的边也有 detail。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_x")),
+            _to_record(SyntheticRelationCard(id="c2", source_id="src_x")),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("c1", NodeType.CARD, depth=1)
+        for edge in graph.edges:
+            assert "relation_reason" in edge.evidence.detail, \
+                f"All edges should have relation_reason in detail: {edge.evidence.detail}"
+
+
+class TestTwoHopGoldenFixture:
+    """v0.7 U4：验证 2-hop graph 的确定性结构（golden fixture）。"""
+
+    def test_two_hop_graph_has_exact_structure(self):
+        """给定固定卡片集，1-hop + 2-hop graph 结构应完全确定。"""
+        cards = [
+            _to_record(SyntheticRelationCard(
+                id="center", source_id="src_1",
+                tags=("ai",),
+                wiki_sections=("ML",),
+            )),
+            _to_record(SyntheticRelationCard(
+                id="hop1_a", source_id="src_1",  # same source → 1-hop
+                tags=("ai",),
+            )),
+            _to_record(SyntheticRelationCard(
+                id="hop1_b", source_id="src_2",  # shared tag "ai" → 1-hop
+                tags=("ai",),
+            )),
+            _to_record(SyntheticRelationCard(
+                id="hop2_x", source_id="src_2",  # same source as hop1_b → 2-hop
+                tags=("db",),
+            )),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("center", NodeType.CARD, depth=2)
+
+        node_ids = {n.id for n in graph.nodes}
+        assert "center" in node_ids
+        assert "hop1_a" in node_ids  # 1-hop
+        assert "hop1_b" in node_ids  # 1-hop
+        # hop2_x should appear as 2-hop (same source as hop1_b)
+        assert "hop2_x" in node_ids, \
+            f"Expected hop2_x in graph nodes, got: {sorted(node_ids)}"
+
+    def test_two_hop_graph_same_input_same_output(self):
+        """相同输入多次构建应产生相同节点数和边数。"""
+        cards = [
+            _to_record(SyntheticRelationCard(
+                id=f"c{i}", source_id=f"src_{i % 3}",
+                tags=(f"t{i % 2}",),
+            ))
+            for i in range(10)
+        ]
+        builder1 = DeterministicGraphBuilder(cards)
+        builder2 = DeterministicGraphBuilder(cards)
+        g1 = builder1.get_graph("c0", NodeType.CARD, depth=2)
+        g2 = builder2.get_graph("c0", NodeType.CARD, depth=2)
+        assert len(g1.nodes) == len(g2.nodes)
+        assert len(g1.edges) == len(g2.edges)
+        assert {n.id for n in g1.nodes} == {n.id for n in g2.nodes}

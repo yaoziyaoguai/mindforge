@@ -21,6 +21,18 @@ const NODE_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }
   wiki_section: BookOpen,
 };
 
+const NODE_TYPE_I18N: Record<string, string> = {
+  source: "graph.node_type_source",
+  tag: "graph.node_type_tag",
+  wiki_section: "graph.node_type_wiki_section",
+};
+
+const NODE_TYPE_PLACEHOLDER: Record<string, string> = {
+  source: "graph.placeholder_source",
+  tag: "graph.placeholder_tag",
+  wiki_section: "graph.placeholder_wiki_section",
+};
+
 export function GraphExplorer({ onSelectCard }: Props) {
   const { t } = useLocale();
   const [nodeType, setNodeType] = useState("source");
@@ -83,7 +95,7 @@ export function GraphExplorer({ onSelectCard }: Props) {
               const Icon = NODE_TYPE_ICONS[nt];
               return Icon ? <Icon className="mr-1 inline h-3 w-3" /> : null;
             })()}
-            {nt.replace("_", " ")}
+            {t(NODE_TYPE_I18N[nt])}
           </button>
         ))}
       </div>
@@ -91,13 +103,7 @@ export function GraphExplorer({ onSelectCard }: Props) {
       <div className="mt-3 flex gap-2">
         <input
           className="flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink placeholder:text-muted"
-          placeholder={
-            nodeType === "source"
-              ? "source_id ..."
-              : nodeType === "tag"
-                ? "tag name ..."
-                : "wiki section title ..."
-          }
+          placeholder={t(NODE_TYPE_PLACEHOLDER[nodeType] ?? "graph.placeholder_source")}
           value={nodeId}
           onChange={(e) => setNodeId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && explore()}
@@ -130,7 +136,7 @@ export function GraphExplorer({ onSelectCard }: Props) {
                   key={`${n.type}-${n.id}`}
                   className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1 text-xs text-muted"
                 >
-                  <span className="uppercase">{n.type.replace("_", " ")}</span>
+                  <span className="uppercase">{t(NODE_TYPE_I18N[n.type] ?? n.type)}</span>
                   {n.label}
                   {n.card_count > 0 ? (
                     <span className="text-primary">({n.card_count})</span>
@@ -167,7 +173,7 @@ export function GraphExplorer({ onSelectCard }: Props) {
                   className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                   title={e.evidence?.evidence}
                 >
-                  {e.edge_type.replace(/_/g, " ")}
+                  {t(`graph.${e.edge_type}` as any) ?? e.edge_type}
                 </span>
               ))}
             </div>

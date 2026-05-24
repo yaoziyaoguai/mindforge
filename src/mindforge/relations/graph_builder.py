@@ -150,6 +150,7 @@ class DeterministicGraphBuilder(GraphPort):
                 reason=raw.reason.value,
                 evidence=raw.reason_detail,
                 strength=raw.strength,
+                detail={"relation_reason": raw.reason.value},
             )
             if direction in ("outgoing", "both"):
                 result.append(GraphEdge(
@@ -271,6 +272,7 @@ class DeterministicGraphBuilder(GraphPort):
                         reason=raw.reason.value,
                         evidence=raw.reason_detail,
                         strength=raw.strength,
+                        detail={"relation_reason": raw.reason.value},
                     )
                     edges.append(GraphEdge(
                         source_id=neighbor_id,
@@ -421,7 +423,11 @@ class DeterministicGraphBuilder(GraphPort):
         ge: LocalGraphEdge,
         center_id: str,
     ) -> GraphEdge:
-        """将 LocalGraphEdge 转换为带 evidence 的 GraphEdge。"""
+        """将 LocalGraphEdge 转换为带 evidence 的 GraphEdge。
+
+        v0.7 升级：evidence 文本不再使用机器格式（card_id ↔ card_id），
+        而是查找卡片元数据中的共享实体名称，生成用户可理解的描述。
+        """
         reason_map: dict[str, tuple[EdgeType, str, float]] = {
             "same_source": (EdgeType.RELATED_BY_SOURCE, "same_source_document", 0.8),
             "same_tag": (EdgeType.SHARES_TAG, "shared_tag", 0.5),
@@ -434,16 +440,66 @@ class DeterministicGraphBuilder(GraphPort):
             ge.reason,
             (EdgeType.RELATED_BY_SOURCE, ge.reason, 0.5),
         )
+        evidence_text = self._build_evidence_text(center_id, ge.target_id, ge.reason)
         return GraphEdge(
             source_id=ge.source_id,
             target_id=ge.target_id,
             edge_type=et,
             evidence=RelationEvidence(
                 reason=reason_key,
-                evidence=f"{ge.reason}: {center_id} ↔ {ge.target_id}",
+                evidence=evidence_text,
                 strength=strength,
+                detail={"relation_reason": ge.reason},
             ),
         )
+
+    def _build_evidence_text(
+        self,
+        source_id: str,
+        target_id: str,
+        reason: str,
+    ) -> str:
+        """构建用户可读的 evidence 文本，包含共享实体名称。
+
+        中文学习型说明：此方法查找卡片元数据中的共享实体
+        （source path、tag name、wiki section title），生成可理解的
+        relation evidence，而非仅返回 card_id 引用。
+        """
+        source_card = self._cards_by_id.get(source_id)
+        target_card = self._cards_by_id.get(target_id)
+
+        if reason == "same_source":
+            src = source_card.get("source_id") if source_card else None
+            if src:
+                return f"same source document: {src}"
+            return "related by same source document"
+
+        if reason == "same_tag":
+            source_tags = set(source_card.get("tags") or []) if source_card else set()
+            target_tags = set(target_card.get("tags") or []) if target_card else set()
+            shared = source_tags & target_tags
+            if shared:
+                tags_str = ", ".join(f"#{t}" for t in sorted(shared))
+                return f"shared tag: {tags_str}"
+            # fallback: target_id 本身可能是 tag 节点名
+            return f"shared tag: #{target_id}"
+
+        if reason == "same_wiki_section":
+            source_secs = set(source_card.get("wiki_sections") or []) if source_card else set()
+            target_secs = set(target_card.get("wiki_sections") or []) if target_card else set()
+            shared = source_secs & target_secs
+            if shared:
+                return f"same wiki section: {', '.join(sorted(shared))}"
+            return f"same wiki section: {target_id}"
+
+        if reason == "wiki_section_reference":
+            section_title = target_card.get("title") if target_card else target_id
+            return f"wiki section reference: {section_title}"
+
+        # generic fallback
+        source_label = source_card.get("title", source_id) if source_card else source_id
+        target_label = target_card.get("title", target_id) if target_card else target_id
+        return f"{reason}: {source_label} — {target_label}"
 
 
 def _map_node_type(nt: LocalNodeType) -> NodeType:
