@@ -54,6 +54,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [error, setError] = useState<string | null>(null);
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [showExportPreview, setShowExportPreview] = useState(false);
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -130,9 +131,15 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     setExportSelection(new Set());
   }
 
-  async function exportSelected() {
+  function startExport() {
     if (exportSelection.size === 0) return;
+    setError(null);
+    setShowExportPreview(true);
+  }
+
+  async function confirmExport() {
     setExporting(true);
+    setShowExportPreview(false);
     try {
       const resp = await fetch("/api/knowledge/export", {
         method: "POST",
@@ -154,6 +161,10 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     } finally {
       setExporting(false);
     }
+  }
+
+  function cancelExport() {
+    setShowExportPreview(false);
   }
 
   if (data.cards.length === 0) {
@@ -204,13 +215,58 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             disabled={exportSelection.size === 0 || exporting}
-            onClick={exportSelected}
+            onClick={startExport}
           >
             <Download className="h-4 w-4" />
             {exporting ? "..." : t("library.export_selected")}{exportSelection.size > 0 ? ` (${exportSelection.size})` : ""}
           </button>
         </div>
       </header>
+
+      {/* Export Preview (v1.4 W7: Safe Export Review) */}
+      {showExportPreview ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-ink">{t("library.export_preview_title")}</h3>
+              <p className="mt-1 text-xs text-muted">
+                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", "Markdown")}
+              </p>
+              <div className="mt-3 max-h-48 overflow-y-auto">
+                <div className="grid gap-1 sm:grid-cols-2">
+                  {Array.from(exportSelection).map((ref) => {
+                    const card = displayedCards.find((c) => (c.id ?? c.rel_path) === ref);
+                    return (
+                      <span key={ref} className="text-xs text-ink/80 px-2 py-1 rounded bg-white/50 border border-line/50 truncate" title={card?.title ?? ref}>
+                        {card?.title ?? ref}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              disabled={exporting}
+              onClick={confirmExport}
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "..." : t("library.export_confirm")}
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-muted/10"
+              onClick={cancelExport}
+              disabled={exporting}
+            >
+              <X className="h-4 w-4" /> {t("card.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {filterIds && displayedCards.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>

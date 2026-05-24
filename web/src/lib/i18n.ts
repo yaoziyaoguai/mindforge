@@ -625,6 +625,9 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Export ----
     "library.export_selected": "导出选中",
     "library.export_select_cards": "请先选择要导出的卡片",
+    "library.export_preview_title": "导出预览",
+    "library.export_preview_desc": "即将导出 {count} 张卡片为 {format} 格式。请确认以下内容无误后继续。",
+    "library.export_confirm": "确认下载",
     "library.select_all": "全选",
     "library.deselect_all": "取消全选",
   },
@@ -1238,6 +1241,9 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Export ----
     "library.export_selected": "Export Selected",
     "library.export_select_cards": "Select cards to export",
+    "library.export_preview_title": "Export Preview",
+    "library.export_preview_desc": "About to export {count} cards in {format} format. Please review the content before proceeding.",
+    "library.export_confirm": "Confirm Download",
     "library.select_all": "Select All",
     "library.deselect_all": "Deselect All",
   },
