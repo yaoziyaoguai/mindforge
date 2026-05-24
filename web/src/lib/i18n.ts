@@ -529,6 +529,8 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Knowledge Health ----
     "health.page_title": "知识健康报告",
     "health.page_desc": "诊断知识库的结构性问题，并提供可操作的探索入口。",
+    "health.checking": "正在检查知识库健康状态...",
+    "health.view_details": "查看详情",
     "health.summary_prefix": "健康总结：",
     "health.stats_cards": "卡片总数",
     "health.stats_approved": "已确认",
@@ -1132,6 +1134,8 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Knowledge Health ----
     "health.page_title": "Knowledge Health Report",
     "health.page_desc": "Diagnose structural issues in your knowledge base with actionable exploration entry points.",
+    "health.checking": "Checking knowledge base health...",
+    "health.view_details": "View details",
     "health.summary_prefix": "Health summary: ",
     "health.stats_cards": "Total Cards",
     "health.stats_approved": "Approved",

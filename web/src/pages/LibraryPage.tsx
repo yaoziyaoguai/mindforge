@@ -7,6 +7,7 @@ import { CardWorkspace } from "../components/CardWorkspace";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { GraphExplorer } from "../components/GraphExplorer";
+import { HealthStatusBar } from "../components/HealthStatusBar";
 import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
@@ -221,6 +222,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         <StatusCard label={t("library.stats_index")} value={data.stats.index_exists ? t("library.stats_index_ready") : t("library.stats_index_rebuild")} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} locale={locale} />
         <StatusCard label={t("library.stats_total")} value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={t("library.stats_total_detail")} locale={locale} />
       </div>
+
+      {/* Health Status Bar */}
+      <HealthStatusBar />
 
       {/* Graph Explorer */}
       <GraphExplorer onSelectCard={selectCard} />
