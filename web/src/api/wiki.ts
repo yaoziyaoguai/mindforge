@@ -71,3 +71,15 @@ export interface WikiPageViewModel {
   additional_card_count: number;
   warnings: string[];
 }
+
+/** v0.4 U1: Wiki Related Sections */
+export interface WikiRelatedSection {
+  title: string;
+  overlap: number;
+  shared_cards: number;
+}
+
+export interface WikiRelatedSectionsResponse {
+  exists: boolean;
+  sections: Record<string, WikiRelatedSection[]>;
+}

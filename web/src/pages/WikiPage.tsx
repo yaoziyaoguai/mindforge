@@ -18,7 +18,7 @@ import { WikiErrorState } from "../components/wiki/WikiErrorState";
 import { WikiLoadingState } from "../components/wiki/WikiLoadingState";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { useLocale } from "../lib/i18n";
-import type { WikiPageViewModel, WikiQualityResponse } from "../api/wiki";
+import type { WikiPageViewModel, WikiQualityResponse, WikiRelatedSectionsResponse } from "../api/wiki";
 
 interface WikiStatus {
   wiki_path: string;
@@ -54,15 +54,17 @@ export function WikiPage() {
   const [loading, setLoading] = useState(true);
   const [readerMode, setReaderMode] = useState(false);
   const [quality, setQuality] = useState<WikiQualityResponse | null>(null);
+  const [relatedSections, setRelatedSections] = useState<WikiRelatedSectionsResponse | null>(null);
   const { t } = useLocale();
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [s, p, q] = await Promise.all([
+      const [s, p, q, rs] = await Promise.all([
         fetch("/api/wiki/status").then((r) => r.json()),
         fetch("/api/wiki/page").then((r) => r.json()),
         fetch("/api/wiki/quality").then((r) => r.json()),
+        fetch("/api/wiki/related-sections").then((r) => r.json()),
       ]);
       setStatus(s as WikiStatus);
       if ((p as Record<string, unknown>).exists === false) {
@@ -71,6 +73,7 @@ export function WikiPage() {
         setPage(p as WikiPageViewModel);
       }
       setQuality(q as WikiQualityResponse);
+      setRelatedSections(rs as WikiRelatedSectionsResponse);
     } catch {
       setError(t("wiki.load_failed"));
     } finally {
@@ -236,7 +239,7 @@ export function WikiPage() {
       {page && (
         <div className="flex gap-6">
           {!readerMode && <WikiTOC sections={page.sections} />}
-          <WikiReadingPane page={page} readerMode={readerMode} />
+          <WikiReadingPane page={page} readerMode={readerMode} relatedSections={relatedSections?.sections} />
         </div>
       )}
 

@@ -11,14 +11,15 @@ import { renderMarkdown } from "../../lib/wiki-renderer";
 import { WikiSection } from "./WikiSection";
 import { WikiReferencePanel } from "./WikiReferencePanel";
 import { useLocale } from "../../lib/i18n";
-import type { WikiPageViewModel } from "../../api/wiki";
+import type { WikiPageViewModel, WikiRelatedSection } from "../../api/wiki";
 
 interface WikiReadingPaneProps {
   page: WikiPageViewModel;
   readerMode: boolean;
+  relatedSections?: Record<string, WikiRelatedSection[]>;
 }
 
-export function WikiReadingPane({ page, readerMode }: WikiReadingPaneProps) {
+export function WikiReadingPane({ page, readerMode, relatedSections }: WikiReadingPaneProps) {
   const { t } = useLocale();
 
   return (
@@ -37,7 +38,12 @@ export function WikiReadingPane({ page, readerMode }: WikiReadingPaneProps) {
 
       {/* Sections */}
       {page.sections.map((sec) => (
-        <WikiSection key={sec.id} section={sec} readerMode={readerMode} />
+        <WikiSection
+          key={sec.id}
+          section={sec}
+          readerMode={readerMode}
+          relatedSections={relatedSections?.[sec.title] ?? []}
+        />
       ))}
 
       {/* Open questions */}

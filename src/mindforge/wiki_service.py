@@ -747,6 +747,64 @@ def _generate_wiki_synthesis(cfg: MindForgeConfig, model_id: str, prompt: str) -
 
 
 # ---------------------------------------------------------------------------
+# Wiki Related Sections (v0.4 U1)
+# ---------------------------------------------------------------------------
+
+
+def compute_wiki_related_sections(
+    section_card_map: dict[str, list[str]],
+    *,
+    top_n: int = 3,
+) -> dict[str, list[dict[str, object]]]:
+    """计算每个 Wiki section 的 related sections（基于共享 card 的 Jaccard overlap）。
+
+    Args:
+        section_card_map: section_title → card_id 列表的映射
+        top_n: 每个 section 最多返回的 related section 数量
+
+    Returns:
+        section_title → related section 列表，每项包含 title、overlap、shared_count
+    """
+    sections = list(section_card_map.keys())
+    if len(sections) <= 1:
+        return {}
+
+    # 预计算每个 section 的 card_id 集合
+    card_sets: dict[str, set[str]] = {
+        title: set(card_ids) for title, card_ids in section_card_map.items()
+    }
+
+    result: dict[str, list[dict[str, object]]] = {}
+    for sec_a in sections:
+        set_a = card_sets[sec_a]
+        if not set_a:
+            result[sec_a] = []
+            continue
+
+        scored: list[tuple[str, float, int]] = []
+        for sec_b in sections:
+            if sec_b == sec_a:
+                continue
+            set_b = card_sets[sec_b]
+            if not set_b:
+                continue
+            intersection = len(set_a & set_b)
+            if intersection == 0:
+                continue
+            union = len(set_a | set_b)
+            jaccard = intersection / union if union > 0 else 0.0
+            scored.append((sec_b, jaccard, intersection))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        result[sec_a] = [
+            {"title": title, "overlap": round(ov, 3), "shared_cards": shared}
+            for title, ov, shared in scored[:top_n]
+        ]
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Wiki heading normalization
 #
 # 中文学习型说明：Wiki heading 可能来自 card.title（确定性模板）或 LLM

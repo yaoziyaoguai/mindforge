@@ -344,3 +344,35 @@ def wiki_quality(facade: WebFacade = Depends(get_facade)):
         return {"exists": False, "error": "Failed to parse quality report JSON"}
 
     return {"exists": True, **data}
+
+
+@router.get("/related-sections")
+def wiki_related_sections(facade: WebFacade = Depends(get_facade)):
+    """返回每个 Wiki section 的 related sections（基于共享 card 的 Jaccard overlap）。
+
+    v0.4 U1: Wiki Related Sections — 从 Wiki markdown 解析 section→card 映射，
+    计算 section 间 Jaccard overlap，每个 section 返回 top 3 related sections。
+    """
+    from mindforge.wiki_service import read_main_wiki, compute_wiki_related_sections
+    from mindforge.wiki_view_model import _parse_wiki_marker_card_ids
+    import re as _re
+
+    markdown = read_main_wiki(facade.cfg)
+    if markdown is None:
+        return {"exists": False, "sections": {}}
+
+    # 解析 section→card_ids 映射
+    section_card_map: dict[str, list[str]] = {}
+    pattern = (
+        r"<!--\s*WIKI_SECTION_START\s+(?:card_ids|card)=([^>]+?)\s*-->\s*\n"
+        r"###\s+(.+?)\n"
+    )
+    for m in _re.finditer(pattern, markdown, _re.DOTALL):
+        card_ids_str = m.group(1).strip()
+        title = m.group(2).strip()
+        card_ids = _parse_wiki_marker_card_ids(card_ids_str)
+        if card_ids:
+            section_card_map[title] = card_ids
+
+    related = compute_wiki_related_sections(section_card_map)
+    return {"exists": True, "sections": related}
