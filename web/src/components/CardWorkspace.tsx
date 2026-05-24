@@ -249,8 +249,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
         </dl>
       </section>
 
-      {mode === "library" && "related_cards" in detail && detail.related_cards.length > 0 ? (
-        <RelatedCardsStrip
+      {mode === "library" && "related_cards" in detail ? (
+        <RelatedCardsPanel
           relatedCards={detail.related_cards}
           onSelectCard={onSelectCard}
           t={t}
@@ -403,37 +403,90 @@ function SummaryPanel({ body, card, open, onToggle, t, locale }: {
   );
 }
 
-function RelatedCardsStrip({ relatedCards, onSelectCard, t }: {
-  relatedCards: Array<{ card: LibraryCardResponse; reasons: Array<{ label: string; detail: string }> }>;
+/** Reason code → i18n key mapping for group headers. */
+const REASON_GROUP_KEYS: Record<string, string> = {
+  same_source: "library.related_group_same_source",
+  same_tag: "library.related_group_same_tag",
+  same_wiki_section: "library.related_group_same_wiki_section",
+  same_review_batch: "library.related_group_same_review_batch",
+  source_location_neighbor: "library.related_group_source_location_neighbor",
+};
+
+function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
+  relatedCards: Array<{ card: LibraryCardResponse; reasons: Array<{ reason: string; label: string; detail: string; strength: number }> }>;
   onSelectCard?: (ref: string) => void;
   t: (key: string) => string;
 }) {
+  if (relatedCards.length === 0) {
+    return (
+      <section className="border-t border-line p-5">
+        <h3 className="text-sm font-semibold text-ink">{t("library.related_cards")}</h3>
+        <p className="mt-3 text-sm text-muted leading-relaxed">{t("library.related_empty_guide")}</p>
+      </section>
+    );
+  }
+
+  // Group related cards by each reason. A card with multiple reasons appears in multiple groups.
+  const groups: Record<string, Array<{ card: LibraryCardResponse; ref: string; reasons: Array<{ label: string; detail: string }> }>> = {};
+  for (const rc of relatedCards) {
+    const ref = rc.card.id ?? rc.card.rel_path;
+    for (const r of rc.reasons) {
+      (groups[r.reason] ??= []).push({ card: rc.card, ref, reasons: rc.reasons });
+    }
+  }
+
+  // Sort groups by reason strength (roughly: same_source > same_wiki_section > same_tag > source_location_neighbor > same_review_batch)
+  const sortOrder = ["same_source", "same_wiki_section", "same_tag", "source_location_neighbor", "same_review_batch"];
+  const sortedReasons = Object.keys(groups).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
+
   return (
     <section className="border-t border-line p-5">
       <h3 className="text-sm font-semibold text-ink">{t("library.related_cards")}</h3>
-      <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
-        {relatedCards.map((rc) => {
-          const ref = rc.card.id ?? rc.card.rel_path;
-          const Icon = sourceTypeIcon(rc.card.source_type);
+      <div className="mt-3 space-y-4">
+        {sortedReasons.map((reason) => {
+          const firstReasons = cards[0]?.reasons ?? [];
+          const reasonObj = firstReasons.find(r => r.reason === reason);
+          const groupLabel = t(REASON_GROUP_KEYS[reason] ?? reason) || reasonObj?.label || reason;
+          const cards = groups[reason];
           return (
-            <button
-              key={ref}
-              type="button"
-              className="flex-shrink-0 w-48 rounded-md border border-line bg-white p-3 text-left hover:border-primary transition"
-              onClick={() => onSelectCard?.(ref)}
-            >
-              <h4 className="text-sm font-medium text-ink line-clamp-2">{rc.card.title ?? rc.card.rel_path}</h4>
-              <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted">
-                <Icon className="h-3 w-3" />
-                <span className="uppercase">{sourceTypeBadge(rc.card) ?? rc.card.source_type}</span>
-                <span className={`ml-auto h-1.5 w-1.5 rounded-full ${rc.card.status === "human_approved" ? "bg-safe" : "bg-warn"}`} />
+            <div key={reason}>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                {groupLabel} · {cards.length}
+              </h4>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {cards.map((rc) => {
+                  const Icon = sourceTypeIcon(rc.card.source_type);
+                  return (
+                    <button
+                      key={`${reason}-${rc.ref}`}
+                      type="button"
+                      className="flex-shrink-0 w-48 rounded-md border border-line bg-white p-3 text-left hover:border-primary transition"
+                      onClick={() => onSelectCard?.(rc.ref)}
+                    >
+                      <h4 className="text-sm font-medium text-ink line-clamp-2">{rc.card.title ?? rc.card.rel_path}</h4>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted">
+                        <Icon className="h-3 w-3" />
+                        <span className="uppercase">{sourceTypeBadge(rc.card) ?? rc.card.source_type}</span>
+                        {"quality_level" in rc.card && rc.card.quality_level ? (
+                          <span className={`ml-auto h-1.5 w-1.5 rounded-full ${
+                            rc.card.quality_level === "high" ? "bg-safe" :
+                            rc.card.quality_level === "medium" ? "bg-amber-500" :
+                            "bg-red-500"
+                          }`} title={`${rc.card.quality_level} (${(rc.card as LibraryCardResponse & { quality_score?: number }).quality_score})`} />
+                        ) : (
+                          <span className={`ml-auto h-1.5 w-1.5 rounded-full ${rc.card.status === "human_approved" ? "bg-safe" : "bg-warn"}`} />
+                        )}
+                      </div>
+                      {rc.reasons.length > 0 && (
+                        <p className="mt-1.5 text-[10px] text-muted leading-relaxed">
+                          {rc.reasons.map((r) => r.label).join(" · ")}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              {rc.reasons.length > 0 ? (
-                <p className="mt-1.5 text-[10px] text-muted leading-relaxed">
-                  {rc.reasons.map((r) => r.label).join(" · ")}
-                </p>
-              ) : null}
-            </button>
+            </div>
           );
         })}
       </div>

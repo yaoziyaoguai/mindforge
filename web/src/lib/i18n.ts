@@ -200,6 +200,12 @@ const copy: Record<Locale, LocaleDict> = {
     "library.summary_collapse": "收起概览",
     "library.summary_expand": "展开概览",
     "library.related_reasons": "关联原因",
+    "library.related_group_same_source": "同源",
+    "library.related_group_same_tag": "同标签",
+    "library.related_group_same_wiki_section": "同 Wiki 章节",
+    "library.related_group_same_review_batch": "同批次",
+    "library.related_group_source_location_neighbor": "源位置相邻",
+    "library.related_empty_guide": "此卡片暂无关联卡片。当更多卡片共享相同来源、标签或 Wiki 章节时，关联关系会自动出现。",
     "library.select_to_view": "选择卡片查看详情",
 
     // ---- CardWorkspace ----
@@ -669,6 +675,12 @@ const copy: Record<Locale, LocaleDict> = {
     "library.summary_collapse": "Collapse Overview",
     "library.summary_expand": "Expand Overview",
     "library.related_reasons": "Related via",
+    "library.related_group_same_source": "Same Source",
+    "library.related_group_same_tag": "Same Tag",
+    "library.related_group_same_wiki_section": "Same Wiki Section",
+    "library.related_group_same_review_batch": "Same Batch",
+    "library.related_group_source_location_neighbor": "Adjacent Source",
+    "library.related_empty_guide": "No related cards yet. When more cards share the same source, tags, or wiki sections, relationships will appear automatically.",
     "library.select_to_view": "Select a card to view details",
 
     // ---- CardWorkspace ----
