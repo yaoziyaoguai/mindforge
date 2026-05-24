@@ -307,10 +307,27 @@ class SetupConfigUpdateResponse(BaseModel):
     editable: SetupEditableConfigResponse
 
 
+class HealthIssueResponse(BaseModel):
+    code: str
+    severity: str
+    message: str
+    suggested_action: str
+    reason: str = ""
+    affected_card_ids: list[str] = Field(default_factory=list)
+
+
+class HealthReportResponse(BaseModel):
+    summary: str
+    stats: dict[str, int] = Field(default_factory=dict)
+    issues: list[HealthIssueResponse] = Field(default_factory=list)
+    maintenance_suggestions: list[str] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     ok: bool
     app: str = "MindForge Local Console"
     local_only: bool = True
+    report: HealthReportResponse | None = None
 
 
 class SourceStatus(BaseModel):

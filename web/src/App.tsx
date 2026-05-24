@@ -15,6 +15,7 @@ import { SourcesPage } from "./pages/SourcesPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { RecallPage } from "./pages/RecallPage";
 import { LibraryPage } from "./pages/LibraryPage";
+import { HealthPage } from "./pages/HealthPage";
 import { TrashPage } from "./pages/TrashPage";
 import { WikiPage } from "./pages/WikiPage";
 
@@ -73,6 +74,7 @@ export default function App() {
   if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
   if (!content && (path.startsWith("/recall") || path.startsWith("/search"))) content = <RecallPage onNavigate={navigate} />;
+  if (!content && path.startsWith("/health")) content = <HealthPage onNavigate={navigate} />;
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;

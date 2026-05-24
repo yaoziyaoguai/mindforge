@@ -27,6 +27,7 @@ from mindforge.library_service import (
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
 from mindforge.relations.local_graph import LocalGraph, NodeType, build_card_centered_graph
 from mindforge.relations.related_cards import RelatedCardEdge, compute_related_cards
+from mindforge.health.health_service import build_knowledge_health_report
 from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
@@ -34,6 +35,8 @@ from mindforge_web.schemas import (
     DraftDetailResponse,
     DraftsResponse,
     CardBodyUpdateResponse,
+    HealthIssueResponse,
+    HealthReportResponse,
     HealthResponse,
     HomeStatusResponse,
     IngestionActionResponse,
@@ -104,6 +107,33 @@ class WebFacade:
 
     def health(self) -> HealthResponse:
         return HealthResponse(ok=True, local_only=self.host in {"127.0.0.1", "localhost"})
+
+    def knowledge_health_report(self) -> HealthReportResponse:
+        try:
+            report = build_knowledge_health_report(self.cfg)
+        except Exception:  # noqa: BLE001 — diagnostic fallback
+            return HealthReportResponse(
+                summary="无法生成健康报告，请检查 vault 和 cards 目录是否可读。",
+                stats={},
+                issues=[],
+                maintenance_suggestions=[],
+            )
+        return HealthReportResponse(
+            summary=report.summary,
+            stats=report.stats,
+            issues=[
+                HealthIssueResponse(
+                    code=issue.code,
+                    severity=issue.severity.value,
+                    message=issue.message,
+                    suggested_action=issue.suggested_action,
+                    reason=issue.reason,
+                    affected_card_ids=list(issue.affected_card_ids),
+                )
+                for issue in report.issues
+            ],
+            maintenance_suggestions=list(report.maintenance_suggestions),
+        )
 
     def home_status(self) -> HomeStatusResponse:
         cards_scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)

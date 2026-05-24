@@ -1,4 +1,4 @@
-import { BookOpen, BookMarked, CheckSquare, Globe, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
+import { BookOpen, BookMarked, CheckSquare, Globe, Heart, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
 import { cx } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
@@ -22,6 +22,7 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
         { href: "/library", label: t("nav.library"), icon: Library },
         { href: "/wiki", label: t("nav.wiki"), icon: BookMarked },
         { href: "/recall", label: t("nav.recall"), icon: Search },
+        { href: "/health", label: t("nav.health"), icon: Heart },
       ],
     },
   ];

@@ -43,11 +43,22 @@ function sourceTypeBadge(sourceType: string | null | undefined): string {
 }
 
 export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; onRefresh?: () => void }) {
-  const initialRef = new URLSearchParams(window.location.search).get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialRef = searchParams.get("card") ?? data.cards[0]?.id ?? data.cards[0]?.rel_path;
+  const filterCardsParam = searchParams.get("cards");
   const [selected, setSelected] = useState<string | undefined>(initialRef ?? undefined);
   const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { locale, t } = useLocale();
+
+  // Support ?cards=id1,id2 filtering (from Health Page exploration links)
+  const filterIds = filterCardsParam ? filterCardsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
+  const displayedCards = filterIds
+    ? data.cards.filter((card) => {
+        const ref = card.id ?? card.rel_path;
+        return filterIds.includes(ref);
+      })
+    : data.cards;
 
   useEffect(() => {
     if (!selected) return;
@@ -90,6 +101,13 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     }
   }
 
+  function clearFilter() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("cards");
+    window.history.pushState({}, "", url.toString());
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
+
   if (data.cards.length === 0) {
     return (
       <div className="space-y-6">
@@ -112,10 +130,25 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
+          <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
+        </div>
+        {filterIds ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-sm text-muted hover:text-ink"
+            onClick={clearFilter}
+          >
+            <X className="h-4 w-4" /> Clear filter ({displayedCards.length}/{data.cards.length})
+          </button>
+        ) : null}
       </header>
+
+      {filterIds && displayedCards.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatusCard label={t("library.stats_approved")} value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail={t("library.stats_approved_detail")} locale={locale} />
@@ -126,7 +159,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
       {/* Card Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {data.cards.map((card) => {
+        {displayedCards.map((card) => {
           const ref = card.id ?? card.rel_path;
           const isSelected = selected === ref;
           const accent = sourceTypeAccent[card.source_type ?? ""] ?? "border-t-neutral-300";

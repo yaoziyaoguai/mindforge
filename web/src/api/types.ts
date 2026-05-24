@@ -671,3 +671,21 @@ export interface TrashActionResponse {
   restored_path?: string | null;
   conflict_resolved: boolean;
 }
+
+// -- U5 Knowledge Health Report --
+
+export interface HealthIssueResponse {
+  code: string;
+  severity: "critical" | "warn" | "info";
+  message: string;
+  suggested_action: string;
+  reason: string;
+  affected_card_ids: string[];
+}
+
+export interface HealthReportResponse {
+  summary: string;
+  stats: Record<string, number>;
+  issues: HealthIssueResponse[];
+  maintenance_suggestions: string[];
+}
