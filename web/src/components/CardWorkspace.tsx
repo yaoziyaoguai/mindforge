@@ -188,6 +188,16 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
         />
       ) : null}
 
+      {/* v1.4 W1: Relationship Map as primary navigation — elevated from bottom section */}
+      {mode === "library" && (card.id || card.rel_path) ? (
+        <div className="px-5 pt-5">
+          <GraphNavigationPanel
+            cardRef={card.id ?? card.rel_path ?? ""}
+            onSelectCard={onSelectCard}
+          />
+        </div>
+      ) : null}
+
       <QualityPanel cardId={card.id ?? ""} />
 
       {mode === "library" && trail && (trail.source.source_title || trail.sibling_cards.length > 0 || trail.wiki_sections.length > 0) ? (
@@ -196,13 +206,6 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
 
       {mode === "library" && "local_graph" in detail ? (
         <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} onSelectCard={onSelectCard} />
-      ) : null}
-
-      {mode === "library" && (card.id || card.rel_path) ? (
-        <GraphNavigationPanel
-          cardRef={card.id ?? card.rel_path ?? ""}
-          onSelectCard={onSelectCard}
-        />
       ) : null}
 
       <section className="p-5">
