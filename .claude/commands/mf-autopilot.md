@@ -130,6 +130,57 @@ spec / plan
 - 不在 commit 后停下来问用户是否继续
 - 只有触发 §6 的停止条件时才停
 
+### 4.1 Auto-continue contract
+
+如果最终报告能写出明确的下一步行动，Autopilot 必须立即进入下一步，不得停止。
+
+明确的下一步行动包括但不限于：
+- "继续 U2"
+- "下一个 milestone 是 X"
+- "实现下一个 roadmap item"
+- "写下一个 spec"
+- "跑下一个 smoke"
+
+禁止输出"下一步是 X"然后停止。
+
+**commit/push 不是停止点，是检查点。** commit/push 后，Autopilot 必须：
+1. 重新建立工程事实（git status、branch、log）
+2. 按需重新读取活跃 roadmap/spec/notes
+3. 判断是否存在 hard-stop
+4. 如无 hard-stop，继续下一轮
+
+### 4.2 Stop reason must be explicit
+
+如果 Autopilot 停止，必须输出以下其中一个 stop reason：
+
+- `HARD_STOP_SECRET` — 需要真实 API key / secrets
+- `HARD_STOP_REAL_LLM` — 需要调用真实 LLM / Cubox / Upstage
+- `HARD_STOP_PRIVATE_DATA` — 需要处理真实私人资料
+- `HARD_STOP_OBSIDIAN_WRITE` — 需要写真实 Obsidian vault
+- `HARD_STOP_MAIL_STORAGE` — 需要 mail storage / email / mail
+- `HARD_STOP_RAG_EMBEDDING` — 需要 RAG / embedding / vector DB
+- `HARD_STOP_LARGE_DEPENDENCY` — 需要新增大型框架 / 重依赖
+- `HARD_STOP_APPROVAL_SEMANTICS` — 改变 explicit approval / human_approved 安全语义
+- `HARD_STOP_PRODUCT_DECISION` — 产品判断真正模糊不清，无法从 roadmap/spec/plan 推断
+- `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` — context 低于安全阈值，已写 handoff
+- `HARD_STOP_P0_P1_RETRY_EXCEEDED` — P0/P1 超过 2 轮回退上限
+- `HARD_STOP_GIT_UNSAFE_STATE` — git 状态不安全（非 clean、非 fast-forward）
+
+如果以上无一适用，Autopilot 必须继续。
+
+### 4.3 Context policy
+
+根据 context 剩余比例决定行为：
+
+| Context | 行为 |
+|---------|------|
+| ≥ 15% | 正常执行，可开始新实现单元 |
+| < 15% | 不开始大型新实现单元（除非小且边界清晰） |
+| < 10% | 只完成当前单元、跑 gate、写 notes/handoff、commit/push |
+| < 5% | 立即写 handoff、跑最小 gate、commit/push、停止并输出 `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` |
+
+不要仅因为 milestone 完成就停止。不要因为 context 低就停在口头报告——必须写 handoff 文档落地。
+
 ---
 
 ## 5. 允许自动继续的范围
@@ -206,6 +257,23 @@ spec / plan
 - 不能把 code-level review 伪装成 browser smoke
 - gate 不通过不得 commit
 
+### 7.1 Gate evidence rule
+
+不得使用 `tail`、`head` 或截断的命令输出来证明 gate passed。
+
+每个 gate 必须报告：
+- 精确的完整命令
+- 是否 timeout
+- 真实 exit code
+- 如果失败，失败摘要
+- 如果声称 pre-existing，必须提供证据（clean tree 复现 / stash 验证 / 之前 run 记录）
+
+禁止的表述：
+- `pytest full: 0 (1 pre-existing)` — 必须说明哪个测试 pre-existing、证据是什么
+- `build passed` — 必须给出 `npm --prefix web run build` 的 exit code
+- timeout 后声称 passed
+- 没有可见 exit code 就声称 passed
+
 ---
 
 ## 8. Commit / Push 规则
@@ -262,7 +330,8 @@ spec / plan
 
 ### 继续判断
 - 是否继续下一轮: yes / no
-- 如果停止，stop reason: <原因 — 必须是真正的 hard-stop reason>
+- 如果停止，stop reason: <HARD_STOP_* code — 必须是 §4.2 中的 hard-stop reason>
+- 如果继续，下一步: <具体行动描述>
 ```
 
 ---
