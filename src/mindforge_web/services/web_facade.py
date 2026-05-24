@@ -26,6 +26,13 @@ from mindforge.library_service import (
     show_library_card,
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
+from mindforge.relations.graph_builder import DeterministicGraphBuilder
+from mindforge.relations.graph_models import (
+    Graph as GraphResult,
+    GraphEdge,
+    GraphNode,
+    NodeType as GraphNodeType,
+)
 from mindforge.relations.local_graph import LocalGraph, NodeType, build_card_centered_graph
 from mindforge.relations.related_cards import RelatedCardEdge, compute_related_cards
 from mindforge.health.health_service import build_knowledge_health_report
@@ -36,6 +43,10 @@ from mindforge_web.schemas import (
     DraftDetailResponse,
     DraftsResponse,
     CardBodyUpdateResponse,
+    GraphEdgeDetailResponse,
+    GraphEdgeResponse,
+    GraphNodeResponse,
+    GraphResponse,
     HealthIssueResponse,
     HealthReportResponse,
     HealthResponse,
@@ -391,6 +402,48 @@ class WebFacade:
         if isinstance(detail, LibraryLookupError):
             return None
         return _provenance_trail_response(self.cfg, detail)
+
+    # ── v0.6 Graph API ──────────────────────────────
+
+    def get_graph_node(self, ref: str, *, depth: int = 2) -> GraphResponse | None:
+        """以卡片为中心的图。"""
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return None
+        card_id = _resolve_card_id(self.cfg, ref)
+        if card_id is None:
+            return None
+        graph = builder.get_graph(card_id, GraphNodeType.CARD, depth=depth)
+        return _graph_response(graph)
+
+    def get_graph_explore(
+        self, node_type: str, node_id: str, *, depth: int = 1,
+    ) -> GraphResponse | None:
+        """以任意 NodeType 为中心的图浏览。"""
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return None
+        try:
+            nt = GraphNodeType(node_type)
+        except ValueError:
+            return None
+        graph = builder.get_graph(node_id, nt, depth=depth)
+        return _graph_response(graph)
+
+    def get_graph_edge(self, source: str, target: str) -> GraphEdgeDetailResponse | None:
+        """查询两节点间的所有边及其可解释证据。"""
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return None
+        edges = builder.get_edges(source, direction="outgoing")
+        matching = [e for e in edges if e.target_id == target]
+        if not matching:
+            return None
+        return GraphEdgeDetailResponse(
+            source_id=source,
+            target_id=target,
+            edges=[_graph_edge_response(e) for e in matching],
+        )
 
     def compute_card_quality(self, card_id: str):
         """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
@@ -989,6 +1042,63 @@ def _relation_reason_label(reason: str) -> str:
         "manual_link": "Manual link",
     }
     return labels.get(reason, reason.replace("_", " ").title())
+
+
+# ── v0.6 Graph helpers ──────────────────────────────
+
+
+def _build_graph_builder(cfg: MindForgeConfig) -> DeterministicGraphBuilder | None:
+    """从 vault 中所有 approved cards 构建 DeterministicGraphBuilder。"""
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    approved = [card for card in scan.cards if card.status == "human_approved"]
+    if not approved:
+        return None
+    records = [_relation_record(card) for card in approved]
+    return DeterministicGraphBuilder(records)
+
+
+def _resolve_card_id(cfg: MindForgeConfig, ref: str) -> str | None:
+    """将用户输入的 ref 解析为卡片 id。"""
+    detail = show_library_card(cfg, ref, show_content=False)
+    if isinstance(detail, LibraryLookupError):
+        return None
+    return detail.card.summary.id or detail.card.summary.rel_path
+
+
+def _graph_response(graph: GraphResult) -> GraphResponse:
+    """将内部 Graph 转换为 API response。"""
+    return GraphResponse(
+        center_id=graph.center_id,
+        center_type=graph.center_type.value,
+        depth=graph.depth,
+        nodes=[_graph_node_response(n) for n in graph.nodes],
+        edges=[_graph_edge_response(e) for e in graph.edges],
+    )
+
+
+def _graph_node_response(node: GraphNode) -> GraphNodeResponse:
+    return GraphNodeResponse(
+        id=node.id,
+        type=node.type.value,
+        label=node.label,
+        href=node.href,
+        card_count=node.card_count,
+    )
+
+
+def _graph_edge_response(edge: GraphEdge) -> GraphEdgeResponse:
+    from mindforge_web.schemas import RelationEvidenceResponse
+    return GraphEdgeResponse(
+        source_id=edge.source_id,
+        target_id=edge.target_id,
+        edge_type=edge.edge_type.value,
+        evidence=RelationEvidenceResponse(
+            reason=edge.evidence.reason,
+            evidence=edge.evidence.evidence,
+            strength=edge.evidence.strength,
+            detail=edge.evidence.detail,
+        ),
+    )
 
 
 def _provenance_trail_response(

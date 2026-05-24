@@ -564,6 +564,51 @@ class LibraryCardDetailResponse(BaseModel):
     related_cards: list[RelatedCardResponse] = Field(default_factory=list)
 
 
+# -- v0.6 Graph API -----------------------------------------------------------
+
+
+class RelationEvidenceResponse(BaseModel):
+    """图中边的可解释证据。"""
+    reason: str
+    evidence: str
+    strength: float
+    detail: dict = Field(default_factory=dict)
+
+
+class GraphNodeResponse(BaseModel):
+    id: str
+    type: Literal["card", "source", "wiki_section", "tag", "concept"]
+    label: str
+    href: str | None = None
+    card_count: int = 0
+
+
+class GraphEdgeResponse(BaseModel):
+    source_id: str
+    target_id: str
+    edge_type: Literal[
+        "derived_from", "mentions", "shares_tag",
+        "related_by_source", "related_by_wiki_section",
+        "similar_title_or_term", "approval_state_of",
+        "links_to", "wiki_section_reference",
+    ]
+    evidence: RelationEvidenceResponse
+
+
+class GraphResponse(BaseModel):
+    center_id: str
+    center_type: Literal["card", "source", "wiki_section", "tag", "concept"]
+    depth: int
+    nodes: list[GraphNodeResponse] = Field(default_factory=list)
+    edges: list[GraphEdgeResponse] = Field(default_factory=list)
+
+
+class GraphEdgeDetailResponse(BaseModel):
+    source_id: str
+    target_id: str
+    edges: list[GraphEdgeResponse] = Field(default_factory=list)
+
+
 # -- U3 Provenance Trail ------------------------------------------------------
 
 class ProvenanceTrailSource(BaseModel):
