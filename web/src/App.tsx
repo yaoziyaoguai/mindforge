@@ -7,6 +7,7 @@ import { getSources } from "./api/sources";
 import type { ConfigStatusResponse, DraftsResponse, HomeStatusResponse, LibraryCardsResponse, SafetySummary, SourcesResponse, WorkflowSummaryResponse } from "./api/types";
 import { AppShell } from "./components/AppShell";
 import { ErrorState } from "./components/ErrorState";
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { LocaleProvider } from "./lib/i18n";
 import { HomePage } from "./pages/HomePage";
 import { SetupPage } from "./pages/SetupPage";
@@ -75,7 +76,10 @@ export default function App() {
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
-  if (!content) content = <div className="text-sm text-muted">Loading...</div>;
+  if (!content) {
+    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : "default";
+    content = <LoadingSkeleton variant={variant as "default" | "wiki" | "library" | "drafts"} />;
+  }
 
   return (
     <LocaleProvider>

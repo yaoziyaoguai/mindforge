@@ -16,6 +16,7 @@ import { WikiAdvancedActions } from "../components/wiki/WikiAdvancedActions";
 import { WikiEmptyState } from "../components/wiki/WikiEmptyState";
 import { WikiErrorState } from "../components/wiki/WikiErrorState";
 import { WikiLoadingState } from "../components/wiki/WikiLoadingState";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { useLocale } from "../lib/i18n";
 import type { WikiPageViewModel, WikiQualityResponse } from "../api/wiki";
 
@@ -135,7 +136,7 @@ export function WikiPage() {
     return (
       <div className="space-y-6">
         <WikiHeader />
-        <WikiLoadingState />
+        <LoadingSkeleton variant="wiki" />
       </div>
     );
   }

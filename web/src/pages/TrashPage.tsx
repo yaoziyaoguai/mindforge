@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getTrashCards, getTrashDetail, restoreTrashCard } from "../api/trash";
 import type { TrashCardResponse, TrashDetailResponse } from "../api/types";
+import { EmptyState } from "../components/EmptyState";
 import { useLocale } from "../lib/i18n";
 import { friendlyStatus } from "../lib/utils";
 
@@ -61,7 +62,15 @@ export function TrashPage({ onRefresh }: { onRefresh?: () => void }) {
         {/* Card list */}
         <div className="space-y-2 lg:col-span-1">
           {cards.length === 0 ? (
-            <div className="rounded-md border border-line p-4 text-sm text-muted">{t("trash.empty")}</div>
+            <EmptyState
+              title={t("trash.empty_title")}
+              action={{
+                label: t("trash.empty_action"),
+                description: t("trash.empty_desc"),
+                href: "/drafts",
+              }}
+              locale={locale}
+            />
           ) : (
             cards.map((card) => (
               <button
