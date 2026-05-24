@@ -886,6 +886,13 @@ class DiscoverySourceRefResponse(BaseModel):
     card_count: int
 
 
+class DiscoveryCommunityRefResponse(BaseModel):
+    community_type: str  # "source", "tag", "wiki_section"
+    shared_entity: str
+    member_count: int
+    description: str
+
+
 class DiscoveryContextResponse(BaseModel):
     center_card_id: str
     center_card_title: str
@@ -894,6 +901,7 @@ class DiscoveryContextResponse(BaseModel):
     wiki_sections: list[DiscoverySectionRefResponse] = Field(default_factory=list)
     shared_tags: list[DiscoveryTagRefResponse] = Field(default_factory=list)
     shared_sources: list[DiscoverySourceRefResponse] = Field(default_factory=list)
+    communities: list[DiscoveryCommunityRefResponse] = Field(default_factory=list)
 
 
 # ============================================================================

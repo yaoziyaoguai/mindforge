@@ -1,12 +1,17 @@
 """v0.6 R6 Discovery Context unit tests.
 
 中文学习型说明：测试 assemble_discovery_context() 的确定性行为，
-包括 1-hop/2-hop 邻居分类、wiki sections/tags/sources 聚合。
+包括 1-hop/2-hop 邻居分类、wiki sections/tags/sources 聚合，
+以及 v1.2 U4 的知识社区分组。
 """
 
 from __future__ import annotations
 
-from mindforge.relations.discovery_context import assemble_discovery_context
+from mindforge.relations.community import detect_communities
+from mindforge.relations.discovery_context import (
+    DiscoveryCommunityRef,
+    assemble_discovery_context,
+)
 from mindforge.relations.graph_builder import DeterministicGraphBuilder
 
 
@@ -212,3 +217,124 @@ class TestAssembleDiscoveryContext:
         # depth=1 时没有 2-hop 邻居
         assert len(ctx.neighbor_cards) == 0, \
             f"Depth=1 graph should have no 2-hop neighbors, got {len(ctx.neighbor_cards)}"
+
+    # ── v1.2 U4 Knowledge Community grouping ──────────
+
+    def test_communities_present_for_center_card(self):
+        """验证中心卡片所属社区被正确包含。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        assert len(ctx.communities) >= 1, \
+            f"Expected at least one community, got {len(ctx.communities)}"
+
+    def test_communities_filtered_to_center_only(self):
+        """验证返回的社区都包含中心卡片。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        for c in ctx.communities:
+            # center_card 在社区中 — 由 _center_communities_for 的过滤保证
+            assert c.member_count >= 2, \
+                f"Community {c.shared_entity} should have at least 2 members"
+
+    def test_communities_include_source_type(self):
+        """验证 source 类型社区被正确返回。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        source_comms = [c for c in ctx.communities if c.community_type == "source"]
+        assert len(source_comms) >= 1, \
+            f"Expected at least one source community, got: {[c.community_type for c in ctx.communities]}"
+        assert source_comms[0].shared_entity == "src_a"
+
+    def test_communities_include_tag_type(self):
+        """验证 tag 类型社区被正确返回。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        tag_comms = [c for c in ctx.communities if c.community_type == "tag"]
+        assert len(tag_comms) >= 1, \
+            f"Expected at least one tag community, got: {[c.community_type for c in ctx.communities]}"
+
+    def test_communities_include_wiki_section_type(self):
+        """验证 wiki_section 类型社区被正确返回。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        section_comms = [c for c in ctx.communities if c.community_type == "wiki_section"]
+        assert len(section_comms) >= 1, \
+            f"Expected at least one wiki_section community, got: {[c.community_type for c in ctx.communities]}"
+
+    def test_communities_have_description(self):
+        """验证每个社区都有非空描述。"""
+        cards = _make_cards()
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("card_1", "card", depth=2)
+        communities = _center_communities_for("card_1", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        for c in ctx.communities:
+            assert c.description, \
+                f"Community {c.shared_entity} missing description"
+            assert c.community_type in c.description or c.shared_entity in c.description, \
+                f"Description '{c.description}' should reference type or entity"
+
+    def test_empty_communities_for_isolated_card(self):
+        """验证孤立卡片返回空社区列表。"""
+        cards = [
+            {
+                "id": "isolated_card",
+                "title": "Isolated",
+                "status": "human_approved",
+                "source_id": "only_me",
+                "tags": ["solo"],
+                "wiki_sections": ["Alone"],
+                "run_id": None,
+                "source_location_index": None,
+            },
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        graph = builder.get_graph("isolated_card", "card", depth=2)
+        communities = _center_communities_for("isolated_card", cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
+        assert len(ctx.communities) == 0, \
+            f"Isolated card should have no communities, got {len(ctx.communities)}"
+
+    def test_communities_deterministic(self):
+        """验证社区信息也具有确定性（相同输入 → 相同输出）。"""
+        cards = _make_cards()
+        communities1 = _center_communities_for("card_1", cards)
+        communities2 = _center_communities_for("card_1", cards)
+        assert len(communities1) == len(communities2)
+        for c1, c2 in zip(communities1, communities2):
+            assert c1.community_type == c2.community_type
+            assert c1.shared_entity == c2.shared_entity
+            assert c1.member_count == c2.member_count
+
+
+def _center_communities_for(
+    center_card_id: str,
+    cards: list[dict[str, object]],
+) -> tuple[DiscoveryCommunityRef, ...]:
+    """Helper：检测中心卡片所属的知识社区。"""
+    all_communities = detect_communities(cards, min_members=2)
+    result: list[DiscoveryCommunityRef] = []
+    for c in all_communities:
+        if center_card_id in c.member_card_ids:
+            result.append(DiscoveryCommunityRef(
+                community_type=c.community_type,
+                shared_entity=c.shared_entity,
+                member_count=c.member_count,
+                description=c.description,
+            ))
+    return tuple(result)

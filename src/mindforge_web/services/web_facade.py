@@ -27,6 +27,7 @@ from mindforge.library_service import (
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
 from mindforge.relations.discovery_context import (
+    DiscoveryCommunityRef,
     DiscoveryContext,
     assemble_discovery_context,
 )
@@ -45,6 +46,7 @@ from mindforge.strategy_display import strategy_display
 from mindforge_web.schemas import (
     ConfigStatusResponse,
     DiscoveryCardRefResponse,
+    DiscoveryCommunityRefResponse,
     DiscoveryContextResponse,
     DiscoverySectionRefResponse,
     DiscoverySourceRefResponse,
@@ -459,6 +461,8 @@ class WebFacade:
 
         中文学习型说明：组装 1-hop + 2-hop 邻居、wiki sections、共享 tags、
         共享 sources 的结构化上下文。不做 LLM answering / RAG generation。
+
+        v1.2 U4：额外包含中心卡片所属的知识社区（source/tag/wiki_section 分组）。
         """
         builder = _build_graph_builder(self.cfg)
         if builder is None:
@@ -467,7 +471,8 @@ class WebFacade:
         if card_id is None:
             return None
         graph = builder.get_graph(card_id, GraphNodeType.CARD, depth=2)
-        ctx = assemble_discovery_context(graph)
+        communities = _center_card_communities(card_id, builder._cards)
+        ctx = assemble_discovery_context(graph, communities=communities)
         return _discovery_context_response(ctx)
 
     def compute_card_quality(self, card_id: str):
@@ -1176,7 +1181,40 @@ def _discovery_context_response(ctx: DiscoveryContext) -> DiscoveryContextRespon
             DiscoverySourceRefResponse(source_id=s.source_id, card_count=s.card_count)
             for s in ctx.shared_sources
         ],
+        communities=[
+            DiscoveryCommunityRefResponse(
+                community_type=c.community_type,
+                shared_entity=c.shared_entity,
+                member_count=c.member_count,
+                description=c.description,
+            )
+            for c in ctx.communities
+        ],
     )
+
+
+def _center_card_communities(
+    center_card_id: str,
+    cards: list[dict[str, object]],
+) -> tuple[DiscoveryCommunityRef, ...]:
+    """检测中心卡片所属的知识社区（v1.2 U4）。
+
+    对所有卡片运行 detect_communities，筛选出包含 center_card_id 的社区，
+    返回 DiscoveryCommunityRef 元组。
+    """
+    from mindforge.relations.community import detect_communities
+
+    all_communities = detect_communities(cards, min_members=2)
+    result: list[DiscoveryCommunityRef] = []
+    for c in all_communities:
+        if center_card_id in c.member_card_ids:
+            result.append(DiscoveryCommunityRef(
+                community_type=c.community_type,
+                shared_entity=c.shared_entity,
+                member_count=c.member_count,
+                description=c.description,
+            ))
+    return tuple(result)
 
 
 def _graph_neighbor_count(

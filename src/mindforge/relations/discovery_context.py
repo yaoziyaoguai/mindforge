@@ -44,6 +44,15 @@ class DiscoverySourceRef:
 
 
 @dataclass(frozen=True)
+class DiscoveryCommunityRef:
+    """发现上下文中引用的知识社区。"""
+    community_type: str  # "source", "tag", "wiki_section"
+    shared_entity: str
+    member_count: int
+    description: str
+
+
+@dataclass(frozen=True)
 class DiscoveryContext:
     """图感知的发现上下文。
 
@@ -62,14 +71,23 @@ class DiscoveryContext:
     """中心卡片涉及的 tags 及其覆盖卡片数。"""
     shared_sources: tuple[DiscoverySourceRef, ...] = ()
     """中心卡片涉及的 sources 及其覆盖卡片数。"""
+    communities: tuple[DiscoveryCommunityRef, ...] = ()
+    """中心卡片所属的知识社区（source/tag/wiki_section 分组）。"""
 
 
-def assemble_discovery_context(graph: Graph) -> DiscoveryContext:
+def assemble_discovery_context(
+    graph: Graph,
+    *,
+    communities: tuple[DiscoveryCommunityRef, ...] = (),
+) -> DiscoveryContext:
     """从图数据组装发现上下文。
 
     中文学习型说明：此函数负责将 Graph 数据结构重组为 DiscoveryContext。
     它不构建图（图构建由 GraphBuilder 负责），只做数据转换和聚合。
     这是 deterministic 的纯函数：相同输入 → 相同输出。
+
+    额外接受 knowledge communities（由外部 detect_communities 产出），
+    以保持此函数仍是 Graph 的纯函数。
     """
     center_node = next(
         (n for n in graph.nodes if n.id == graph.center_id and n.type == NodeType.CARD),
@@ -155,6 +173,7 @@ def assemble_discovery_context(graph: Graph) -> DiscoveryContext:
         wiki_sections=tuple(wiki_sections),
         shared_tags=tuple(shared_tags),
         shared_sources=tuple(shared_sources),
+        communities=communities,
     )
 
 
@@ -163,6 +182,7 @@ __all__ = [
     "DiscoverySectionRef",
     "DiscoveryTagRef",
     "DiscoverySourceRef",
+    "DiscoveryCommunityRef",
     "DiscoveryContext",
     "assemble_discovery_context",
 ]
