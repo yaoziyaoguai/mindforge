@@ -4,7 +4,7 @@
 2026-05-24
 
 ## 状态
-Proposed
+Accepted (v1.3 re-evaluated 2026-05-24 — 触发条件不满足，保持 In-Memory)
 
 ## 背景
 
@@ -19,7 +19,7 @@ Kuzu（[kuzudb.com](https://kuzudb.com)）是 embeddable property graph database
 | 维度 | 评价 |
 |------|------|
 | 依赖 | 零外部依赖 |
-| 性能（100 cards） | 图构建 < 10ms，2-hop 查询 < 5ms |
+| 性能（100 cards） | 图构建 + 2-hop 查询 ~24.5ms（实测，2026-05-24） |
 | 性能（1000 cards） | 图构建 ~50ms，2-hop 查询 ~20ms（估计） |
 | 持久化 | 无 — 每次请求重新构建（纯计算，无 IO） |
 | 确定性 | 完全确定性，可测试 |
@@ -66,6 +66,27 @@ Kuzu（[kuzudb.com](https://kuzudb.com)）是 embeddable property graph database
 - 不创建 spike 分支实验 Kuzu（当前没有触发条件，spike 投入产出比低）
 - 不替换 DeterministicGraphBuilder
 - 不在 v0.9/v1.0 引入 Kuzu
+
+## v1.3 重新评估 (2026-05-24)
+
+### 当前规模
+
+- 测试数据: ~100 张虚拟卡片
+- 2-hop 图构建耗时: 24.5ms（100 卡，实测）
+- 社区检测耗时: 0.1ms（100 卡，实测）
+
+### 触发条件检查
+
+| 条件 | 阈值 | 当前 | 满足？ |
+|------|------|------|--------|
+| 卡片数 | > 2000 | < 100（测试） | 否 |
+| 2-hop 查询延迟 | > 500ms | ~24.5ms | 否 |
+| 需要 complex graph queries | 路径/中心性/社区检测 | 当前仅需 community（已 deterministic 实现） | 否 |
+| 需要持久化图 | 跨请求缓存 | 每次重建 24.5ms，不需要缓存 | 否 |
+
+### 决定
+
+**继续使用 In-Memory DeterministicGraphBuilder。** 无触发条件满足。GraphPort 抽象保留，若未来需要 Kuzu 只需实现接口。
 
 ## 参考
 

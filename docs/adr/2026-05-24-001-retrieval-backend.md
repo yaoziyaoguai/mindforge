@@ -4,7 +4,7 @@
 2026-05-24
 
 ## 状态
-Proposed
+Accepted (v1.3 re-evaluated 2026-05-24 — 触发条件不满足，保持 BM25)
 
 ## 背景
 
@@ -83,6 +83,26 @@ MindForge 当前使用纯 Python BM25 实现（`lexical_index.py`）作为全文
 4. 新增 `SqliteFts5Engine` 的 golden tests
 5. 通过 `mindforge.yaml` 配置项切换引擎
 6. BM25 保留为 fallback，FTS5 索引损坏时自动回退
+
+## v1.3 重新评估 (2026-05-24)
+
+### 当前规模
+
+- Demo vault: 未部署（开发环境无真实 vault）
+- 测试数据: ~100 张虚拟卡片
+- 实际用户卡片: 0（尚未 dogfood）
+
+### 触发条件检查
+
+| 条件 | 阈值 | 当前 | 满足？ |
+|------|------|------|--------|
+| 卡片数 | > 500 | < 100（测试） | 否 |
+| 索引构建时间 | > 500ms | ~30ms（100 卡，实测） | 否 |
+| 用户反馈延迟 | > 200ms | < 10ms | 否 |
+
+### 决定
+
+**继续使用纯 Python BM25。** 无触发条件满足。RetrievalPort 抽象保留，若未来切换只需新增 SqliteFts5Engine 适配器。
 
 ## 参考
 
