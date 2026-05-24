@@ -838,6 +838,9 @@ class RecallHit(BaseModel):
     tags: list[str]
     source_type: str | None
     why_this_matched: str
+    # v0.6 R6: graph context enrichment（context=graph 时填充）
+    graph_neighbor_count: int | None = None
+    graph_shared_tag_count: int | None = None
 
 
 class RecallResponse(BaseModel):
@@ -846,6 +849,42 @@ class RecallResponse(BaseModel):
     index: RecallStatus
     warnings: list[str] = Field(default_factory=list)
     empty_state: NextAction | None = None
+
+
+# -- v0.6 R6 Discovery Context ------------------------------------------------
+
+
+class DiscoveryCardRefResponse(BaseModel):
+    card_id: str
+    title: str
+    relation_reason: str
+    relation_strength: float
+    evidence: str
+
+
+class DiscoverySectionRefResponse(BaseModel):
+    section_title: str
+    card_count: int
+
+
+class DiscoveryTagRefResponse(BaseModel):
+    tag: str
+    card_count: int
+
+
+class DiscoverySourceRefResponse(BaseModel):
+    source_id: str
+    card_count: int
+
+
+class DiscoveryContextResponse(BaseModel):
+    center_card_id: str
+    center_card_title: str
+    direct_matches: list[DiscoveryCardRefResponse] = Field(default_factory=list)
+    neighbor_cards: list[DiscoveryCardRefResponse] = Field(default_factory=list)
+    wiki_sections: list[DiscoverySectionRefResponse] = Field(default_factory=list)
+    shared_tags: list[DiscoveryTagRefResponse] = Field(default_factory=list)
+    shared_sources: list[DiscoverySourceRefResponse] = Field(default_factory=list)
 
 
 # ============================================================================

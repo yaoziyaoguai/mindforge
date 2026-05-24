@@ -26,6 +26,10 @@ from mindforge.library_service import (
     show_library_card,
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
+from mindforge.relations.discovery_context import (
+    DiscoveryContext,
+    assemble_discovery_context,
+)
 from mindforge.relations.graph_builder import DeterministicGraphBuilder
 from mindforge.relations.graph_models import (
     Graph as GraphResult,
@@ -40,6 +44,11 @@ from mindforge.strategy_display import strategy_display
 
 from mindforge_web.schemas import (
     ConfigStatusResponse,
+    DiscoveryCardRefResponse,
+    DiscoveryContextResponse,
+    DiscoverySectionRefResponse,
+    DiscoverySourceRefResponse,
+    DiscoveryTagRefResponse,
     DraftDetailResponse,
     DraftsResponse,
     CardBodyUpdateResponse,
@@ -445,6 +454,22 @@ class WebFacade:
             edges=[_graph_edge_response(e) for e in matching],
         )
 
+    def get_discovery_context(self, ref: str) -> DiscoveryContextResponse | None:
+        """获取以卡片为中心的 graph-aware 发现上下文（R6）。
+
+        中文学习型说明：组装 1-hop + 2-hop 邻居、wiki sections、共享 tags、
+        共享 sources 的结构化上下文。不做 LLM answering / RAG generation。
+        """
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return None
+        card_id = _resolve_card_id(self.cfg, ref)
+        if card_id is None:
+            return None
+        graph = builder.get_graph(card_id, GraphNodeType.CARD, depth=2)
+        ctx = assemble_discovery_context(graph)
+        return _discovery_context_response(ctx)
+
     def compute_card_quality(self, card_id: str):
         """计算单张卡片的 quality metadata（M1 — SDD §4.1）。"""
         from mindforge.cards import CardScanResult, iter_cards
@@ -547,7 +572,7 @@ class WebFacade:
     def update_draft_body(self, draft_id: str, body: str) -> CardBodyUpdateResponse | None:
         return self.review_service.update_draft_body(draft_id, body)
 
-    def recall(self, query: str) -> RecallResponse:
+    def recall(self, query: str, *, context: str | None = None) -> RecallResponse:
         index = self.recall_status()
         if not query.strip():
             return RecallResponse(
@@ -592,6 +617,12 @@ class WebFacade:
                     description_key="adjust_query.desc",
                 ),
             )
+        # 中文学习型说明：context=graph 时对每个 BM25 hit 附加轻量图上下文。
+        # 不做 full 2-hop graph build（太昂贵），只做 neighbor count + tag count
+        # 的轻量查。后续可升级为更多 graph metadata。
+        graph_builder: DeterministicGraphBuilder | None = None
+        if context == "graph":
+            graph_builder = _build_graph_builder(self.cfg)
         return RecallResponse(
             query=query,
             hits=[
@@ -607,6 +638,10 @@ class WebFacade:
                     tags=list(hit.tags),
                     source_type=hit.source_type,
                     why_this_matched=hit.why_this_matched,
+                    graph_neighbor_count=_graph_neighbor_count(
+                        graph_builder, hit.id or hit.rel_path
+                    ) if graph_builder else None,
+                    graph_shared_tag_count=len(hit.tags) if graph_builder else None,
                 )
                 for hit in result.hits
             ],
@@ -1099,6 +1134,64 @@ def _graph_edge_response(edge: GraphEdge) -> GraphEdgeResponse:
             detail=edge.evidence.detail,
         ),
     )
+
+
+def _discovery_context_response(ctx: DiscoveryContext) -> DiscoveryContextResponse:
+    """将内部 DiscoveryContext 转换为 API response。"""
+    return DiscoveryContextResponse(
+        center_card_id=ctx.center_card_id,
+        center_card_title=ctx.center_card_title,
+        direct_matches=[
+            DiscoveryCardRefResponse(
+                card_id=ref.card_id,
+                title=ref.title,
+                relation_reason=ref.relation_reason,
+                relation_strength=ref.relation_strength,
+                evidence=ref.evidence,
+            )
+            for ref in ctx.direct_matches
+        ],
+        neighbor_cards=[
+            DiscoveryCardRefResponse(
+                card_id=ref.card_id,
+                title=ref.title,
+                relation_reason=ref.relation_reason,
+                relation_strength=ref.relation_strength,
+                evidence=ref.evidence,
+            )
+            for ref in ctx.neighbor_cards
+        ],
+        wiki_sections=[
+            DiscoverySectionRefResponse(
+                section_title=s.section_title,
+                card_count=s.card_count,
+            )
+            for s in ctx.wiki_sections
+        ],
+        shared_tags=[
+            DiscoveryTagRefResponse(tag=t.tag, card_count=t.card_count)
+            for t in ctx.shared_tags
+        ],
+        shared_sources=[
+            DiscoverySourceRefResponse(source_id=s.source_id, card_count=s.card_count)
+            for s in ctx.shared_sources
+        ],
+    )
+
+
+def _graph_neighbor_count(
+    builder: DeterministicGraphBuilder | None,
+    card_id: str,
+) -> int | None:
+    """获取卡片 1-hop 邻居数量（轻量，不做 full 2-hop build）。"""
+    if builder is None:
+        return None
+    try:
+        edges = builder.get_edges(card_id, direction="outgoing")
+        neighbor_ids = {e.target_id for e in edges}
+        return len(neighbor_ids)
+    except Exception:
+        return None
 
 
 def _provenance_trail_response(

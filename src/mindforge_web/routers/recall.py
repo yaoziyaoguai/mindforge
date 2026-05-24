@@ -12,6 +12,10 @@ router = APIRouter(prefix="/api", tags=["recall"])
 @router.get("/recall", response_model=RecallResponse)
 def recall(
     q: str = Query("", description="Local lexical recall query"),
+    context: str | None = Query(
+        None,
+        description="附加 context 类型。'graph' = BM25 + 图感知邻居/tag 计数。",
+    ),
     facade: WebFacade = Depends(get_facade),
 ) -> RecallResponse:
-    return facade.recall(q)
+    return facade.recall(q, context=context)

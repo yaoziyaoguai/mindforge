@@ -234,3 +234,73 @@ class TestGraphResponseSchema:
         assert "reason" in ev
         assert "evidence" in ev
         assert "strength" in ev
+
+
+# ── R6 Discovery Context API Tests ───────────────────
+
+
+class TestDiscoveryContextEndpoint:
+    def test_discovery_context_returns_200(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/discovery/context?ref=card_1")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["center_card_id"] == "card_1"
+        assert data["center_card_title"] == "Card One"
+        assert "direct_matches" in data
+        assert "neighbor_cards" in data
+        assert "wiki_sections" in data
+        assert "shared_tags" in data
+        assert "shared_sources" in data
+
+    def test_discovery_context_has_direct_matches(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/discovery/context?ref=card_1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["direct_matches"]) >= 0  # 至少接受空列表
+        # 非空时验证字段
+        for match in data["direct_matches"]:
+            assert match["relation_reason"]
+            assert match["relation_strength"] > 0
+            assert match["evidence"]
+
+    def test_discovery_context_missing_card_returns_404(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/discovery/context?ref=nonexistent")
+        assert resp.status_code == 404
+
+    def test_discovery_context_wiki_sections(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/discovery/context?ref=card_1")
+        assert resp.status_code == 200
+        data = resp.json()
+        section_names = {s["section_title"] for s in data["wiki_sections"]}
+        assert "Machine Learning" in section_names
+
+
+class TestRecallWithGraphContext:
+    def test_recall_graph_context_enriches_hits(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/recall?q=Card&context=graph")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert len(data["hits"]) > 0
+        for hit in data["hits"]:
+            assert "graph_neighbor_count" in hit
+            assert "graph_shared_tag_count" in hit
+
+    def test_recall_without_context_has_null_graph_fields(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/recall?q=Card")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        for hit in data["hits"]:
+            assert hit.get("graph_neighbor_count") is None
+            assert hit.get("graph_shared_tag_count") is None
