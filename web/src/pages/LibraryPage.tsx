@@ -55,6 +55,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [showExportPreview, setShowExportPreview] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "opml">("markdown");
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -140,19 +141,23 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   async function confirmExport() {
     setExporting(true);
     setShowExportPreview(false);
+    const fmt = exportFormat;
     try {
       const resp = await fetch("/api/knowledge/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_ids: Array.from(exportSelection) }),
+        body: JSON.stringify({ card_ids: Array.from(exportSelection), format: fmt }),
       });
       if (!resp.ok) throw new Error("Export failed");
       const data = await resp.json();
-      const blob = new Blob([data.markdown], { type: "text/markdown;charset=utf-8" });
+      const content = fmt === "json" ? data.json : fmt === "opml" ? data.opml : data.markdown;
+      const mimeType = fmt === "json" ? "application/json" : fmt === "opml" ? "text/xml" : "text/markdown";
+      const ext = fmt === "json" ? ".json" : fmt === "opml" ? ".opml" : ".md";
+      const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}.md`;
+      a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}${ext}`;
       a.click();
       URL.revokeObjectURL(url);
       setExportSelection(new Set());
@@ -230,8 +235,26 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-ink">{t("library.export_preview_title")}</h3>
               <p className="mt-1 text-xs text-muted">
-                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", "Markdown")}
+                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", exportFormat === "json" ? "JSON" : exportFormat === "opml" ? "OPML" : "Markdown")}
               </p>
+              {/* Format selector */}
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="text-[11px] text-muted">{t("library.export_format")}:</span>
+                {(["markdown", "json", "opml"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition ${
+                      exportFormat === f
+                        ? "bg-primary text-white"
+                        : "bg-white border border-line text-muted hover:text-ink"
+                    }`}
+                    onClick={() => setExportFormat(f)}
+                  >
+                    {f === "markdown" ? "Markdown" : f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
               <div className="mt-3 max-h-48 overflow-y-auto">
                 <div className="grid gap-1 sm:grid-cols-2">
                   {Array.from(exportSelection).map((ref) => {

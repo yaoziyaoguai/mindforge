@@ -662,11 +662,15 @@ class CardBodyUpdateResponse(BaseModel):
 
 class ExportCardsRequest(BaseModel):
     card_ids: list[str]
+    format: str = "markdown"  # "markdown" | "json" | "opml"
 
 
 class ExportCardsResponse(BaseModel):
-    markdown: str
-    card_count: int
+    markdown: str = ""
+    json_data: str = Field(default="", alias="json")
+    opml: str = ""
+    format: str = "markdown"
+    card_count: int = 0
 
 
 class WorkflowSummaryResponse(BaseModel):

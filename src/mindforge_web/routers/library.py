@@ -82,25 +82,76 @@ def export_cards(
     payload: ExportCardsRequest,
     facade: WebFacade = Depends(get_facade),
 ) -> ExportCardsResponse:
-    """导出选中卡片为安全 Markdown（白名单过滤）。"""
-    parts: list[str] = []
+    """导出选中卡片为 Markdown / JSON / OPML 格式（白名单过滤）。"""
+    from datetime import datetime, timezone
+    from xml.etree.ElementTree import Element, SubElement, tostring
+
+    export_format = payload.format or "markdown"
+
+    # Gather card data (safe fields only)
+    cards: list[dict] = []
     for card_id in payload.card_ids:
         detail = facade.library_card_detail(card_id, show_content=True)
         if detail is None:
             continue
         card = detail.card
         body = detail.body or ""
-        # 安全白名单：仅导出 title + body + status + created_at + source_title
         status_label = "已确认" if card.status == "human_approved" else card.status
         created = card.created_at[:10] if card.created_at else "未知"
         source = card.source_title or "-"
+        cards.append({
+            "title": card.title or "未命名卡片",
+            "status": status_label,
+            "status_raw": card.status,
+            "created_at": created,
+            "source_title": source,
+            "body": body,
+        })
+
+    # Markdown format
+    parts: list[str] = []
+    for c in cards:
         parts.append(
-            f"# {card.title or '未命名卡片'}\n\n"
-            f"状态: {status_label} | 创建: {created} | 来源: {source}\n\n"
-            f"{body}\n"
+            f"# {c['title']}\n\n"
+            f"状态: {c['status']} | 创建: {c['created_at']} | 来源: {c['source_title']}\n\n"
+            f"{c['body']}\n"
         )
     markdown = "\n---\n\n".join(parts)
-    return ExportCardsResponse(markdown=markdown, card_count=len(parts))
+
+    # JSON format
+    import json
+    json_output = json.dumps({
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "format": "json",
+        "card_count": len(cards),
+        "cards": [
+            {k: v for k, v in c.items() if k != "status_raw"}
+            for c in cards
+        ],
+    }, ensure_ascii=False, indent=2)
+
+    # OPML format
+    opml_el = Element("opml", version="2.0")
+    head = SubElement(opml_el, "head")
+    SubElement(head, "title").text = "MindForge Export"
+    SubElement(head, "dateCreated").text = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    body_el = SubElement(opml_el, "body")
+    for c in cards:
+        outline = SubElement(body_el, "outline", text=c["title"], type="card")
+        outline.set("status", c["status_raw"])
+        outline.set("source", c["source_title"])
+        outline.set("created", c["created_at"])
+        # Store body as _note attribute (OPML convention)
+        outline.set("_note", c["body"][:500])
+    opml = tostring(opml_el, encoding="unicode")
+
+    return ExportCardsResponse(
+        markdown=markdown,
+        json_data=json_output,
+        opml=opml,
+        format=export_format,
+        card_count=len(cards),
+    )
 
 
 @router.get("/knowledge/communities", response_model=KnowledgeCommunitiesResponse)
