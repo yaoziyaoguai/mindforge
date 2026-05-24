@@ -783,12 +783,21 @@ export interface KnowledgeCommunitiesResponse {
   communities: KnowledgeCommunityResponse[];
 }
 
+export interface PotentialDuplicate {
+  card_id: string;
+  title: string;
+  rel_path: string;
+  similarity: number;
+  match_type: "exact_hash" | "title_fuzzy";
+}
+
 export interface ImportCardResponse {
   id: string;
   title: string;
   rel_path: string;
   status: string;
   created_at: string;
+  potential_duplicates: PotentialDuplicate[];
 }
 
 // ── v2.4 U1 Folder Import ──────────────────────
@@ -801,6 +810,7 @@ export interface FolderImportPreviewFile {
   size_bytes: number;
   warnings: string[];
   error: string | null;
+  potential_duplicates: PotentialDuplicate[];
 }
 
 export interface FolderImportPreviewResponse {

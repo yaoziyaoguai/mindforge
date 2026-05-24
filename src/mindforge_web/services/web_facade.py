@@ -66,6 +66,7 @@ from mindforge_web.schemas import (
     FolderImportResponse,
     _FolderImportPreviewFile,
     _FolderImportResultItem,
+    _PotentialDuplicateResponse,
     ImportCardResponse,
     IngestionActionResponse,
     LibraryCardDetailResponse,
@@ -596,6 +597,9 @@ class WebFacade:
         import uuid
         from datetime import datetime, timezone
 
+        # v2.4 U2: 去重检测（best-effort，不阻塞导入）
+        potential_duplicates = self._find_duplicates(title)
+
         slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "-", title.strip()).strip("-")[:60] or "imported"
         card_id = f"{slug}-{uuid.uuid4().hex[:6]}"
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -627,6 +631,7 @@ class WebFacade:
             rel_path=rel_path,
             status="ai_draft",
             created_at=now,
+            potential_duplicates=potential_duplicates,
         )
 
     # ── v2.4 U1 Folder Import ──────────────────────
@@ -711,6 +716,9 @@ class WebFacade:
                 if len(title) > 120:
                     warnings.append("标题过长")
 
+                # v2.4 U2: 去重检测
+                dups = self._find_duplicates(title)
+
                 files.append(_FolderImportPreviewFile(
                     index=i, filename=fpath.name,
                     title=title,
@@ -718,6 +726,7 @@ class WebFacade:
                     size_bytes=stat.st_size,
                     warnings=warnings,
                     error=None,
+                    potential_duplicates=dups,
                 ))
             except UnicodeDecodeError:
                 files.append(_FolderImportPreviewFile(
@@ -847,6 +856,69 @@ class WebFacade:
             title = filename.replace(".md", "").replace("_", " ").replace("-", " ")
 
         return title, body
+
+    def _find_duplicates(
+        self, title: str,
+    ) -> list[_PotentialDuplicateResponse]:
+        """检测与已有卡片的 title 重复（exact match + fuzzy Jaccard）。
+
+        v2.4 U2：对已有 CardSummary 做 title-level 匹配。
+        不读取 body（避免 IO 开销），best-effort，失败不阻塞导入。
+        """
+        results: list[_PotentialDuplicateResponse] = []
+        title_lower = title.strip().lower()
+        if not title_lower:
+            return results
+
+        title_words = set(title_lower.split())
+
+        try:
+            for card_summary in iter_cards(
+                self.cfg.vault,
+                _use_cache=True,
+            ):
+                if card_summary.id is None:
+                    continue
+
+                ct = (card_summary.title or "").strip()
+                ct_lower = ct.lower()
+                if not ct_lower:
+                    continue
+
+                # Exact title match → 1.0
+                if ct_lower == title_lower:
+                    results.append(_PotentialDuplicateResponse(
+                        card_id=card_summary.id,
+                        title=ct,
+                        rel_path=card_summary.rel_path or "",
+                        similarity=1.0,
+                        match_type="exact_hash",
+                    ))
+                    continue
+
+                # Fuzzy Jaccard on word sets
+                ct_words = set(ct_lower.split())
+                if not title_words or not ct_words:
+                    continue
+
+                intersection = title_words & ct_words
+                union = title_words | ct_words
+                jaccard = len(intersection) / len(union) if union else 0.0
+
+                if jaccard >= 0.6:
+                    results.append(_PotentialDuplicateResponse(
+                        card_id=card_summary.id,
+                        title=ct,
+                        rel_path=card_summary.rel_path or "",
+                        similarity=round(jaccard, 2),
+                        match_type="title_fuzzy",
+                    ))
+        except Exception:
+            # 去重是 best-effort，失败不阻塞导入
+            pass
+
+        results.sort(key=lambda r: r.similarity, reverse=True)
+        return results[:5]
 
     def drafts(self) -> DraftsResponse:
         drafts, errors = self.review_service.list_drafts()

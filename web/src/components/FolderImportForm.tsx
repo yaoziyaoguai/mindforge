@@ -209,6 +209,24 @@ export function FolderImportForm({ onImported }: FolderImportFormProps) {
                         <AlertTriangle className="h-3 w-3" />{w}
                       </div>
                     ))}
+                    {/* v2.4 U2: 去重警告 */}
+                    {file.potential_duplicates.length > 0 && (
+                      <div className="mt-1 rounded bg-amber-50 border border-amber-100 px-2 py-1 text-xs">
+                        <div className="text-amber-700 font-medium mb-0.5">{t("library.import_dedup_warning")}</div>
+                        {file.potential_duplicates.slice(0, 3).map((dup) => (
+                          <div key={dup.card_id} className="text-amber-600 truncate">
+                            {dup.match_type === "exact_hash"
+                              ? t("library.import_dedup_exact")
+                              : t("library.import_dedup_fuzzy").replace("{sim}", String(Math.round(dup.similarity * 100)))
+                            }
+                            {dup.title}
+                          </div>
+                        ))}
+                        {file.potential_duplicates.length > 3 && (
+                          <div className="text-amber-500">... 还有 {file.potential_duplicates.length - 3} 个相似卡片</div>
+                        )}
+                      </div>
+                    )}
                     {file.error && (
                       <div className="mt-1 text-xs text-red-500">{file.error}</div>
                     )}

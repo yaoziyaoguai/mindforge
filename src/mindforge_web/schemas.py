@@ -682,12 +682,23 @@ class ImportCardRequest(BaseModel):
     source_name: str = ""
 
 
+class _PotentialDuplicateResponse(BaseModel):
+    """疑似重复卡片引用 — v2.4 U2。"""
+    card_id: str
+    title: str
+    rel_path: str
+    similarity: float  # 0.0-1.0，1.0 = exact hash match
+    match_type: str  # "exact_hash" | "title_fuzzy"
+
+
 class ImportCardResponse(BaseModel):
     id: str
     title: str
     rel_path: str
     status: str
     created_at: str
+    # v2.4 U2
+    potential_duplicates: list[_PotentialDuplicateResponse] = Field(default_factory=list)
 
 
 # ── v2.4 U1 Folder Import ──────────────────────
@@ -707,6 +718,7 @@ class _FolderImportPreviewFile(BaseModel):
     size_bytes: int
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None  # 非空表示该文件无法导入
+    potential_duplicates: list[_PotentialDuplicateResponse] = Field(default_factory=list)
 
 
 class FolderImportPreviewResponse(BaseModel):

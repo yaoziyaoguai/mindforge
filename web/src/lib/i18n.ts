@@ -676,6 +676,9 @@ const copy: Record<Locale, LocaleDict> = {
     "library.folder_import_error_too_large": "文件过大",
     "library.folder_import_error_encoding": "编码错误（非 UTF-8）",
     "library.folder_import_error_system_path": "出于安全考虑，拒绝扫描系统路径。",
+    "library.import_dedup_exact": "标题完全相同：",
+    "library.import_dedup_fuzzy": "标题相似 ({sim}%)：",
+    "library.import_dedup_warning": "检测到可能重复的卡片，请确认是否继续导入。",
   },
 
   en: {
@@ -1338,6 +1341,9 @@ const copy: Record<Locale, LocaleDict> = {
     "library.folder_import_error_too_large": "File too large",
     "library.folder_import_error_encoding": "Encoding error (not UTF-8)",
     "library.folder_import_error_system_path": "System path scanning rejected for safety.",
+    "library.import_dedup_exact": "Exact title match: ",
+    "library.import_dedup_fuzzy": "Similar title ({sim}%): ",
+    "library.import_dedup_warning": "Potential duplicate cards detected. Please confirm before importing.",
   },
 };
 
