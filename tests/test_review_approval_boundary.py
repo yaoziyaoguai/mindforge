@@ -314,6 +314,9 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # health_service.py 只用 human_approved 做只读筛选，统计低质量/孤儿/
             # 重复卡片时仅关注已审核内容。它不修改 card 状态，不执行 approve。
             "health_service.py",
+            # community.py 只用 human_approved 做只读卡片质量评分维度
+            # （approved 卡片获得 +0.2 质量分）。它不修改 card 状态，不执行 approve。
+            "community.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

@@ -751,12 +751,29 @@ export interface GraphEdgeDetailResponse {
   edges: GraphEdgeResponse[];
 }
 
+export interface SubCommunityRefResponse {
+  community_type: string;
+  shared_entity: string;
+  member_count: number;
+}
+
+export interface CommunityOverlapResponse {
+  community_type: string;
+  shared_entity: string;
+  shared_member_count: number;
+  shared_member_ids: string[];
+}
+
 export interface KnowledgeCommunityResponse {
   community_type: string;
   shared_entity: string;
   member_count: number;
   member_card_ids: string[];
   description: string;
+  // v2.1
+  sub_communities: SubCommunityRefResponse[];
+  overlap_with: CommunityOverlapResponse[];
+  quality_score: number;
 }
 
 export interface KnowledgeCommunitiesResponse {

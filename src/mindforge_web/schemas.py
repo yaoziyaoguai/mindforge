@@ -1031,12 +1031,31 @@ class SourceLocationResponse(BaseModel):
 # ── v1.2 Knowledge Community ──────────────────────
 
 
+class SubCommunityRefResponse(BaseModel):
+    """子社区引用 — v2.1 多层级分组。"""
+    community_type: str  # "source" | "tag" | "wiki_section"
+    shared_entity: str
+    member_count: int
+
+
+class CommunityOverlapResponse(BaseModel):
+    """社区重叠信息 — v2.1 共享成员交叉检测。"""
+    community_type: str
+    shared_entity: str
+    shared_member_count: int
+    shared_member_ids: list[str]
+
+
 class KnowledgeCommunityResponse(BaseModel):
     community_type: str  # "source" | "tag" | "wiki_section"
     shared_entity: str
     member_count: int
     member_card_ids: list[str]
     description: str
+    # v2.1 新增
+    sub_communities: list[SubCommunityRefResponse] = Field(default_factory=list)
+    overlap_with: list[CommunityOverlapResponse] = Field(default_factory=list)
+    quality_score: float = 0.0
 
 
 class KnowledgeCommunitiesResponse(BaseModel):

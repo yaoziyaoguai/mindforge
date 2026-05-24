@@ -417,9 +417,14 @@ class WebFacade:
         return _provenance_trail_response(self.cfg, detail)
 
     def knowledge_communities(self) -> object:
-        """检测知识社区（source/tag/wiki_section 分组）。"""
+        """检测知识社区（source/tag/wiki_section 分组）— v2.1 增强。"""
         from mindforge.relations.community import detect_communities
-        from mindforge_web.schemas import KnowledgeCommunitiesResponse, KnowledgeCommunityResponse
+        from mindforge_web.schemas import (
+            KnowledgeCommunitiesResponse,
+            KnowledgeCommunityResponse,
+            SubCommunityRefResponse,
+            CommunityOverlapResponse,
+        )
 
         builder = _build_graph_builder(self.cfg)
         if builder is None:
@@ -434,6 +439,24 @@ class WebFacade:
                     member_count=c.member_count,
                     member_card_ids=list(c.member_card_ids),
                     description=c.description,
+                    sub_communities=[
+                        SubCommunityRefResponse(
+                            community_type=s.community_type,
+                            shared_entity=s.shared_entity,
+                            member_count=s.member_count,
+                        )
+                        for s in c.sub_communities
+                    ],
+                    overlap_with=[
+                        CommunityOverlapResponse(
+                            community_type=o.community_type,
+                            shared_entity=o.shared_entity,
+                            shared_member_count=o.shared_member_count,
+                            shared_member_ids=list(o.shared_member_ids),
+                        )
+                        for o in c.overlap_with
+                    ],
+                    quality_score=c.quality_score,
                 )
                 for c in communities
             ],
