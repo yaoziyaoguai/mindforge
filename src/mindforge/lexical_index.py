@@ -95,22 +95,46 @@ _ASCII_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 # CJK 范围（简化）：日韩中常用块。逐字切分以兼顾中文检索精度。
 _CJK_CHAR_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 
+# v2.2 \u2014 \u82f1\u6587\u505c\u7528\u8bcd\u8868\uff08NLTK \u6807\u51c6\u505c\u7528\u8bcd\u5b50\u96c6\uff0c\u8986\u76d6\u6700\u5e38\u89c1\u82f1\u8bed\u529f\u80fd\u8bcd\uff09\u3002
+# \u505c\u7528\u8bcd\u8fc7\u6ee4\u9ed8\u8ba4\u542f\u7528\uff0c\u53ef\u901a\u8fc7 tokenize(..., filter_stopwords=False) \u5173\u95ed\u3002
+_ENGLISH_STOP_WORDS: set[str] = {
+    "a", "an", "the", "and", "or", "but", "if", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+    "may", "might", "can", "shall", "not", "no", "nor", "so", "as", "its", "it",
+    "this", "that", "these", "those", "am", "each", "every", "all", "both", "few",
+    "more", "most", "other", "some", "such", "only", "own", "same", "than", "too",
+    "very", "just", "about", "above", "after", "again", "also", "any", "because",
+    "before", "between", "into", "through", "during", "under", "over", "up", "down",
+    "out", "off", "then", "once", "here", "there", "when", "where", "why", "how",
+    "all", "my", "your", "he", "she", "they", "we", "you", "him", "his", "her",
+    "them", "their", "our", "me", "us", "who", "whom", "which", "what",
+}
 
-def tokenize(text: str) -> list[str]:
+
+def tokenize(
+    text: str,
+    *,
+    filter_stopwords: bool = True,
+) -> list[str]:
     """ASCII 单词 + CJK 单字混合分词（小写化）。
 
-    v0.3 故意做最小可用的分词器：
+    v0.3 最小可用分词器，v2.2 增强英文停用词过滤。
+
     - ASCII：按 ``[A-Za-z0-9]+`` 抓词，全部 lowercase；
     - CJK：每个汉字/假名/谚文字视为一个 token；
-    - 其他符号忽略。
+    - 默认过滤英文停用词（常见功能词）。
 
-    不做 stemming / 停用词 / 词形还原。索引规模小（个人知识库），简单可解释。
+    不做 stemming / 词形还原。索引规模小（个人知识库），简单可解释。
     """
     if not text:
         return []
     out: list[str] = []
     for w in _ASCII_TOKEN_RE.findall(text):
-        out.append(w.lower())
+        low = w.lower()
+        if filter_stopwords and low in _ENGLISH_STOP_WORDS:
+            continue
+        out.append(low)
     for ch in _CJK_CHAR_RE.findall(text):
         out.append(ch)
     return out
