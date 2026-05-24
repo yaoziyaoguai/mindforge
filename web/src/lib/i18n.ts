@@ -591,6 +591,12 @@ const copy: Record<Locale, LocaleDict> = {
     "community.loading": "正在加载社区...",
     "community.load_error": "社区加载失败",
     "community.empty": "暂无知识社区。当多张卡片共享来源、标签或 Wiki 章节时将自动形成社区。",
+    "community.sub_communities": "子社区",
+    "community.overlap_with": "交叉",
+    "community.quality_score": "质量",
+    "community.expand_all": "展开全部",
+    "community.collapse_all": "收起",
+    "community.shared_members": "共享成员",
 
     // ---- Navigation ----
     "nav.health": "健康报告",
@@ -1219,6 +1225,12 @@ const copy: Record<Locale, LocaleDict> = {
     "community.loading": "Loading communities...",
     "community.load_error": "Failed to load communities",
     "community.empty": "No knowledge communities yet. Communities form automatically when cards share sources, tags, or wiki sections.",
+    "community.sub_communities": "Sub-communities",
+    "community.overlap_with": "Overlap",
+    "community.quality_score": "Quality",
+    "community.expand_all": "Show all",
+    "community.collapse_all": "Collapse",
+    "community.shared_members": "shared members",
 
     // ---- Navigation ----
     "nav.health": "Health Report",

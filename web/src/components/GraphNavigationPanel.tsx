@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, GitBranch, Layers, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, GitBranch, Layers, Loader2, Users } from "lucide-react";
 import { fetchGraphNode } from "../api/graph";
-import type { GraphEdgeResponse, GraphEdgeType, GraphResponse } from "../api/types";
+import { getKnowledgeCommunities } from "../api/library";
+import type { GraphEdgeResponse, GraphEdgeType, GraphResponse, KnowledgeCommunityResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
 
 interface Props {
@@ -32,7 +33,6 @@ const EDGE_TYPE_SORT: Record<string, number> = {
   mentions: 7,
 };
 
-/** Edge type → accent bar color. */
 const EDGE_TYPE_COLOR: Record<string, string> = {
   related_by_source: "border-l-safe",
   related_by_wiki_section: "border-l-blue-500",
@@ -44,35 +44,53 @@ const EDGE_TYPE_COLOR: Record<string, string> = {
   mentions: "border-l-slate-500",
 };
 
+/** 社区类型的颜色编码（用于 community grouping 视图）。 */
+const COMMUNITY_TYPE_COLOR: Record<string, { bar: string; dot: string }> = {
+  source: { bar: "border-l-emerald-400", dot: "bg-emerald-500" },
+  tag: { bar: "border-l-amber-400", dot: "bg-amber-500" },
+  wiki_section: { bar: "border-l-violet-400", dot: "bg-violet-500" },
+};
+
+type GroupingMode = "by_type" | "by_community";
+
 function strengthBar(s: number): string {
   if (s >= 0.8) return "bg-safe";
   if (s >= 0.5) return "bg-amber-500";
   return "bg-muted";
 }
 
+function qualityColor(score: number): string {
+  if (score >= 0.7) return "bg-emerald-500";
+  if (score >= 0.4) return "bg-amber-500";
+  return "bg-slate-300";
+}
+
 export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
   const { t } = useLocale();
   const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const [communities, setCommunities] = useState<KnowledgeCommunityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [depth, setDepth] = useState(1);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>("by_type");
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetchGraphNode(cardRef, depth)
-      .then((g) => {
-        setGraph(g);
-        const groups = groupEdgesByType(g.edges, g.center_id);
-        const auto: Record<string, boolean> = {};
-        Object.keys(groups).slice(0, 4).forEach((k) => { auto[k] = true; });
-        setExpandedGroups(auto);
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Graph load failed")
-      )
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetchGraphNode(cardRef, depth),
+      getKnowledgeCommunities(),
+    ]).then(([g, commData]) => {
+      setGraph(g);
+      setCommunities(commData.communities);
+      const groups = groupEdgesByType(g.edges, g.center_id);
+      const auto: Record<string, boolean> = {};
+      Object.keys(groups).slice(0, 4).forEach((k) => { auto[k] = true; });
+      setExpandedGroups(auto);
+    }).catch((err: unknown) =>
+      setError(err instanceof Error ? err.message : "Graph load failed")
+    ).finally(() => setLoading(false));
   }, [cardRef, depth]);
 
   if (loading) {
@@ -106,6 +124,23 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
   const neighborCards = graph.nodes.filter(
     (n) => n.type === "card" && n.id !== graph.center_id,
   );
+
+  const neighborIds = new Set(neighborCards.map((n) => n.id));
+
+  // Build community groups for community view
+  const communityGroups = useMemo(() => {
+    if (groupingMode !== "by_community") return null;
+    const result: { community: KnowledgeCommunityResponse; cardIds: string[] }[] = [];
+    for (const comm of communities) {
+      const matchingIds = comm.member_card_ids.filter((mid) => neighborIds.has(mid));
+      if (matchingIds.length > 0) {
+        result.push({ community: comm, cardIds: matchingIds });
+      }
+    }
+    // Sort by member count desc
+    result.sort((a, b) => b.community.member_count - a.community.member_count);
+    return result;
+  }, [communities, neighborIds, groupingMode]);
 
   // Edge type distribution for summary bar
   const typeDistribution = useMemo(() => {
@@ -153,21 +188,50 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Summary chips */}
-            <div className="hidden sm:flex items-center gap-1.5">
-              {sortedTypes.slice(0, 3).map((etype) => (
-                <span
-                  key={etype}
-                  className="inline-flex items-center gap-1 rounded-full bg-white border border-line px-2 py-0.5 text-[10px] text-muted"
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${EDGE_TYPE_COLOR[etype] ? EDGE_TYPE_COLOR[etype].replace("border-l-", "bg-").replace("safe", "safe") : "bg-muted"}`} />
-                  {t(EDGE_TYPE_LABEL_KEY[etype] ?? etype)}·{typeDistribution[etype]}
-                </span>
-              ))}
-              {sortedTypes.length > 3 ? (
-                <span className="text-[10px] text-muted">+{sortedTypes.length - 3}</span>
-              ) : null}
+            {/* Grouping mode toggle */}
+            <div className="flex items-center rounded-md border border-line bg-white overflow-hidden">
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                  groupingMode === "by_type"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted hover:text-ink"
+                }`}
+                onClick={() => setGroupingMode("by_type")}
+                title={t("graph.group_by_type") ?? "By relation type"}
+              >
+                <Layers className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                  groupingMode === "by_community"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted hover:text-ink"
+                }`}
+                onClick={() => setGroupingMode("by_community")}
+                title={t("graph.group_by_community") ?? "By community"}
+              >
+                <Users className="h-3 w-3" />
+              </button>
             </div>
+            {/* Summary chips (type mode only) */}
+            {groupingMode === "by_type" ? (
+              <div className="hidden sm:flex items-center gap-1.5">
+                {sortedTypes.slice(0, 3).map((etype) => (
+                  <span
+                    key={etype}
+                    className="inline-flex items-center gap-1 rounded-full bg-white border border-line px-2 py-0.5 text-[10px] text-muted"
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${EDGE_TYPE_COLOR[etype] ? EDGE_TYPE_COLOR[etype].replace("border-l-", "bg-").replace("safe", "bg-safe") : "bg-muted"}`} />
+                    {t(EDGE_TYPE_LABEL_KEY[etype] ?? etype)}·{typeDistribution[etype]}
+                  </span>
+                ))}
+                {sortedTypes.length > 3 ? (
+                  <span className="text-[10px] text-muted">+{sortedTypes.length - 3}</span>
+                ) : null}
+              </div>
+            ) : null}
             {/* Depth toggle */}
             <button
               type="button"
@@ -185,82 +249,167 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
         </div>
       </div>
 
-      {/* Relationship groups */}
+      {/* Content */}
       <div className="px-6 py-4 space-y-3">
-        {sortedTypes.map((edgeType) => {
-          const entries = groups[edgeType as GraphEdgeType];
-          const isExpanded = expandedGroups[edgeType] ?? false;
-          const labelKey = EDGE_TYPE_LABEL_KEY[edgeType] ?? edgeType;
-          const accentBar = EDGE_TYPE_COLOR[edgeType] ?? "border-l-muted";
-          return (
-            <div key={edgeType}>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold text-muted hover:bg-muted/5 transition"
-                onClick={() =>
-                  setExpandedGroups((prev) => ({
-                    ...prev,
-                    [edgeType]: !isExpanded,
-                  }))
-                }
-              >
-                <span className="flex items-center gap-2">
-                  {isExpanded ? (
-                    <ChevronUp className="h-3 w-3" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
-                  )}
-                  {t(labelKey)}
-                  <span className="font-normal text-muted/60">{entries?.length ?? 0}</span>
-                </span>
-              </button>
-              {isExpanded && entries ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {entries.map((edge: GraphEdgeResponse) => {
-                    const neighborId =
-                      edge.source_id === graph.center_id
-                        ? edge.target_id
-                        : edge.source_id;
-                    const neighborNode = graph.nodes.find(
-                      (n) => n.id === neighborId && n.type === "card",
-                    );
-                    return (
-                      <button
+        {groupingMode === "by_type" ? (
+          /* ── By relation type ── */
+          sortedTypes.map((edgeType) => {
+            const entries = groups[edgeType as GraphEdgeType];
+            const isExpanded = expandedGroups[edgeType] ?? false;
+            const labelKey = EDGE_TYPE_LABEL_KEY[edgeType] ?? edgeType;
+            const accentBar = EDGE_TYPE_COLOR[edgeType] ?? "border-l-muted";
+            return (
+              <div key={edgeType}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold text-muted hover:bg-muted/5 transition"
+                  onClick={() =>
+                    setExpandedGroups((prev) => ({
+                      ...prev,
+                      [edgeType]: !isExpanded,
+                    }))
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    {isExpanded ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
+                    )}
+                    {t(labelKey)}
+                    <span className="font-normal text-muted/60">{entries?.length ?? 0}</span>
+                  </span>
+                </button>
+                {isExpanded && entries ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {entries.map((edge: GraphEdgeResponse) => (
+                      <NeighborCardButton
                         key={`${edge.edge_type}-${edge.source_id}-${edge.target_id}`}
-                        type="button"
-                        className={`flex flex-col rounded-md border border-line bg-white hover:border-primary transition text-left border-l-2 ${accentBar}`}
-                        onClick={() => onSelectCard?.(neighborId)}
-                      >
-                        <div className="p-3 flex-1">
-                          <h4 className="text-sm font-medium text-ink line-clamp-2">
-                            {neighborNode?.label ?? neighborId}
-                          </h4>
-                          {edge.evidence?.evidence ? (
-                            <p className="mt-1.5 text-[11px] text-muted leading-relaxed line-clamp-2">
-                              {edge.evidence.evidence}
-                            </p>
-                          ) : null}
-                        </div>
-                        {edge.evidence ? (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-line/50 bg-stone-50/30">
-                            <span
-                              className={`inline-block h-1.5 w-1.5 rounded-full ${strengthBar(edge.evidence.strength)}`}
-                            />
-                            <span className="text-[10px] text-muted">
-                              {(edge.evidence.strength * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+                        edge={edge}
+                        graph={graph}
+                        accentBar={accentBar}
+                        onSelectCard={onSelectCard}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        ) : (
+          /* ── By community ── */
+          (communityGroups ?? []).map(({ community, cardIds }) => {
+            const commKey = `${community.community_type}:${community.shared_entity}`;
+            const isExpanded = expandedGroups[commKey] ?? (communityGroups?.length ?? 0) <= 4;
+            const colors = COMMUNITY_TYPE_COLOR[community.community_type] ?? { bar: "border-l-muted", dot: "bg-muted" };
+            return (
+              <div key={commKey}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold text-muted hover:bg-muted/5 transition"
+                  onClick={() =>
+                    setExpandedGroups((prev) => ({
+                      ...prev,
+                      [commKey]: !isExpanded,
+                    }))
+                  }
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    {isExpanded ? (
+                      <ChevronUp className="h-3 w-3 shrink-0" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 shrink-0" />
+                    )}
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} />
+                    <span className="truncate">{community.shared_entity}</span>
+                    <span className="font-normal text-muted/60 shrink-0">
+                      {cardIds.length}/{community.member_count}
+                    </span>
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${qualityColor(community.quality_score)}`}
+                      title={`Quality: ${(community.quality_score * 100).toFixed(0)}%`}
+                    />
+                  </span>
+                </button>
+                {isExpanded ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {cardIds.map((cardId) => {
+                      const edge = cardEdges.find(
+                        (e) => e.source_id === cardId || e.target_id === cardId,
+                      );
+                      return (
+                        <NeighborCardButton
+                          key={`comm-${commKey}-${cardId}`}
+                          edge={edge ?? {
+                            edge_type: "links_to" as GraphEdgeType,
+                            source_id: graph.center_id,
+                            target_id: cardId,
+                            evidence: { reason: "community", evidence: community.description, strength: community.quality_score, detail: {} },
+                          }}
+                          graph={graph}
+                          accentBar={colors.bar}
+                          onSelectCard={onSelectCard}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
       </div>
     </section>
+  );
+}
+
+/** 单个邻居卡片按钮（复用组件）。 */
+function NeighborCardButton({
+  edge,
+  graph,
+  accentBar,
+  onSelectCard,
+}: {
+  edge: GraphEdgeResponse;
+  graph: GraphResponse;
+  accentBar: string;
+  onSelectCard?: (ref: string) => void;
+}) {
+  const neighborId =
+    edge.source_id === graph.center_id
+      ? edge.target_id
+      : edge.source_id;
+  const neighborNode = graph.nodes.find(
+    (n) => n.id === neighborId && n.type === "card",
+  );
+  return (
+    <button
+      key={`${edge.edge_type}-${edge.source_id}-${edge.target_id}`}
+      type="button"
+      className={`flex flex-col rounded-md border border-line bg-white hover:border-primary transition text-left border-l-2 ${accentBar}`}
+      onClick={() => onSelectCard?.(neighborId)}
+    >
+      <div className="p-3 flex-1">
+        <h4 className="text-sm font-medium text-ink line-clamp-2">
+          {neighborNode?.label ?? neighborId}
+        </h4>
+        {edge.evidence?.evidence ? (
+          <p className="mt-1.5 text-[11px] text-muted leading-relaxed line-clamp-2">
+            {edge.evidence.evidence}
+          </p>
+        ) : null}
+      </div>
+      {edge.evidence ? (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-line/50 bg-stone-50/30">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${strengthBar(edge.evidence.strength)}`}
+          />
+          <span className="text-[10px] text-muted">
+            {(edge.evidence.strength * 100).toFixed(0)}%
+          </span>
+        </div>
+      ) : null}
+    </button>
   );
 }
 
