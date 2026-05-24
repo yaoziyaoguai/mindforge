@@ -601,14 +601,22 @@ const copy: Record<Locale, LocaleDict> = {
     "breadcrumb.home": "首页",
 
     // ---- Timeline ----
+    "timeline.title": "审批时间线",
+    "timeline.approved_status": "此卡片已通过人工审批",
+    "timeline.pending_status": "此卡片等待人工审批确认",
     "timeline.created": "创建",
     "timeline.approved": "已确认",
     "timeline.pending_approval": "等待确认",
     "timeline.modified": "已修改",
+    "timeline.took": "耗时",
     "timeline.relative_just_now": "刚刚",
     "timeline.relative_minutes": "{n} 分钟前",
     "timeline.relative_hours": "{n} 小时前",
     "timeline.relative_days": "{n} 天前",
+    "timeline.duration_days_hours": "{d} 天 {h} 小时",
+    "timeline.duration_days": "{d} 天",
+    "timeline.duration_hours": "{h} 小时",
+    "timeline.duration_minutes": "{m} 分钟",
 
     // ---- Draft Preview ----
     "drafts.preview_expand": "展开预览",
@@ -1206,14 +1214,22 @@ const copy: Record<Locale, LocaleDict> = {
     "breadcrumb.home": "Home",
 
     // ---- Timeline ----
+    "timeline.title": "Approval Timeline",
+    "timeline.approved_status": "This card has been approved",
+    "timeline.pending_status": "This card is awaiting approval",
     "timeline.created": "Created",
     "timeline.approved": "Approved",
     "timeline.pending_approval": "Awaiting Approval",
     "timeline.modified": "Modified",
+    "timeline.took": "Took",
     "timeline.relative_just_now": "just now",
     "timeline.relative_minutes": "{n} minutes ago",
     "timeline.relative_hours": "{n} hours ago",
     "timeline.relative_days": "{n} days ago",
+    "timeline.duration_days_hours": "{d}d {h}h",
+    "timeline.duration_days": "{d} days",
+    "timeline.duration_hours": "{h} hours",
+    "timeline.duration_minutes": "{m} minutes",
 
     // ---- Draft Preview ----
     "drafts.preview_expand": "Expand Preview",
