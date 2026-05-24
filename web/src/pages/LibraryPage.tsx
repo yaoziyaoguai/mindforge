@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
 import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
@@ -50,6 +50,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [selected, setSelected] = useState<string | undefined>(initialRef ?? undefined);
   const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -109,6 +111,49 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     window.dispatchEvent(new PopStateEvent("popstate"));
   }
 
+  function toggleExportSelect(cardRef: string) {
+    setExportSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardRef)) next.delete(cardRef);
+      else next.add(cardRef);
+      return next;
+    });
+  }
+
+  function selectAllForExport() {
+    setExportSelection(new Set(displayedCards.map((c) => c.id ?? c.rel_path)));
+  }
+
+  function deselectAllForExport() {
+    setExportSelection(new Set());
+  }
+
+  async function exportSelected() {
+    if (exportSelection.size === 0) return;
+    setExporting(true);
+    try {
+      const resp = await fetch("/api/knowledge/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ card_ids: Array.from(exportSelection) }),
+      });
+      if (!resp.ok) throw new Error("Export failed");
+      const data = await resp.json();
+      const blob = new Blob([data.markdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportSelection(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (data.cards.length === 0) {
     return (
       <div className="space-y-6">
@@ -136,15 +181,33 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
           <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
         </div>
-        {filterIds ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {filterIds ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-sm text-muted hover:text-ink"
+              onClick={clearFilter}
+            >
+              <X className="h-4 w-4" /> Clear filter ({displayedCards.length}/{data.cards.length})
+            </button>
+          ) : null}
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-sm text-muted hover:text-ink"
-            onClick={clearFilter}
+            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink"
+            onClick={exportSelection.size === displayedCards.length ? deselectAllForExport : selectAllForExport}
           >
-            <X className="h-4 w-4" /> Clear filter ({displayedCards.length}/{data.cards.length})
+            {exportSelection.size === displayedCards.length ? t("library.deselect_all") : t("library.select_all")}
           </button>
-        ) : null}
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            disabled={exportSelection.size === 0 || exporting}
+            onClick={exportSelected}
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? "..." : t("library.export_selected")}{exportSelection.size > 0 ? ` (${exportSelection.size})` : ""}
+          </button>
+        </div>
       </header>
 
       {filterIds && displayedCards.length === 0 ? (
@@ -174,7 +237,19 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
               onClick={() => selectCard(ref)}
               type="button"
             >
-              <h3 className="font-semibold text-ink leading-snug line-clamp-2">{card.title ?? t("card.untitled")}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-ink leading-snug line-clamp-2">{card.title ?? t("card.untitled")}</h3>
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-line accent-primary"
+                  checked={exportSelection.has(ref)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleExportSelect(ref);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>
                   {friendlyStatus(card.status, locale)}

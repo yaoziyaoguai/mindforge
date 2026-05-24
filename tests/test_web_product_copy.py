@@ -1268,3 +1268,45 @@ def test_i2_draftlist_has_preview_toggle() -> None:
     assert "togglePreview" in dl
     assert "previewBody" in dl
     assert "getDraftDetail" in dl
+
+
+# ── v1.0 I3: Export + Dogfood ──────────────────────────────────────────
+
+def test_i3_export_i18n_keys_complete() -> None:
+    """I3 U2: Export i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "library.export_selected",
+        "library.export_select_cards",
+        "library.select_all",
+        "library.deselect_all",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i3_library_has_export_ui() -> None:
+    """I3 U2: LibraryPage 必须有导出按钮和选择功能。"""
+    lib = _read("pages/LibraryPage.tsx")
+
+    assert "exportSelection" in lib
+    assert "toggleExportSelect" in lib
+    assert "library.export_selected" in lib
+    assert "/api/knowledge/export" in lib
+    assert "Download" in lib
+
+
+def test_i3_justfile_exists() -> None:
+    """I3 U3: justfile 必须存在且包含 dogfood target。"""
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    jf = os.path.join(root, "justfile")
+    assert os.path.isfile(jf), f"justfile not found at {jf}"
+    content = open(jf, encoding="utf-8").read()
+    assert "dogfood" in content
+    assert "fake_dogfood.sh" in content

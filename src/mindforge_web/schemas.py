@@ -650,6 +650,15 @@ class CardBodyUpdateResponse(BaseModel):
     index_error: str | None = None
 
 
+class ExportCardsRequest(BaseModel):
+    card_ids: list[str]
+
+
+class ExportCardsResponse(BaseModel):
+    markdown: str
+    card_count: int
+
+
 class WorkflowSummaryResponse(BaseModel):
     vault_root: str
     cards_dir: str

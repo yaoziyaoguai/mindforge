@@ -7,6 +7,8 @@ from mindforge_web.presenters.web_errors import user_error
 from mindforge_web.schemas import (
     CardBodyUpdateRequest,
     CardBodyUpdateResponse,
+    ExportCardsRequest,
+    ExportCardsResponse,
     LibraryCardDetailResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
@@ -72,3 +74,29 @@ def update_library_card(
     if not result.ok:
         raise user_error(400, "card_save_failed", result.message, "重新打开 card detail 后再保存。")
     return result
+
+
+@router.post("/knowledge/export", response_model=ExportCardsResponse)
+def export_cards(
+    payload: ExportCardsRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> ExportCardsResponse:
+    """导出选中卡片为安全 Markdown（白名单过滤）。"""
+    parts: list[str] = []
+    for card_id in payload.card_ids:
+        detail = facade.library_card_detail(card_id, show_content=True)
+        if detail is None:
+            continue
+        card = detail.card
+        body = detail.body or ""
+        # 安全白名单：仅导出 title + body + status + created_at + source_title
+        status_label = "已确认" if card.status == "human_approved" else card.status
+        created = card.created_at[:10] if card.created_at else "未知"
+        source = card.source_title or "-"
+        parts.append(
+            f"# {card.title or '未命名卡片'}\n\n"
+            f"状态: {status_label} | 创建: {created} | 来源: {source}\n\n"
+            f"{body}\n"
+        )
+    markdown = "\n---\n\n".join(parts)
+    return ExportCardsResponse(markdown=markdown, card_count=len(parts))

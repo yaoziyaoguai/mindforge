@@ -595,6 +595,12 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Draft Preview ----
     "drafts.preview_expand": "展开预览",
     "drafts.preview_collapse": "收起预览",
+
+    // ---- Export ----
+    "library.export_selected": "导出选中",
+    "library.export_select_cards": "请先选择要导出的卡片",
+    "library.select_all": "全选",
+    "library.deselect_all": "取消全选",
   },
 
   en: {
@@ -1176,6 +1182,12 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Draft Preview ----
     "drafts.preview_expand": "Expand Preview",
     "drafts.preview_collapse": "Collapse Preview",
+
+    // ---- Export ----
+    "library.export_selected": "Export Selected",
+    "library.export_select_cards": "Select cards to export",
+    "library.select_all": "Select All",
+    "library.deselect_all": "Deselect All",
   },
 };
 
