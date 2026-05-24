@@ -39,7 +39,7 @@ from mindforge.relations.graph_models import (
     NodeType as GraphNodeType,
 )
 from mindforge.relations.local_graph import LocalGraph, NodeType, build_card_centered_graph
-from mindforge.relations.related_cards import RelatedCardEdge, compute_related_cards
+from mindforge.relations.related_cards import RelatedCardEdge, compute_multi_hop_related_cards
 from mindforge.health.health_service import build_knowledge_health_report
 from mindforge.strategy_display import strategy_display
 
@@ -1032,7 +1032,7 @@ def _library_relationship_context(
         card.id or card.rel_path: _library_card_summary_response(card, path_action_service=path_action_service)
         for card in approved
     }
-    edges = compute_related_cards(center_id, records, context="library")
+    edges = compute_multi_hop_related_cards(center_id, records, context="library", max_depth=2)
     return _LibraryRelationshipContext(
         graph=graph,
         related_cards=_related_card_responses(edges, cards_by_id),
@@ -1155,6 +1155,8 @@ def _related_card_responses(
                 label=_relation_reason_label(edge.reason.value),
                 detail=edge.reason_detail,
                 strength=edge.strength,
+                hop_distance=edge.hop_distance,
+                via_path=list(edge.via_path),
             )
         )
     return [

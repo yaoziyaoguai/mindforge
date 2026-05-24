@@ -550,6 +550,9 @@ class RelatedCardReasonResponse(BaseModel):
     label: str
     detail: str
     strength: float
+    # v2.1: multi-hop 信息
+    hop_distance: int = 1
+    via_path: list[str] = Field(default_factory=list)
 
 
 class RelatedCardResponse(BaseModel):

@@ -468,6 +468,9 @@ export interface RelatedCardReasonResponse {
   label: string;
   detail: string;
   strength: number;
+  // v2.1 multi-hop
+  hop_distance: number;
+  via_path: string[];
 }
 
 export interface RelatedCardResponse {
