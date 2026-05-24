@@ -501,11 +501,20 @@ export interface ProvenanceTrailSection {
   card_count: number;
 }
 
+export interface ProvenanceTrailRelatedSource {
+  source_id: string;
+  source_title?: string | null;
+  card_count: number;
+  shared_tags: string[];
+  shared_wiki_sections: string[];
+}
+
 export interface ProvenanceTrailResponse {
   card_id: string;
   source: ProvenanceTrailSource;
   sibling_cards: ProvenanceTrailSiblingCard[];
   wiki_sections: ProvenanceTrailSection[];
+  related_sources: ProvenanceTrailRelatedSource[];
 }
 
 export interface CardBodyUpdateResponse {

@@ -628,11 +628,21 @@ class ProvenanceTrailSection(BaseModel):
     card_count: int
 
 
+class ProvenanceTrailRelatedSource(BaseModel):
+    """与当前 source 通过共享 tags/wiki_sections 关联的其他 source。"""
+    source_id: str
+    source_title: str | None = None
+    card_count: int
+    shared_tags: list[str] = Field(default_factory=list)
+    shared_wiki_sections: list[str] = Field(default_factory=list)
+
+
 class ProvenanceTrailResponse(BaseModel):
     card_id: str
     source: ProvenanceTrailSource = Field(default_factory=ProvenanceTrailSource)
     sibling_cards: list[ProvenanceTrailSiblingCard] = Field(default_factory=list)
     wiki_sections: list[ProvenanceTrailSection] = Field(default_factory=list)
+    related_sources: list[ProvenanceTrailRelatedSource] = Field(default_factory=list)
 
 
 class CardBodyUpdateRequest(BaseModel):

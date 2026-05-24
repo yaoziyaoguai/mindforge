@@ -74,6 +74,7 @@ from mindforge_web.schemas import (
     RecallHit,
     RecallResponse,
     RecallStatus,
+    ProvenanceTrailRelatedSource,
     ProvenanceTrailResponse,
     ProvenanceTrailSection,
     ProvenanceTrailSiblingCard,
@@ -1217,6 +1218,66 @@ def _center_card_communities(
     return tuple(result)
 
 
+def _compute_related_sources(
+    source_id: str | None,
+    approved: list,
+) -> list[ProvenanceTrailRelatedSource]:
+    """找出与给定 source 通过共享 tags/wiki_sections 关联的其他 source（v1.2 U5）。
+
+    双向探索的关键：从当前 card → source → 找到"哪些其他 source 有相似的知识"。
+    """
+    if not source_id:
+        return []
+
+    # 收集当前 source 的所有 tags 和 wiki_sections
+    source_tags: set[str] = set()
+    source_sections: set[str] = set()
+    for c in approved:
+        if c.source_id == source_id:
+            for t in c.tags:
+                source_tags.add(t)
+            for s in c.wiki_sections:
+                source_sections.add(s)
+
+    if not source_tags and not source_sections:
+        return []
+
+    # 统计其他 source 与当前 source 的共享情况
+    related: dict[str, dict] = {}  # source_id → {tags: set, sections: set, cards: set}
+    for c in approved:
+        sid = c.source_id
+        if not sid or sid == source_id:
+            continue
+        if sid not in related:
+            related[sid] = {"tags": set(), "sections": set(), "cards": set(), "title": c.source_title}
+        related[sid]["cards"].add(c.id or c.rel_path)
+        for t in c.tags:
+            if t in source_tags:
+                related[sid]["tags"].add(t)
+        for s in c.wiki_sections:
+            if s in source_sections:
+                related[sid]["sections"].add(s)
+
+    # 排序：共享 tag + section 总数降序
+    scored = [
+        (sid, info) for sid, info in related.items()
+        if info["tags"] or info["sections"]
+    ]
+    scored.sort(key=lambda x: len(x[1]["tags"]) + len(x[1]["sections"]), reverse=True)
+
+    result: list[ProvenanceTrailRelatedSource] = []
+    for sid, info in scored[:5]:
+        result.append(ProvenanceTrailRelatedSource(
+            source_id=sid,
+            source_title=info["title"],
+            card_count=len(info["cards"]),
+            shared_tags=sorted(info["tags"]),
+            shared_wiki_sections=sorted(info["sections"]),
+        ))
+
+    return result
+
+
 def _graph_neighbor_count(
     builder: DeterministicGraphBuilder | None,
     card_id: str,
@@ -1280,6 +1341,9 @@ def _provenance_trail_response(
         for title, count in sorted_sections
     ]
 
+    # Related sources: other sources sharing tags/wiki_sections with this source
+    related_sources = _compute_related_sources(source_id, approved)
+
     return ProvenanceTrailResponse(
         card_id=card_id,
         source=ProvenanceTrailSource(
@@ -1288,6 +1352,7 @@ def _provenance_trail_response(
         ),
         sibling_cards=siblings,
         wiki_sections=wiki_sections,
+        related_sources=related_sources,
     )
 
     # ── v1.2 Knowledge Community ──────────────────

@@ -574,6 +574,33 @@ function ProvenanceTrail({ trail, onSelectCard, t }: {
             </span>
           </>
         ) : null}
+
+        {/* Step 4: Related sources (v1.2 U5 — bidirectional exploration) */}
+        {trail.related_sources && trail.related_sources.length > 0 ? (
+          <div className="mt-2 pt-2 border-t border-line/50">
+            <span className="text-xs text-muted">{t("card.provenance_related_sources")}:</span>
+            <div className="mt-1 flex flex-col gap-1">
+              {trail.related_sources.map((rs) => (
+                <span key={rs.source_id} className="text-xs text-ink/80 ml-2">
+                  <span className="font-medium">{rs.source_title || rs.source_id}</span>
+                  <span className="text-muted ml-1">
+                    ({rs.card_count} {t("card.provenance_cards")})
+                  </span>
+                  {rs.shared_tags.length > 0 ? (
+                    <span className="text-muted ml-1">
+                      [{t("card.provenance_shared_tags")}: {rs.shared_tags.map((t) => `#${t}`).join(", ")}]
+                    </span>
+                  ) : null}
+                  {rs.shared_wiki_sections.length > 0 ? (
+                    <span className="text-muted ml-1">
+                      [{t("card.provenance_shared_sections")}: {rs.shared_wiki_sections.join(", ")}]
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
