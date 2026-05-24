@@ -1,6 +1,6 @@
 """Secret-safe Web configuration status.
 
-中文学习型说明：Web 需要告诉用户“model setup 是否可用”，但绝不能泄露 key
+中文学习型说明：Web 需要告诉用户"model setup 是否可用"，但绝不能泄露 key
 的值。普通用户主路径以 Web Setup / local secret store 为准；legacy key
 presence 兼容只保留给 advanced diagnostics，不进入 Home/Setup 主判断。
 """
@@ -102,20 +102,36 @@ class WebConfigService:
         ]
         blockers = list(opt_in["blockers"])
         if readiness.ready:
-            # 中文学习型说明：core provider_readiness 是旧的 env-only 审计视图；
-            # Web Setup 主路径使用 local secret store。Web status 必须展示与
-            # processing/wiki 相同的 readiness，否则用户会看到“ready 但缺 key”
-            # 的矛盾状态。这里仍只做 presence/masked metadata，不返回 raw key。
             blockers = []
+        provider_mode = self._read_provider_mode()
         return ProviderStatus(
             active_profile=provider["active_profile"],
             opt_in_state="ready" if readiness.ready else opt_in["opt_in_state"],
             model_setup=readiness.status,
             model_setup_label=readiness.label,
             can_run_real_smoke=readiness.ready,
+            provider_mode=provider_mode,
             aliases=alias_statuses,
             blockers=blockers,
         )
+
+    def _read_provider_mode(self) -> Literal["fake", "real"]:
+        """从 checkpoint/state.json 读取 provider_mode；fallback 为 fake。"""
+        try:
+            from mindforge.checkpoint import Checkpoint
+            cp = Checkpoint.load(self.cfg.state.state_path)
+            mode = cp.provider_mode
+            if mode in ("fake", "real"):
+                return mode
+        except Exception:
+            pass
+        return "fake"
+
+    def write_provider_mode(self, mode: Literal["fake", "real"]) -> None:
+        """写入 provider_mode 到 checkpoint/state.json。"""
+        from mindforge.checkpoint import Checkpoint
+        cp = Checkpoint.load(self.cfg.state.state_path, backup=True)
+        cp.save(provider_mode=mode)
 
     def _provider_alias_status_from_readiness_alias(self, alias: dict[str, Any]) -> ProviderAliasStatus:
         """把 env-only readiness alias 转成 Web Setup 的 secret-store-aware 状态。

@@ -921,11 +921,12 @@ def test_milestone_e_action_keys_in_next_action_label_mapping() -> None:
 
 
 def test_setup_page_has_provider_safety_banner() -> None:
-    """SetupPage 必须有 provider safety copy banner。"""
+    """SetupPage 必须有 mode-aware safety banner。"""
     sp = _read("pages/SetupPage.tsx")
 
-    assert "setup.provider_type_fake" in sp
-    assert "setup.api_key_safety" in sp
+    assert "setup.mode_fake_title" in sp
+    assert "setup.mode_real_title" in sp
+    assert "setup.mode_activate" in sp
     assert "setup.provider_readiness" in sp
 
 

@@ -34,6 +34,7 @@ export interface ProviderStatus {
   model_setup: "ready" | "needs_setup" | string;
   model_setup_label: string;
   can_run_real_smoke: boolean;
+  provider_mode: "fake" | "real";
   aliases: Array<{
     alias: string;
     type: string;

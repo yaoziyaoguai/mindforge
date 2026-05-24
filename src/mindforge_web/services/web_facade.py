@@ -9,6 +9,7 @@ Router 调 Facade，Facade 调现有 MindForge service，这样 Web 不会长成
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import HTTPException
 
@@ -215,6 +216,10 @@ class WebFacade:
 
     def validate_setup_config_patch(self, patch: SetupConfigPatch) -> SetupValidationResponse:
         return self.config_service.validate_patch(patch)
+
+    def set_provider_mode(self, mode: Literal["fake", "real"]) -> ConfigStatusResponse:
+        self.config_service.write_provider_mode(mode)
+        return self.config_status()
 
     def update_setup_config_patch(self, patch: SetupConfigPatch) -> SetupConfigUpdateResponse:
         try:

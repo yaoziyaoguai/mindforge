@@ -54,8 +54,13 @@ class ProviderStatus(BaseModel):
     model_setup: str = "needs_setup"
     model_setup_label: str = "needs setup"
     can_run_real_smoke: bool
+    provider_mode: Literal["fake", "real"] = "fake"
     aliases: list[ProviderAliasStatus]
     blockers: list[str] = Field(default_factory=list)
+
+
+class SetProviderModeRequest(BaseModel):
+    mode: Literal["fake", "real"]
 
 
 class SafetySummary(BaseModel):

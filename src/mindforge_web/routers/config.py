@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from mindforge_web.deps import get_facade
 from mindforge_web.schemas import (
     ConfigStatusResponse,
+    SetProviderModeRequest,
     SetupConfigPatch,
     SetupConfigUpdateResponse,
     SetupEditableConfigResponse,
@@ -37,6 +38,14 @@ def validate_config(
     facade: WebFacade = Depends(get_facade),
 ) -> SetupValidationResponse:
     return facade.validate_setup_config_patch(payload)
+
+
+@router.post("/provider-mode", response_model=ConfigStatusResponse)
+def set_provider_mode(
+    payload: SetProviderModeRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> ConfigStatusResponse:
+    return facade.set_provider_mode(payload.mode)
 
 
 @router.patch("/editable", response_model=SetupConfigUpdateResponse)

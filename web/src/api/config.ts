@@ -26,3 +26,7 @@ export function validateSetupConfig(patch: SetupConfigPatch) {
 export function saveSetupConfig(patch: SetupConfigPatch) {
   return apiPatch<SetupConfigUpdateResponse>("/api/config/editable", patch);
 }
+
+export function setProviderMode(mode: "fake" | "real") {
+  return apiPost<ConfigStatusResponse>("/api/config/provider-mode", { mode });
+}

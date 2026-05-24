@@ -72,6 +72,10 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [editing, setEditing] = useState<EditingModel | null>(null);
   const [step, setStep] = useState<SetupStep>("models");
   const [promptPreview, setPromptPreview] = useState<{ stage: string; version: string; content: string } | null>(null);
+  const [activationDialogOpen, setActivationDialogOpen] = useState(false);
+  const [activationChecked, setActivationChecked] = useState(false);
+  const [activationBusy, setActivationBusy] = useState(false);
+  const [keyVisible, setKeyVisible] = useState(false);
   const { locale, t } = useLocale();
   const STEP_LABELS = getStepLabels(t);
 
@@ -150,6 +154,54 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
   function cancelEdit() {
     setEditing(null);
+  }
+
+  async function activateRealMode() {
+    setActivationBusy(true);
+    try {
+      const { setProviderMode } = await import("../api/config");
+      await setProviderMode("real");
+      setActivationDialogOpen(false);
+      setActivationChecked(false);
+      onRefresh?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Activation failed");
+    } finally {
+      setActivationBusy(false);
+    }
+  }
+
+  async function deactivateRealMode() {
+    setActivationBusy(true);
+    try {
+      const { setProviderMode } = await import("../api/config");
+      await setProviderMode("fake");
+      onRefresh?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Deactivation failed");
+    } finally {
+      setActivationBusy(false);
+    }
+  }
+
+  function applyTemplate(template: "anthropic" | "openai" | "openrouter") {
+    if (!editing) return;
+    const templates: Record<string, { type: string; base_url: string; model: string }> = {
+      anthropic: { type: "anthropic_compatible", base_url: "https://api.anthropic.com", model: "claude-sonnet-4-6" },
+      openai: { type: "openai_compatible", base_url: "https://api.openai.com/v1", model: "gpt-4o" },
+      openrouter: { type: "openai_compatible", base_url: "https://openrouter.ai/api/v1", model: "openai/gpt-4o" },
+    };
+    const tpl = templates[template];
+    setEditing({ ...editing, form: { ...editing.form, type: tpl.type, base_url: tpl.base_url, model: tpl.model } });
+  }
+
+  function validateKeyFormat(key: string): string | null {
+    if (!key) return null;
+    if (key.startsWith("sk-ant-api")) return "valid";
+    if (key.startsWith("sk-")) return "valid";
+    if (key.startsWith("sk-or-")) return "valid";
+    if (key.length >= 20) return "valid";
+    return "unknown_format";
   }
 
   /** 确认模型编辑并持久化到后端。
@@ -284,19 +336,42 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail={t("setup.api_key_status_detail")} locale={locale} />
       </div>
 
-      {/* 中文学习型说明：provider 安全边界说明 —— 帮助用户理解 fake/real provider 区别。
-          Setup 是 onboarding，不是配置文件搬运。这些文案不改变任何后端行为。 */}
-      <section className="rounded-md border border-blue-200 bg-blue-50 p-4">
-        <h2 className="text-sm font-semibold text-ink">{t("setup.api_key_safety")}</h2>
-        <div className="mt-2 flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 font-medium text-green-800">
-            {t("setup.provider_type_fake")}: {t("setup.provider_type_fake_desc")}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-800">
-            {t("setup.provider_type_real")}: {t("setup.provider_type_real_desc")}
-          </span>
-        </div>
-      </section>
+      {/* 中文学习型说明：provider 安全边界横幅，根据 provider_mode 展示不同状态。 */}
+      {data.provider.provider_mode === "real" ? (
+        <section className="rounded-md border border-amber-300 bg-amber-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-900">{t("setup.mode_real_title")}</h2>
+              <p className="mt-1 text-xs text-amber-700">{t("setup.mode_real_desc")}</p>
+            </div>
+            <button
+              className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              onClick={deactivateRealMode}
+              disabled={activationBusy}
+              type="button"
+            >
+              {t("setup.mode_deactivate")}
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="rounded-md border border-green-200 bg-green-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-green-900">{t("setup.mode_fake_title")}</h2>
+              <p className="mt-1 text-xs text-green-700">{t("setup.mode_fake_desc")}</p>
+            </div>
+            <button
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              onClick={() => setActivationDialogOpen(true)}
+              disabled={!hasConfiguredModels}
+              type="button"
+            >
+              {t("setup.mode_activate")}
+            </button>
+          </div>
+        </section>
+      )}
 
       {form && editable ? (
         <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
@@ -416,6 +491,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             {editing ? (
               <div className="rounded-md border border-line bg-stone-50 p-4">
                 <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? t("setup.add_model_title") : `${t("setup.edit_model")}${editing.modelId}`}</h3>
+                {editing.isNew ? (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <span className="text-xs text-muted self-center mr-1">{t("setup.template_quick")}:</span>
+                    <button className="rounded border border-line bg-white px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => applyTemplate("anthropic")} type="button">{t("setup.template_anthropic")}</button>
+                    <button className="rounded border border-line bg-white px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => applyTemplate("openai")} type="button">{t("setup.template_openai")}</button>
+                    <button className="rounded border border-line bg-white px-2 py-1 text-xs font-medium text-ink hover:bg-stone-100" onClick={() => applyTemplate("openrouter")} type="button">{t("setup.template_openrouter")}</button>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="space-y-1 text-sm" htmlFor="model-id-input">
                     <span className="font-medium text-ink">{t("setup.model_id")} {editing.isNew ? "*" : t("setup.model_id_readonly")}</span>
@@ -437,7 +520,22 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   </label>
                   <label className="space-y-1 text-sm" htmlFor="model-api-key-input">
                     <span className="font-medium text-ink">{t("setup.model_api_key")}</span>
-                    <input id="model-api-key-input" name="model-api-key" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type="password" autoComplete="off" placeholder={editing.isNew ? t("setup.model_api_key_placeholder_new") : t("setup.model_api_key_placeholder_edit")} />
+                    <div className="flex gap-1">
+                      <input id="model-api-key-input" name="model-api-key" className="w-full rounded-md border border-line bg-white px-3 py-2" value={editing.form.api_key} onChange={(event) => setEditing({ ...editing, form: { ...editing.form, api_key: event.target.value, api_key_action: event.target.value ? "update" : "keep" } })} type={keyVisible ? "text" : "password"} autoComplete="off" placeholder={editing.isNew ? t("setup.model_api_key_placeholder_new") : t("setup.model_api_key_placeholder_edit")} />
+                      <button
+                        className="rounded-md border border-line px-2 py-2 text-xs text-muted hover:bg-stone-100"
+                        onClick={() => setKeyVisible(!keyVisible)}
+                        type="button"
+                        title={keyVisible ? t("setup.key_hide") : t("setup.key_show")}
+                      >
+                        {keyVisible ? "🙈" : "👁"}
+                      </button>
+                    </div>
+                    {editing.form.api_key ? (
+                      <span className={`text-xs ${validateKeyFormat(editing.form.api_key) === "valid" ? "text-green-700" : "text-amber-700"}`}>
+                        {validateKeyFormat(editing.form.api_key) === "valid" ? t("setup.key_format_valid") : t("setup.key_format_unknown")}
+                      </span>
+                    ) : null}
                     <span className="text-xs text-muted">{editing.isNew ? "" : t("setup.model_api_key_hint_edit")}</span>
                   </label>
                   {!editing.isNew ? (
@@ -715,6 +813,79 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
               )}
             </div>
           </div>
+
+          {/* Activation dialog modal */}
+          {activationDialogOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setActivationDialogOpen(false); setActivationChecked(false); }}>
+              <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-md border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold text-ink">{t("setup.activation_title")}</h3>
+                <p className="mt-2 text-sm text-muted">{t("setup.activation_desc")}</p>
+
+                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <h4 className="text-sm font-semibold text-amber-900">{t("setup.activation_cost_title")}</h4>
+                  <p className="mt-1 text-xs text-amber-700">{t("setup.activation_cost_desc")}</p>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-sm font-semibold text-ink">{t("setup.activation_checklist_title")}</h4>
+                  <ul className="space-y-1.5 text-xs text-muted">
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5 text-green-600">✓</span>
+                      <span>{t("setup.activation_check_api_key")}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5 text-green-600">✓</span>
+                      <span>{t("setup.activation_check_approval")}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5 text-green-600">✓</span>
+                      <span>{t("setup.activation_check_cost")}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5 text-green-600">✓</span>
+                      <span>{t("setup.activation_check_local")}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <label className="mt-4 flex items-start gap-2 text-sm text-ink cursor-pointer">
+                  <input
+                    className="mt-0.5"
+                    type="checkbox"
+                    checked={activationChecked}
+                    onChange={(e) => setActivationChecked(e.target.checked)}
+                  />
+                  <span>{t("setup.activation_confirm")}</span>
+                </label>
+
+                <div className="mt-5 flex gap-2 justify-end">
+                  <button
+                    className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
+                    onClick={() => { setActivationDialogOpen(false); setActivationChecked(false); }}
+                    disabled={activationBusy}
+                    type="button"
+                  >
+                    {t("setup.model_cancel")}
+                  </button>
+                  <button
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
+                    onClick={activateRealMode}
+                    disabled={!activationChecked || activationBusy}
+                    type="button"
+                  >
+                    {activationBusy ? (
+                      <>
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        {t("setup.saving")}
+                      </>
+                    ) : (
+                      t("setup.activation_activate")
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {message ? <p className="text-sm text-primary">{message}</p> : null}
         </section>

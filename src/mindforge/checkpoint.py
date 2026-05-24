@@ -52,11 +52,13 @@ class Checkpoint:
         path: Path,
         items: dict[str, ItemState],
         active_profile: str | None = None,
+        provider_mode: str = "fake",
         backup: bool = True,
     ) -> None:
         self.path = path
         self.items = items
         self.active_profile = active_profile
+        self.provider_mode = provider_mode
         self.backup = backup
 
     # ------------------------------------------------------------------ load
@@ -89,14 +91,17 @@ class Checkpoint:
             path=p,
             items=items,
             active_profile=raw.get("active_profile"),
+            provider_mode=raw.get("provider_mode", "fake"),
             backup=backup,
         )
 
     # ----------------------------------------------------------------- save
-    def save(self, *, active_profile: str | None = None) -> None:
+    def save(self, *, active_profile: str | None = None, provider_mode: str | None = None) -> None:
         """原子保存。先写 .tmp 再 rename；可选写 .bak。"""
         if active_profile is not None:
             self.active_profile = active_profile
+        if provider_mode is not None:
+            self.provider_mode = provider_mode
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -107,6 +112,7 @@ class Checkpoint:
             "version": STATE_SCHEMA_VERSION,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
             "active_profile": self.active_profile,
+            "provider_mode": self.provider_mode,
             "items": {k: _item_to_dict(v) for k, v in self.items.items()},
         }
 
