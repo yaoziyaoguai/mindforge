@@ -83,7 +83,9 @@ class TestAssembleDiscoveryContext:
         graph = builder.get_graph("card_1", "card", depth=2)
         ctx = assemble_discovery_context(graph)
         # card_1 → card_2 (1-hop) → card_3 (2-hop via shared tag "db")
-        all_related = {m.card_id for m in ctx.direct_matches} | {m.card_id for m in ctx.neighbor_cards}
+        direct_ids = {m.card_id for m in ctx.direct_matches}
+        neighbor_ids_set = {m.card_id for m in ctx.neighbor_cards}
+        all_related = direct_ids | neighbor_ids_set
         # card_3 should appear as either 1-hop or 2-hop
         # (depends on relationship engine — at minimum more than just card_1 itself)
         assert len(all_related) >= 1, f"Expected at least one related card, got: {all_related}"
@@ -106,7 +108,9 @@ class TestAssembleDiscoveryContext:
         graph = builder.get_graph("card_1", "card", depth=2)
         ctx = assemble_discovery_context(graph)
         section_names = {s.section_title for s in ctx.wiki_sections}
-        assert "Machine Learning" in section_names, f"Expected 'Machine Learning', got: {section_names}"
+        assert "Machine Learning" in section_names, (
+            f"Expected 'Machine Learning', got: {section_names}"
+        )
 
     def test_shared_tags_present(self):
         """验证 shared_tags 被正确聚合。"""
