@@ -4,7 +4,7 @@
 2026-05-24
 
 ## 状态
-Accepted (v1.3 re-evaluated 2026-05-24 — 触发条件不满足，保持 In-Memory)
+Accepted (v2.3 re-evaluated 2026-05-25 — 触发条件仍不满足，保持 In-Memory)
 
 ## 背景
 
@@ -87,6 +87,45 @@ Kuzu（[kuzudb.com](https://kuzudb.com)）是 embeddable property graph database
 ### 决定
 
 **继续使用 In-Memory DeterministicGraphBuilder。** 无触发条件满足。GraphPort 抽象保留，若未来需要 Kuzu 只需实现接口。
+
+## v2.3 重新评估 (2026-05-25)
+
+### v2.1-v2.2 增强后的图查询能力
+
+自 v1.3 评估以来，图查询能力已大幅增强：
+
+| 能力 | v1.3 状态 | v2.3 状态 | 实现方式 |
+|------|-----------|-----------|---------|
+| 1-hop neighbor | 有 | 有 | BFS |
+| 2-hop/3-hop multi-hop | 无 | 有 | BFS + depth 参数 |
+| community hierarchy | 单层 | 多层 hierarchy + overlap | deterministic grouping |
+| community quality score | 无 | 有 | Jaccard + size + entropy |
+| discovery context | 无 | 有 | reasoning + token estimation |
+| path finding | 无 | 有 | BFS + max_depth |
+| source provenance | 有 | 增强 | source-centered + evidence |
+| GraphPort contract | 有 | 增强 | 9 Port contract tests |
+| golden tests | 无 | 有 | 31 golden + edge case tests |
+| perf baseline | 无 | 有 | 8 perf characterization tests |
+
+### 触发条件重新检查
+
+| 条件 | 阈值 | 当前 | 满足？ |
+|------|------|------|--------|
+| 卡片数 | > 2000 | < 100（测试） | 否 |
+| 2-hop 查询延迟 | > 500ms | ~24.5ms（100 卡）/ ~200ms（500 卡 est.） | 否 |
+| 需要 complex graph queries | 模式匹配/centrality | 当前所有查询均 BFS-based + deterministic grouping | 否 |
+| 需要持久化图 | 跨请求缓存 | 每次重建 < 50ms，不需要缓存 | 否 |
+| 需要图模式匹配 | Cypher-like | 不需要（见 ADR-004 gap analysis） | 否 |
+
+### 决定
+
+**继续使用 In-Memory DeterministicGraphBuilder。** v2.1-v2.2 的 multi-hop、community hierarchy、discovery context 等增强全部通过 BFS + deterministic grouping 实现，未产生对 embedded graph DB 的需求。GraphPort 抽象已通过 9 个 contract tests 守护，未来可安全替换。
+
+### 推荐升级路径（如需）
+
+1. **networkx** — PageRank、betweenness、modularity-based community detection
+2. **SQLite-backed graph** — 跨请求持久化
+3. **Kuzu** — 仅在前两者均不满足时考虑
 
 ## 参考
 
