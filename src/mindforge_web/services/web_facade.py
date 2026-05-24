@@ -1251,3 +1251,38 @@ def _provenance_trail_response(
         sibling_cards=siblings,
         wiki_sections=wiki_sections,
     )
+
+    # ── v1.2 Knowledge Community ──────────────────
+
+    def knowledge_communities(self) -> object:
+        """检测知识社区。"""
+        from mindforge.relations.community import detect_communities
+        from mindforge_web.schemas import KnowledgeCommunitiesResponse, KnowledgeCommunityResponse
+
+        library = self.library_cards()
+        cards: list[dict[str, object]] = []
+        for c in library.cards:
+            detail = self.library_card_detail(c.id or c.rel_path)
+            if detail is None:
+                continue
+            card = detail.card
+            cards.append({
+                "id": card.id or card.rel_path,
+                "source_id": card.source_id,
+                "tags": card.tags or [],
+                "wiki_sections": getattr(card, "wiki_sections", None) or [],
+            })
+
+        communities = detect_communities(cards, min_members=2)
+        return KnowledgeCommunitiesResponse(
+            communities=[
+                KnowledgeCommunityResponse(
+                    community_type=c.community_type,
+                    shared_entity=c.shared_entity,
+                    member_count=c.member_count,
+                    member_card_ids=list(c.member_card_ids),
+                    description=c.description,
+                )
+                for c in communities
+            ]
+        )

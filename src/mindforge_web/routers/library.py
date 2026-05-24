@@ -9,6 +9,7 @@ from mindforge_web.schemas import (
     CardBodyUpdateResponse,
     ExportCardsRequest,
     ExportCardsResponse,
+    KnowledgeCommunitiesResponse,
     LibraryCardDetailResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
@@ -100,3 +101,11 @@ def export_cards(
         )
     markdown = "\n---\n\n".join(parts)
     return ExportCardsResponse(markdown=markdown, card_count=len(parts))
+
+
+@router.get("/knowledge/communities", response_model=KnowledgeCommunitiesResponse)
+def knowledge_communities(
+    facade: WebFacade = Depends(get_facade),
+) -> KnowledgeCommunitiesResponse:
+    """获取知识社区列表（按 source/tag/wiki_section 分组的卡片群）。"""
+    return facade.knowledge_communities()

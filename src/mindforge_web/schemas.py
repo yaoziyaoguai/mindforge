@@ -990,3 +990,18 @@ class SourceLocationResponse(BaseModel):
     paragraph_end: int | None = None
     css_selector: str | None = None
     display: str
+
+
+# ── v1.2 Knowledge Community ──────────────────────
+
+
+class KnowledgeCommunityResponse(BaseModel):
+    community_type: str  # "source" | "tag" | "wiki_section"
+    shared_entity: str
+    member_count: int
+    member_card_ids: list[str]
+    description: str
+
+
+class KnowledgeCommunitiesResponse(BaseModel):
+    communities: list[KnowledgeCommunityResponse]
