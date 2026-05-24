@@ -1,5 +1,7 @@
 # MindForge Real LLM Opt-in Dogfood Guide
 
+> **Note (2026-05-24)**: 本文档已合并到统一的 [Dogfood Runbook](dogfood-runbook.md)。请以 runbook 为准。本文档保留作为参考。
+
 使用真实 LLM 验证 MindForge 全链路行为的安全指南。**推荐路径是 Web-first setup**，适合新用户从 fresh clone 开始逐步验证。
 
 ## Recommended path: Web-first real LLM dogfood

@@ -1,5 +1,7 @@
 # MindForge Dogfood 指南
 
+> **Note (2026-05-24)**: 本文档已合并到统一的 [Dogfood Runbook](dogfood-runbook.md)。请以 runbook 为准。本文档保留作为参考。
+
 非敏感 dogfood 闭环：在完全不依赖真实 LLM、不读 `.env`、不接触私人资料的前提下，验证 MindForge 知识加工全链路能跑通。
 
 ## 前置条件
