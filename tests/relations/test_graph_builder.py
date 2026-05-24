@@ -472,6 +472,49 @@ class TestEvidenceDetailDict:
             assert "relation_reason" in edge.evidence.detail, \
                 f"All edges should have relation_reason in detail: {edge.evidence.detail}"
 
+    def test_detail_contains_shared_entity_info(self):
+        """v1.2 U1: evidence detail 应包含 shared_entity_type 和 shared_entity_name。"""
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_a")),
+            _to_record(SyntheticRelationCard(id="c2", source_id="src_a")),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        edges = builder.get_edges("c1")
+        same_source_edges = [
+            e for e in edges
+            if e.target_id == "c2" and e.evidence.detail["original_reason"] == "same_source"
+        ]
+        assert len(same_source_edges) >= 1
+        detail = same_source_edges[0].evidence.detail
+        assert detail["original_reason"] == "same_source"
+        assert detail["shared_entity_type"] == "source_document"
+        assert detail["shared_entity_name"] == "src_a"
+
+    def test_detail_distinguishes_same_source_from_location_neighbor(self):
+        """v1.2 U1: SAME_SOURCE 和 SOURCE_LOCATION_NEIGHBOR 应在 detail 中可区分。
+
+        c3 与 c1 共享同一 source 且在相邻位置 → 同时产生 SAME_SOURCE 和
+        SOURCE_LOCATION_NEIGHBOR 两条边，detail.original_reason 可区分。
+        """
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_a", source_location_index=0)),
+            _to_record(SyntheticRelationCard(id="c2", source_id="src_a", source_location_index=0)),
+            _to_record(SyntheticRelationCard(id="c3", source_id="src_a", source_location_index=1)),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        edges = builder.get_edges("c1")
+
+        # c2 is at same source location index → SAME_SOURCE
+        c2_edges = [e for e in edges if e.target_id == "c2"]
+        assert any(e.evidence.detail["original_reason"] == "same_source" for e in c2_edges), \
+            f"Expected a same_source edge to c2, got {[e.evidence.detail['original_reason'] for e in c2_edges]}"
+
+        # c3 is at adjacent source location → should have SOURCE_LOCATION_NEIGHBOR
+        c3_edges = [e for e in edges if e.target_id == "c3"]
+        reasons = [e.evidence.detail["original_reason"] for e in c3_edges]
+        assert "source_location_neighbor" in reasons, \
+            f"Expected source_location_neighbor among reasons for c3, got {reasons}"
+
 
 class TestTwoHopGoldenFixture:
     """v0.7 U4：验证 2-hop graph 的确定性结构（golden fixture）。"""

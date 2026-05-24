@@ -47,6 +47,42 @@ _REASON_TO_EDGE_TYPE: dict[RelationReason, EdgeType] = {
     RelationReason.MANUAL_LINK: EdgeType.MENTIONS,
 }
 
+# Reason → 共享实体类型标签（用于 evidence detail 细分）
+_REASON_ENTITY_TYPE: dict[RelationReason, str] = {
+    RelationReason.SAME_SOURCE: "source_document",
+    RelationReason.SAME_TAG: "tag",
+    RelationReason.SAME_WIKI_SECTION: "wiki_section",
+    RelationReason.SAME_REVIEW_BATCH: "review_batch",
+    RelationReason.SOURCE_LOCATION_NEIGHBOR: "source_location_neighbor",
+    RelationReason.MANUAL_LINK: "manual_link",
+}
+
+
+def _extract_shared_entity(reason: RelationReason, reason_detail: str) -> str:
+    """从 reason_detail 提取共享实体名称。
+
+    reason_detail 格式示例：
+      "same source: path/to/doc.md" → "path/to/doc.md"
+      "shared tag: concept" → "concept"
+      "same wiki section: §1.1 定义" → "§1.1 定义"
+      "same review batch: run-123" → "run-123"
+      "nearby source location: 5" → "5"
+    """
+    if ": " in reason_detail:
+        return reason_detail.split(": ", 1)[1]
+    return reason_detail
+
+
+def _local_reason_entity_type(reason: str) -> str:
+    """将 local_graph 的字符串 reason 映射到实体类型标签。"""
+    mapping = {
+        "same_source": "source_document",
+        "same_tag": "tag",
+        "same_wiki_section": "wiki_section",
+        "wiki_section_reference": "wiki_section_reference",
+    }
+    return mapping.get(reason, reason)
+
 # Edge type → strength weight (与 _STRENGTH 保持一致)
 _EDGE_TYPE_STRENGTH: dict[EdgeType, float] = {
     EdgeType.RELATED_BY_SOURCE: 0.8,
@@ -150,7 +186,12 @@ class DeterministicGraphBuilder(GraphPort):
                 reason=raw.reason.value,
                 evidence=raw.reason_detail,
                 strength=raw.strength,
-                detail={"relation_reason": raw.reason.value},
+                detail={
+                    "relation_reason": raw.reason.value,
+                    "original_reason": raw.reason.value,
+                    "shared_entity_type": _REASON_ENTITY_TYPE.get(raw.reason, "unknown"),
+                    "shared_entity_name": _extract_shared_entity(raw.reason, raw.reason_detail),
+                },
             )
             if direction in ("outgoing", "both"):
                 result.append(GraphEdge(
@@ -272,7 +313,12 @@ class DeterministicGraphBuilder(GraphPort):
                         reason=raw.reason.value,
                         evidence=raw.reason_detail,
                         strength=raw.strength,
-                        detail={"relation_reason": raw.reason.value},
+                        detail={
+                            "relation_reason": raw.reason.value,
+                            "original_reason": raw.reason.value,
+                            "shared_entity_type": _REASON_ENTITY_TYPE.get(raw.reason, "unknown"),
+                            "shared_entity_name": _extract_shared_entity(raw.reason, raw.reason_detail),
+                        },
                     )
                     edges.append(GraphEdge(
                         source_id=neighbor_id,
@@ -449,7 +495,11 @@ class DeterministicGraphBuilder(GraphPort):
                 reason=reason_key,
                 evidence=evidence_text,
                 strength=strength,
-                detail={"relation_reason": ge.reason},
+                detail={
+                    "relation_reason": ge.reason,
+                    "original_reason": ge.reason,
+                    "shared_entity_type": _local_reason_entity_type(ge.reason),
+                },
             ),
         )
 
