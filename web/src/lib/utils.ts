@@ -58,6 +58,14 @@ export function friendlyStatus(status?: string | null, locale?: Locale): string 
   return status || "-";
 }
 
+/** 卡片生命周期状态 → 徽章样式类名。
+ *  ai_draft → 橙色调，human_approved → 绿色调，统一视觉语言。 */
+export function cardStatusBadgeClass(status?: string | null): string {
+  if (status === "human_approved") return "bg-safe/10 text-safe border-safe/20";
+  if (status === "ai_draft") return "bg-warn/10 text-warn border-warn/20";
+  return "bg-muted/10 text-muted border-line";
+}
+
 /* ── Display Mapping 函数 ─────────────────────────────────────────────
  * 中文学习型说明：以下函数将后端 internal id / status code 映射为用户可读的本地化文案。
  * 不改后端 API、不改数据字段 —— 仅前端 presentation 层做 localized display mapping。

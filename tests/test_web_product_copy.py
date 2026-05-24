@@ -1196,3 +1196,75 @@ def test_card_summary_is_frontend_only() -> None:
     # Summary Panel 只做前端提取
     assert "function SummaryPanel" in workspace
     assert "function extractHeadings" in workspace
+
+
+# ── v1.0 I2: Approval Visibility ──────────────────────────────────────
+
+def test_i2_timeline_i18n_keys_complete() -> None:
+    """I2 U1: Approval Timeline 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "timeline.created",
+        "timeline.approved",
+        "timeline.pending_approval",
+        "timeline.modified",
+        "timeline.relative_just_now",
+        "timeline.relative_minutes",
+        "timeline.relative_hours",
+        "timeline.relative_days",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i2_draft_preview_i18n_keys_complete() -> None:
+    """I2 U2: Draft Quick Preview 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "drafts.preview_expand",
+        "drafts.preview_collapse",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i2_draftlist_uses_status_badge() -> None:
+    """I2 U3: DraftList 必须使用 cardStatusBadgeClass + statusIcon 区分状态颜色。"""
+    dl = _read("components/DraftList.tsx")
+
+    assert "cardStatusBadgeClass" in dl
+    assert "statusIcon" in dl
+    assert "friendlyStatus" in dl
+    assert "useLocale" in dl
+
+
+def test_i2_approval_timeline_component_exists() -> None:
+    """I2 U1: ApprovalTimeline 组件必须存在并使用 i18n。"""
+    tl = _read("components/ApprovalTimeline.tsx")
+
+    assert "useLocale" in tl
+    assert "timeline.created" in tl
+    assert "timeline.approved" in tl
+    assert "timeline.pending_approval" in tl
+    assert "function ApprovalTimeline" in tl
+
+
+def test_i2_draftlist_has_preview_toggle() -> None:
+    """I2 U2: DraftList 必须有展开预览/收起预览功能。"""
+    dl = _read("components/DraftList.tsx")
+
+    assert "drafts.preview_expand" in dl
+    assert "drafts.preview_collapse" in dl
+    assert "togglePreview" in dl
+    assert "previewBody" in dl
+    assert "getDraftDetail" in dl

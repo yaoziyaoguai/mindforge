@@ -581,6 +581,20 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Breadcrumb ----
     "breadcrumb.home": "首页",
+
+    // ---- Timeline ----
+    "timeline.created": "创建",
+    "timeline.approved": "已确认",
+    "timeline.pending_approval": "等待确认",
+    "timeline.modified": "已修改",
+    "timeline.relative_just_now": "刚刚",
+    "timeline.relative_minutes": "{n} 分钟前",
+    "timeline.relative_hours": "{n} 小时前",
+    "timeline.relative_days": "{n} 天前",
+
+    // ---- Draft Preview ----
+    "drafts.preview_expand": "展开预览",
+    "drafts.preview_collapse": "收起预览",
   },
 
   en: {
@@ -1148,6 +1162,20 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Breadcrumb ----
     "breadcrumb.home": "Home",
+
+    // ---- Timeline ----
+    "timeline.created": "Created",
+    "timeline.approved": "Approved",
+    "timeline.pending_approval": "Awaiting Approval",
+    "timeline.modified": "Modified",
+    "timeline.relative_just_now": "just now",
+    "timeline.relative_minutes": "{n} minutes ago",
+    "timeline.relative_hours": "{n} hours ago",
+    "timeline.relative_days": "{n} days ago",
+
+    // ---- Draft Preview ----
+    "drafts.preview_expand": "Expand Preview",
+    "drafts.preview_collapse": "Collapse Preview",
   },
 };
 

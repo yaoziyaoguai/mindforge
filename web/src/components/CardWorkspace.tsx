@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { revealSourceByRef } from "../api/sources";
 import { getProvenanceTrail } from "../api/library";
+import { ApprovalTimeline } from "./ApprovalTimeline";
 import { GraphNavigationPanel } from "./GraphNavigationPanel";
 import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
@@ -260,6 +261,11 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
         {pathActionMsg ? <p className="mt-2 text-xs text-safe">{pathActionMsg}</p> : null}
         {pathActionErr ? <p className="mt-2 text-xs text-danger">{pathActionErr}</p> : null}
         {pathView?.warning ? <p className="mt-2 text-xs text-warn">{pathView.warning}</p> : null}
+        <ApprovalTimeline
+          created_at={"created_at" in card ? (card as LibraryCardResponse).created_at : null}
+          approved_at={"approved_at" in card ? (card as LibraryCardResponse).approved_at : null}
+          updated_at={"updated_at" in card ? (card as LibraryCardResponse).updated_at : null}
+        />
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <Meta label={t("card.source")} value={card.source_title ?? pathView?.display_path ?? t("card.source_unavailable")} />
           <Meta label={t("card.file_location")} value={pathView?.display_path ?? t("card.source_unavailable")} />
