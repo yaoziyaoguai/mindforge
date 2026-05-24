@@ -348,3 +348,43 @@ class TestGraphEvidenceQuality:
         # depth=10 should be clamped to 3 (max)
         resp = client.get("/api/graph/node?ref=card_1&depth=10")
         assert resp.status_code in (200, 422), resp.text
+
+
+class TestKnowledgeCommunitiesEndpoint:
+    """v1.2 U3: GET /api/knowledge/communities 端点测试。"""
+
+    def test_returns_200(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/knowledge/communities")
+        assert resp.status_code == 200, resp.text
+
+    def test_response_has_communities_list(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/knowledge/communities")
+        data = resp.json()
+        assert "communities" in data, data
+        assert isinstance(data["communities"], list)
+
+    def test_community_has_required_fields(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/knowledge/communities")
+        data = resp.json()
+        for c in data["communities"]:
+            assert "community_type" in c
+            assert "shared_entity" in c
+            assert "member_count" in c
+            assert "member_card_ids" in c
+            assert "description" in c
+            assert c["member_count"] >= 2, f"community should have at least 2 members, got {c}"
+
+    def test_communities_sorted_by_member_count_desc(self, tmp_path: Path):
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/knowledge/communities")
+        data = resp.json()
+        counts = [c["member_count"] for c in data["communities"]]
+        assert counts == sorted(counts, reverse=True), \
+            f"Expected descending order, got: {counts}"

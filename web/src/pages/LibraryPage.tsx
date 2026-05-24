@@ -7,6 +7,7 @@ import { CardWorkspace } from "../components/CardWorkspace";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { GraphExplorer } from "../components/GraphExplorer";
+import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
@@ -223,6 +224,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
       {/* Graph Explorer */}
       <GraphExplorer onSelectCard={selectCard} />
+
+      {/* Knowledge Community Browser */}
+      <details className="border border-line rounded-md bg-panel" open={false}>
+        <summary className="px-5 py-3 cursor-pointer select-none text-sm font-medium text-ink hover:text-primary">
+          {t("community.title")}
+        </summary>
+        <KnowledgeCommunityPanel />
+      </details>
 
       {/* Card Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">

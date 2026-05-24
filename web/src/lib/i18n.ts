@@ -578,6 +578,17 @@ const copy: Record<Locale, LocaleDict> = {
     "graph.placeholder_tag": "标签名称...",
     "graph.placeholder_wiki_section": "Wiki 章节标题...",
 
+    // ---- Knowledge Community ----
+    "community.title": "知识社区",
+    "community.type_source": "来源社区",
+    "community.type_tag": "标签社区",
+    "community.type_wiki_section": "章节社区",
+    "community.cards_count": "张",
+    "community.more": "更多",
+    "community.loading": "正在加载社区...",
+    "community.load_error": "社区加载失败",
+    "community.empty": "暂无知识社区。当多张卡片共享来源、标签或 Wiki 章节时将自动形成社区。",
+
     // ---- Navigation ----
     "nav.health": "健康报告",
     "nav.switch_to_en": "Switch to English",
@@ -1168,6 +1179,17 @@ const copy: Record<Locale, LocaleDict> = {
     "graph.placeholder_source": "source ID...",
     "graph.placeholder_tag": "tag name...",
     "graph.placeholder_wiki_section": "wiki section title...",
+
+    // ---- Knowledge Community ----
+    "community.title": "Knowledge Communities",
+    "community.type_source": "Source Communities",
+    "community.type_tag": "Tag Communities",
+    "community.type_wiki_section": "Section Communities",
+    "community.cards_count": "cards",
+    "community.more": "more",
+    "community.loading": "Loading communities...",
+    "community.load_error": "Failed to load communities",
+    "community.empty": "No knowledge communities yet. Communities form automatically when cards share sources, tags, or wiki sections.",
 
     // ---- Navigation ----
     "nav.health": "Health Report",

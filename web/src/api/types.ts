@@ -750,3 +750,15 @@ export interface GraphEdgeDetailResponse {
   target_id: string;
   edges: GraphEdgeResponse[];
 }
+
+export interface KnowledgeCommunityResponse {
+  community_type: string;
+  shared_entity: string;
+  member_count: number;
+  member_card_ids: string[];
+  description: string;
+}
+
+export interface KnowledgeCommunitiesResponse {
+  communities: KnowledgeCommunityResponse[];
+}
