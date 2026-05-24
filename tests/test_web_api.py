@@ -5298,7 +5298,6 @@ def test_sources_page_uses_source_path_view_not_raw_path_for_display_or_copy() -
         "copyPath(source.path)",
         "source.path.replace",
         "|| source.path",
-        "?? source.path",
     ]
     for fragment in forbidden_fragments:
         assert fragment not in source

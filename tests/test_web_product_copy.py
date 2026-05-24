@@ -342,7 +342,6 @@ def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
 
 def test_setup_sources_section_decenters_cubox_config_fields() -> None:
     zh = _read_i18n_zh()
-    en = _read_i18n_en()
 
     # i18n 字典中有 sources 相关的键
     assert zh.get("setup.local_workspace") == "本地工作区"
