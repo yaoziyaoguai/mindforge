@@ -9,6 +9,10 @@ from mindforge_web.schemas import (
     CardBodyUpdateResponse,
     ExportCardsRequest,
     ExportCardsResponse,
+    FolderImportPreviewRequest,
+    FolderImportPreviewResponse,
+    FolderImportRequest,
+    FolderImportResponse,
     ImportCardRequest,
     ImportCardResponse,
     KnowledgeCommunitiesResponse,
@@ -167,6 +171,33 @@ def import_card(
     if not payload.body.strip():
         raise user_error(400, "import_body_required", "请输入卡片内容。", "内容不能为空。")
     return facade.import_card(payload.title, payload.body, payload.source_name)
+
+
+# ── v2.4 U1 Folder Import ──────────────────────
+
+
+@router.post("/knowledge/import/folder-preview", response_model=FolderImportPreviewResponse)
+def folder_import_preview(
+    payload: FolderImportPreviewRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> FolderImportPreviewResponse:
+    """扫描文件夹中的 .md 文件，dry-run 预览（不写入任何卡片）。"""
+    if not payload.folder_path.strip():
+        raise user_error(400, "folder_path_required", "请输入文件夹路径。", "文件夹路径不能为空。")
+    return facade.preview_folder_import(payload.folder_path)
+
+
+@router.post("/knowledge/import/folder", response_model=FolderImportResponse)
+def folder_import(
+    payload: FolderImportRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> FolderImportResponse:
+    """批量导入文件夹中指定索引的 .md 文件为 ai_draft 卡片。"""
+    if not payload.folder_path.strip():
+        raise user_error(400, "folder_path_required", "请输入文件夹路径。", "文件夹路径不能为空。")
+    if not payload.indices:
+        raise user_error(400, "indices_required", "请选择要导入的文件。", "至少选择一个文件。")
+    return facade.import_from_folder(payload.folder_path, payload.indices)
 
 
 @router.get("/knowledge/communities", response_model=KnowledgeCommunitiesResponse)

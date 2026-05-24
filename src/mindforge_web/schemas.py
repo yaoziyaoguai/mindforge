@@ -690,6 +690,57 @@ class ImportCardResponse(BaseModel):
     created_at: str
 
 
+# ── v2.4 U1 Folder Import ──────────────────────
+
+
+class FolderImportPreviewRequest(BaseModel):
+    """扫描指定文件夹，dry-run 预览可导入的 .md 文件。"""
+    folder_path: str
+
+
+class _FolderImportPreviewFile(BaseModel):
+    """单个 .md 文件的预览信息。"""
+    index: int
+    filename: str
+    title: str
+    body_preview: str  # 前 200 字符预览
+    size_bytes: int
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None  # 非空表示该文件无法导入
+
+
+class FolderImportPreviewResponse(BaseModel):
+    folder_path: str
+    total_files: int
+    importable_count: int
+    files: list[_FolderImportPreviewFile]
+    folder_warning: str | None = None
+
+
+class FolderImportRequest(BaseModel):
+    """确认批量导入文件夹中的指定文件。"""
+    folder_path: str
+    indices: list[int]  # 选择导入的文件索引（来自 preview）
+
+
+class _FolderImportResultItem(BaseModel):
+    """单个文件导入结果。"""
+    index: int
+    filename: str
+    status: str  # "created" | "skipped" | "failed"
+    card_id: str | None = None
+    title: str | None = None
+    error: str | None = None
+
+
+class FolderImportResponse(BaseModel):
+    folder_path: str
+    results: list[_FolderImportResultItem]
+    created_count: int
+    skipped_count: int
+    failed_count: int
+
+
 class WorkflowSummaryResponse(BaseModel):
     vault_root: str
     cards_dir: str

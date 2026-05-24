@@ -1,5 +1,5 @@
 import { apiGet, apiPatch, apiPost } from "./client";
-import type { CardBodyUpdateResponse, ImportCardResponse, KnowledgeCommunitiesResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
+import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -27,4 +27,14 @@ export function getKnowledgeCommunities() {
 
 export function importCard(title: string, body: string, sourceName?: string) {
   return apiPost<ImportCardResponse>("/api/knowledge/import", { title, body, source_name: sourceName || "" });
+}
+
+// ── v2.4 U1 Folder Import ──────────────────────
+
+export function previewFolderImport(folderPath: string) {
+  return apiPost<FolderImportPreviewResponse>("/api/knowledge/import/folder-preview", { folder_path: folderPath });
+}
+
+export function importFromFolder(folderPath: string, indices: number[]) {
+  return apiPost<FolderImportResponse>("/api/knowledge/import/folder", { folder_path: folderPath, indices });
 }

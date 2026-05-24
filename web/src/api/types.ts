@@ -790,3 +790,40 @@ export interface ImportCardResponse {
   status: string;
   created_at: string;
 }
+
+// ── v2.4 U1 Folder Import ──────────────────────
+
+export interface FolderImportPreviewFile {
+  index: number;
+  filename: string;
+  title: string;
+  body_preview: string;
+  size_bytes: number;
+  warnings: string[];
+  error: string | null;
+}
+
+export interface FolderImportPreviewResponse {
+  folder_path: string;
+  total_files: number;
+  importable_count: number;
+  files: FolderImportPreviewFile[];
+  folder_warning: string | null;
+}
+
+export interface FolderImportResultItem {
+  index: number;
+  filename: string;
+  status: "created" | "skipped" | "failed";
+  card_id: string | null;
+  title: string | null;
+  error: string | null;
+}
+
+export interface FolderImportResponse {
+  folder_path: string;
+  results: FolderImportResultItem[];
+  created_count: number;
+  skipped_count: number;
+  failed_count: number;
+}

@@ -9,6 +9,7 @@ import { ErrorState } from "../components/ErrorState";
 import { GraphExplorer } from "../components/GraphExplorer";
 import { HealthStatusBar } from "../components/HealthStatusBar";
 import { ImportCardForm } from "../components/ImportCardForm";
+import { FolderImportForm } from "../components/FolderImportForm";
 import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
@@ -218,6 +219,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             {exportSelection.size === displayedCards.length ? t("library.deselect_all") : t("library.select_all")}
           </button>
           <ImportCardForm onImported={onRefresh ? () => onRefresh() : () => {}} />
+          <FolderImportForm onImported={onRefresh ? () => onRefresh() : () => {}} />
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
