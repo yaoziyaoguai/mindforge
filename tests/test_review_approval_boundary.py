@@ -222,6 +222,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
         "cards.py",
         "evidence.py",
         "lexical_index.py",
+        # retrieval port + BM25 engine — 仅在 status_filter 默认参数中使用
+        # "human_approved" 字面量（只读搜索过滤），与 lexical_index.py 同语义
+        "retrieval_port.py",
+        "bm25_engine.py",
         "multi_project_context.py",
         "project_context.py",
         # strategies/__init__.py 暴露 KnowledgeStrategy seam，docstring 中

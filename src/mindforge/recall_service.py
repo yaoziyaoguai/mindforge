@@ -15,6 +15,8 @@ from typing import Any
 from . import lexical_index as lx
 from .cards import CardSummary, iter_cards
 from .config import MindForgeConfig
+from .retrieval.bm25_engine import Bm25RetrievalEngine
+from .retrieval.retrieval_port import RetrievalPort
 from .safety_policy import LEXICAL_RECALL_BOUNDARY_LINE
 
 
@@ -120,15 +122,25 @@ class RecallSearchResult:
         return label
 
 
-def run_bm25_recall(cfg: MindForgeConfig, query: RecallQuery) -> RecallSearchResult:
+def run_bm25_recall(
+    cfg: MindForgeConfig,
+    query: RecallQuery,
+    *,
+    engine: RetrievalPort | None = None,
+) -> RecallSearchResult:
     """执行本地词法 recall，返回结构化结果。
 
     中文学习型说明：这一步是 query-path recall 的 use-case 层。它可以读取本地
     卡片和本地 index，但不会写 index、不会写 runs、不会上传 telemetry；RunLogger
     仍由 CLI 负责，避免 service 产生隐藏副作用。
+
+    engine 参数允许注入不同的检索后端（BM25 / FTS5 等），默认使用 Bm25RetrievalEngine。
     """
     if query.ranking not in ("bm25", "hybrid"):
         raise RecallServiceError(f"--ranking 仅支持 bm25 | hybrid，收到 {query.ranking!r}")
+
+    if engine is None:
+        engine = Bm25RetrievalEngine()
 
     idx_path = lx.default_index_path(cfg.state.workdir)
     card_scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
@@ -189,7 +201,7 @@ def run_bm25_recall(cfg: MindForgeConfig, query: RecallQuery) -> RecallSearchRes
 
     if query.ranking == "hybrid":
         active_weights, weight_source = _active_hybrid_weights(cfg, query)
-        hybrid_hits = lx.hybrid_search(
+        hybrid_hits = engine.hybrid_search(
             index,
             query.query,
             weights=active_weights,
@@ -208,7 +220,7 @@ def run_bm25_recall(cfg: MindForgeConfig, query: RecallQuery) -> RecallSearchRes
     else:
         active_weights = None
         weight_source = "n/a"
-        raw_hits = lx.search(
+        raw_hits = engine.search(
             index,
             query.query,
             status_filter=query.status,
