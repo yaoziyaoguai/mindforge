@@ -84,6 +84,15 @@ Place sources under `vault/00-Inbox/` — no need to pre-create subdirectories.
 
 Use the Web **Sources** page. Stop watching does not delete source files.
 
+### Source Location / Provenance
+
+Each card's Library detail page shows provenance tracking information:
+
+- **Source Location**: The card's position within its original source file (section heading + paragraph index)
+- **Provenance fields**: source_id, source_path, source_type, and adapter_name are fully preserved
+
+Source Location enables neighbor-based relationship discovery in Related Cards and provenance completeness checks in Knowledge Health.
+
 ---
 
 ## Model Configuration
@@ -165,6 +174,26 @@ Go to **Review** page, view AI drafts, click **Approve** with confirmation.
 
 ---
 
+## Card Quality
+
+Each knowledge card undergoes deterministic quality assessment during generation. Results are stored in the card's frontmatter.
+
+### Scoring Dimensions
+
+| Dimension | Description |
+|-----------|-------------|
+| **Completeness** | Whether the card has title, body, source references, and other required elements |
+| **Structure** | Whether the card has clear sections and hierarchy |
+| **Provenance** | Whether source_id, source_path, source_type, and adapter_name are fully preserved |
+
+### Quality Levels
+
+- **high** — All dimensions are well-covered
+- **medium** — Usable, some dimensions could improve
+- **low** — Significant gaps; consider regenerating or splitting
+
+The Web Library page shows a color-coded quality badge on each card. Low-quality cards trigger Knowledge Health warnings.
+
 ## Library
 
 Browse approved knowledge cards:
@@ -174,7 +203,21 @@ mindforge library list           # List all approved cards
 mindforge library show <ref>     # View card details
 ```
 
-Library can show Related cards and Local Graph Preview based on deterministic source, tag, wiki section, and review batch relationships. This is local navigation, not a vector database or GraphRAG.
+### Related Cards
+
+Each card's detail page shows a Related Cards panel. Relationships are computed via deterministic field matching — no embeddings or vector search:
+
+- **same_source**: From the same source file
+- **same_tag**: Share common tags
+- **same_wiki_section**: Belong to the same Wiki section
+- **same_review_batch**: Processed in the same batch
+- **source_location_neighbor**: Adjacent positions within the same source
+
+At most 5 results per relationship type, sorted by strength descending.
+
+### Local Graph Preview
+
+The card detail page displays a 1-hop local graph centered on the current card, visualizing relationships to sources, tags, and wiki sections. Purely deterministic — no full-graph expansion, no force-directed layout engine.
 
 ---
 
@@ -231,6 +274,19 @@ wiki:
 ### Troubleshooting Fallback
 
 The Web Wiki **Advanced** section provides Safe fallback rebuild (deterministic template rebuild) for emergencies when no model is available. Not the recommended path.
+
+### Wiki Quality
+
+The Wiki page footer displays a Quality Bar with the current Wiki's quality metrics:
+
+| Metric | Description |
+|--------|-------------|
+| **Coverage** | Proportion of approved cards referenced by the Wiki |
+| **Faithfulness** | How faithfully the Wiki content reflects source cards |
+| **Staleness** | Approved cards not yet covered by Wiki (stale) |
+| **Knowledge Gaps** | Knowledge gaps detected between Wiki sections |
+
+The Quality Bar updates automatically on each Wiki rebuild. Data is stored as embedded JSON at the end of the Wiki file.
 
 ---
 

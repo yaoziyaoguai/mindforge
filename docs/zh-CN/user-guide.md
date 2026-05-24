@@ -87,6 +87,15 @@ Source 放在 `vault/00-Inbox/` 下即可，无需预建子目录。
 
 在 Web **Sources** 页面操作。Stop watching 不删除 source 文件。
 
+### Source Location / 来源追溯
+
+每张卡片在 Library 详情页展示来源追溯信息：
+
+- **Source Location**: 卡片内容在原始 source 文件中的位置（Section 标题 + 段落序号）
+- **Provenance 字段**: source_id、source_path、source_type、adapter_name 完整保留
+
+Source Location 用于支持 Related Cards 的相邻位置关系发现和 Knowledge Health 的 provenance 完整性检查。
+
 ---
 
 ## 模型配置
@@ -172,6 +181,26 @@ mindforge approve 1 --confirm           # 显式审批
 
 ---
 
+## Card Quality
+
+每张知识卡片在生成时会经过确定性质量评估，结果写入卡片 frontmatter。
+
+### 评分维度
+
+| 维度 | 说明 |
+|------|------|
+| **Completeness** | 内容是否包含标题、正文、来源引用等必要元素 |
+| **Structure** | 是否有清晰的分段和层级结构 |
+| **Provenance** | 是否完整保留了 source_id、source_path、source_type、adapter_name |
+
+### 质量等级
+
+- **high** — 各项指标良好
+- **medium** — 基本可用，部分维度可改进
+- **low** — 存在明显不足，建议重新生成或拆分
+
+Web Library 页面每张卡片右上角显示对应颜色的质量徽章。低质量卡片会触发 Knowledge Health 警告。
+
 ## Library
 
 浏览和管理已审批知识卡片：
@@ -181,7 +210,21 @@ mindforge library list           # 列出所有已审批卡片
 mindforge library show <ref>     # 查看单张卡片详情
 ```
 
-Library 会展示基于 source、tag、wiki section、review batch 等确定性关系得到的 Related cards 和 Local Graph Preview，用于局部导航；它不是向量数据库，也不是 GraphRAG。
+### Related Cards
+
+每张卡片详情页展示 Related Cards 面板。关系基于确定性字段匹配计算，不依赖 embedding 或向量检索：
+
+- **同源 (same_source)**: 来自同一 source 文件
+- **同标签 (same_tag)**: 共享 tags
+- **同 Wiki Section (same_wiki_section)**: 归属同一 Wiki 章节
+- **同批次 (same_review_batch)**: 同一批次处理
+- **相邻位置 (source_location_neighbor)**: 同一 source 中的相邻段落
+
+每种关系类型最多展示 5 条，按关联强度降序排列。
+
+### Local Graph Preview
+
+卡片详情页展示以当前卡片为中心的 1-hop 局部图谱，可视化展示卡片与 source、tag、wiki section 之间的关系。纯确定性计算，不做全局图谱展开。
 
 ---
 
@@ -238,6 +281,19 @@ wiki:
 ### Troubleshooting 回退
 
 Web Wiki 页面的 **Advanced** 区域提供 Safe fallback rebuild（确定性模板重建），用于没有可用模型时的应急回退。这不是推荐的 Wiki 生成路径。
+
+### Wiki Quality
+
+Wiki 页面底部展示 Quality Bar，显示当前 Wiki 的质量指标：
+
+| 指标 | 说明 |
+|------|------|
+| **Coverage** | 已审批卡片中被 Wiki 引用的比例 |
+| **Faithfulness** | Wiki 内容忠实反映源卡片的程度 |
+| **Staleness** | 是否有已审批卡片未被 Wiki 覆盖（过期） |
+| **Knowledge Gaps** | 检测 Wiki 章节之间的知识断层 |
+
+Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存储在 Wiki 文件末尾。
 
 ---
 
