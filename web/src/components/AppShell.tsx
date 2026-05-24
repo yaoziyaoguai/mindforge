@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { SafetySummary } from "../api/types";
+import { Breadcrumb } from "./Breadcrumb";
 import { SafetyBar } from "./SafetyBar";
 import { Sidebar } from "./Sidebar";
 
@@ -19,7 +20,10 @@ export function AppShell({
       <Sidebar path={path} onNavigate={onNavigate} />
       <div className="flex min-w-0 flex-1 flex-col">
         <SafetyBar safety={safety} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+          <Breadcrumb path={path} />
+          {children}
+        </main>
       </div>
     </div>
   );

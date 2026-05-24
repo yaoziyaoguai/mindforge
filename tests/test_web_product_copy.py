@@ -80,8 +80,8 @@ def test_main_pages_use_friendly_status_and_action_copy() -> None:
     en = _read_i18n_en()
 
     # 中文文案在 i18n 字典中
-    assert zh.get("home.review_drafts") == "审阅 AI 草稿"
-    assert "待审核" in zh.get("home.review_drafts_pending", "")
+    assert zh.get("home.dashboard.approved_label") == "已确认知识"
+    assert zh.get("home.dashboard.pending_label") == "待审阅"
     assert zh.get("library.stats_approved") == "已确认知识"
     assert zh.get("recall.subtitle", "").startswith("搜索已确认的知识卡片")
     assert zh.get("approval.title") == "确认知识卡片"
@@ -169,11 +169,10 @@ def test_setup_copy_uses_model_and_secret_safe_language() -> None:
 
 
 def test_home_model_setup_copy_does_not_depend_on_env_state() -> None:
-    """Home 的 model setup readiness 必须用产品语义，不再把 env_only 当 ready。"""
+    """Home Dashboard 不再展示原始 env state/model_setup 字段。"""
 
     home = _read("pages/HomePage.tsx")
 
-    assert "model_setup" in home
     assert "env_only" not in home
     assert "fake_default" not in home
 
@@ -694,14 +693,14 @@ def test_empty_state_uses_localized_action_label() -> None:
 
 
 def test_homepage_i18n_section_keys_complete() -> None:
-    """HomePage 3-section layout 的 i18n 键必须完整覆盖。"""
+    """HomePage Dashboard layout 的 i18n 键必须完整覆盖。"""
     zh = _read_i18n_zh()
     en = _read_i18n_en()
 
     section_keys = [
-        "home.section_system_status",
-        "home.section_config_check",
-        "home.section_next_actions",
+        "home.dashboard.overview_title",
+        "home.dashboard.attention_title",
+        "home.dashboard.quick_actions",
     ]
     for key in section_keys:
         assert key in zh, f"Missing zh key: {key}"
@@ -711,36 +710,35 @@ def test_homepage_i18n_section_keys_complete() -> None:
 
 
 def test_homepage_action_guidance_keys_complete() -> None:
-    """HomePage 行动引导文案（参数化的 count 状态）的 i18n 键必须完整。"""
+    """HomePage Dashboard 卡片/attention feed 的 i18n 键必须完整。"""
     zh = _read_i18n_zh()
     en = _read_i18n_en()
 
     guidance_keys = [
-        "home.review_drafts_pending",
-        "home.review_drafts_clear",
-        "home.inbox_pending_detail",
-        "home.inbox_clear",
-        "home.library_approved_detail",
-        "home.library_empty_detail",
+        "home.dashboard.approved_label",
+        "home.dashboard.wiki_label",
+        "home.dashboard.pending_label",
+        "home.dashboard.health_label",
+        "home.dashboard.health_good",
+        "home.dashboard.health_warn",
+        "home.dashboard.attention_empty",
+        "home.dashboard.action_browse",
+        "home.dashboard.action_import",
+        "home.dashboard.action_search",
     ]
     for key in guidance_keys:
         assert key in zh, f"Missing zh key: {key}"
         assert key in en, f"Missing en key: {key}"
         assert zh[key], f"Empty zh value for {key}"
         assert en[key], f"Empty en value for {key}"
-        # 参数化的键必须包含 {count} 占位符
-        if key.endswith("_pending") or key.endswith("_detail") and "empty" not in key:
-            assert "{count}" in zh[key], f"zh {key} missing {{count}} placeholder"
 
 
-def test_homepage_uses_localized_action_cards() -> None:
-    """HomePage 必须将 locale 传递给 NextActionCard 以进行本地化。"""
+def test_homepage_uses_localized_dashboard() -> None:
+    """HomePage Dashboard 必须使用 useLocale 做本地化。"""
     home = _read("pages/HomePage.tsx")
 
     assert "useLocale" in home
-    assert "locale={locale}" in home or "locale={locale}" in home
-    # NextActionCard 接收 locale prop
-    assert "locale" in home
+    assert "t(" in home
 
 
 def test_copy_policy_document_exists() -> None:
