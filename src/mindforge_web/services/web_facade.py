@@ -1235,10 +1235,12 @@ def _graph_edge_response(edge: GraphEdge) -> GraphEdgeResponse:
 
 
 def _discovery_context_response(ctx: DiscoveryContext) -> DiscoveryContextResponse:
-    """将内部 DiscoveryContext 转换为 API response。"""
+    """将内部 DiscoveryContext 转换为 API response — v2.1 增强。"""
     return DiscoveryContextResponse(
         center_card_id=ctx.center_card_id,
         center_card_title=ctx.center_card_title,
+        reasoning=ctx.reasoning,
+        estimated_token_count=ctx.estimated_token_count,
         direct_matches=[
             DiscoveryCardRefResponse(
                 card_id=ref.card_id,

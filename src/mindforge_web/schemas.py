@@ -933,6 +933,9 @@ class DiscoveryContextResponse(BaseModel):
     shared_tags: list[DiscoveryTagRefResponse] = Field(default_factory=list)
     shared_sources: list[DiscoverySourceRefResponse] = Field(default_factory=list)
     communities: list[DiscoveryCommunityRefResponse] = Field(default_factory=list)
+    # v2.1
+    reasoning: str = ""
+    estimated_token_count: int = 0
 
 
 # ============================================================================

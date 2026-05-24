@@ -2,7 +2,7 @@
 
 中文学习型说明：测试 assemble_discovery_context() 的确定性行为，
 包括 1-hop/2-hop 邻居分类、wiki sections/tags/sources 聚合，
-以及 v1.2 U4 的知识社区分组。
+v1.2 U4 的知识社区分组，以及 v2.1 的 reasoning 和 token 估计。
 """
 
 from __future__ import annotations
@@ -338,3 +338,184 @@ def _center_communities_for(
                 description=c.description,
             ))
     return tuple(result)
+
+
+# ──────────────────────────────────────────────
+# v2.1 U3: Reasoning & Token Estimation tests
+# ──────────────────────────────────────────────
+
+
+class TestV2_1Reasoning:
+    """v2.1 确定性可解释文本测试。"""
+
+    def test_reasoning_includes_center_title(self):
+        """reasoning 应包含中心卡片标题。"""
+        from mindforge.relations.discovery_context import _build_reasoning
+        r = _build_reasoning(
+            center_title="测试卡片",
+            direct_count=0, neighbor_count=0,
+            tag_count=0, source_count=0, section_count=0, community_count=0,
+        )
+        assert "测试卡片" in r
+
+    def test_reasoning_mentions_direct_relations(self):
+        from mindforge.relations.discovery_context import _build_reasoning
+        r = _build_reasoning(
+            center_title="T",
+            direct_count=3, neighbor_count=0,
+            tag_count=0, source_count=0, section_count=0, community_count=0,
+        )
+        assert "3 个直接关联" in r
+
+    def test_reasoning_mentions_indirect_relations(self):
+        from mindforge.relations.discovery_context import _build_reasoning
+        r = _build_reasoning(
+            center_title="T",
+            direct_count=0, neighbor_count=2,
+            tag_count=0, source_count=0, section_count=0, community_count=0,
+        )
+        assert "2 个间接关联" in r
+
+    def test_reasoning_mentions_shared_resources(self):
+        from mindforge.relations.discovery_context import _build_reasoning
+        r = _build_reasoning(
+            center_title="T",
+            direct_count=1, neighbor_count=0,
+            tag_count=2, source_count=1, section_count=3, community_count=0,
+        )
+        assert "1 个来源" in r
+        assert "2 个标签" in r
+        assert "3 个 Wiki 章节" in r
+
+    def test_reasoning_mentions_communities(self):
+        from mindforge.relations.discovery_context import _build_reasoning
+        r = _build_reasoning(
+            center_title="T",
+            direct_count=0, neighbor_count=0,
+            tag_count=0, source_count=0, section_count=0, community_count=4,
+        )
+        assert "4 个知识社区" in r
+
+    def test_reasoning_is_deterministic(self):
+        """相同输入 → 相同输出（确定性保证）。"""
+        from mindforge.relations.discovery_context import _build_reasoning
+        args = dict(
+            center_title="X", direct_count=1, neighbor_count=2,
+            tag_count=0, source_count=0, section_count=0, community_count=0,
+        )
+        r1 = _build_reasoning(**args)
+        r2 = _build_reasoning(**args)
+        assert r1 == r2
+
+    def test_reasoning_integration(self):
+        """集成测试：assemble_discovery_context 产出的 reasoning 非空。"""
+        from mindforge.relations.discovery_context import assemble_discovery_context
+        from mindforge.relations.graph_models import (
+            Graph, GraphNode, GraphEdge, RelationEvidence,
+            NodeType, EdgeType,
+        )
+        nodes = [
+            GraphNode(id="c1", type=NodeType.CARD, label="中心", card_count=None),
+            GraphNode(id="c2", type=NodeType.CARD, label="直接邻居", card_count=None),
+        ]
+        edges = [
+            GraphEdge(
+                source_id="c1", target_id="c2",
+                edge_type=EdgeType.SHARES_TAG, evidence=RelationEvidence(
+                    reason="shared_tag", strength=0.5, evidence="tag: ai",
+                ),
+            ),
+        ]
+        graph = Graph(center_id="c1", center_type=NodeType.CARD, depth=1,
+                      nodes=tuple(nodes), edges=tuple(edges))
+        ctx = assemble_discovery_context(graph)
+        assert len(ctx.reasoning) > 0
+        assert "中心" in ctx.reasoning
+
+
+class TestV2_1TokenEstimation:
+    """v2.1 粗略 token 估计测试。"""
+
+    def test_token_estimate_is_positive(self):
+        """即使最小上下文，token 估计也应 > 0。"""
+        from mindforge.relations.discovery_context import assemble_discovery_context
+        from mindforge.relations.graph_models import (
+            Graph, GraphNode, NodeType,
+        )
+        nodes = [GraphNode(id="c1", type=NodeType.CARD, label="卡片", card_count=None)]
+        graph = Graph(center_id="c1", center_type=NodeType.CARD, depth=1,
+                      nodes=tuple(nodes), edges=())
+        ctx = assemble_discovery_context(graph)
+        assert ctx.estimated_token_count > 0
+
+    def test_token_estimate_grows_with_content(self):
+        """更多内容 → 更大的 token 估计。"""
+        from mindforge.relations.discovery_context import assemble_discovery_context
+        from mindforge.relations.graph_models import (
+            Graph, GraphNode, GraphEdge, RelationEvidence,
+            NodeType, EdgeType,
+        )
+        # 最小图
+        nodes_small = [
+            GraphNode(id="c1", type=NodeType.CARD, label="卡片", card_count=None),
+        ]
+        graph_small = Graph(center_id="c1", center_type=NodeType.CARD, depth=1,
+                            nodes=tuple(nodes_small), edges=())
+        ctx_small = assemble_discovery_context(graph_small)
+
+        # 带邻居的图
+        nodes_big = [
+            GraphNode(id="c1", type=NodeType.CARD, label="中心卡片标题很长" * 3, card_count=None),
+            GraphNode(id="c2", type=NodeType.CARD, label="邻居卡片A", card_count=None),
+            GraphNode(id="c3", type=NodeType.CARD, label="邻居卡片B", card_count=None),
+        ]
+        edges = [
+            GraphEdge(
+                source_id="c1", target_id="c2", edge_type=EdgeType.SHARES_TAG,
+                evidence=RelationEvidence(
+                    reason="shared_tag", strength=0.5,
+                    evidence="共享标签 #ai 关联了这张知识卡片因为两者都涉及人工智能话题",
+                ),
+            ),
+            GraphEdge(
+                source_id="c1", target_id="c3", edge_type=EdgeType.RELATED_BY_SOURCE,
+                evidence=RelationEvidence(
+                    reason="same_source", strength=0.8,
+                    evidence="来自同一来源文档 src/doc.md 的知识卡片",
+                ),
+            ),
+        ]
+        graph_big = Graph(center_id="c1", center_type=NodeType.CARD, depth=1,
+                          nodes=tuple(nodes_big), edges=tuple(edges))
+        ctx_big = assemble_discovery_context(graph_big)
+
+        assert ctx_big.estimated_token_count > ctx_small.estimated_token_count
+
+    def test_token_estimate_includes_community_descriptions(self):
+        from mindforge.relations.discovery_context import assemble_discovery_context
+        from mindforge.relations.graph_models import Graph, GraphNode, NodeType
+        from mindforge.relations.community import detect_communities
+
+        cards: list[dict[str, object]] = [
+            {"id": "c1", "tags": ["ai"]},
+            {"id": "c2", "tags": ["ai"]},
+        ]
+        communities_tup = detect_communities(cards, min_members=2)
+        comm_refs = tuple(
+            DiscoveryCommunityRef(
+                community_type=c.community_type,
+                shared_entity=c.shared_entity,
+                member_count=c.member_count,
+                description=c.description,
+            )
+            for c in communities_tup
+        )
+
+        nodes = [GraphNode(id="c1", type=NodeType.CARD, label="卡片", card_count=None)]
+        graph = Graph(center_id="c1", center_type=NodeType.CARD, depth=1,
+                      nodes=tuple(nodes), edges=())
+
+        ctx_no_comm = assemble_discovery_context(graph, communities=())
+        ctx_with_comm = assemble_discovery_context(graph, communities=comm_refs)
+
+        assert ctx_with_comm.estimated_token_count >= ctx_no_comm.estimated_token_count

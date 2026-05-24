@@ -58,7 +58,10 @@ class DiscoveryContext:
 
     每个字段都是 deterministic 计算的结果，每条 relation 可解释。
     这是给 discovery UI 的结构化数据，不是给 LLM 的 prompt context。
+
+    v2.1: reasoning 提供确定性可解释文本，estimated_token_count 估计上下文大小。
     """
+
     center_card_id: str
     center_card_title: str
     direct_matches: tuple[DiscoveryCardRef, ...] = ()
@@ -73,6 +76,11 @@ class DiscoveryContext:
     """中心卡片涉及的 sources 及其覆盖卡片数。"""
     communities: tuple[DiscoveryCommunityRef, ...] = ()
     """中心卡片所属的知识社区（source/tag/wiki_section 分组）。"""
+    # v2.1
+    reasoning: str = ""
+    """确定性可解释文本：为什么这些卡片/标签/Wiki 章节与中心卡片相关。"""
+    estimated_token_count: int = 0
+    """粗略的 token 估计（不调用 LLM），帮助 UI 判断上下文规模。"""
 
 
 def assemble_discovery_context(
@@ -165,6 +173,22 @@ def assemble_discovery_context(
         for n in source_nodes
     ]
 
+    reasoning = _build_reasoning(
+        center_title=center_title,
+        direct_count=len(direct_matches),
+        neighbor_count=len(neighbor_cards),
+        tag_count=len(shared_tags),
+        source_count=len(shared_sources),
+        section_count=len(wiki_sections),
+        community_count=len(communities),
+    )
+    token_estimate = _estimate_token_count(
+        center_title=center_title,
+        direct_matches=direct_matches,
+        neighbor_cards=neighbor_cards,
+        communities=communities,
+    )
+
     return DiscoveryContext(
         center_card_id=graph.center_id,
         center_card_title=center_title,
@@ -174,7 +198,78 @@ def assemble_discovery_context(
         shared_tags=tuple(shared_tags),
         shared_sources=tuple(shared_sources),
         communities=communities,
+        reasoning=reasoning,
+        estimated_token_count=token_estimate,
     )
+
+
+def _build_reasoning(
+    *,
+    center_title: str,
+    direct_count: int,
+    neighbor_count: int,
+    tag_count: int,
+    source_count: int,
+    section_count: int,
+    community_count: int,
+) -> str:
+    """生成确定性可解释文本（v2.1）。
+
+    不调用 LLM，纯基于计数的确定性描述。
+    帮助用户理解"为什么这些内容是相关的"。
+    """
+    parts: list[str] = [f"中心卡片「{center_title}」"]
+
+    rel_parts: list[str] = []
+    if direct_count > 0:
+        rel_parts.append(f"{direct_count} 个直接关联")
+    if neighbor_count > 0:
+        rel_parts.append(f"{neighbor_count} 个间接关联")
+    if rel_parts:
+        parts.append(f"通过{'、'.join(rel_parts)}连接到知识图谱")
+
+    shared_parts: list[str] = []
+    if source_count > 0:
+        shared_parts.append(f"{source_count} 个来源")
+    if tag_count > 0:
+        shared_parts.append(f"{tag_count} 个标签")
+    if section_count > 0:
+        shared_parts.append(f"{section_count} 个 Wiki 章节")
+    if shared_parts:
+        parts.append(f"共享{'、'.join(shared_parts)}")
+
+    if community_count > 0:
+        parts.append(f"属于 {community_count} 个知识社区")
+
+    return "。".join(parts) + "。"
+
+
+def _estimate_token_count(
+    *,
+    center_title: str,
+    direct_matches: list[DiscoveryCardRef],
+    neighbor_cards: list[DiscoveryCardRef],
+    communities: tuple[DiscoveryCommunityRef, ...],
+) -> int:
+    """粗略 token 估计（v2.1）。
+
+    不调用 LLM，也不使用 tiktoken。基于字符数的启发式估计：
+    - 中文字符 ≈ 0.7 token/char
+    - 英文/ASCII ≈ 0.25 token/char
+    混合文本取折中：≈ 0.5 token/char。
+
+    仅统计可见文本：标题、evidence、描述。
+    """
+    texts: list[str] = [center_title]
+    for ref in direct_matches:
+        texts.extend([ref.title, ref.evidence, ref.relation_reason])
+    for ref in neighbor_cards:
+        texts.extend([ref.title, ref.evidence, ref.relation_reason])
+    for comm in communities:
+        texts.append(comm.description)
+
+    total_chars = sum(len(t) for t in texts)
+    return max(1, int(total_chars * 0.5))
 
 
 __all__ = [
