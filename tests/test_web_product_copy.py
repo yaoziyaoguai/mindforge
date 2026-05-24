@@ -938,6 +938,98 @@ def test_setup_page_has_onboarding_explanations() -> None:
     assert "setup.onboarding_why_sources" in sp
 
 
+def test_setup_template_i18n_keys_in_both_locales() -> None:
+    """U1 模板快速配置按键的 i18n key 必须在 zh/en 下都存在。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+    keys = [
+        "setup.template_quick",
+        "setup.template_anthropic",
+        "setup.template_openai",
+        "setup.template_openrouter",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+
+
+def test_setup_mode_safety_banner_i18n_keys_in_both_locales() -> None:
+    """U2 模式感知安全横幅的 i18n key 必须在 zh/en 下都存在。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+    keys = [
+        "setup.mode_fake_title",
+        "setup.mode_fake_desc",
+        "setup.mode_real_title",
+        "setup.mode_real_desc",
+        "setup.mode_activate",
+        "setup.mode_deactivate",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+
+
+def test_setup_activation_dialog_i18n_keys_in_both_locales() -> None:
+    """U2 激活确认对话框的 i18n key 必须在 zh/en 下都存在。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+    keys = [
+        "setup.activation_title",
+        "setup.activation_desc",
+        "setup.activation_cost_title",
+        "setup.activation_cost_desc",
+        "setup.activation_checklist_title",
+        "setup.activation_check_api_key",
+        "setup.activation_check_approval",
+        "setup.activation_check_cost",
+        "setup.activation_check_local",
+        "setup.activation_confirm",
+        "setup.activation_activate",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+
+
+def test_setup_key_format_i18n_keys_in_both_locales() -> None:
+    """U1 Key 格式验证/可见性切换的 i18n key 必须在 zh/en 下都存在。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+    keys = [
+        "setup.key_show",
+        "setup.key_hide",
+        "setup.key_format_valid",
+        "setup.key_format_unknown",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+
+
+def test_setup_page_references_template_keys() -> None:
+    """U1 SetupPage 必须引用模板相关 i18n key。"""
+    sp = _read("pages/SetupPage.tsx")
+    assert "setup.template_quick" in sp
+    assert "setup.template_anthropic" in sp
+    assert "setup.template_openai" in sp
+
+
+def test_setup_page_references_activation_keys() -> None:
+    """U2 SetupPage 必须引用激活对话框相关 i18n key。"""
+    sp = _read("pages/SetupPage.tsx")
+    assert "setup.activation_title" in sp
+    assert "setup.activation_confirm" in sp
+    assert "setup.activation_activate" in sp
+
+
+def test_setup_page_references_key_toggle_keys() -> None:
+    """U1 SetupPage 必须引用 key 可见性切换和格式验证相关 i18n key。"""
+    sp = _read("pages/SetupPage.tsx")
+    assert "setup.key_show" in sp
+    assert "setup.key_format_valid" in sp
+
+
 def test_sources_page_no_hardcoded_english_error_messages() -> None:
     """SourcesPage 错误消息必须通过 i18n，不允许硬编码英文。"""
     sp = _read("pages/SourcesPage.tsx")
