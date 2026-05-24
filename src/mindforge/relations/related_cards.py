@@ -3,6 +3,8 @@
 确定性关系发现：基于 source_id, tags, wiki_sections, run_id,
 source_location_index 的字段匹配。
 不做 semantic similarity，不引入 embedding，全部 in-memory。
+
+v1.2 升级：引入多因子加权评分（共享实体数量、时效性）。
 """
 
 from __future__ import annotations
@@ -10,6 +12,14 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass
 from collections import defaultdict
+
+from mindforge.relations.scoring import (
+    RelationWeights,
+    compute_tag_strength,
+    compute_wiki_strength,
+    compute_recency_bonus,
+    compute_multi_factor_strength,
+)
 
 
 class RelationReason(str, enum.Enum):
@@ -21,7 +31,7 @@ class RelationReason(str, enum.Enum):
     MANUAL_LINK = "manual_link"  # reserved — v0.3 不发出此边类型
 
 
-# Strength weights per SDD §7.1
+# Base strength weights (v1.2: 基础权重，实际计算由 scoring 模块完成)
 _STRENGTH: dict[RelationReason, float] = {
     RelationReason.SAME_SOURCE: 0.8,
     RelationReason.SAME_TAG: 0.5,
@@ -30,6 +40,9 @@ _STRENGTH: dict[RelationReason, float] = {
     RelationReason.SOURCE_LOCATION_NEIGHBOR: 0.4,
     RelationReason.MANUAL_LINK: 1.0,
 }
+
+# v1.2 共享实体计数缓存（避免重复计算交集）
+_shared_entity_counts: dict[tuple[str, str, str], int] = {}
 
 
 @dataclass(frozen=True)
@@ -96,44 +109,85 @@ def compute_related_cards(
     center_batch = center.get("run_id") or center.get("review_batch")
     center_location_index = _int_or_none(center.get("source_location_index"))
 
-    # same_source
+    # same_source (v1.2: recency bonus)
     if center_src:
+        w = RelationWeights()
         for target in source_index.get(str(center_src), []):
+            target_card = _find_card(target, all_cards)
+            recency = compute_recency_bonus(
+                str(target_card.get("created_at")) if target_card and target_card.get("created_at") else None,
+                weights=w,
+            )
+            strength = compute_multi_factor_strength(_STRENGTH[RelationReason.SAME_SOURCE], recency_bonus=recency)
             edges.append(RelatedCardEdge(
                 source_card_id=card_id,
                 target_card_id=target,
                 reason=RelationReason.SAME_SOURCE,
                 reason_detail=f"same source: {center_src}",
-                strength=_STRENGTH[RelationReason.SAME_SOURCE],
+                strength=strength,
             ))
 
-    # same_tag
-    seen_tag_targets: set[str] = set()
+    # same_tag (v1.2: 多标签加权)
+    tag_target_counts: dict[str, int] = defaultdict(int)  # target → shared tag count
+    tag_target_first: dict[str, str] = {}  # target → first shared tag
     for tag in center_tags:
         for target in tag_index.get(str(tag), []):
-            if target not in seen_tag_targets:
-                seen_tag_targets.add(target)
-                edges.append(RelatedCardEdge(
-                    source_card_id=card_id,
-                    target_card_id=target,
-                    reason=RelationReason.SAME_TAG,
-                    reason_detail=f"shared tag: {tag}",
-                    strength=_STRENGTH[RelationReason.SAME_TAG],
-                ))
+            tag_target_counts[target] += 1
+            if target not in tag_target_first:
+                tag_target_first[target] = str(tag)
 
-    # same_wiki_section
-    seen_section_targets: set[str] = set()
+    for target, shared_count in tag_target_counts.items():
+        w = RelationWeights()
+        tag_strength = compute_tag_strength(shared_count, w)
+        target_card = _find_card(target, all_cards)
+        recency = compute_recency_bonus(
+            str(target_card.get("created_at")) if target_card and target_card.get("created_at") else None,
+            weights=w,
+        )
+        strength = compute_multi_factor_strength(tag_strength, recency_bonus=recency)
+        detail = (
+            f"shared tags ({shared_count}): #{tag_target_first[target]}"
+            if shared_count > 1
+            else f"shared tag: #{tag_target_first[target]}"
+        )
+        edges.append(RelatedCardEdge(
+            source_card_id=card_id,
+            target_card_id=target,
+            reason=RelationReason.SAME_TAG,
+            reason_detail=detail,
+            strength=strength,
+        ))
+
+    # same_wiki_section (v1.2: 多章节加权)
+    section_target_counts: dict[str, int] = defaultdict(int)
+    section_target_first: dict[str, str] = {}
     for sec in center_sections:
         for target in section_index.get(str(sec), []):
-            if target not in seen_section_targets:
-                seen_section_targets.add(target)
-                edges.append(RelatedCardEdge(
-                    source_card_id=card_id,
-                    target_card_id=target,
-                    reason=RelationReason.SAME_WIKI_SECTION,
-                    reason_detail=f"same wiki section: {sec}",
-                    strength=_STRENGTH[RelationReason.SAME_WIKI_SECTION],
-                ))
+            section_target_counts[target] += 1
+            if target not in section_target_first:
+                section_target_first[target] = str(sec)
+
+    for target, shared_count in section_target_counts.items():
+        w = RelationWeights()
+        section_strength = compute_wiki_strength(shared_count, w)
+        target_card = _find_card(target, all_cards)
+        recency = compute_recency_bonus(
+            str(target_card.get("created_at")) if target_card and target_card.get("created_at") else None,
+            weights=w,
+        )
+        strength = compute_multi_factor_strength(section_strength, recency_bonus=recency)
+        detail = (
+            f"same wiki sections ({shared_count}): {section_target_first[target]}"
+            if shared_count > 1
+            else f"same wiki section: {section_target_first[target]}"
+        )
+        edges.append(RelatedCardEdge(
+            source_card_id=card_id,
+            target_card_id=target,
+            reason=RelationReason.SAME_WIKI_SECTION,
+            reason_detail=detail,
+            strength=strength,
+        ))
 
     # same_review_batch
     if center_batch:

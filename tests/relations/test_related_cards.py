@@ -184,6 +184,32 @@ class TestRelatedCardEdge:
 # Performance test
 # ──────────────────────────────────────────────
 
+    # v1.2 新增: 多标签/多章节加权
+    def test_multi_tag_gives_higher_strength(self):
+        """共享 2 个 tag 的关系强度应高于共享 1 个 tag。"""
+        cards = [
+            SyntheticRelationCard(id="c1", tags=("ai", "ml")),
+            SyntheticRelationCard(id="c2", tags=("ai", "ml")),
+            SyntheticRelationCard(id="c3", tags=("ai",)),
+        ]
+        edges = compute_related_cards("c1", [_to_record(c) for c in cards])
+        c2_strength = next(e.strength for e in edges if e.target_card_id == "c2")
+        c3_strength = next(e.strength for e in edges if e.target_card_id == "c3")
+        assert c2_strength > c3_strength, f"Multi-tag ({c2_strength}) should be stronger than single-tag ({c3_strength})"
+
+    def test_multi_wiki_section_gives_higher_strength(self):
+        """共享 2 个 wiki section 的关系强度应高于共享 1 个。"""
+        cards = [
+            SyntheticRelationCard(id="c1", wiki_sections=("S1", "S2")),
+            SyntheticRelationCard(id="c2", wiki_sections=("S1", "S2")),
+            SyntheticRelationCard(id="c3", wiki_sections=("S1",)),
+        ]
+        edges = compute_related_cards("c1", [_to_record(c) for c in cards])
+        c2_strength = next(e.strength for e in edges if e.target_card_id == "c2")
+        c3_strength = next(e.strength for e in edges if e.target_card_id == "c3")
+        assert c2_strength > c3_strength, f"Multi-section ({c2_strength}) should be stronger than single-section ({c3_strength})"
+
+
 class TestRelatedCardsPerformance:
     def test_performance_under_500ms(self):
         """计算时间 < 500ms"""
