@@ -193,7 +193,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
       ) : null}
 
       {mode === "library" && "local_graph" in detail ? (
-        <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} />
+        <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} onSelectCard={onSelectCard} />
       ) : null}
 
       <section className="p-5">

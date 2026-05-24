@@ -445,6 +445,7 @@ export interface LocalGraphNodeResponse {
   type: LocalGraphNodeType;
   label: string;
   href?: string | null;
+  card_count?: number | null;
 }
 
 export interface LocalGraphEdgeResponse {

@@ -506,6 +506,7 @@ class LocalGraphNodeResponse(BaseModel):
     type: Literal["card", "source", "wiki_section", "tag"]
     label: str
     href: str | None = None
+    card_count: int | None = None
 
 
 class LocalGraphEdgeResponse(BaseModel):

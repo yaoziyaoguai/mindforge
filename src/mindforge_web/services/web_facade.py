@@ -25,7 +25,7 @@ from mindforge.library_service import (
     show_library_card,
 )
 from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
-from mindforge.relations.local_graph import LocalGraph, build_card_centered_graph
+from mindforge.relations.local_graph import LocalGraph, NodeType, build_card_centered_graph
 from mindforge.relations.related_cards import RelatedCardEdge, compute_related_cards
 from mindforge.strategy_display import strategy_display
 
@@ -892,6 +892,11 @@ def _library_card_summary_response(
 
 
 def _local_graph_response(graph: LocalGraph) -> LocalGraphResponse:
+    section_card_counts: dict[str, int] = {}
+    for edge in graph.edges:
+        if edge.reason == "same_wiki_section":
+            section_card_counts[edge.target_id] = section_card_counts.get(edge.target_id, 0) + 1
+
     return LocalGraphResponse(
         center_id=graph.center_id,
         center_type=graph.center_type.value,
@@ -901,6 +906,7 @@ def _local_graph_response(graph: LocalGraph) -> LocalGraphResponse:
                 type=node.type.value,
                 label=node.label,
                 href=node.href,
+                card_count=section_card_counts.get(node.id) if node.type == NodeType.WIKI_SECTION else None,
             )
             for node in graph.nodes
         ],
