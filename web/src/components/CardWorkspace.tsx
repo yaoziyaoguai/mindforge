@@ -5,6 +5,7 @@ import { getProvenanceTrail } from "../api/library";
 import { ApprovalTimeline } from "./ApprovalTimeline";
 import { GraphNavigationPanel } from "./GraphNavigationPanel";
 import { LocalGraphPreview } from "./LocalGraphPreview";
+import { ProvenanceTrail } from "./ProvenanceTrail";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse, ProvenanceTrailResponse } from "../api/types";
@@ -200,8 +201,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
 
       <QualityPanel cardId={card.id ?? ""} />
 
-      {mode === "library" && trail && (trail.source.source_title || trail.sibling_cards.length > 0 || trail.wiki_sections.length > 0) ? (
-        <ProvenanceTrail trail={trail} onSelectCard={onSelectCard} t={t} />
+      {mode === "library" && trail ? (
+        <ProvenanceTrail trail={trail} onSelectCard={onSelectCard} />
       ) : null}
 
       {mode === "library" && "local_graph" in detail ? (
@@ -517,93 +518,6 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
             </div>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-function ProvenanceTrail({ trail, onSelectCard, t }: {
-  trail: ProvenanceTrailResponse;
-  onSelectCard?: (ref: string) => void;
-  t: (key: string) => string;
-}) {
-  return (
-    <section className="border-t border-line px-5 py-3">
-      <h3 className="text-xs font-semibold text-muted mb-2">{t("card.provenance_trail")}</h3>
-      <div className="flex items-center gap-2 text-xs flex-wrap">
-        {/* Step 1: Source */}
-        {trail.source.source_title ? (
-          <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
-            <span className="text-muted">{t("card.provenance_source")}:</span>
-            <span className="font-medium text-ink">{trail.source.source_title}</span>
-          </span>
-        ) : null}
-
-        {/* Step 2: Sibling cards */}
-        {trail.sibling_cards.length > 0 ? (
-          <>
-            <span className="text-muted">→</span>
-            <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
-              <span className="text-muted">{t("card.provenance_siblings")}:</span>
-              {trail.sibling_cards.map((sc, i) => (
-                <span key={sc.card_id}>
-                  <button
-                    type="button"
-                    className="font-medium text-primary hover:underline"
-                    onClick={() => onSelectCard?.(sc.card_id)}
-                  >
-                    {sc.title}
-                  </button>
-                  {i < trail.sibling_cards.length - 1 ? <span className="text-muted">, </span> : null}
-                </span>
-              ))}
-            </span>
-          </>
-        ) : null}
-
-        {/* Step 3: Wiki sections */}
-        {trail.wiki_sections.length > 0 ? (
-          <>
-            <span className="text-muted">→</span>
-            <span className="inline-flex items-center gap-1 rounded bg-muted/10 px-2 py-1">
-              <span className="text-muted">{t("card.provenance_sections")}:</span>
-              {trail.wiki_sections.map((sec, i) => (
-                <span key={sec.title}>
-                  <span className="font-medium text-ink">{sec.title}</span>
-                  <span className="text-muted ml-0.5">({sec.card_count})</span>
-                  {i < trail.wiki_sections.length - 1 ? <span className="text-muted">, </span> : null}
-                </span>
-              ))}
-            </span>
-          </>
-        ) : null}
-
-        {/* Step 4: Related sources (v1.2 U5 — bidirectional exploration) */}
-        {trail.related_sources && trail.related_sources.length > 0 ? (
-          <div className="mt-2 pt-2 border-t border-line/50">
-            <span className="text-xs text-muted">{t("card.provenance_related_sources")}:</span>
-            <div className="mt-1 flex flex-col gap-1">
-              {trail.related_sources.map((rs) => (
-                <span key={rs.source_id} className="text-xs text-ink/80 ml-2">
-                  <span className="font-medium">{rs.source_title || rs.source_id}</span>
-                  <span className="text-muted ml-1">
-                    ({rs.card_count} {t("card.provenance_cards")})
-                  </span>
-                  {rs.shared_tags.length > 0 ? (
-                    <span className="text-muted ml-1">
-                      [{t("card.provenance_shared_tags")}: {rs.shared_tags.map((t) => `#${t}`).join(", ")}]
-                    </span>
-                  ) : null}
-                  {rs.shared_wiki_sections.length > 0 ? (
-                    <span className="text-muted ml-1">
-                      [{t("card.provenance_shared_sections")}: {rs.shared_wiki_sections.join(", ")}]
-                    </span>
-                  ) : null}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
     </section>
   );
