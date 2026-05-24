@@ -6,6 +6,7 @@ import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/typ
 import { CardWorkspace } from "../components/CardWorkspace";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { GraphExplorer } from "../components/GraphExplorer";
 import { StatusCard } from "../components/StatusCard";
 import { friendlyStatus } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
@@ -156,6 +157,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         <StatusCard label={t("library.stats_index")} value={data.stats.index_exists ? t("library.stats_index_ready") : t("library.stats_index_rebuild")} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} locale={locale} />
         <StatusCard label={t("library.stats_total")} value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={t("library.stats_total_detail")} locale={locale} />
       </div>
+
+      {/* Graph Explorer */}
+      <GraphExplorer onSelectCard={selectCard} />
 
       {/* Card Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">

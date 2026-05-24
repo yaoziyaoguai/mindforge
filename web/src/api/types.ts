@@ -690,3 +690,54 @@ export interface HealthReportResponse {
   issues: HealthIssueResponse[];
   maintenance_suggestions: string[];
 }
+
+// -- v0.6 Graph API -----------------------------------------------------------
+
+export type GraphNodeType = "card" | "source" | "wiki_section" | "tag" | "concept";
+
+export type GraphEdgeType =
+  | "derived_from"
+  | "mentions"
+  | "shares_tag"
+  | "related_by_source"
+  | "related_by_wiki_section"
+  | "similar_title_or_term"
+  | "approval_state_of"
+  | "links_to"
+  | "wiki_section_reference";
+
+export interface RelationEvidenceResponse {
+  reason: string;
+  evidence: string;
+  strength: number;
+  detail: Record<string, unknown>;
+}
+
+export interface GraphNodeResponse {
+  id: string;
+  type: GraphNodeType;
+  label: string;
+  href?: string | null;
+  card_count: number;
+}
+
+export interface GraphEdgeResponse {
+  source_id: string;
+  target_id: string;
+  edge_type: GraphEdgeType;
+  evidence: RelationEvidenceResponse;
+}
+
+export interface GraphResponse {
+  center_id: string;
+  center_type: GraphNodeType;
+  depth: number;
+  nodes: GraphNodeResponse[];
+  edges: GraphEdgeResponse[];
+}
+
+export interface GraphEdgeDetailResponse {
+  source_id: string;
+  target_id: string;
+  edges: GraphEdgeResponse[];
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Save, Trash2, X } from "lucide-react";
 import { revealSourceByRef } from "../api/sources";
 import { getProvenanceTrail } from "../api/library";
+import { GraphNavigationPanel } from "./GraphNavigationPanel";
 import { LocalGraphPreview } from "./LocalGraphPreview";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
@@ -194,6 +195,13 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
 
       {mode === "library" && "local_graph" in detail ? (
         <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} onSelectCard={onSelectCard} />
+      ) : null}
+
+      {mode === "library" && (card.id || card.rel_path) ? (
+        <GraphNavigationPanel
+          cardRef={card.id ?? card.rel_path ?? ""}
+          onSelectCard={onSelectCard}
+        />
       ) : null}
 
       <section className="p-5">
