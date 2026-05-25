@@ -25,7 +25,13 @@
 - **路径约定优于数据库** — vault 目录结构即数据组织，不引入额外数据库
 - **fake provider 用于测试** — 所有 LLM 相关测试使用 `provider: fake`，不调用真实 API
 
+### U4: Dogfood 服务模块提取
+- `src/mindforge_web/services/dogfood_service.py` — `compute_dogfood_report()` 纯函数
+- 从 WebFacade.dogfood_report() 提取核心计算逻辑
+- 参数化外部依赖（search_index_exists, search_index_path, health_issue_count）便于独立测试
+- web_facade.py 原方法保留（向后兼容），后续 loop 逐步迁移
+
 ## 已知限制
 
-- web_facade.py (1990 行) 尚未拆分 — 留待 v3.1 U2
+- web_facade.py 中 dogfood_report() 尚未迁移为委托调用 — 留待 v3.1 U3
 - 当前无活跃 schema 迁移需求 — 版本 0.7 稳定
