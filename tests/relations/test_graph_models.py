@@ -106,7 +106,7 @@ class TestGraphEdge:
             evidence=ev,
         )
         with pytest.raises(Exception):
-            edge.edge_type = EdgeType.MENTIONS  # type: ignore[misc]
+            edge.edge_type = EdgeType.LINKS_TO  # type: ignore[misc]
 
 
 class TestGraph:

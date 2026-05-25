@@ -155,10 +155,12 @@ class TestGraphPortMethods:
         assert node is not None
         assert node.card_count == 2
 
-    def test_get_node_concept_returns_none(self):
+    def test_get_node_concept_candidate_returns_none(self):
+        """CONCEPT_CANDIDATE 节点尚未在 DeterministicGraphBuilder 中实现精细查询，
+        当前 fallback 返回 None — 待 v3.9 Entity Resolution 实现。"""
         builder = DeterministicGraphBuilder([])
-        node = builder.get_node("test", NodeType.CONCEPT)
-        assert node is None  # CONCEPT 尚未实现
+        node = builder.get_node("test", NodeType.CONCEPT_CANDIDATE)
+        assert node is None
 
     def test_get_edges_returns_related_cards(self):
         cards = [

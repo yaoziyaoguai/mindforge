@@ -320,6 +320,10 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # scenario_runner.py 只在 card_scan 步骤中按 status == "human_approved"
             # 做只读分类统计（approved/draft/trashed 计数），不修改状态，不执行 approve。
             "scenario_runner.py",
+            # graph_models.py (v3.7 ADR-006) 只在 docstring 中用 "human_approved"
+            # 解释 ontology 规则：ai_draft / human_approved 是 Card 的 status property，
+            # 不是独立 NodeType。这是边界定义，强化了审批语义，不修改状态、不执行 approve。
+            "graph_models.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

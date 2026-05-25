@@ -44,7 +44,7 @@ _REASON_TO_EDGE_TYPE: dict[RelationReason, EdgeType] = {
     RelationReason.SAME_WIKI_SECTION: EdgeType.RELATED_BY_WIKI_SECTION,
     RelationReason.SAME_REVIEW_BATCH: EdgeType.RELATED_BY_SOURCE,
     RelationReason.SOURCE_LOCATION_NEIGHBOR: EdgeType.RELATED_BY_SOURCE,
-    RelationReason.MANUAL_LINK: EdgeType.MENTIONS,
+    RelationReason.MANUAL_LINK: EdgeType.LINKS_TO,
 }
 
 # Reason → 共享实体类型标签（用于 evidence detail 细分）
@@ -89,11 +89,10 @@ _EDGE_TYPE_STRENGTH: dict[EdgeType, float] = {
     EdgeType.SHARES_TAG: 0.5,
     EdgeType.RELATED_BY_WIKI_SECTION: 0.7,
     EdgeType.WIKI_SECTION_REFERENCE: 0.7,
-    EdgeType.MENTIONS: 1.0,
+    EdgeType.LINKS_TO: 0.6,
     EdgeType.SIMILAR_TITLE_OR_TERM: 0.4,
     EdgeType.LINKS_TO: 0.6,
     EdgeType.DERIVED_FROM: 0.8,
-    EdgeType.APPROVAL_STATE_OF: 0.5,
 }
 
 
