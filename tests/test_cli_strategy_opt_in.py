@@ -252,8 +252,8 @@ def test_process_default_strategy_is_knowledge_card(tmp_path: Path) -> None:
     text = cards[0].read_text("utf-8")
     assert "status: ai_draft" in text
     # 默认 knowledge_card 通过 LLM provider test double 走完整 5 stage 管线，会带 distill
-    # 占位符；这是历史契约，不允许 default 路径悄悄换策略。
-    assert "[fake] excerpt placeholder" in text
+    # 占位符（v4.2.2+ 为标题关键词注入格式）；这是历史契约，不允许 default 路径悄悄换策略。
+    assert "[fake] excerpt from source" in text
     assert 'strategy_id: "knowledge_card"' in text
 
 

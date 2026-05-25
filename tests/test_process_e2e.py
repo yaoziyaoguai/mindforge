@@ -139,7 +139,7 @@ def test_process_writes_card_state_and_run_log(tmp_path: Path) -> None:
     assert "prompt_version:" in card_text
     assert "run_id:" in card_text
     # 不能把 raw_text 整段塞进来；body 应来自 distill 的 source_excerpt（fake 占位）
-    assert "[fake] excerpt placeholder" in card_text
+    assert "[fake] excerpt from source" in card_text
 
     # ── 原始 source 文件 100% 不被改写 ──
     assert src_file.read_text("utf-8") == src_before
