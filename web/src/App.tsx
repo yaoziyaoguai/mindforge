@@ -81,8 +81,8 @@ export default function App() {
   if (!content && path.startsWith("/dogfood")) content = <DogfoodPage onNavigate={navigate} />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) {
-    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : "default";
-    content = <LoadingSkeleton variant={variant as "default" | "wiki" | "library" | "drafts"} />;
+    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : "default";
+    content = <LoadingSkeleton variant={variant as "default" | "wiki" | "library" | "drafts" | "search" | "sources" | "health" | "trash" | "setup" | "dogfood"} />;
   }
 
   return (
