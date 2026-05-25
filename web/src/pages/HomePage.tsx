@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, AlertCircle, Heart, Library, Upload, Search } from "lucide-react";
+import { BookOpen, FileText, AlertCircle, Heart, Library, Upload, Search, FolderOpen, ArrowRight } from "lucide-react";
 import type { HomeStatusResponse, WorkflowSummaryResponse } from "../api/types";
 import type { HealthReportResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
@@ -35,6 +35,10 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
   const wikiSectionCount = wikiStatus?.section_count ?? 0;
   const healthIssueCount = health?.issues?.length ?? 0;
   const healthLevel: "good" | "warn" = healthIssueCount > 0 ? "warn" : "good";
+  const totalCards = approvedCount + pendingCount;
+  const approvalRate = totalCards > 0 ? Math.round((approvedCount / totalCards) * 100) : 0;
+  const sourceCount = workflow?.processed_source_count ?? 0;
+  const indexExists = data.recall.index_exists;
 
   /* ── Attention Feed 计算 ── */
   interface AttentionItem {
@@ -121,6 +125,27 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
         </div>
       </section>
 
+      {/* ── v2.5: Source-to-Card Lifecycle Overview ── */}
+      <section>
+        <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">{t("home.lifecycle.title")}</h2>
+        <div className="rounded-md border border-line bg-white p-5">
+          <div className="flex items-center justify-center gap-1 flex-wrap">
+            <LifecycleStep icon={FolderOpen} label={t("home.lifecycle.source")} value={sourceCount} />
+            <ArrowRight className="h-4 w-4 text-muted/40" />
+            <LifecycleStep icon={FileText} label={t("home.lifecycle.draft")} value={pendingCount} />
+            <ArrowRight className="h-4 w-4 text-muted/40" />
+            <LifecycleStep icon={BookOpen} label={t("home.lifecycle.approved")} value={approvedCount} />
+          </div>
+          {totalCards > 0 && (
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-muted">
+              <span>{t("home.lifecycle.total")}: {totalCards}</span>
+              <span>{t("home.lifecycle.approval_rate")}: {approvalRate}%</span>
+              <span>{t("home.lifecycle.index")}: {indexExists ? t("home.lifecycle.index_ok") : t("home.lifecycle.index_missing")}</span>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* ── U2: Attention Feed ── */}
       <section>
         <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">{t("home.dashboard.attention_title")}</h2>
@@ -187,6 +212,21 @@ function OverviewCard({ icon: Icon, label, value, suffix, status, href, onNaviga
       <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
       {suffix ? <div className="mt-1 text-xs text-muted">{suffix}</div> : null}
     </button>
+  );
+}
+
+/* ── v2.5 Lifecycle Step ── */
+function LifecycleStep({ icon: Icon, label, value }: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1 rounded-md bg-panel px-4 py-3 text-center">
+      <Icon className="h-5 w-5 text-muted" aria-hidden="true" />
+      <span className="text-xs text-muted">{label}</span>
+      <span className="text-lg font-semibold text-ink">{value}</span>
+    </div>
   );
 }
 

@@ -56,6 +56,16 @@ const copy: Record<Locale, LocaleDict> = {
     "home.attention.stale_wiki": "Wiki 章节可能过期",
     "home.attention.orphan_cards": "{count} 张未关联卡片",
     "home.attention.index_needed": "搜索索引需要重建",
+    // ---- Home Lifecycle ----
+    "home.lifecycle.title": "知识流转总览",
+    "home.lifecycle.source": "资料来源",
+    "home.lifecycle.draft": "待审草稿",
+    "home.lifecycle.approved": "已确认",
+    "home.lifecycle.total": "总计",
+    "home.lifecycle.approval_rate": "确认率",
+    "home.lifecycle.index": "搜索索引",
+    "home.lifecycle.index_ok": "就绪",
+    "home.lifecycle.index_missing": "需重建",
 
     // ---- SetupPage ----
     "setup.title": "连接模型和知识源",
@@ -728,6 +738,16 @@ const copy: Record<Locale, LocaleDict> = {
     "home.attention.stale_wiki": "Wiki sections may be stale",
     "home.attention.orphan_cards": "{count} orphan cards",
     "home.attention.index_needed": "Search index needs rebuild",
+    // ---- Home Lifecycle ----
+    "home.lifecycle.title": "Knowledge Lifecycle",
+    "home.lifecycle.source": "Sources",
+    "home.lifecycle.draft": "Drafts",
+    "home.lifecycle.approved": "Approved",
+    "home.lifecycle.total": "Total",
+    "home.lifecycle.approval_rate": "Approval Rate",
+    "home.lifecycle.index": "Search Index",
+    "home.lifecycle.index_ok": "Ready",
+    "home.lifecycle.index_missing": "Needs Rebuild",
 
     // ---- SetupPage ----
     "setup.title": "Connect Models & Sources",
