@@ -64,7 +64,7 @@ echo "  ✓ 样本目录: $SAMPLES_DIR ($SAMPLE_COUNT 个 .md 文件)"
 step "[S1] 生成样本并创建工作区"
 
 if [[ ! -d "$SAMPLES_DIR" ]]; then
-  python scripts/generate_dogfood_samples.py --target "$SAMPLES_DIR" --count 55
+  python scripts/generate_dogfood_samples.py --target "$SAMPLES_DIR" --count 80
   SAMPLE_COUNT=$(find "$SAMPLES_DIR" -name '*.md' -type f | wc -l | tr -d ' ')
 fi
 

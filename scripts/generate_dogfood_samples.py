@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import random
 import sys
 from datetime import datetime, timezone
@@ -1733,6 +1732,128 @@ log_error() { echo "[ERROR] $*" >&2; }
 ```
 """,
     },
+    {
+        "filename": "react-hooks-patterns.md",
+        "content": """# React Hooks 使用模式
+
+## useState
+
+React 最基础的 Hook，管理组件局部状态：
+
+```jsx
+const [count, setCount] = useState(0);
+```
+
+## useEffect
+
+React 用于处理副作用的 Hook：
+
+```jsx
+useEffect(() => {
+  fetchData();
+}, [dependency]);
+```
+
+## useContext
+
+React Context 用于跨组件共享状态，避免 props drilling。
+
+## useMemo 和 useCallback
+
+React 性能优化 Hook，避免不必要的重计算和重渲染。
+
+## 自定义 Hook
+
+```jsx
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+```
+""",
+    },
+    {
+        "filename": "sql-query-optimization.md",
+        "content": """# SQL 查询优化技巧
+
+## 索引策略
+
+SQL 查询性能最关键的因素是索引设计。以下是常用的 SQL 索引优化方法：
+
+1. **覆盖索引** — SQL 查询所需列都在索引中，避免回表
+2. **复合索引最左前缀** — SQL 复合索引遵循最左匹配原则
+3. **避免 SELECT *** — SQL 查询只取需要的列
+
+## 常见 SQL 性能陷阱
+
+- SQL 隐式类型转换导致索引失效
+- SQL WHERE 子句中对列使用函数
+- SQL JOIN 条件缺少索引
+- SQL 子查询可改写为 JOIN 或 EXISTS
+
+## 执行计划分析
+
+```sql
+EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 42;
+```
+
+SQL EXPLAIN 输出关键字段：
+- `type`: SQL 访问类型（ALL 最差，const 最优）
+- `key`: SQL 使用的索引
+- `rows`: SQL 扫描行数估计
+
+## 实战案例
+
+SQL 慢查询优化示例：
+
+```sql
+-- 优化前：全表扫描
+SELECT * FROM users WHERE LOWER(email) = 'test@example.com';
+
+-- 优化后：函数索引
+CREATE INDEX idx_users_email_lower ON users (LOWER(email));
+SELECT * FROM users WHERE LOWER(email) = 'test@example.com';
+```
+""",
+    },
+    {
+        "filename": "安全知识管理实践.md",
+        "content": """# 个人知识安全管理实践
+
+## 数据安全
+
+本地知识库的数据安全是第一优先级。所有知识卡片存储在本地文件系统中，
+不经过第三方云端服务。用户完全掌控自己的数据生命周期。
+
+## 隐私保护
+
+知识卡片中的敏感信息可以通过以下方式保护：
+
+1. 使用本地 fake provider 进行离线处理
+2. 不连接外部 API 服务
+3. 所有索引和检索在本地完成
+
+## 安全审计
+
+定期检查知识库的安全配置：
+
+- 确认 provider 配置不包含真实 API key
+- 验证索引文件不包含敏感原文
+- 检查导出文件的安全边界
+
+## 安全最佳实践
+
+安全的本地知识管理需要建立清晰的边界意识：
+
+- 区分 ai_draft 和 human_approved 的审批边界
+- 理解本地索引与云端 RAG 的安全差异
+- 保持知识卡片内容在本地存储内
+""",
+    },
 ]
 
 # TXT 纯文本样本
@@ -2275,7 +2396,7 @@ def main():
     # 写入 manifest
     manifest_path = target / "MANIFEST.txt"
     with open(manifest_path, "w", encoding="utf-8") as f:
-        f.write(f"Dogfood Sample Manifest\n")
+        f.write("Dogfood Sample Manifest\n")
         f.write(f"Generated: {datetime.now(timezone.utc).isoformat()}\n")
         f.write(f"Total files: {len(created)}\n\n")
         for p in sorted(created):

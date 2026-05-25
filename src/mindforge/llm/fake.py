@@ -26,6 +26,56 @@ def _digest(prompt: str, length: int = 6) -> str:
     return hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:length]
 
 
+def _extract_keywords(title: str, max_keywords: int = 8) -> list[str]:
+    """从 title 中提取有意义的关键词作为 fake tags/summary 的素材。
+
+    中文学习型说明：fake provider 的 distill 输出被 BM25 索引用于召回。
+    如果所有 body 字段都是 ``[fake]`` 占位符，BM25 只靠 title 匹配，
+    recall hit rate 会很低。这个函数从 title 中提取真实关键词注入到
+    tags 和 summary bullets 中，让 fake dogfood 的 recall 更接近真实场景。
+
+    规则（确定性、零网络、零 LLM）：
+    - ASCII 单词（>=3 字符，非停用词）→ lowercase keywords
+    - CJK 连续片段 → 按 2-gram 切分作为关键词
+    - 去重，限制数量
+    """
+    if not title:
+        return ["fake"]
+
+    keywords: list[str] = []
+    # ASCII words >= 3 chars, filtered for common stop words
+    ascii_words = re.findall(r"[A-Za-z]{3,}", title)
+    STOP = {
+        "the", "and", "for", "with", "this", "that", "from", "are", "was",
+        "not", "you", "all", "can", "has", "had", "its", "use",
+    }
+    for w in ascii_words:
+        low = w.lower()
+        if low not in STOP:
+            keywords.append(low)
+
+    # CJK bigrams as keywords
+    cjk_chars = re.findall(r"[一-鿿぀-ゟ゠-ヿ가-힯]+", title)
+    for segment in cjk_chars:
+        for i in range(0, len(segment) - 1, 2):
+            bigram = segment[i:i + 2]
+            if len(bigram) == 2:
+                keywords.append(bigram)
+
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for kw in keywords:
+        if kw.lower() not in seen:
+            seen.add(kw.lower())
+            deduped.append(kw)
+
+    if not deduped:
+        return ["fake"]
+
+    return deduped[:max_keywords]
+
+
 def _extract_var(prompt: str, name: str) -> str | None:
     """从渲染后的 prompt 中抽取变量值。
 
@@ -71,29 +121,32 @@ class FakeProvider(LLMProvider):
         track_hint = _extract_var(request.prompt, "track") or "agent-runtime"
 
         if stage == "triage":
+            keywords = _extract_keywords(title)
             payload = {
                 "track": track_hint,
                 "value_score": 7,
                 "should_process": True,
                 "reason": "[fake] schema-only triage stub",
-                "topic_keywords": ["fake", "stub", digest],
+                "topic_keywords": keywords,
             }
         elif stage == "distill":
             slug = re.sub(r"[^a-z0-9-]+", "-", title.lower()).strip("-") or f"fake-{digest}"
+            keywords = _extract_keywords(title)
             payload = {
                 "title": title[:80],
                 "slug": slug[:60],
-                "tags": ["fake", "stub"],
+                "tags": keywords,
                 "confidence": 0.6,
-                "source_excerpt": "[fake] excerpt placeholder",
+                "source_excerpt": f"[fake] excerpt from source containing: {', '.join(keywords[:4])}",
                 "ai_summary_bullets": [
-                    "[fake] core takeaway A",
-                    "[fake] core takeaway B",
+                    f"[fake] Key insight about {kw}" for kw in keywords[:3]
+                ] or ["[fake] core takeaway"],
+                "ai_inference_bullets": [
+                    f"[fake] inference related to {keywords[0]}" if keywords else "[fake] low-confidence inference"
                 ],
-                "ai_inference_bullets": ["[fake] low-confidence inference"],
                 "reusable_prompts_or_principles": [
-                    "[fake] principle: never trust the fake"
-                ],
+                    f"[fake] principle derived from {kw}" for kw in keywords[:2]
+                ] or ["[fake] principle: never trust the fake"],
             }
         elif stage == "link_suggestion":
             payload = {"suggested_links": [], "project_hooks": []}
