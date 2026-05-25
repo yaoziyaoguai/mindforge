@@ -1314,3 +1314,188 @@ def test_i3_justfile_exists() -> None:
     content = open(jf, encoding="utf-8").read()
     assert "dogfood" in content
     assert "fake_dogfood.sh" in content
+
+
+# ── v2.4 Import/Export + v2.5 Lifecycle/Dogfood/Provider i18n ──────────
+
+
+def test_i18n_health_keys_complete() -> None:
+    """HealthPage 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "health.page_title",
+        "health.page_desc",
+        "health.checking",
+        "health.view_details",
+        "health.summary_prefix",
+        "health.stats_cards",
+        "health.stats_approved",
+        "health.stats_drafts",
+        "health.stats_missing_provenance",
+        "health.stats_low_quality",
+        "health.stats_orphans",
+        "health.stats_duplicates",
+        "health.stats_wiki_stale",
+        "health.stats_source_warnings",
+        "health.explore_affected",
+        "health.severity_critical",
+        "health.severity_warn",
+        "health.severity_info",
+        "health.maintenance_title",
+        "health.all_clear",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_dogfood_keys_complete() -> None:
+    """DogfoodPage 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "dogfood.subtitle",
+        "dogfood.loading",
+        "dogfood.load_failed",
+        "dogfood.trend_title",
+        "dogfood.metrics_title",
+        "dogfood.infra_title",
+        "dogfood.suggestions_title",
+        "dogfood.total_cards",
+        "dogfood.approved",
+        "dogfood.draft",
+        "dogfood.approval_rate_label",
+        "dogfood.graph_density_label",
+        "dogfood.relations",
+        "dogfood.communities",
+        "dogfood.health_label",
+        "dogfood.health_clear",
+        "dogfood.health_items",
+        "dogfood.sources_label",
+        "dogfood.imported",
+        "dogfood.wiki_label",
+        "dogfood.wiki_stale_yes",
+        "dogfood.wiki_stale_no",
+        "dogfood.search_label",
+        "dogfood.search_ready",
+        "dogfood.search_missing",
+        "dogfood.errors_label",
+        "dogfood.errors_found",
+        "dogfood.errors_none",
+        "dogfood.generated_at",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_lifecycle_keys_complete() -> None:
+    """v2.5 U2 Lifecycle View 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "home.lifecycle.title",
+        "home.lifecycle.source",
+        "home.lifecycle.draft",
+        "home.lifecycle.approved",
+        "home.lifecycle.total",
+        "home.lifecycle.approval_rate",
+        "home.lifecycle.index",
+        "home.lifecycle.index_ok",
+        "home.lifecycle.index_missing",
+        "home.lifecycle.by_source",
+        "home.lifecycle.total_cards",
+        "home.lifecycle.approval_rate_short",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_import_export_keys_complete() -> None:
+    """v2.4 Import/Export 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "library.export_preview_title",
+        "library.export_preview_desc",
+        "library.export_format",
+        "library.export_confirm",
+        "library.import_title",
+        "library.import_desc",
+        "library.import_title_label",
+        "library.import_title_placeholder",
+        "library.import_body_label",
+        "library.import_body_placeholder",
+        "library.import_source_label",
+        "library.import_source_placeholder",
+        "library.import_submit",
+        "library.import_success",
+        "library.import_btn",
+        # v2.4 U1 Folder Import
+        "library.folder_import_btn",
+        "library.folder_import_title",
+        "library.folder_import_desc",
+        "library.folder_import_path_label",
+        "library.folder_import_scan",
+        "library.folder_import_scanning",
+        "library.folder_import_preview_title",
+        "library.folder_import_confirm",
+        "library.folder_import_importing",
+        "library.folder_import_result_title",
+        "library.folder_import_result_summary",
+        # v2.4 U2 Dedup
+        "library.import_dedup_exact",
+        "library.import_dedup_fuzzy",
+        "library.import_dedup_warning",
+        # v2.4 U3 Batch Import
+        "library.import_batch_detected",
+        "library.import_batch_submit",
+        "library.import_batch_result",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_i18n_provider_readiness_keys_complete() -> None:
+    """v2.5 U4 Provider Readiness Center 的 i18n 键必须完整覆盖 zh/en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    keys = [
+        "setup.provider_mode_label",
+        "setup.can_run_real_smoke",
+        "setup.provider_aliases",
+        "setup.provider_blockers",
+    ]
+    for key in keys:
+        assert key in zh, f"Missing zh key: {key}"
+        assert key in en, f"Missing en key: {key}"
+        assert zh[key], f"Empty zh value for {key}"
+        assert en[key], f"Empty en value for {key}"
+
+
+def test_dogfood_page_uses_locale() -> None:
+    """DogfoodPage 必须使用 useLocale 做本地化。"""
+    dp = _read("pages/DogfoodPage.tsx")
+    assert "useLocale" in dp
+
+
+def test_health_page_uses_locale() -> None:
+    """HealthPage 必须使用 useLocale 做本地化。"""
+    hp = _read("pages/HealthPage.tsx")
+    assert "useLocale" in hp
