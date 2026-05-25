@@ -735,18 +735,33 @@ export interface HealthReportResponse {
 
 // -- v0.6 Graph API -----------------------------------------------------------
 
-export type GraphNodeType = "card" | "source" | "wiki_section" | "tag" | "concept";
+/** v3.7 ontology: 8 种 NodeType — fact graph + candidate graph */
+export type GraphNodeType =
+  | "card"
+  | "source"
+  | "wiki_section"
+  | "tag"
+  | "community"
+  | "topic"
+  | "entity"
+  | "concept_candidate";
 
+/** v3.7 ontology: 14 种 EdgeType */
 export type GraphEdgeType =
   | "derived_from"
-  | "mentions"
+  | "has_tag"
+  | "in_section"
   | "shares_tag"
   | "related_by_source"
   | "related_by_wiki_section"
   | "similar_title_or_term"
-  | "approval_state_of"
   | "links_to"
-  | "wiki_section_reference";
+  | "contains"
+  | "includes"
+  | "belongs_to_topic"
+  | "wiki_section_reference"
+  | "mentions_candidate"
+  | "resolves_to";
 
 export interface RelationEvidenceResponse {
   reason: string;

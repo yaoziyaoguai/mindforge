@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, GitBranch, Layers, Loader2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, GitBranch, Layers, Loader2, Users } from "lucide-react";
 import { fetchGraphNode } from "../api/graph";
 import { getKnowledgeCommunities } from "../api/library";
 import type { GraphEdgeResponse, GraphEdgeType, GraphResponse, KnowledgeCommunityResponse } from "../api/types";
@@ -17,20 +17,32 @@ const EDGE_TYPE_LABEL_KEY: Record<string, string> = {
   wiki_section_reference: "graph.wiki_section_reference",
   related_by_source_generic: "graph.related_by_source_generic",
   derived_from: "graph.derived_from",
-  mentions: "graph.mentions",
+  has_tag: "graph.has_tag",
+  in_section: "graph.in_section",
+  contains: "graph.contains",
+  includes: "graph.includes",
+  belongs_to_topic: "graph.belongs_to_topic",
+  mentions_candidate: "graph.mentions_candidate",
+  resolves_to: "graph.resolves_to",
   similar_title_or_term: "graph.similar_title_or_term",
   links_to: "graph.links_to",
 };
 
 const EDGE_TYPE_SORT: Record<string, number> = {
-  related_by_source: 0,
-  related_by_wiki_section: 1,
-  wiki_section_reference: 2,
-  shares_tag: 3,
-  similar_title_or_term: 4,
-  links_to: 5,
-  derived_from: 6,
-  mentions: 7,
+  derived_from: 0,
+  related_by_source: 1,
+  related_by_wiki_section: 2,
+  wiki_section_reference: 3,
+  in_section: 4,
+  shares_tag: 5,
+  has_tag: 6,
+  contains: 7,
+  includes: 8,
+  belongs_to_topic: 9,
+  similar_title_or_term: 10,
+  links_to: 11,
+  mentions_candidate: 12,
+  resolves_to: 13,
 };
 
 const EDGE_TYPE_COLOR: Record<string, string> = {
@@ -38,10 +50,16 @@ const EDGE_TYPE_COLOR: Record<string, string> = {
   related_by_wiki_section: "border-l-blue-500",
   wiki_section_reference: "border-l-violet-500",
   shares_tag: "border-l-amber-500",
+  has_tag: "border-l-amber-500",
+  in_section: "border-l-indigo-500",
+  contain: "border-l-emerald-500",
+  includes: "border-l-red-500",
+  belongs_to_topic: "border-l-red-400",
   similar_title_or_term: "border-l-cyan-500",
   links_to: "border-l-rose-500",
   derived_from: "border-l-emerald-500",
-  mentions: "border-l-slate-500",
+  mentions_candidate: "border-l-slate-500",
+  resolves_to: "border-l-pink-500",
 };
 
 /** 社区类型的颜色编码（用于 community grouping 视图）。 */
@@ -232,6 +250,20 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
                 ) : null}
               </div>
             ) : null}
+            {/* Open in full graph view */}
+            <a
+              href={`/graph?card=${encodeURIComponent(cardRef)}`}
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-primary text-white hover:bg-primary/90 transition"
+              title={t("graph.open_graph_view")}
+              onClick={(e) => {
+                e.preventDefault();
+                window.history.pushState({}, "", `/graph?card=${encodeURIComponent(cardRef)}`);
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }}
+            >
+              <ExternalLink className="h-3 w-3" />
+              {t("graph.open_graph_view")}
+            </a>
             {/* Depth toggle */}
             <button
               type="button"

@@ -37,14 +37,14 @@ def graph_node(
 
 @router.get("/explore", response_model=GraphResponse)
 def graph_explore(
-    node_type: str = Query(..., description="Node type: card, source, wiki_section, tag"),
+    node_type: str = Query(..., description="Node type (v3.7 ontology): card, source, wiki_section, tag, community, topic, entity, concept_candidate"),
     node_id: str = Query(..., description="Node identifier"),
     depth: int = Query(1, ge=1, le=3, description="Graph expansion depth (1-3)"),
     facade: WebFacade = Depends(get_facade),
 ) -> GraphResponse:
-    """以任意节点类型为中心的图浏览。
+    """以任意节点类型为中心的图浏览（v3.7 ontology）。
 
-    支持 source / tag / wiki_section / card 节点类型。
+    支持全部 8 种 NodeType：card / source / wiki_section / tag / community / topic / entity / concept_candidate。
     """
     result = facade.get_graph_explore(node_type, node_id, depth=depth)
     if result is None:

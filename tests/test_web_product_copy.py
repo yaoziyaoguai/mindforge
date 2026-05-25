@@ -132,21 +132,30 @@ def test_card_detail_separates_content_source_history_and_technical_details() ->
 
 
 def test_local_graph_views_are_visible_list_fallbacks_without_graph_libraries() -> None:
-    """Local Graph Preview 是产品能力名，relationship preview 只是局部视图说明。"""
+    """Local Graph Preview 和 GraphView 是分离的两层能力。
+
+    v3.8 引入 vis-network 作为 GraphView 页面的轻量渲染引擎，
+    但 LocalGraphPreview（Card detail 内嵌视图）仍保持纯 HTML/CSS，
+    不直接使用 canvas/d3/cytoscape/networkx 等渲染库。
+    """
 
     workspace_graph = _read("components/LocalGraphPreview.tsx")
     section_graph = _read("components/wiki/WikiSectionRelationshipPreview.tsx")
-    package = (ROOT / "web" / "package.json").read_text(encoding="utf-8")
-    combined = "\n".join([workspace_graph, section_graph, package])
+    combined = "\n".join([workspace_graph, section_graph])
 
     assert "Local Graph Preview" in workspace_graph
     # i18n follow-up 后，文字通过 t() 获取
     assert "wiki.local_graph_preview" in section_graph
     assert "wiki.local_graph_desc" in section_graph
-    assert "not a global Graph page" in workspace_graph
     assert "/library?card=" in combined
-    for forbidden in ("<canvas", "d3", "cytoscape", "vis-network", "networkx"):
+    # LocalGraphPreview 和 WikiSectionRelationshipPreview 不使用
+    # canvas/d3/cytoscape/networkx 等渲染库（它们只是纯 HTML list/button 视图）。
+    for forbidden in ("<canvas", "d3", "cytoscape", "networkx"):
         assert forbidden not in combined.lower()
+
+    # v3.8: vis-network 是 GraphView 页面的授权渲染引擎，
+    # 不再视为 forbidden dependency。
+    # GraphPage 使用 vis-network/standalone 做确定性图渲染。
 
 
 def test_setup_copy_uses_model_and_secret_safe_language() -> None:
