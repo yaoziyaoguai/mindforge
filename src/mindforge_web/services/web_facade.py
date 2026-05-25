@@ -54,6 +54,8 @@ from mindforge_web.schemas import (
     DraftDetailResponse,
     DraftsResponse,
     DogfoodReportResponse,
+    ProviderAliasStatus,
+    ProviderReadinessResponse,
     CardBodyUpdateResponse,
     GraphEdgeDetailResponse,
     GraphEdgeResponse,
@@ -1327,6 +1329,68 @@ class WebFacade:
             health_issue_count=health_issue_count,
             trend_summary=trend_summary,
             maintenance_suggestions=suggestions,
+        )
+
+    # ── v2.5 U4 Provider Readiness Center ───────────────────────────
+
+    def provider_readiness_detail(self) -> ProviderReadinessResponse:
+        """返回完整 provider 就绪状态，含 invariants — 不读取 API key 值。
+
+        中文学习型说明：合并 build_readiness_report (provider_readiness.py) 与
+        model_setup_readiness，给出 provider 系统当前是否可用的完整诊断，
+        供 Provider Readiness Center UI 展示。
+        """
+        from mindforge.provider_readiness import build_readiness_report
+        from mindforge.model_setup_readiness import model_setup_readiness
+
+        report = build_readiness_report(self.cfg.llm)
+        provider = report["provider"]
+        opt_in = report["opt_in"]
+        invariants = report["invariants"]
+
+        readiness = model_setup_readiness(self.cfg)
+
+        alias_statuses = []
+        for a in provider["aliases"]:
+            alias_id = str(a["alias"])
+            model = self.cfg.llm.models.get(alias_id)
+            env_key_present = bool(a.get("api_key_present"))
+            secret_key_present = bool(
+                model and self.secrets.api_key_source(
+                    alias_id, model.type, model.api_key_env,
+                ) in ("local_secret", "env")
+            )
+            alias_statuses.append(
+                ProviderAliasStatus(
+                    alias=alias_id,
+                    type=str(a["type"]),
+                    in_active_profile=bool(a["in_active_profile"]),
+                    api_key_env=a.get("api_key_env"),
+                    api_key_present=env_key_present or secret_key_present,
+                    base_url_env_present=bool(a.get("base_url_env_present")),
+                )
+            )
+
+        provider_mode = "fake"
+        try:
+            from mindforge.checkpoint import Checkpoint
+            cp = Checkpoint.load(self.cfg.state.state_path)
+            mode = cp.provider_mode
+            if mode in ("fake", "real"):
+                provider_mode = mode
+        except Exception:
+            pass
+
+        return ProviderReadinessResponse(
+            active_profile=provider["active_profile"],
+            opt_in_state="ready" if readiness.ready else opt_in["opt_in_state"],
+            model_setup=readiness.status,
+            model_setup_label=readiness.label,
+            can_run_real_smoke=readiness.ready,
+            provider_mode=provider_mode,
+            aliases=alias_statuses,
+            blockers=list(opt_in["blockers"]),
+            invariants=invariants,
         )
 
 

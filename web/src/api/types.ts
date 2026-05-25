@@ -46,6 +46,18 @@ export interface ProviderStatus {
   blockers: string[];
 }
 
+export interface ProviderReadinessResponse {
+  active_profile: string;
+  opt_in_state: string;
+  model_setup: string;
+  model_setup_label: string;
+  can_run_real_smoke: boolean;
+  provider_mode: string;
+  aliases: ProviderStatus["aliases"];
+  blockers: string[];
+  invariants: Record<string, boolean>;
+}
+
 export interface SafetySummary {
   local_only: boolean;
   host: string;

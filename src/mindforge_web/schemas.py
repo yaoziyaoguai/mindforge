@@ -59,6 +59,23 @@ class ProviderStatus(BaseModel):
     blockers: list[str] = Field(default_factory=list)
 
 
+class ProviderReadinessResponse(BaseModel):
+    """v2.5 U4 Provider Readiness Center — 独立 provider 就绪状态 API 响应。
+
+    中文学习型说明：基于 provider_readiness.py 的 build_readiness_report +
+    model_setup_readiness，返回所有 provider 的就绪状态，不包含 API key 值。
+    """
+    active_profile: str
+    opt_in_state: str
+    model_setup: str = "needs_setup"
+    model_setup_label: str = "needs setup"
+    can_run_real_smoke: bool
+    provider_mode: str = "fake"
+    aliases: list[ProviderAliasStatus]
+    blockers: list[str] = Field(default_factory=list)
+    invariants: dict[str, bool] = Field(default_factory=dict)
+
+
 class SetProviderModeRequest(BaseModel):
     mode: Literal["fake", "real"]
 

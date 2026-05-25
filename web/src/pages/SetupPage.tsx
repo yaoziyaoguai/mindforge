@@ -449,21 +449,86 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
             <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_model_answer")}</p>
           </details>
           <section className="space-y-4 rounded-md border border-line p-4">
-            {/* Provider readiness 摘要 —— 让用户一眼看到当前模型是否可用 */}
+            {/* v2.5 U4 Provider Readiness Center —— 增强 provider 就绪状态面板 */}
             {editable && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md bg-stone-50 px-3 py-2 text-sm">
-                <span className="font-medium text-ink">{t("setup.provider_readiness")}:</span>
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                  editable.llm.readiness.model_setup === "ready" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
-                }`}>
-                  {editable.llm.readiness.model_setup === "ready" ? t("setup.provider_readiness_ready") : t("setup.provider_readiness_incomplete")}
-                </span>
-                {editable.llm.active_provider ? (
-                  <span className="text-xs text-muted">
-                    {t("setup.active_provider")}: {editable.llm.active_provider}
+              <details className="rounded-md border border-line bg-stone-50 p-3" open>
+                <summary className="cursor-pointer text-sm font-medium text-ink">
+                  <span>{t("setup.provider_readiness")}: </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    editable.llm.readiness.model_setup === "ready" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {editable.llm.readiness.model_setup === "ready" ? t("setup.provider_readiness_ready") : t("setup.provider_readiness_incomplete")}
                   </span>
-                ) : null}
-              </div>
+                  {editable.llm.active_provider ? (
+                    <span className="ml-2 text-xs text-muted">
+                      {t("setup.active_provider")}: {editable.llm.active_provider}
+                    </span>
+                  ) : null}
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {/* 总体状态 */}
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-md bg-white border border-line px-2 py-1">
+                      <span className="text-muted">{t("setup.provider_mode_label")}: </span>
+                      <span className="font-medium text-ink">{editable.llm.readiness.provider_mode}</span>
+                    </span>
+                    <span className="rounded-md bg-white border border-line px-2 py-1">
+                      <span className="text-muted">opt-in: </span>
+                      <span className={`font-medium ${editable.llm.readiness.opt_in_state === "fake_default" ? "text-muted" : editable.llm.readiness.opt_in_state === "ready" ? "text-green-700" : "text-amber-700"}`}>
+                        {editable.llm.readiness.opt_in_state}
+                      </span>
+                    </span>
+                    <span className="rounded-md bg-white border border-line px-2 py-1">
+                      <span className="text-muted">{t("setup.can_run_real_smoke")}: </span>
+                      <span className={`font-medium ${editable.llm.readiness.can_run_real_smoke ? "text-green-700" : "text-muted"}`}>
+                        {editable.llm.readiness.can_run_real_smoke ? t("shared.yes") : t("shared.no")}
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* 各 alias 详情 */}
+                  {editable.llm.readiness.aliases.length > 0 ? (
+                    <div>
+                      <h4 className="text-xs font-semibold text-ink mb-1.5">{t("setup.provider_aliases")}</h4>
+                      <div className="space-y-1">
+                        {editable.llm.readiness.aliases.map((alias) => (
+                          <div key={alias.alias} className="flex flex-wrap items-center gap-2 rounded bg-white border border-line px-2 py-1.5 text-xs">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[10px] font-medium ${alias.in_active_profile ? "bg-primary/10 text-primary" : "bg-stone-100 text-muted"}`}>
+                              {alias.in_active_profile ? "✓" : "·"}
+                            </span>
+                            <span className="font-medium text-ink">{alias.alias}</span>
+                            <span className="text-muted">({alias.type})</span>
+                            <span className={`ml-auto rounded px-1.5 py-0 text-[10px] font-medium ${
+                              alias.api_key_present ? "bg-green-100 text-green-700" : "bg-stone-100 text-muted"
+                            }`}>
+                              {alias.api_key_present ? "key ✓" : "key ✗"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Blockers */}
+                  {editable.llm.readiness.blockers.length > 0 ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
+                      <h4 className="text-xs font-semibold text-amber-900 mb-1">{t("setup.provider_blockers")}</h4>
+                      <ul className="space-y-0.5">
+                        {editable.llm.readiness.blockers.map((b, i) => (
+                          <li key={i} className="text-xs text-amber-700">- {b}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {/* 不变式 */}
+                  <div className="flex flex-wrap gap-1.5 text-[10px] text-muted">
+                    <span className="rounded bg-green-50 px-1.5 py-0.5">fake-default</span>
+                    <span className="rounded bg-green-50 px-1.5 py-0.5">secret value not printed</span>
+                    <span className="rounded bg-green-50 px-1.5 py-0.5">human approval required</span>
+                  </div>
+                </div>
+              </details>
             )}
             <div className="flex items-center justify-between">
               <div>

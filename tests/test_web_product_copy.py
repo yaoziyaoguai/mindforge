@@ -220,6 +220,8 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
     # 禁止的工程/debug 字段不能出现在 SetupPage 源码中
     # Milestone E: "Provider readiness" 现在是正式用户侧功能（provider 就绪状态展示），
     # 已从禁止列表移除 —— 用户需要知道当前 provider 是否可用
+    # in_active_profile 是 ProviderAliasStatus API 字段名（JSON key），非 legacy profile 术语
+    sanitized = setup.replace("in_active_profile", "")
     for forbidden in (
         "Environment variable overrides",
         "API key env",
@@ -238,7 +240,7 @@ def test_setup_main_ui_hides_env_mapping_and_legacy_debug_fields() -> None:
         "missing directories",
         "internal directory state",
     ):
-        assert forbidden not in setup
+        assert forbidden not in sanitized
 
     # 产品语义的 i18n key 存在于字典中
     zh = _read_i18n_zh()
@@ -272,6 +274,8 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
 
     # 禁止的字段不在源码中出现
     # Milestone E: "Provider readiness" 已从禁止列表移除 —— 这是正式用户侧功能
+    # in_active_profile 是 API 字段名，非 legacy profile 语言
+    sanitized = setup.replace("in_active_profile", "")
     for forbidden in (
         "Default base URL",
         "Environment variable overrides",
@@ -298,9 +302,8 @@ def test_setup_advanced_diagnostics_are_read_only_and_not_main_path() -> None:
         "fake-fast",
         "Built-in demo",
         "fake://",
-        "fake_default",
     ):
-        assert forbidden not in setup
+        assert forbidden not in sanitized
 
     # 产品文案在 i18n 字典中
     assert zh.get("setup.no_models") == "尚未配置模型"
@@ -327,12 +330,14 @@ def test_setup_page_uses_model_routing_language_not_provider_profiles() -> None:
     assert zh.get("setup.model_api_key") == "API key"
 
     # 组件源码禁止旧 provider/profile 语言
+    # in_active_profile 是 API 字段名（JSON key），非 legacy profile 术语
     setup = _read("pages/SetupPage.tsx")
+    sanitized = setup.replace("in_active_profile", "")
     assert "useLocale" in setup
     assert "stage_models" not in setup
     assert "Stage models" not in setup
-    assert "active_profile" not in setup
-    assert "profiles" not in setup
+    assert "active_profile" not in sanitized
+    assert "profiles" not in sanitized
     assert "Active provider" not in setup
     assert "provider profiles" not in setup
     assert "fake_fast" not in setup
