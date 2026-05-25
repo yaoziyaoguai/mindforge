@@ -119,6 +119,28 @@ class FakeProvider(LLMProvider):
             }
         elif stage == "action_extraction":
             payload = {"action_items": []}
+        elif stage == "wiki_synthesis":
+            payload = {
+                "overview": "[fake] 基于提供的 approved cards 生成的知识总览。",
+                "sections": [
+                    {
+                        "title": "[fake] Section 1",
+                        "body": "[fake] section body with Markdown content.",
+                        "card_ids": [],
+                    },
+                    {
+                        "title": "[fake] Section 2",
+                        "body": "[fake] another section body.",
+                        "card_ids": [],
+                    },
+                ],
+                "open_questions": [
+                    {
+                        "question": "[fake] 待确认的问题？",
+                        "card_ids": [],
+                    }
+                ],
+            }
         else:
             raise ValueError(f"FakeProvider 不识别的 stage: {stage}")
 
