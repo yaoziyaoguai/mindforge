@@ -55,6 +55,25 @@ def graph_explore(
     return result
 
 
+@router.get("/sensemaking", response_model=dict)
+def graph_sensemaking(
+    ref: str = Query(..., description="Card id, filename, or vault-relative path"),
+    facade: WebFacade = Depends(get_facade),
+) -> dict:
+    """v4.0 Graph-backed Sensemaking — 以卡片为中心的综合分析。
+
+    返回桥接节点、孤立岛屿、证据溯源、源影响路径、卡片演化路径、社区子图等
+    全部 sensemaking 维度的分析结果。用于 Sensemaking Workspace 页面。
+    """
+    result = facade.get_sensemaking(ref)
+    if result is None:
+        raise user_error(
+            404, "sensemaking_not_found", "无法生成 sensemaking 分析。",
+            "请确认卡片存在且已 approved，并且 vault 中有足够的相关卡片。",
+        )
+    return result.model_dump()
+
+
 @router.get("/edge", response_model=GraphEdgeDetailResponse)
 def graph_edge(
     source: str = Query(..., description="源节点 id"),

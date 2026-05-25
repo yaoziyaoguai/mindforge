@@ -20,6 +20,7 @@ import { TrashPage } from "./pages/TrashPage";
 import { WikiPage } from "./pages/WikiPage";
 import { DogfoodPage } from "./pages/DogfoodPage";
 import { GraphPage } from "./pages/GraphPage";
+import { SensemakingPage } from "./pages/SensemakingPage";
 
 type PageData = {
   home?: HomeStatusResponse;
@@ -81,6 +82,7 @@ export default function App() {
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
   if (!content && path.startsWith("/dogfood")) content = <DogfoodPage onNavigate={navigate} />;
   if (!content && path.startsWith("/graph")) content = <GraphPage onNavigateBack={() => navigate("/library")} />;
+  if (!content && path.startsWith("/sensemaking")) content = <SensemakingPage onNavigateBack={() => navigate("/library")} />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) {
     const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : path.startsWith("/graph") ? "default" : "default";

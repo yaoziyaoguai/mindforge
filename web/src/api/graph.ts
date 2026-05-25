@@ -1,4 +1,4 @@
-import type { GraphEdgeDetailResponse, GraphResponse } from "./types";
+import type { GraphEdgeDetailResponse, GraphResponse, SensemakingResponse } from "./types";
 
 const BASE = "/api/graph";
 
@@ -37,4 +37,15 @@ export async function fetchGraphEdge(
     throw new Error(`Graph edge fetch failed: ${resp.status}`);
   }
   return resp.json() as Promise<GraphEdgeDetailResponse>;
+}
+
+export async function fetchSensemaking(
+  ref: string,
+): Promise<SensemakingResponse> {
+  const url = `${BASE}/sensemaking?ref=${encodeURIComponent(ref)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`Sensemaking fetch failed: ${resp.status}`);
+  }
+  return resp.json() as Promise<SensemakingResponse>;
 }

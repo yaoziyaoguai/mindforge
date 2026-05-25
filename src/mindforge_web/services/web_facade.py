@@ -9,7 +9,10 @@ Router 调 Facade，Facade 调现有 MindForge service，这样 Web 不会长成
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from mindforge_web.schemas import SensemakingResponse
 
 from fastapi import HTTPException
 
@@ -555,6 +558,119 @@ class WebFacade:
             source_id=source,
             target_id=target,
             edges=[_graph_edge_response(e) for e in matching],
+        )
+
+    def get_sensemaking(self, ref: str) -> "SensemakingResponse | None":
+        """获取以卡片为中心的综合 sensemaking 分析（v4.0）。
+
+        中文学习型说明：聚合桥接节点、孤立岛屿、证据溯源、源影响路径、
+        卡片演化、社区子图等全部 sensemaking 维度的分析结果。
+        """
+        from mindforge.relations.sensemaking import analyze_sensemaking
+        from mindforge_web.schemas import (
+            SensemakingBridgeNodeResponse,
+            SensemakingCardEvolutionResponse,
+            SensemakingCardEvolutionStepResponse,
+            SensemakingCommunitySubgraphResponse,
+            SensemakingEvidenceTrailItemResponse,
+            SensemakingEvidenceTrailResponse,
+            SensemakingOrphanIslandResponse,
+            SensemakingResponse,
+            SensemakingSourceInfluenceResponse,
+        )
+
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return None
+        card_id = _resolve_card_id(self.cfg, ref)
+        if card_id is None:
+            return None
+
+        analysis = analyze_sensemaking(card_id, builder._cards)
+        if analysis is None:
+            return None
+
+        return SensemakingResponse(
+            center_card_id=analysis.center_card_id,
+            center_card_title=analysis.center_card_title,
+            bridge_nodes=[
+                SensemakingBridgeNodeResponse(
+                    card_id=b.card_id,
+                    card_title=b.card_title,
+                    connecting_communities=list(b.connecting_communities),
+                    community_count=b.community_count,
+                )
+                for b in analysis.bridge_nodes
+            ],
+            orphan_islands=[
+                SensemakingOrphanIslandResponse(
+                    card_ids=list(o.card_ids),
+                    card_titles=list(o.card_titles),
+                    size=o.size,
+                    is_true_orphan=o.is_true_orphan,
+                )
+                for o in analysis.orphan_islands
+            ],
+            evidence_trails=[
+                SensemakingEvidenceTrailResponse(
+                    source_id=t.source_id,
+                    source_title=t.source_title,
+                    target_id=t.target_id,
+                    target_title=t.target_title,
+                    trail_items=[
+                        SensemakingEvidenceTrailItemResponse(
+                            evidence_type=ti.evidence_type,
+                            evidence_label=ti.evidence_label,
+                            description=ti.description,
+                        )
+                        for ti in t.trail_items
+                    ],
+                    total_shared_entities=t.total_shared_entities,
+                )
+                for t in analysis.evidence_trails
+            ],
+            source_influence=(
+                SensemakingSourceInfluenceResponse(
+                    source_id=analysis.source_influence.source_id,
+                    source_label=analysis.source_influence.source_label,
+                    direct_cards=list(analysis.source_influence.direct_cards),
+                    direct_card_titles=list(analysis.source_influence.direct_card_titles),
+                    influenced_cards=list(analysis.source_influence.influenced_cards),
+                    influenced_card_titles=list(analysis.source_influence.influenced_card_titles),
+                    total_reach=analysis.source_influence.total_reach,
+                )
+                if analysis.source_influence else None
+            ),
+            card_evolution=(
+                SensemakingCardEvolutionResponse(
+                    source_id=analysis.card_evolution.source_id,
+                    source_label=analysis.card_evolution.source_label,
+                    steps=[
+                        SensemakingCardEvolutionStepResponse(
+                            card_id=s.card_id,
+                            card_title=s.card_title,
+                            tags=list(s.tags),
+                            wiki_sections=list(s.wiki_sections),
+                        )
+                        for s in analysis.card_evolution.steps
+                    ],
+                    step_count=analysis.card_evolution.step_count,
+                )
+                if analysis.card_evolution else None
+            ),
+            community_subgraphs=[
+                SensemakingCommunitySubgraphResponse(
+                    community_type=sg.community_type,
+                    community_label=sg.community_label,
+                    member_card_ids=list(sg.member_card_ids),
+                    member_card_titles=list(sg.member_card_titles),
+                    member_count=sg.member_count,
+                    internal_edge_count=sg.internal_edge_count,
+                    bridge_card_ids=list(sg.bridge_card_ids),
+                )
+                for sg in analysis.community_subgraphs
+            ],
+            total_cards_analyzed=analysis.total_cards_analyzed,
         )
 
     def get_discovery_context(self, ref: str) -> DiscoveryContextResponse | None:

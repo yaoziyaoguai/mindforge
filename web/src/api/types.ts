@@ -934,3 +934,80 @@ export interface DogfoodReportResponse {
   trend_summary: string;
   maintenance_suggestions: string[];
 }
+
+// ── v4.0 Sensemaking Workspace ─────────────────
+
+export interface SensemakingBridgeNode {
+  card_id: string;
+  card_title: string;
+  connecting_communities: string[];
+  community_count: number;
+}
+
+export interface SensemakingOrphanIsland {
+  card_ids: string[];
+  card_titles: string[];
+  size: number;
+  is_true_orphan: boolean;
+}
+
+export interface SensemakingEvidenceTrailItem {
+  evidence_type: string;
+  evidence_label: string;
+  description: string;
+}
+
+export interface SensemakingEvidenceTrail {
+  source_id: string;
+  source_title: string;
+  target_id: string;
+  target_title: string;
+  trail_items: SensemakingEvidenceTrailItem[];
+  total_shared_entities: number;
+}
+
+export interface SensemakingSourceInfluence {
+  source_id: string;
+  source_label: string;
+  direct_cards: string[];
+  direct_card_titles: string[];
+  influenced_cards: string[];
+  influenced_card_titles: string[];
+  total_reach: number;
+}
+
+export interface SensemakingCardEvolutionStep {
+  card_id: string;
+  card_title: string;
+  tags: string[];
+  wiki_sections: string[];
+}
+
+export interface SensemakingCardEvolution {
+  source_id: string;
+  source_label: string;
+  steps: SensemakingCardEvolutionStep[];
+  step_count: number;
+}
+
+export interface SensemakingCommunitySubgraph {
+  community_type: string;
+  community_label: string;
+  member_card_ids: string[];
+  member_card_titles: string[];
+  member_count: number;
+  internal_edge_count: number;
+  bridge_card_ids: string[];
+}
+
+export interface SensemakingResponse {
+  center_card_id: string;
+  center_card_title: string;
+  bridge_nodes: SensemakingBridgeNode[];
+  orphan_islands: SensemakingOrphanIsland[];
+  evidence_trails: SensemakingEvidenceTrail[];
+  source_influence: SensemakingSourceInfluence | null;
+  card_evolution: SensemakingCardEvolution | null;
+  community_subgraphs: SensemakingCommunitySubgraph[];
+  total_cards_analyzed: number;
+}

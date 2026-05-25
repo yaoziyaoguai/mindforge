@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, BookMarked, CheckSquare, GitBranch, Globe, Heart, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
+import { BarChart3, BookOpen, BookMarked, Brain, CheckSquare, GitBranch, Globe, Heart, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
 import { cx } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
@@ -24,6 +24,7 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
         { href: "/recall", label: t("nav.recall"), icon: Search },
         { href: "/health", label: t("nav.health"), icon: Heart },
         { href: "/graph", label: t("nav.graph"), icon: GitBranch },
+        { href: "/sensemaking", label: t("nav.sensemaking"), icon: Brain },
         { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },
       ],
     },
