@@ -679,6 +679,13 @@ const copy: Record<Locale, LocaleDict> = {
     "library.import_dedup_exact": "标题完全相同：",
     "library.import_dedup_fuzzy": "标题相似 ({sim}%)：",
     "library.import_dedup_warning": "检测到可能重复的卡片，请确认是否继续导入。",
+    "library.import_batch_detected": "检测到 {count} 篇文档（--- 分隔），可批量导入。",
+    "library.import_batch_title_label": "批量标题前缀（可选）",
+    "library.import_batch_title_placeholder": "可选：为所有卡片添加统一标题前缀",
+    "library.import_batch_body_placeholder": "粘贴多篇 Markdown 文档（--- 分隔）...",
+    "library.import_batch_preview_label": "将创建 {count} 张卡片：",
+    "library.import_batch_submit": "批量导入 {count} 篇",
+    "library.import_batch_result": "已创建 {count} 张卡片",
   },
 
   en: {
@@ -1344,6 +1351,13 @@ const copy: Record<Locale, LocaleDict> = {
     "library.import_dedup_exact": "Exact title match: ",
     "library.import_dedup_fuzzy": "Similar title ({sim}%): ",
     "library.import_dedup_warning": "Potential duplicate cards detected. Please confirm before importing.",
+    "library.import_batch_detected": "Detected {count} documents (--- separated). Batch import available.",
+    "library.import_batch_title_label": "Batch Title Prefix (optional)",
+    "library.import_batch_title_placeholder": "Optional: prefix for all card titles",
+    "library.import_batch_body_placeholder": "Paste multiple Markdown documents (--- separated)...",
+    "library.import_batch_preview_label": "Will create {count} cards:",
+    "library.import_batch_submit": "Batch Import {count}",
+    "library.import_batch_result": "Created {count} cards",
   },
 };
 

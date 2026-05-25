@@ -8,6 +8,8 @@ from mindforge_web.presenters.web_errors import user_error
 from mindforge_web.schemas import (
     CardBodyUpdateRequest,
     CardBodyUpdateResponse,
+    BatchImportCardRequest,
+    BatchImportCardResponse,
     ExportCardsRequest,
     ExportCardsResponse,
     FolderImportPreviewRequest,
@@ -234,6 +236,22 @@ def import_card(
     if not payload.body.strip():
         raise user_error(400, "import_body_required", "请输入卡片内容。", "内容不能为空。")
     return facade.import_card(payload.title, payload.body, payload.source_name)
+
+
+@router.post("/knowledge/import/batch", response_model=BatchImportCardResponse)
+def import_cards_batch(
+    payload: BatchImportCardRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> BatchImportCardResponse:
+    """批量导入多篇 Markdown 内容为 ai_draft 卡片 — v2.4 U3。"""
+    if not payload.items:
+        raise user_error(400, "items_required", "请至少提供一篇内容。", "No items provided.")
+    results: list[ImportCardResponse] = []
+    for item in payload.items:
+        if not item.title.strip() or not item.body.strip():
+            continue
+        results.append(facade.import_card(item.title, item.body, payload.source_name))
+    return BatchImportCardResponse(results=results, created_count=len(results))
 
 
 # ── v2.4 U1 Folder Import ──────────────────────

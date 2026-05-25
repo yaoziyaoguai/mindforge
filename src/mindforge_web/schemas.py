@@ -701,6 +701,26 @@ class ImportCardResponse(BaseModel):
     potential_duplicates: list[_PotentialDuplicateResponse] = Field(default_factory=list)
 
 
+# ── v2.4 U3 Batch Paste Import ──────────────────────
+
+
+class BatchImportCardItem(BaseModel):
+    """批量导入中的单篇内容。"""
+    title: str
+    body: str
+
+
+class BatchImportCardRequest(BaseModel):
+    """批量粘贴导入请求 — v2.4 U3。"""
+    items: list[BatchImportCardItem]
+    source_name: str = ""
+
+
+class BatchImportCardResponse(BaseModel):
+    results: list[ImportCardResponse]
+    created_count: int
+
+
 # ── v2.4 U1 Folder Import ──────────────────────
 
 
