@@ -1162,10 +1162,43 @@ class KnowledgeCommunityResponse(BaseModel):
     sub_communities: list[SubCommunityRefResponse] = Field(default_factory=list)
     overlap_with: list[CommunityOverlapResponse] = Field(default_factory=list)
     quality_score: float = 0.0
+    # v3.3 新增
+    representative_card_ids: list[str] = Field(default_factory=list)
+    source_coverage: float = 0.0
+    evidence_detail: str = ""
 
 
 class KnowledgeCommunitiesResponse(BaseModel):
     communities: list[KnowledgeCommunityResponse]
+
+
+# ============================================================================
+# v3.3 Topic Synthesis schemas
+# ============================================================================
+
+
+class TopicMemberCommunityResponse(BaseModel):
+    """Topic 内的成员社区引用。"""
+    community_type: str
+    shared_entity: str
+    member_count: int
+    quality_score: float
+
+
+class KnowledgeTopicResponse(BaseModel):
+    """知识主题 — v3.3 交叉社区合成。"""
+    topic_id: str
+    topic_name: str
+    community_count: int
+    total_card_count: int
+    card_ids: list[str]
+    member_communities: list[TopicMemberCommunityResponse]
+    representative_card_ids: list[str]
+    evidence: str
+
+
+class KnowledgeTopicsResponse(BaseModel):
+    topics: list[KnowledgeTopicResponse]
 
 
 # ============================================================================

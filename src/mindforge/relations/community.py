@@ -1,14 +1,15 @@
-"""v2.1 Knowledge Community — 确定性知识社区检测。
+"""v3.3 Knowledge Community & Topic — 确定性知识社区检测与主题合成。
 
-中文学习型说明：借鉴 GraphRAG 的社区概念，但完全不使用 LLM 或社区检测算法。
-"知识社区"的定义是纯确定性的：共享 source document / tag / wiki section 的卡片群。
+中文学习型说明：借鉴 GraphRAG 的 community hierarchy / topic summaries 概念，
+但完全不使用 LLM、embedding 或社区检测算法。
 
-v2.1 增强：
-- 多层级社区分组（source → tag → wiki_section → 跨类型层级）
-- 社区质量评分（成员卡片质量加权）
-- 社区重叠检测（共享成员识别）
+v3.3 增强：
+- 代表性卡片选择（基于质量 + 连接度的确定性启发式）
+- 来源覆盖率统计
+- 增强 evidence trail（社区归属理由更详细）
+- Topic 合成：合并重叠社区为更宽泛知识主题
 
-每个社区附带纯文本描述（非 LLM 生成），让用户理解"这个知识群是什么"。
+每个社区/主题附带纯文本证据（非 LLM 生成），让用户理解"为什么这些知识在一起"。
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ class CommunityOverlap:
 
 @dataclass(frozen=True)
 class KnowledgeCommunity:
-    """确定性知识社区。
+    """确定性知识社区（v3.3 增强）。
 
     属性：
         community_type: 社区类型（source / tag / wiki_section）
@@ -54,9 +55,12 @@ class KnowledgeCommunity:
         member_count: 成员卡片数量
         member_card_ids: 成员卡片 ID 列表
         description: 确定性文本描述（非 LLM 生成）
-        sub_communities: 子社区列表（v2.1 多层级分组）
-        overlap_with: 重叠社区列表（v2.1 共享成员交叉检测）
-        quality_score: 社区质量评分 0.0-1.0（v2.1 成员卡片质量加权平均）
+        sub_communities: 子社区列表
+        overlap_with: 重叠社区列表
+        quality_score: 社区质量评分 0.0-1.0
+        representative_card_ids: 代表性卡片（v3.3 质量+连接度启发式选择）
+        source_coverage: 来源覆盖率 0.0-1.0（v3.3）
+        evidence_detail: 增强证据文本（v3.3）
     """
 
     community_type: str  # "source", "tag", "wiki_section"
@@ -67,6 +71,9 @@ class KnowledgeCommunity:
     sub_communities: tuple[SubCommunityRef, ...] = field(default_factory=tuple)
     overlap_with: tuple[CommunityOverlap, ...] = field(default_factory=tuple)
     quality_score: float = 0.0
+    representative_card_ids: tuple[str, ...] = field(default_factory=tuple)
+    source_coverage: float = 0.0
+    evidence_detail: str = ""
 
 
 def _card_quality(card: dict[str, object]) -> float:
@@ -263,7 +270,37 @@ def detect_communities(
     _build_hierarchy(communities)
     _detect_overlaps(communities)
 
+    # --- v3.3: 代表性卡片、来源覆盖率、增强证据 ---
+    _enrich_communities(communities, cards)
+
     return communities
+
+
+def _enrich_communities(
+    communities: list[KnowledgeCommunity],
+    cards: list[dict[str, object]],
+) -> None:
+    """v3.3 增强：为每个社区计算代表性卡片、来源覆盖率、证据详情（原地修改）。"""
+    for i, comm in enumerate(communities):
+        member_ids = list(comm.member_card_ids)
+
+        rep_ids = select_representative_cards(
+            comm.community_type, member_ids, cards, max_count=3
+        )
+        src_cov = _compute_source_coverage(member_ids, cards)
+        evidence = _build_evidence_detail(
+            community_type=comm.community_type,
+            shared_entity=comm.shared_entity,
+            member_count=comm.member_count,
+            source_coverage=src_cov,
+            representative_ids=rep_ids,
+            sub_count=len(comm.sub_communities),
+            overlap_count=len(comm.overlap_with),
+        )
+
+        object.__setattr__(communities[i], "representative_card_ids", tuple(rep_ids))
+        object.__setattr__(communities[i], "source_coverage", src_cov)
+        object.__setattr__(communities[i], "evidence_detail", evidence)
 
 
 def _avg_quality(member_ids: list[str], qualities: dict[str, float]) -> float:
@@ -286,9 +323,107 @@ def _section_description(section: str, count: int) -> str:
     return f"属于 Wiki 章节「{section}」的 {count} 张知识卡片"
 
 
+# ---------------------------------------------------------------------------
+# v3.3 增强：代表性卡片、来源覆盖率、增强证据
+# ---------------------------------------------------------------------------
+
+
+def select_representative_cards(
+    community_type: str,
+    member_card_ids: list[str],
+    cards: list[dict[str, object]],
+    *,
+    max_count: int = 3,
+) -> list[str]:
+    """为社区选择代表性卡片（基于质量 + 连接度的确定性启发式）。
+
+    选择策略（无 LLM）：
+    1. 计算每张卡片的质量分（_card_quality）
+    2. 计算连接度分：卡片所在的其他社区数（标签/章节越多的卡片越"中枢"）
+    3. 综合分 = 质量分 × 0.6 + 连接度分 × 0.4
+    4. 取 top-N
+
+    不调用 LLM，不做 embedding。
+    """
+    card_map: dict[str, dict[str, object]] = {str(c["id"]): c for c in cards}
+    member_cards = [card_map[mid] for mid in member_card_ids if mid in card_map]
+    if not member_cards:
+        return []
+
+    # 计算连接度（标签数 + wiki 章节数，归一化到 0-1）
+    max_connectivity = 0
+    scores: dict[str, float] = {}
+    for c in member_cards:
+        cid = str(c["id"])
+        quality = _card_quality(c)
+        tags_count = len(c.get("tags") or [])
+        sections_count = len(c.get("wiki_sections") or [])
+        connectivity = min((tags_count + sections_count) / 6.0, 1.0)
+        max_connectivity = max(max_connectivity, connectivity)
+        scores[cid] = quality * 0.6 + connectivity * 0.4
+
+    # 按综合分降序取 top-N
+    sorted_ids = sorted(scores, key=scores.get, reverse=True)  # type: ignore[arg-type,return-value]
+    return sorted_ids[:max_count]
+
+
+def _compute_source_coverage(
+    member_card_ids: list[str],
+    cards: list[dict[str, object]],
+) -> float:
+    """计算社区中具有来源归属的卡片比例。"""
+    card_map = {str(c["id"]): c for c in cards}
+    member_cards = [card_map[mid] for mid in member_card_ids if mid in card_map]
+    if not member_cards:
+        return 0.0
+    with_source = sum(1 for c in member_cards if c.get("source_id"))
+    return round(with_source / len(member_cards), 4)
+
+
+def _build_evidence_detail(
+    community_type: str,
+    shared_entity: str,
+    member_count: int,
+    source_coverage: float,
+    representative_ids: list[str],
+    sub_count: int,
+    overlap_count: int,
+) -> str:
+    """构建增强证据文本（确定性模板，非 LLM 生成）。
+
+    解释社区为什么存在、卡片如何关联、质量如何。
+    """
+    type_label = {"source": "来源文档", "tag": "标签", "wiki_section": "Wiki 章节"}.get(
+        community_type, community_type
+    )
+
+    parts = [f"社区类型: {type_label}「{shared_entity}」", f"成员: {member_count} 张卡片"]
+
+    if representative_ids:
+        parts.append(f"代表性卡片: {', '.join(representative_ids[:3])}")
+
+    if source_coverage > 0:
+        parts.append(f"来源覆盖率: {source_coverage:.0%}")
+
+    if sub_count > 0:
+        parts.append(f"含 {sub_count} 个子社区")
+
+    if overlap_count > 0:
+        parts.append(f"与 {overlap_count} 个社区有交叉")
+
+    return " | ".join(parts)
+
+
+def _detect_community_type_order(community_type: str) -> int:
+    """社区类型层级序数（source=0 最宽泛 → wiki_section=2 最具体）。"""
+    order = {"source": 0, "tag": 1, "wiki_section": 2}
+    return order.get(community_type, 99)
+
+
 __all__ = [
     "KnowledgeCommunity",
     "SubCommunityRef",
     "CommunityOverlap",
     "detect_communities",
+    "select_representative_cards",
 ]

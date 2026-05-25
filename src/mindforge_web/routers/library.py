@@ -19,6 +19,7 @@ from mindforge_web.schemas import (
     ImportCardRequest,
     ImportCardResponse,
     KnowledgeCommunitiesResponse,
+    KnowledgeTopicsResponse,
     LibraryCardDetailResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
@@ -287,3 +288,11 @@ def knowledge_communities(
 ) -> KnowledgeCommunitiesResponse:
     """获取知识社区列表（按 source/tag/wiki_section 分组的卡片群）。"""
     return facade.knowledge_communities()
+
+
+@router.get("/knowledge/topics", response_model=KnowledgeTopicsResponse)
+def knowledge_topics(
+    facade: WebFacade = Depends(get_facade),
+) -> KnowledgeTopicsResponse:
+    """获取知识主题列表（v3.3 交叉社区合成的更宽泛主题）。"""
+    return facade.knowledge_topics()

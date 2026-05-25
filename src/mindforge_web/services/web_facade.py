@@ -467,8 +467,51 @@ class WebFacade:
                         for o in c.overlap_with
                     ],
                     quality_score=c.quality_score,
+                    representative_card_ids=list(c.representative_card_ids),
+                    source_coverage=c.source_coverage,
+                    evidence_detail=c.evidence_detail,
                 )
                 for c in communities
+            ],
+        )
+
+    def knowledge_topics(self) -> object:
+        """合成知识主题（v3.3 交叉社区合并为更宽泛主题）。"""
+        from mindforge.relations.community import detect_communities
+        from mindforge.relations.topic import detect_topics
+        from mindforge_web.schemas import (
+            KnowledgeTopicsResponse,
+            KnowledgeTopicResponse,
+            TopicMemberCommunityResponse,
+        )
+
+        builder = _build_graph_builder(self.cfg)
+        if builder is None:
+            return KnowledgeTopicsResponse(topics=[])
+
+        communities = detect_communities(builder._cards, min_members=2)
+        topics = detect_topics(communities, builder._cards)
+        return KnowledgeTopicsResponse(
+            topics=[
+                KnowledgeTopicResponse(
+                    topic_id=t.topic_id,
+                    topic_name=t.topic_name,
+                    community_count=t.community_count,
+                    total_card_count=t.total_card_count,
+                    card_ids=list(t.card_ids),
+                    member_communities=[
+                        TopicMemberCommunityResponse(
+                            community_type=mc.community_type,
+                            shared_entity=mc.shared_entity,
+                            member_count=mc.member_count,
+                            quality_score=mc.quality_score,
+                        )
+                        for mc in t.member_communities
+                    ],
+                    representative_card_ids=list(t.representative_card_ids),
+                    evidence=t.evidence,
+                )
+                for t in topics
             ],
         )
 
