@@ -1149,3 +1149,54 @@ class KnowledgeCommunityResponse(BaseModel):
 
 class KnowledgeCommunitiesResponse(BaseModel):
     communities: list[KnowledgeCommunityResponse]
+
+
+# ============================================================================
+# v2.5 Dogfood Report schemas
+# ============================================================================
+
+
+class DogfoodTrendPoint(BaseModel):
+    """单个时间点的统计快照。"""
+    date: str  # ISO date
+    total_cards: int
+    approved_cards: int
+    draft_cards: int
+
+
+class DogfoodReportResponse(BaseModel):
+    """v2.5 U3 工作台使用报告 — 结构化分析数据，不调用 LLM。"""
+
+    generated_at: str  # ISO datetime
+
+    # 当前状态
+    total_cards: int
+    approved_count: int
+    draft_count: int
+    approval_rate: float  # 0.0-1.0
+    source_count: int
+
+    # Graph 密度
+    graph_total_relations: int
+    graph_density: float  # relations per card
+    community_count: int
+
+    # Wiki 状态
+    wiki_section_count: int
+    wiki_stale: bool
+
+    # 搜索
+    search_index_exists: bool
+    search_index_path: str = ""
+
+    # 导入/导出
+    imported_card_count: int
+    exported_count: int  # 导出操作次数（当前版本近似以卡片数估算）
+    import_error_count: int
+
+    # 健康
+    health_issue_count: int
+
+    # 趋势（最近 N 天，当前版本基于现有数据近似）
+    trend_summary: str
+    maintenance_suggestions: list[str] = Field(default_factory=list)

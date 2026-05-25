@@ -53,6 +53,7 @@ from mindforge_web.schemas import (
     DiscoveryTagRefResponse,
     DraftDetailResponse,
     DraftsResponse,
+    DogfoodReportResponse,
     CardBodyUpdateResponse,
     GraphEdgeDetailResponse,
     GraphEdgeResponse,
@@ -1204,6 +1205,129 @@ class WebFacade:
                 )
             )
         return actions
+
+    # ── v2.5 U3 Dogfood Report ──────────────────────────────────────
+
+    def dogfood_report(self) -> DogfoodReportResponse:
+        """生成工作台使用报告 — 纯本地数据聚合，不调用 LLM。
+
+        中文学习型说明：报告从 vault cards / sources / wiki / graph / search
+        的现有数据中计算统计值，不生成新内容，不修改任何文件。
+        """
+        from datetime import datetime, timezone
+        from mindforge.cards import iter_cards
+        from mindforge.wiki_service import get_wiki_status
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # 扫描所有卡片
+        scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        cards = list(scan.cards)
+
+        total = len(cards)
+        approved = [c for c in cards if c.status == "human_approved"]
+        drafts = [c for c in cards if c.status == "ai_draft"]
+        imported = [c for c in cards if c.status == "imported"]
+
+        approved_count = len(approved)
+        draft_count = len(drafts)
+        imported_count = len(imported)
+        error_count = len(scan.errors)
+
+        approval_rate = approved_count / total if total > 0 else 0.0
+
+        # 统计 source 数（去重 source_id）
+        source_ids = {c.source_id for c in cards if c.source_id}
+        source_count = len(source_ids)
+
+        # Graph 密度：使用 DeterministicGraphBuilder 获取关系数
+        relation_count = 0
+        try:
+            builder = _build_graph_builder(self.cfg)
+            if builder is not None and approved_count > 0:
+                # 取一张已确认卡片作为入口获取 graph snapshot
+                first_id = approved[0].id or approved[0].rel_path
+                graph = builder.get_graph(first_id, depth=1)
+                # 计算所有唯一边
+                edges_seen: set[tuple[str, str]] = set()
+                for edge in graph.edges:
+                    pair = (edge.source, edge.target)
+                    if pair not in edges_seen and (pair[1], pair[0]) not in edges_seen:
+                        edges_seen.add(pair)
+                relation_count = len(edges_seen)
+        except Exception:
+            relation_count = 0
+        graph_density = relation_count / total if total > 0 else 0.0
+
+        # 社区数
+        community_count = len(source_ids)
+
+        # Wiki 状态
+        try:
+            ws = get_wiki_status(self.cfg)
+            wiki_section_count = ws.approved_card_count
+            wiki_stale = ws.is_stale
+        except Exception:
+            wiki_section_count = 0
+            wiki_stale = False
+
+        # 搜索索引状态
+        recall = self.recall_status()
+        search_index_exists = recall.index_exists
+
+        # 健康问题
+        try:
+            hr = self.knowledge_health_report()
+            health_issue_count = len(hr.issues)
+        except Exception:
+            health_issue_count = 0
+
+        # 趋势总结（确定性生成，不调 LLM）
+        trend_parts = [
+            f"总卡片 {total} 张" if total > 0 else "暂无卡片",
+        ]
+        if total > 0:
+            trend_parts.append(f"确认率 {approval_rate:.0%}")
+            if draft_count > 0:
+                trend_parts.append(f"{draft_count} 张待审")
+        if graph_density > 0:
+            trend_parts.append(f"图密度 {graph_density:.1f} 关系/卡片")
+        trend_summary = " · ".join(trend_parts) + "。"
+
+        # 维护建议
+        suggestions: list[str] = []
+        if draft_count > 0:
+            suggestions.append(f"审阅 {draft_count} 张待确认草稿以提高知识库覆盖率。")
+        if not search_index_exists:
+            suggestions.append("搜索索引尚未构建，前往搜索页触发索引构建。")
+        if wiki_stale:
+            suggestions.append("Wiki 可能过期，考虑重新构建以包含最新确认的卡片。")
+        if health_issue_count > 0:
+            suggestions.append(f"知识健康报告发现 {health_issue_count} 项需关注，请查看详情。")
+        if total == 0:
+            suggestions.append("知识库为空，导入资料或粘贴 Markdown 内容开始构建知识库。")
+
+        return DogfoodReportResponse(
+            generated_at=now,
+            total_cards=total,
+            approved_count=approved_count,
+            draft_count=draft_count,
+            approval_rate=round(approval_rate, 4),
+            source_count=source_count,
+            graph_total_relations=relation_count,
+            graph_density=round(graph_density, 4),
+            community_count=community_count,
+            wiki_section_count=wiki_section_count,
+            wiki_stale=wiki_stale,
+            search_index_exists=search_index_exists,
+            search_index_path=str(recall.index_path) if recall.index_path else "",
+            imported_card_count=imported_count,
+            exported_count=approved_count,
+            import_error_count=error_count,
+            health_issue_count=health_issue_count,
+            trend_summary=trend_summary,
+            maintenance_suggestions=suggestions,
+        )
 
 
 def _library_stats_response(stats) -> LibraryStatsResponse:

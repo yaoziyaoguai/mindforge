@@ -610,6 +610,7 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Navigation ----
     "nav.health": "健康报告",
+    "nav.dogfood": "使用报告",
     "nav.switch_to_en": "Switch to English",
     "nav.switch_to_zh": "切换到中文",
 
@@ -696,6 +697,37 @@ const copy: Record<Locale, LocaleDict> = {
     "library.import_batch_preview_label": "将创建 {count} 张卡片：",
     "library.import_batch_submit": "批量导入 {count} 篇",
     "library.import_batch_result": "已创建 {count} 张卡片",
+
+    // ── v2.5 U3 Dogfood Report ──────────────────────
+    "dogfood.subtitle": "工作台使用统计与维护建议 — 纯本地数据聚合，不调用 LLM。",
+    "dogfood.loading": "正在生成使用报告...",
+    "dogfood.load_failed": "报告加载失败",
+    "dogfood.trend_title": "当前趋势",
+    "dogfood.metrics_title": "关键指标",
+    "dogfood.infra_title": "基础设施",
+    "dogfood.suggestions_title": "维护建议",
+    "dogfood.total_cards": "总卡片数",
+    "dogfood.approved": "已确认",
+    "dogfood.draft": "待审",
+    "dogfood.approval_rate_label": "确认率",
+    "dogfood.graph_density_label": "图谱密度",
+    "dogfood.relations": "关系",
+    "dogfood.communities": "社区",
+    "dogfood.health_label": "健康状态",
+    "dogfood.health_clear": "无问题",
+    "dogfood.health_items": "{count} 项",
+    "dogfood.sources_label": "资料来源",
+    "dogfood.imported": "已导入",
+    "dogfood.wiki_label": "Wiki 卡片",
+    "dogfood.wiki_stale_yes": "可能过期",
+    "dogfood.wiki_stale_no": "最新",
+    "dogfood.search_label": "搜索索引",
+    "dogfood.search_ready": "就绪",
+    "dogfood.search_missing": "需重建",
+    "dogfood.errors_label": "导入错误",
+    "dogfood.errors_found": "发现错误",
+    "dogfood.errors_none": "无错误",
+    "dogfood.generated_at": "生成时间",
   },
 
   en: {
@@ -1292,6 +1324,7 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Navigation ----
     "nav.health": "Health Report",
+    "nav.dogfood": "Usage Report",
     "nav.switch_to_en": "Switch to English",
     "nav.switch_to_zh": "切换到中文",
 
@@ -1378,6 +1411,37 @@ const copy: Record<Locale, LocaleDict> = {
     "library.import_batch_preview_label": "Will create {count} cards:",
     "library.import_batch_submit": "Batch Import {count}",
     "library.import_batch_result": "Created {count} cards",
+
+    // ── v2.5 U3 Dogfood Report ──────────────────────
+    "dogfood.subtitle": "Workspace usage statistics and maintenance suggestions — local data aggregation, no LLM calls.",
+    "dogfood.loading": "Generating usage report...",
+    "dogfood.load_failed": "Report load failed",
+    "dogfood.trend_title": "Current Trends",
+    "dogfood.metrics_title": "Key Metrics",
+    "dogfood.infra_title": "Infrastructure",
+    "dogfood.suggestions_title": "Maintenance Suggestions",
+    "dogfood.total_cards": "Total Cards",
+    "dogfood.approved": "Approved",
+    "dogfood.draft": "Drafts",
+    "dogfood.approval_rate_label": "Approval Rate",
+    "dogfood.graph_density_label": "Graph Density",
+    "dogfood.relations": "relations",
+    "dogfood.communities": "communities",
+    "dogfood.health_label": "Health",
+    "dogfood.health_clear": "Clear",
+    "dogfood.health_items": "{count} items",
+    "dogfood.sources_label": "Sources",
+    "dogfood.imported": "Imported",
+    "dogfood.wiki_label": "Wiki Cards",
+    "dogfood.wiki_stale_yes": "May be stale",
+    "dogfood.wiki_stale_no": "Up to date",
+    "dogfood.search_label": "Search Index",
+    "dogfood.search_ready": "Ready",
+    "dogfood.search_missing": "Needs Rebuild",
+    "dogfood.errors_label": "Import Errors",
+    "dogfood.errors_found": "Errors found",
+    "dogfood.errors_none": "No errors",
+    "dogfood.generated_at": "Generated at",
   },
 };
 

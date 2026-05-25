@@ -13,6 +13,7 @@ const routeLabels: Record<string, string> = {
   "/wiki": "nav.wiki",
   "/health": "nav.health",
   "/trash": "nav.trash",
+  "/dogfood": "nav.dogfood",
 };
 
 export function Breadcrumb({ path }: { path: string }) {

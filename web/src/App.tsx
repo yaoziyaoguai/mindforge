@@ -18,6 +18,7 @@ import { LibraryPage } from "./pages/LibraryPage";
 import { HealthPage } from "./pages/HealthPage";
 import { TrashPage } from "./pages/TrashPage";
 import { WikiPage } from "./pages/WikiPage";
+import { DogfoodPage } from "./pages/DogfoodPage";
 
 type PageData = {
   home?: HomeStatusResponse;
@@ -77,6 +78,7 @@ export default function App() {
   if (!content && path.startsWith("/health")) content = <HealthPage onNavigate={navigate} />;
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
+  if (!content && path.startsWith("/dogfood")) content = <DogfoodPage onNavigate={navigate} />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) {
     const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : "default";

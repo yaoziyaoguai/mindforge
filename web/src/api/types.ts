@@ -837,3 +837,27 @@ export interface FolderImportResponse {
   skipped_count: number;
   failed_count: number;
 }
+
+// ── v2.5 U3 Dogfood Report ──────────────────────
+
+export interface DogfoodReportResponse {
+  generated_at: string;
+  total_cards: number;
+  approved_count: number;
+  draft_count: number;
+  approval_rate: number;
+  source_count: number;
+  graph_total_relations: number;
+  graph_density: number;
+  community_count: number;
+  wiki_section_count: number;
+  wiki_stale: boolean;
+  search_index_exists: boolean;
+  search_index_path: string;
+  imported_card_count: number;
+  exported_count: number;
+  import_error_count: number;
+  health_issue_count: number;
+  trend_summary: string;
+  maintenance_suggestions: string[];
+}
