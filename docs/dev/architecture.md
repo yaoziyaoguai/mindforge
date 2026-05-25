@@ -14,13 +14,20 @@ mindforge/
 │   │   ├── strategies/         # 策略注册与发现
 │   │   ├── llm/                # LLM provider 层
 │   │   ├── processors/         # 处理流水线 step 实现
-│   │   ├── services/           # 服务层（library, review, wiki, import, export 等）
+│   │   ├── services/           # 服务层（library, review, wiki 等）
 │   │   ├── relations/          # 确定性知识图谱（GraphPort、社区检测、发现上下文）
+│   │   ├── retrieval/          # 检索端口抽象与实现（RetrievalPort、Bm25RetrievalEngine）
+│   │   ├── extensions/         # 安全扩展边界（ExtensionManifest、ExportAdapter）
+│   │   ├── sources/            # SourceAdapter 层（13 种文件格式解析）
 │   │   ├── presenters/         # 展示层（CLI 输出格式化）
 │   │   ├── health/             # 知识健康诊断引擎
+│   │   ├── provenance/         # 溯源链路（Source Location）
+│   │   ├── quality/            # 卡片和 Wiki 质量评估
+│   │   ├── dogfood/            # Dogfood 场景自动化和使用报告
+│   │   ├── wiki/               # Wiki 服务层
 │   │   ├── lexical_index.py    # BM25 词法检索引擎
 │   │   ├── provider_readiness.py  # Provider 就绪状态诊断
-│   │   ├── import_validation.py   # 导入安全校验
+│   │   ├── input_safety.py     # 导入安全校验
 │   │   └── prompts_runtime.py  # Prompt 运行时加载
 │   └── mindforge_web/          # Web 后端（FastAPI）
 │       ├── app.py              # FastAPI 应用入口
