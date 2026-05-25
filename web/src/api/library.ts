@@ -1,5 +1,5 @@
 import { apiGet, apiPatch, apiPost } from "./client";
-import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
+import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -23,6 +23,10 @@ export function getProvenanceTrail(ref: string) {
 
 export function getKnowledgeCommunities() {
   return apiGet<KnowledgeCommunitiesResponse>("/api/knowledge/communities");
+}
+
+export function getKnowledgeTopics() {
+  return apiGet<KnowledgeTopicsResponse>("/api/knowledge/topics");
 }
 
 export function importCard(title: string, body: string, sourceName?: string) {

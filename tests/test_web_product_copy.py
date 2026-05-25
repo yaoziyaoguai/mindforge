@@ -1499,3 +1499,60 @@ def test_health_page_uses_locale() -> None:
     """HealthPage 必须使用 useLocale 做本地化。"""
     hp = _read("pages/HealthPage.tsx")
     assert "useLocale" in hp
+
+
+# ── v3.3 Topic i18n keys ────────────────────────────────────────────
+
+_TOPIC_KEYS = [
+    "topic.title",
+    "topic.communities_count",
+    "topic.total_cards",
+    "topic.representative_cards",
+    "topic.member_communities",
+    "topic.evidence",
+    "topic.loading",
+    "topic.load_error",
+    "topic.empty",
+]
+
+
+def test_i18n_topic_keys_complete() -> None:
+    """v3.3 知识主题 i18n 键必须全部存在且有非空值。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+    for key in _TOPIC_KEYS:
+        assert key in zh, f"缺少中文键: {key}"
+        assert zh[key], f"中文键值为空: {key}"
+        assert key in en, f"缺少英文键: {key}"
+        assert en[key], f"英文键值为空: {key}"
+
+
+def test_topic_terms_use_knowledge_language() -> None:
+    """主题文案使用知识工作台语言，不含内部技术术语。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    # 主题文案应使用用户友好的知识语言
+    assert "RAG" not in zh["topic.title"]
+    assert "embedding" not in zh["topic.empty"].lower()
+    assert "LLM" not in zh["topic.empty"]
+    assert "vector" not in zh["topic.empty"].lower()
+
+    # 主题描述不应暗示自动审批
+    assert "自动确认" not in zh["topic.empty"]
+    assert "auto approve" not in en["topic.empty"].lower()
+
+
+def test_topic_api_types_exist() -> None:
+    """v3.3 KnowledgeTopicResponse TypeScript 类型必须存在。"""
+    types_content = _read("api/types.ts")
+    assert "KnowledgeTopicResponse" in types_content
+    assert "KnowledgeTopicsResponse" in types_content
+    assert "TopicMemberCommunityResponse" in types_content
+
+
+def test_topic_api_function_exists() -> None:
+    """v3.3 getKnowledgeTopics API 函数必须存在。"""
+    lib_content = _read("api/library.ts")
+    assert "getKnowledgeTopics" in lib_content
+    assert "/api/knowledge/topics" in lib_content

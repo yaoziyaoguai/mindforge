@@ -807,10 +807,38 @@ export interface KnowledgeCommunityResponse {
   sub_communities: SubCommunityRefResponse[];
   overlap_with: CommunityOverlapResponse[];
   quality_score: number;
+  // v3.3 新增
+  representative_card_ids: string[];
+  source_coverage: number;
+  evidence_detail: string;
 }
 
 export interface KnowledgeCommunitiesResponse {
   communities: KnowledgeCommunityResponse[];
+}
+
+// ── v3.3 Topic Synthesis ──────────────────────
+
+export interface TopicMemberCommunityResponse {
+  community_type: string;
+  shared_entity: string;
+  member_count: number;
+  quality_score: number;
+}
+
+export interface KnowledgeTopicResponse {
+  topic_id: string;
+  topic_name: string;
+  community_count: number;
+  total_card_count: number;
+  card_ids: string[];
+  member_communities: TopicMemberCommunityResponse[];
+  representative_card_ids: string[];
+  evidence: string;
+}
+
+export interface KnowledgeTopicsResponse {
+  topics: KnowledgeTopicResponse[];
 }
 
 export interface PotentialDuplicate {

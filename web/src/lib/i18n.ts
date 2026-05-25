@@ -615,6 +615,17 @@ const copy: Record<Locale, LocaleDict> = {
     "community.collapse_all": "收起",
     "community.shared_members": "共享成员",
 
+    // ---- Knowledge Topic (v3.3) ----
+    "topic.title": "知识主题",
+    "topic.communities_count": "个社区",
+    "topic.total_cards": "张卡片",
+    "topic.representative_cards": "代表性卡片",
+    "topic.member_communities": "成员社区",
+    "topic.evidence": "主题依据",
+    "topic.loading": "正在加载主题...",
+    "topic.load_error": "主题加载失败",
+    "topic.empty": "暂无知识主题。当多个社区有交叉成员时将自动合成主题。",
+
     // ---- Navigation ----
     "nav.health": "健康报告",
     "nav.dogfood": "使用报告",
@@ -1335,6 +1346,17 @@ const copy: Record<Locale, LocaleDict> = {
     "community.expand_all": "Show all",
     "community.collapse_all": "Collapse",
     "community.shared_members": "shared members",
+
+    // ---- Knowledge Topic (v3.3) ----
+    "topic.title": "Knowledge Topics",
+    "topic.communities_count": "communities",
+    "topic.total_cards": "cards",
+    "topic.representative_cards": "Representative Cards",
+    "topic.member_communities": "Member Communities",
+    "topic.evidence": "Topic Evidence",
+    "topic.loading": "Loading topics...",
+    "topic.load_error": "Failed to load topics",
+    "topic.empty": "No knowledge topics yet. Topics are synthesized automatically when communities have overlapping members.",
 
     // ---- Navigation ----
     "nav.health": "Health Report",
