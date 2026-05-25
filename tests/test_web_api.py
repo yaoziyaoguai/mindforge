@@ -127,7 +127,12 @@ def _write_config_multi_adapter(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 
 def _write_minimal_docx(path: Path) -> None:
-    """生成最小合法 .docx 供 DocxTextAdapter 回归测试。"""
+    """生成最小合法 .docx 供 DocxTextAdapter 回归测试。
+
+    python-docx 是可选依赖，仅 DocxTextAdapter 需要。
+    缺失时 docx 相关测试应 skip，不污染 full gate。
+    """
+    pytest.importorskip("docx", reason="python-docx optional dependency not installed")
     from docx import Document
 
     doc = Document()

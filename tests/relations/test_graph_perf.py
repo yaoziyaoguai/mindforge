@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import gc
 import time
 import random
 
@@ -176,19 +177,33 @@ class TestPerfDiscoveryContext:
         assert ms < 50, f"100 nodes context 耗时 {ms:.0f}ms > 50ms"
 
     def test_perf_deterministic_repeat(self):
-        """验证 100 次调用的执行时间一致性（无内存泄漏或累积延迟）。"""
+        """验证 100 次调用的执行时间一致性（无内存泄漏或累积延迟）。
+
+        中文学习型说明：全量测试套件中，其他测试产生的垃圾对象可能
+        在测量循环中触发 GC，导致单次测量值异常偏高。禁用 GC 可排除
+        这一外部干扰，让性能特征化测试只反映被测代码自身的稳定性。
+
+        预热调用排除 Python JIT/import 缓存的一次性开销，
+        确保测量只反映稳态性能。
+        """
         cards = _make_synthetic_cards(20)
         records = [_to_related_record(c) for c in cards]
-        times: list[float] = []
-        for _ in range(100):
-            ms = _measure_time_ms(
-                compute_multi_hop_related_cards, "c0", records, max_depth=1,
-            )
-            times.append(ms)
+        # 预热调用 — 排除 JIT/import 缓存一次性开销
+        _measure_time_ms(compute_multi_hop_related_cards, "c0", records, max_depth=1)
+        gc.disable()
+        try:
+            times: list[float] = []
+            for _ in range(100):
+                ms = _measure_time_ms(
+                    compute_multi_hop_related_cards, "c0", records, max_depth=1,
+                )
+                times.append(ms)
 
-        avg = sum(times) / len(times)
-        # 单次不应超过平均值的 5 倍（排除 JIT 预热或 GC spike）
-        outliers = [t for t in times if t > avg * 5]
-        assert len(outliers) == 0, (
-            f"发现 {len(outliers)} 个性能异常值（>5x avg={avg:.2f}ms）"
-        )
+            avg = sum(times) / len(times)
+            # 单次不应超过平均值的 5 倍（排除 GC spike，warmup 已处理 JIT 开销）
+            outliers = [t for t in times if t > avg * 5]
+            assert len(outliers) == 0, (
+                f"发现 {len(outliers)} 个性能异常值（>5x avg={avg:.2f}ms）"
+            )
+        finally:
+            gc.enable()

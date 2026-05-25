@@ -140,11 +140,50 @@ class TestRetrievalPortContract:
         """可替换性验证：任何符合 RetrievalPort 的实现都应该可用的接口。"""
         engine = Bm25RetrievalEngine()
 
-        # 这是 RetrievalPort 的所有必须方法
-        required_methods = ["search", "hybrid_search"]
+        # 这是 RetrievalPort 的所有必须方法（v3.6.1 新增 load_or_build_index）
+        required_methods = ["load_or_build_index", "search", "hybrid_search"]
         for method in required_methods:
             assert hasattr(engine, method)
             assert callable(getattr(engine, method))
+
+    def test_load_or_build_index_returns_index_load_result(self):
+        """load_or_build_index() 返回 IndexLoadResult，封装索引生命周期状态。"""
+        from mindforge.retrieval.retrieval_port import IndexLoadResult
+        from pathlib import Path
+        import tempfile
+
+        engine = Bm25RetrievalEngine()
+        cards = [
+            CardSummary(
+                path=Path(f"/fake/{i}.md"),
+                rel_path=f"cards/c{i}.md",
+                id=f"c{i}",
+                title=f"Test Card {i}",
+                status="human_approved",
+                track=None,
+                projects=[],
+                tags=[],
+                source_type="plain_markdown",
+                source_title=f"Source {i}",
+                principles=[],
+                known_risks=[],
+                created_at=datetime(2025, 1, 1),
+            )
+            for i in range(3)
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            idx_path = Path(tmp) / "bm25.json"
+            result = engine.load_or_build_index(idx_path, cards)
+
+            assert isinstance(result, IndexLoadResult)
+            assert result.source in ("memory-temp", "memory-rebuilt-stale", "memory-rebuilt-error", "disk")
+            assert isinstance(result.used_disk, bool)
+            assert isinstance(result.stale, bool)
+            assert isinstance(result.warnings, tuple)
+            # 首次构建无磁盘索引，不应使用磁盘
+            assert result.source == "memory-temp"
+            assert result.used_disk is False
 
 
 # ──────────────────────────────────────────────

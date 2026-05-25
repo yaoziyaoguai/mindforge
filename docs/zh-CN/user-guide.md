@@ -133,7 +133,34 @@ llm:
 
 ---
 
+## Provider Readiness
+
+**Provider Readiness** 诊断面板报告哪些模型 alias 可用、被阻塞或需要配置：
+
+- **就绪 (Ready)**: 模型已配置有效 API key 和 endpoint
+- **阻塞 (Blocked)**: 缺少 API key、endpoint 不可达或协议不兼容
+- **未知 (Unknown)**: 尚未配置
+
+在 Web **Setup** 页面的 Provider Readiness 面板查看。诊断绝不会返回原始 API key 值 — key 始终被遮蔽（仅显示最后 4 位）。
+
+---
+
 ## Processing Workflow
+
+### 知识生命周期
+
+每张卡片按明确定义的生命周期流转，可在 **Home** 页面查看：
+
+```
+Source → ai_draft → human_approved
+                      ├── Library (浏览/检索)
+                      ├── Wiki (LLM synthesis)
+                      └── Recall (BM25 检索)
+```
+
+Home 页面按 source 分组展示卡片，显示每个阶段的数量。点击任一 source 可查看完整的 Source-to-Card 生命周期时间线。
+
+### 处理步骤
 
 处理一个 source 经历五个固定 step：
 
@@ -222,9 +249,17 @@ mindforge library show <ref>     # 查看单张卡片详情
 
 每种关系类型最多展示 5 条，按关联强度降序排列。
 
+### Community Browser
+
+Web **Library** 页面支持社区浏览视图 — 知识卡片按共享 tags、sources、wiki sections 分组为确定性主题社区。社区检测纯结构化计算，不使用 LLM 或 embedding。每个社区展示其成员卡片和连接理由。
+
 ### Local Graph Preview
 
 卡片详情页展示以当前卡片为中心的 1-hop 局部图谱，可视化展示卡片与 source、tag、wiki section 之间的关系。纯确定性计算，不做全局图谱展开。
+
+### Multi-hop Relations
+
+Related Cards 支持多跳导航 — 从一张卡片可以探索其相关卡片，再探索这些卡片的相关卡片，形成可解释的溯源路径。每一跳展示关系类型和证据。所有关系和社区检测均为确定性计算，不使用 embedding、GNN 或向量数据库。
 
 ---
 
@@ -303,20 +338,77 @@ Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存
 
 | 页面 | 用途 |
 |------|------|
-| **Home** | 状态总览、安全摘要、下一步建议 |
-| **Setup** | 配置模型、管理 Processing Workflow、添加 source |
-| **Sources** | 管理 source、Process now、Import |
+| **Home** | 状态总览、安全摘要、知识生命周期视图 |
+| **Setup** | 配置模型、管理 Processing Workflow、Provider Readiness 检查 |
+| **Sources** | 管理 source、Process now、Import、文件夹导入 |
 | **Review** | 查看 AI 草稿、审批或移入 Trash |
-| **Library** | 浏览已审批知识卡片 |
-| **Trash** | 安全回收站，支持 Restore |
+| **Library** | 浏览已审批知识卡片、Related Cards、Community Browser、Local Graph Preview |
 | **Recall** | 本地 BM25 词法检索 |
-| **Wiki** | LLM synthesis 生成 Wiki |
+| **Wiki** | LLM synthesis Wiki 生成、Wiki Quality Bar |
+| **Health** | 知识健康诊断、维护建议 |
+| **Dogfood** | 工作区使用报告、指标面板 |
+| **Trash** | 安全回收站，支持 Restore |
+| **Import/Export** | Markdown 文件夹导入、批量粘贴、JSON/OPML/Zip 导出 |
 
 端口被占用时换端口：
 
 ```bash
 mindforge web --port 8766 --open
 ```
+
+---
+
+## Import & Export
+
+MindForge 支持安全本地导入导出，显式审批不可绕过。
+
+### 导入
+
+所有导入仅创建 `ai_draft` — 显式审批从不会被绕过。
+
+| 方式 | 说明 |
+|------|------|
+| **Web Add Source** | 添加单个文件为 source 以供处理 |
+| **Markdown 文件夹导入** | 扫描文件夹，将所有 `.md` 文件导入为 draft |
+| **批量粘贴导入** | 以 `---` 分隔多篇文档批量导入 |
+
+导入去重检测在创建新 draft 前进行精确标题匹配和模糊 Jaccard 相似度检查。验证在导入前运行，提前捕获结构性问题。
+
+> **注意**: 文件夹导入和批量粘贴仅处理 fake/sample/dry-run 安全数据。不暗示支持真实私人资料导入。
+
+### 导出
+
+多格式导出知识卡片：
+
+| 格式 | 说明 |
+|------|------|
+| **JSON** | 完整卡片数据，包含 metadata 和 relations |
+| **OPML** | 大纲格式，兼容思维导图工具 |
+| **Zip** | 流式 zip 包，包含 `cards.md` + `manifest.json` |
+
+所有导出保留 provenance 数据和审批状态。使用 Web **Import/Export** 页面预览后再下载。
+
+### 安全
+
+- 所有导入进入 `ai_draft` — 不会自动审批
+- 磁盘上的 source 文件不会被导入修改
+- 导出绝不会包含 API key 或 secret store 数据
+- 验证在导入前运行；无效文件被拒绝并给出明确信息
+
+---
+
+## Dogfood（使用报告）
+
+**Dogfood** 页面提供工作区使用分析和基础设施状态：
+
+| 区域 | 说明 |
+|------|------|
+| **活动摘要** | 总 source 数、卡片数、wiki 数、run 数随时间变化 |
+| **参与度指标** | 审批率、审阅周转时间、处理吞吐量 |
+| **基础设施** | Provider 就绪状态、存储统计、索引健康 |
+| **建议** | 基于检测模式的操作建议（stale 卡片、未使用 source 等） |
+
+Dogfood 报告完全本地运行 — 无遥测、无外部分析。
 
 ---
 
@@ -361,6 +453,8 @@ mindforge web --port 8766 --open
 - 适合非敏感资料小规模使用，暂不建议处理私人/工作敏感资料
 - 长文档可能需要拆分或调高 `timeout_seconds`
 - 大目录处理耗时较长
-- 当前不支持 RAG、embedding、向量数据库、semantic merge
+- 不支持 RAG answering、embedding、向量数据库、语义检索
+- 图谱和社区检测为纯确定性计算 — 不使用 embedding、GNN 或向量数据库
+- 嵌入式图数据库 (Kuzu) 仅限 spike 阶段，未进入生产路径
 - 不支持 Obsidian plugin
 - 不支持自动审批

@@ -149,55 +149,26 @@ def run_bm25_recall(
     cur_k1 = cfg.search.bm25.k1
     cur_b = cfg.search.bm25.b
     cur_hash = lx.compute_config_hash(field_weights=fw, k1=cur_k1, b=cur_b)
-    warnings: list[str] = []
 
-    index: lx.BM25Index
-    used_disk = False
-    index_stale = False
-    index_source = "memory-temp"
-    if idx_path.exists():
-        try:
-            index = lx.BM25Index.load(idx_path)
-            if index.config_hash and index.config_hash != cur_hash:
-                index_stale = True
-                index_source = "memory-rebuilt-stale"
-                if query.output_format != "json":
-                    warnings.append(
-                        "提示：磁盘索引的 config_hash 与当前配置不一致；"
-                        "本次内存即时重建。建议运行 `mindforge index rebuild`。"
-                    )
-                index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
-            else:
-                disk_diff = lx.diff_index(index, card_scan.cards)
-                if disk_diff.fresh:
-                    used_disk = True
-                    index_source = "disk"
-                else:
-                    index_stale = True
-                    index_source = "memory-rebuilt-stale"
-                    if query.output_format != "json":
-                        warnings.append(
-                            "提示：磁盘索引与当前 vault cards 不一致；"
-                            "本次内存即时重建。建议运行 `mindforge index rebuild`。"
-                        )
-                    index = lx.build_index(
-                        card_scan.cards,
-                        field_weights=fw,
-                        k1=cur_k1,
-                        b=cur_b,
-                        config_hash=cur_hash,
-                    )
-        except (lx.IndexFormatError, OSError, ValueError) as e:
-            index_source = "memory-rebuilt-error"
-            warnings.append(f"索引文件不可用（{e}）；改为内存即时构建。")
-            index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
-    else:
-        if query.output_format != "json":
-            warnings.append(
-                "提示：尚无索引文件，本次内存即时构建。"
-                "建议运行 `mindforge index rebuild` 以加速后续查询。"
-            )
-        index = lx.build_index(card_scan.cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash)
+    # 通过 RetrievalPort 抽象加载/构建索引，不再直接操作 lexical_index 内部细节。
+    # 这是 v3.6.1 审计修复的关键变更：recall_service 的索引生命周期现在完全
+    # 通过 RetrievalPort 边界管理，使 Bm25RetrievalEngine 可被替换为其他后端
+    # （如 SQLite FTS5），而 recall_service 无需任何改动。
+    load_result = engine.load_or_build_index(
+        idx_path,
+        card_scan.cards,
+        field_weights=fw,
+        k1=cur_k1,
+        b=cur_b,
+        config_hash=cur_hash,
+    )
+    index = load_result.index
+    used_disk = load_result.used_disk
+    index_stale = load_result.stale
+    index_source = load_result.source
+    warnings: list[str] = []
+    if query.output_format != "json":
+        warnings.extend(load_result.warnings)
 
     if query.ranking == "hybrid":
         active_weights, weight_source = _active_hybrid_weights(cfg, query)

@@ -2,19 +2,106 @@
 
 将 lexical_index 的 search() / hybrid_search() 函数包装为 RetrievalPort 接口。
 不做功能变更，纯粹是适配层。
+
+v3.6.1 新增 load_or_build_index() — 将索引生命周期管理纳入端口边界，
+使 recall_service 无需直接依赖 lexical_index 模块的索引加载细节。
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable
+from pathlib import Path
+from typing import Any, Iterable
 
 from mindforge import lexical_index as lx
-from mindforge.retrieval.retrieval_port import RetrievalPort
+from mindforge.retrieval.retrieval_port import IndexLoadResult, RetrievalPort
 
 
 class Bm25RetrievalEngine(RetrievalPort):
-    """BM25 词法检索引擎，委托到现有 lexical_index 实现。"""
+    """BM25 词法检索引擎，委托到现有 lexical_index 实现。
+
+    中文学习型说明：此引擎是 RetrievalPort 的唯一生产实现。
+    未来如需 SQLite FTS5 / DuckDB FTS 等后端，只需实现相同接口即可替换，
+    recall_service 无需改动。
+    """
+
+    # ── Index Lifecycle (v3.6.1) ──────────────────────────
+
+    def load_or_build_index(
+        self,
+        index_path: Path,
+        cards: Iterable[Any],
+        *,
+        field_weights: dict[str, float] | None = None,
+        k1: float = 1.2,
+        b: float = 0.75,
+        config_hash: str | None = None,
+    ) -> IndexLoadResult:
+        """加载或构建 BM25 索引 — 封装磁盘加载/内存重建/过期检测全部逻辑。
+
+        中文学习型说明：此方法将原本散落在 recall_service.py 中的索引
+        生命周期逻辑收敛到 RetrievalPort 边界内，recall_service 不再需要
+        知道 BM25Index.load / build_index / diff_index 等细节。
+        """
+        fw = field_weights or {}
+        cur_k1 = k1
+        cur_b = b
+        cur_hash = config_hash or ""
+        warnings: list[str] = []
+
+        index: lx.BM25Index
+        used_disk = False
+        index_stale = False
+        index_source = "memory-temp"
+
+        if index_path.exists():
+            try:
+                index = lx.BM25Index.load(index_path)
+                if index.config_hash and index.config_hash != cur_hash:
+                    index_stale = True
+                    index_source = "memory-rebuilt-stale"
+                    index = lx.build_index(
+                        cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash,
+                    )
+                else:
+                    disk_diff = lx.diff_index(index, cards)
+                    if disk_diff.fresh:
+                        used_disk = True
+                        index_source = "disk"
+                    else:
+                        index_stale = True
+                        index_source = "memory-rebuilt-stale"
+                        warnings.append(
+                            "提示：磁盘索引与当前 vault cards 不一致；"
+                            "本次内存即时重建。建议运行 `mindforge index rebuild`。"
+                        )
+                        index = lx.build_index(
+                            cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash,
+                        )
+            except (lx.IndexFormatError, OSError, ValueError) as e:
+                index_source = "memory-rebuilt-error"
+                warnings.append(f"索引文件不可用（{e}）；改为内存即时构建。")
+                index = lx.build_index(
+                    cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash,
+                )
+        else:
+            warnings.append(
+                "提示：尚无索引文件，本次内存即时构建。"
+                "建议运行 `mindforge index rebuild` 以加速后续查询。"
+            )
+            index = lx.build_index(
+                cards, field_weights=fw, k1=cur_k1, b=cur_b, config_hash=cur_hash,
+            )
+
+        return IndexLoadResult(
+            index=index,
+            source=index_source,
+            used_disk=used_disk,
+            stale=index_stale,
+            warnings=tuple(warnings),
+        )
+
+    # ── Search ────────────────────────────────────────────
 
     def search(
         self,

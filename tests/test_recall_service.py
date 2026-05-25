@@ -267,3 +267,57 @@ def test_recall_service_has_no_cli_presentation_dependency() -> None:
     assert "Table(" not in source
     assert "build_providers" not in source
     assert "LLMClient" not in source
+
+
+def test_recall_service_uses_retrieval_port_for_index_loading(tmp_path: Path) -> None:
+    """v3.6.1 关键回归：recall_service 必须通过 RetrievalPort.load_or_build_index()
+    加载索引，不能绕过端口直接调用 lexical_index.BM25Index.load() 或 build_index()。
+
+    中文学习型说明：此测试通过注入一个只记录调用的 FakeRetrievalPort，
+    验证 recall_service 的索引生命周期完全走 RetrievalPort 抽象边界。
+    这是 P2-04（RetrievalPort 未集成到 recall_service）的验收测试。
+    """
+    from mindforge.retrieval.retrieval_port import IndexLoadResult, RetrievalPort
+
+    call_log: list[str] = []
+
+    class FakeRetrievalPort(RetrievalPort):
+        """只记录调用、不执行真实索引操作的假端口。"""
+
+        def load_or_build_index(self, index_path, cards, *, field_weights=None, k1=1.2, b=0.75, config_hash=None):
+            call_log.append("load_or_build_index")
+            return IndexLoadResult(
+                index=_make_fake_index(cards),
+                source="memory-temp",
+                used_disk=False,
+                stale=False,
+                warnings=(),
+            )
+
+        def search(self, index, query, **kwargs):
+            call_log.append("search")
+            return []
+
+        def hybrid_search(self, index, query, **kwargs):
+            call_log.append("hybrid_search")
+            return []
+
+    def _make_fake_index(cards):
+        """构造一个最小可用索引对象供 search/hybrid_search 消费。"""
+        from mindforge import lexical_index as lx
+
+        fw = {"title": 2.0, "body_summary": 1.0}
+        return lx.build_index(cards, field_weights=fw)
+
+    cfg = load_mindforge_config(_make_recall_cfg(tmp_path))
+    engine = FakeRetrievalPort()
+
+    run_bm25_recall(cfg, _query(), engine=engine)
+
+    assert "load_or_build_index" in call_log, (
+        f"recall_service 未通过 RetrievalPort.load_or_build_index() 加载索引，"
+        f"调用日志: {call_log}"
+    )
+    assert "search" in call_log or "hybrid_search" in call_log, (
+        f"recall_service 未通过 RetrievalPort 执行检索，调用日志: {call_log}"
+    )
