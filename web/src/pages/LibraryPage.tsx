@@ -57,7 +57,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [showExportPreview, setShowExportPreview] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "opml">("markdown");
+  const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "opml" | "zip">("markdown");
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -145,23 +145,40 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     setShowExportPreview(false);
     const fmt = exportFormat;
     try {
-      const resp = await fetch("/api/knowledge/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_ids: Array.from(exportSelection), format: fmt }),
-      });
-      if (!resp.ok) throw new Error("Export failed");
-      const data = await resp.json();
-      const content = fmt === "json" ? data.json : fmt === "opml" ? data.opml : data.markdown;
-      const mimeType = fmt === "json" ? "application/json" : fmt === "opml" ? "text/xml" : "text/markdown";
-      const ext = fmt === "json" ? ".json" : fmt === "opml" ? ".opml" : ".md";
-      const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (fmt === "zip") {
+        // v2.4 U6: zip 格式使用 streaming download endpoint
+        const resp = await fetch("/api/knowledge/export/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ card_ids: Array.from(exportSelection), format: "zip" }),
+        });
+        if (!resp.ok) throw new Error("Export failed");
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const resp = await fetch("/api/knowledge/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ card_ids: Array.from(exportSelection), format: fmt }),
+        });
+        if (!resp.ok) throw new Error("Export failed");
+        const data = await resp.json();
+        const content = fmt === "json" ? data.json : fmt === "opml" ? data.opml : data.markdown;
+        const mimeType = fmt === "json" ? "application/json" : fmt === "opml" ? "text/xml" : "text/markdown";
+        const ext = fmt === "json" ? ".json" : fmt === "opml" ? ".opml" : ".md";
+        const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `mindforge-export-${new Date().toISOString().slice(0, 10)}${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
       setExportSelection(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
@@ -239,12 +256,12 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-ink">{t("library.export_preview_title")}</h3>
               <p className="mt-1 text-xs text-muted">
-                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", exportFormat === "json" ? "JSON" : exportFormat === "opml" ? "OPML" : "Markdown")}
+                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", exportFormat === "zip" ? "ZIP" : exportFormat === "json" ? "JSON" : exportFormat === "opml" ? "OPML" : "Markdown")}
               </p>
               {/* Format selector */}
               <div className="mt-2 flex items-center gap-1.5">
                 <span className="text-[11px] text-muted">{t("library.export_format")}:</span>
-                {(["markdown", "json", "opml"] as const).map((f) => (
+                {(["markdown", "json", "opml", "zip"] as const).map((f) => (
                   <button
                     key={f}
                     type="button"
@@ -255,7 +272,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                     }`}
                     onClick={() => setExportFormat(f)}
                   >
-                    {f === "markdown" ? "Markdown" : f.toUpperCase()}
+                    {f === "markdown" ? "Markdown" : f === "zip" ? "ZIP" : f.toUpperCase()}
                   </button>
                 ))}
               </div>

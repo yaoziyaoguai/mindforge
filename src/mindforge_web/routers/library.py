@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from mindforge_web.deps import get_facade
 from mindforge_web.presenters.web_errors import user_error
@@ -157,6 +158,68 @@ def export_cards(
         opml=opml,
         format=export_format,
         card_count=len(cards),
+    )
+
+
+@router.post("/knowledge/export/download")
+def export_cards_download(
+    payload: ExportCardsRequest,
+    facade: WebFacade = Depends(get_facade),
+):
+    """导出选中卡片为 ZIP 文件下载（包含 cards.md + manifest.json）。
+
+    v2.4 U6：v1.5 I4 后续 —— zip 导出。
+    """
+    import io
+    import json
+    import zipfile
+    from datetime import datetime, timezone
+
+    cards: list[dict] = []
+    for card_id in payload.card_ids:
+        detail = facade.library_card_detail(card_id, show_content=True)
+        if detail is None:
+            continue
+        card = detail.card
+        body = detail.body or ""
+        cards.append({
+            "title": card.title or "Untitled",
+            "status": card.status,
+            "created_at": card.created_at or "unknown",
+            "source_title": card.source_title or "-",
+            "body": body,
+        })
+
+    parts: list[str] = []
+    for c in cards:
+        parts.append(
+            f"# {c['title']}\n\n"
+            f"Status: {c['status']} | Created: {c['created_at']} | Source: {c['source_title']}\n\n"
+            f"{c['body']}\n"
+        )
+    cards_md = "\n---\n\n".join(parts)
+
+    manifest = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "format": "zip",
+        "card_count": len(cards),
+        "cards": [{k: v for k, v in c.items() if k != "body"} for c in cards],
+    }
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("cards.md", cards_md)
+        zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+    buf.seek(0)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    filename = f"mindforge-export-{timestamp}.zip"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
