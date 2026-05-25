@@ -317,6 +317,9 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # community.py 只用 human_approved 做只读卡片质量评分维度
             # （approved 卡片获得 +0.2 质量分）。它不修改 card 状态，不执行 approve。
             "community.py",
+            # scenario_runner.py 只在 card_scan 步骤中按 status == "human_approved"
+            # 做只读分类统计（approved/draft/trashed 计数），不修改状态，不执行 approve。
+            "scenario_runner.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
