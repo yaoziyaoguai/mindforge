@@ -66,6 +66,9 @@ const copy: Record<Locale, LocaleDict> = {
     "home.lifecycle.index": "搜索索引",
     "home.lifecycle.index_ok": "就绪",
     "home.lifecycle.index_missing": "需重建",
+    "home.lifecycle.by_source": "按资料来源",
+    "home.lifecycle.total_cards": "{count} 张卡片",
+    "home.lifecycle.approval_rate_short": "确认率",
 
     // ---- SetupPage ----
     "setup.title": "连接模型和知识源",
@@ -784,6 +787,9 @@ const copy: Record<Locale, LocaleDict> = {
     "home.lifecycle.index": "Search Index",
     "home.lifecycle.index_ok": "Ready",
     "home.lifecycle.index_missing": "Needs Rebuild",
+    "home.lifecycle.by_source": "By Source",
+    "home.lifecycle.total_cards": "{count} cards",
+    "home.lifecycle.approval_rate_short": "Rate",
 
     // ---- SetupPage ----
     "setup.title": "Connect Models & Sources",

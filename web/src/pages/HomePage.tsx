@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BookOpen, FileText, AlertCircle, Heart, Library, Upload, Search, FolderOpen, ArrowRight } from "lucide-react";
-import type { HomeStatusResponse, WorkflowSummaryResponse } from "../api/types";
+import type { HomeStatusResponse, LifecycleResponse, WorkflowSummaryResponse } from "../api/types";
 import type { HealthReportResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
 
@@ -14,6 +14,7 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
   const { t } = useLocale();
   const [health, setHealth] = useState<HealthReportResponse | null>(null);
   const [wikiStatus, setWikiStatus] = useState<WikiStatus | null>(null);
+  const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
 
   useEffect(() => {
     fetch("/api/knowledge/health")
@@ -28,6 +29,10 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
         stale: w.stale,
       }))
       .catch(() => setWikiStatus(null));
+    fetch("/api/lifecycle")
+      .then((r) => r.json())
+      .then((lc: LifecycleResponse) => setLifecycle(lc))
+      .catch(() => setLifecycle(null));
   }, []);
 
   const approvedCount = data.vault.approved_card_count;
@@ -145,6 +150,39 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
           )}
         </div>
       </section>
+
+      {/* ── v2.5 U2: Per-Source Lifecycle Breakdown ── */}
+      {lifecycle && lifecycle.sources.length > 0 && (
+        <section>
+          <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">{t("home.lifecycle.by_source")}</h2>
+          <div className="rounded-md border border-line bg-white divide-y divide-line">
+            {lifecycle.sources.map((src) => {
+              const srcApprovalRate = src.total_cards > 0 ? Math.round((src.human_approved_count / src.total_cards) * 100) : 0;
+              return (
+                <div key={src.source_id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-ink truncate" title={src.source_title}>{src.source_title}</div>
+                    <div className="text-xs text-muted">{t("home.lifecycle.total_cards").replace("{count}", String(src.total_cards))}</div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="text-muted">{t("home.lifecycle.draft")}</span>
+                      <span className="font-medium text-ink">{src.ai_draft_count}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-muted">{t("home.lifecycle.approved")}</span>
+                      <span className="font-medium text-ink">{src.human_approved_count}</span>
+                    </span>
+                    <span className="text-muted">{t("home.lifecycle.approval_rate_short")}: <span className="font-medium text-ink">{srcApprovalRate}%</span></span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── U2: Attention Feed ── */}
       <section>

@@ -1217,3 +1217,30 @@ class DogfoodReportResponse(BaseModel):
     # 趋势（最近 N 天，当前版本基于现有数据近似）
     trend_summary: str
     maintenance_suggestions: list[str] = Field(default_factory=list)
+
+
+# ── v2.5 U2 Source-to-Card Lifecycle ────────────────────────────────────
+
+
+class SourceLifecycleItem(BaseModel):
+    """单个 source 的卡片生命周期统计。"""
+    source_id: str
+    source_title: str
+    total_cards: int
+    ai_draft_count: int
+    human_approved_count: int
+    imported_count: int
+    error_count: int
+
+
+class LifecycleResponse(BaseModel):
+    """Source-to-Card 生命周期总览 — v2.5 U2。
+
+    中文学习型说明：展示每个 source 产出的卡片在各状态下的数量，
+    帮助用户理解知识流转（Source → ai_draft → human_approved）。
+    """
+    sources: list[SourceLifecycleItem] = Field(default_factory=list)
+    total_sources: int
+    total_cards: int
+    total_approved: int
+    total_drafts: int

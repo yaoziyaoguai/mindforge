@@ -46,6 +46,24 @@ export interface ProviderStatus {
   blockers: string[];
 }
 
+export interface SourceLifecycleItem {
+  source_id: string;
+  source_title: string;
+  total_cards: number;
+  ai_draft_count: number;
+  human_approved_count: number;
+  imported_count: number;
+  error_count: number;
+}
+
+export interface LifecycleResponse {
+  sources: SourceLifecycleItem[];
+  total_sources: number;
+  total_cards: number;
+  total_approved: number;
+  total_drafts: number;
+}
+
 export interface ProviderReadinessResponse {
   active_profile: string;
   opt_in_state: string;

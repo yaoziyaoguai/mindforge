@@ -72,6 +72,7 @@ from mindforge_web.schemas import (
     _PotentialDuplicateResponse,
     ImportCardResponse,
     IngestionActionResponse,
+    LifecycleResponse,
     LibraryCardDetailResponse,
     LibraryCardResponse,
     LibraryCardsResponse,
@@ -83,6 +84,7 @@ from mindforge_web.schemas import (
     RecallHit,
     RecallResponse,
     RecallStatus,
+    SourceLifecycleItem,
     ProvenanceTrailRelatedSource,
     ProvenanceTrailResponse,
     ProvenanceTrailSection,
@@ -1391,6 +1393,61 @@ class WebFacade:
             aliases=alias_statuses,
             blockers=list(opt_in["blockers"]),
             invariants=invariants,
+        )
+
+    # ── v2.5 U2 Source-to-Card Lifecycle ────────────────────────────
+
+    def source_lifecycle(self) -> LifecycleResponse:
+        """返回每个 source 的卡片生命周期统计 — 纯本地数据聚合。
+
+        中文学习型说明：扫描所有卡片，按 source_id 分组统计各状态下卡片数，
+        展示 Source → ai_draft → human_approved 的完整知识流转。
+        """
+        from mindforge.cards import iter_cards
+
+        scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        cards = list(scan.cards)
+
+        # 按 source_id 分组
+        by_source: dict[str, dict] = {}
+        for c in cards:
+            sid = c.source_id or "__unknown__"
+            if sid not in by_source:
+                by_source[sid] = {
+                    "source_id": sid,
+                    "source_title": getattr(c, "source_title", sid),
+                    "total_cards": 0,
+                    "ai_draft_count": 0,
+                    "human_approved_count": 0,
+                    "imported_count": 0,
+                    "error_count": 0,
+                }
+            by_source[sid]["total_cards"] += 1
+            status = getattr(c, "status", "")
+            if status == "ai_draft":
+                by_source[sid]["ai_draft_count"] += 1
+            elif status == "human_approved":
+                by_source[sid]["human_approved_count"] += 1
+            elif status == "imported":
+                by_source[sid]["imported_count"] += 1
+            elif status == "error":
+                by_source[sid]["error_count"] += 1
+
+        sources = [
+            SourceLifecycleItem(**v)
+            for v in sorted(by_source.values(), key=lambda x: x["total_cards"], reverse=True)
+        ]
+
+        total = len(cards)
+        approved = sum(s.human_approved_count for s in sources)
+        drafts = sum(s.ai_draft_count for s in sources)
+
+        return LifecycleResponse(
+            sources=sources,
+            total_sources=len(sources),
+            total_cards=total,
+            total_approved=approved,
+            total_drafts=drafts,
         )
 
 
