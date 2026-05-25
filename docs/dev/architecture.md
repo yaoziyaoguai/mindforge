@@ -14,14 +14,20 @@ mindforge/
 │   │   ├── strategies/         # 策略注册与发现
 │   │   ├── llm/                # LLM provider 层
 │   │   ├── processors/         # 处理流水线 step 实现
-│   │   ├── services/           # 服务层（library, review, wiki 等）
+│   │   ├── services/           # 服务层（library, review, wiki, import, export 等）
+│   │   ├── relations/          # 确定性知识图谱（GraphPort、社区检测、发现上下文）
 │   │   ├── presenters/         # 展示层（CLI 输出格式化）
+│   │   ├── health/             # 知识健康诊断引擎
+│   │   ├── lexical_index.py    # BM25 词法检索引擎
+│   │   ├── provider_readiness.py  # Provider 就绪状态诊断
+│   │   ├── import_validation.py   # 导入安全校验
 │   │   └── prompts_runtime.py  # Prompt 运行时加载
 │   └── mindforge_web/          # Web 后端（FastAPI）
 │       ├── app.py              # FastAPI 应用入口
-│       ├── routers/            # API 路由
+│       ├── routers/            # API 路由（15 个端点模块）
 │       ├── schemas.py          # Pydantic 模型
 │       └── services/           # Web 服务层
+├── web/                        # React 前端（TypeScript + Tailwind）
 ├── tests/                      # pytest 测试
 ├── prompts/                    # Prompt 模板（运行时资产）
 ├── configs/                    # 示例配置
@@ -30,6 +36,8 @@ mindforge/
 │   ├── en/                     # 英文用户文档
 │   ├── dev/                    # 开发者文档
 │   ├── design/                 # 设计文档（RFC、SDD、Roadmap）
+│   ├── plans/                  # 阶段规划文档
+│   ├── implementation-notes/   # 实现笔记
 │   └── internal/               # 内部规则和账本
 └── examples/                   # 示例和 fixture
 ```
@@ -116,7 +124,55 @@ FastAPI 应用，与 CLI 共享同一 Python 服务层。路由：
 | `routers/review.py` | 审阅 API |
 | `routers/library.py` | Library API |
 | `routers/wiki.py` | Wiki API |
-| `routers/recall.py` | Recall API |
+| `routers/recall.py` | BM25 检索 API |
+| `routers/graph.py` | 知识图谱 API（关系、社区） |
+| `routers/health.py` | 知识健康诊断 API |
+| `routers/provenance.py` | 溯源链路 API |
+| `routers/export.py` | 安全导出 API |
+| `routers/import_.py` | 本地导入 API |
+| `routers/trash.py` | 回收站 API |
+| `routers/dogfood.py` | 工作台使用报告 API |
+| `routers/provider_readiness.py` | Provider 就绪状态 API |
+| `routers/lifecycle.py` | Source-to-Card 生命周期 API |
+
+### 图谱与关系 (`relations/`)
+
+确定性知识图谱，基于共享标签、来源、Wiki 章节等构建关系。不调用 LLM，不使用 embedding/vector DB。
+
+| 模块 | 职责 |
+|------|------|
+| `relations/graph_builder.py` | 确定性图谱构建器 |
+| `relations/related_cards.py` | 多跳关联卡片计算 |
+| `relations/community.py` | 知识社区检测与分组 |
+| `relations/discovery_context.py` | 可解释发现上下文组装 |
+| `relations/graph_port.py` | GraphPort 抽象（参考 ADR-002） |
+
+### 检索 (`lexical_index.py`)
+
+BM25 词法匹配检索引擎。纯本地、确定性、零外部依赖。不调用 embedding/vector DB。
+
+| 组件 | 职责 |
+|------|------|
+| `lexical_index.py` | BM25 索引构建与查询 |
+| `RetrievalPort` | 检索抽象（参考 ADR-001） |
+
+### 导入导出
+
+安全本地导入导出管线。所有导入仅创建 `ai_draft`，显式审批不可绕过。
+
+| 模块 | 职责 |
+|------|------|
+| `services/import_service.py` | Markdown/文件夹批量导入 |
+| `services/export_service.py` | JSON/OPML/Zip 多格式导出 |
+| `import_validation.py` | 导入前安全校验 |
+
+### 知识健康 (`health/`)
+
+纯本地诊断引擎，检测结构性问题（孤立卡片、低质量、过期 Wiki、溯源缺失等）。不调用 LLM。
+
+### Provider 就绪 (`provider_readiness.py`)
+
+Provider 配置状态诊断，报告哪些 alias 可用、阻塞原因、是否需要 API key。不返回 key 值。
 
 ---
 

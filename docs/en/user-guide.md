@@ -130,7 +130,32 @@ For details, see [Model Setup](model-setup.md).
 
 ---
 
+## Provider Readiness
+
+The **Provider Readiness** diagnostics report which model aliases are available, blocked, or need configuration:
+
+- **Ready**: Model has valid API key and endpoint configuration
+- **Blocked**: Missing API key, unreachable endpoint, or incompatible protocol
+- **Unknown**: Not yet configured
+
+Check on the Web **Setup** page under the Provider Readiness panel. The diagnostics never return raw API key values — keys are always masked.
+
+---
+
 ## Processing Workflow
+
+### Knowledge Lifecycle
+
+Each card progresses through a defined lifecycle visible on the **Home** page:
+
+```
+Source → ai_draft → human_approved
+                      ├── Library (browse/search)
+                      ├── Wiki (LLM synthesis)
+                      └── Recall (BM25 retrieval)
+```
+
+The Home page groups cards by source, showing how many are in each stage. Click any source to see its full Source-to-Card lifecycle timeline.
 
 Processing a source goes through five fixed steps:
 
@@ -215,9 +240,17 @@ Each card's detail page shows a Related Cards panel. Relationships are computed 
 
 At most 5 results per relationship type, sorted by strength descending.
 
+### Community Browser
+
+The Web **Library** page supports a community browser view — knowledge cards are grouped into deterministic topic communities based on shared tags, sources, and wiki sections. Community detection is purely structural (no LLM, no embeddings). Each community shows its member cards and connection rationale.
+
 ### Local Graph Preview
 
 The card detail page displays a 1-hop local graph centered on the current card, visualizing relationships to sources, tags, and wiki sections. Purely deterministic — no full-graph expansion, no force-directed layout engine.
+
+### Multi-hop Relations
+
+Related cards support multi-hop navigation — from a card, you can explore its related cards, then their related cards, forming explainable provenance trails. Each hop shows the relation type and evidence.
 
 ---
 
@@ -296,20 +329,75 @@ Start with `mindforge web --open`, visit `http://127.0.0.1:8765`:
 
 | Page | Purpose |
 |------|---------|
-| **Home** | Status overview, safety summary, next steps |
-| **Setup** | Configure models, manage workflow, add sources |
-| **Sources** | Manage sources, Process now, Import |
+| **Home** | Status overview, safety summary, knowledge lifecycle view |
+| **Setup** | Configure models, manage workflow, provider readiness check |
+| **Sources** | Manage sources, Process now, Import, folder import |
 | **Review** | View AI drafts, approve or trash |
-| **Library** | Browse approved knowledge cards |
-| **Trash** | Safe recycle bin with Restore |
+| **Library** | Browse approved knowledge cards, related cards, local graph preview |
 | **Recall** | Local BM25 lexical search |
-| **Wiki** | LLM synthesis Wiki generation |
+| **Wiki** | LLM synthesis Wiki generation, Wiki quality bar |
+| **Health** | Knowledge health diagnostics, maintenance suggestions |
+| **Dogfood** | Workspace usage reports, metrics dashboard |
+| **Trash** | Safe recycle bin with Restore |
+| **Import/Export** | Markdown folder import, batch paste, JSON/OPML/Zip export |
 
 Port in use? Switch ports:
 
 ```bash
 mindforge web --port 8766 --open
 ```
+
+---
+
+## Import & Export
+
+MindForge supports safe local import and export with explicit approval enforcement.
+
+### Import
+
+All imports create `ai_draft` only — explicit approval is never bypassed.
+
+| Method | Description |
+|--------|-------------|
+| **Web Add Source** | Add a single file as a source for processing |
+| **Markdown Folder Import** | Scan a folder and import all `.md` files as drafts |
+| **Batch Paste Import** | Paste multiple documents separated by `---` delimiter |
+
+Import dedup detection checks for exact title matches and fuzzy Jaccard similarity before creating new drafts. Validation runs before import to catch structural issues early.
+
+### Export
+
+Export knowledge cards in multiple formats:
+
+| Format | Description |
+|--------|-------------|
+| **JSON** | Full card data with metadata and relations |
+| **OPML** | Outline format for mind-mapping tools |
+| **Zip** | Streaming zip package with `cards.md` + `manifest.json` |
+
+All exports preserve provenance data and approval status. Use the Web **Import/Export** page to preview before downloading.
+
+### Safety
+
+- All imports go to `ai_draft` — never auto-approved
+- Source files on disk are never modified by import
+- Export never includes API keys or secret store data
+- Validation runs pre-import; invalid files are rejected with clear messages
+
+---
+
+## Dogfood (Usage Reports)
+
+The **Dogfood** page provides workspace usage analytics and infrastructure status:
+
+| Section | Description |
+|---------|-------------|
+| **Activity Summary** | Total sources, cards, wikis, runs over time |
+| **Engagement Metrics** | Approval rate, review turnaround, processing throughput |
+| **Infrastructure** | Provider readiness, storage stats, index health |
+| **Suggestions** | Actions based on detected patterns (stale cards, unused sources, etc.) |
+
+Dogfood reports run entirely locally — no telemetry, no external analytics.
 
 ---
 
@@ -353,6 +441,8 @@ Deleted knowledge cards go to Trash with Restore support. Manage on the Web **Tr
 
 - Suitable for non-sensitive material at small scale
 - Long documents may need splitting or increased `timeout_seconds`
-- No RAG, embeddings, vector database, or semantic merge
+- No RAG answering, embeddings, vector database, or semantic search
 - No Obsidian plugin
 - No automatic approval
+- Graph and community detection are deterministic only — no learned embeddings or GNN-based graph learning
+- Embedded graph backend (Kuzu) is spike-only; not in production path
