@@ -15,6 +15,11 @@ from mindforge_web.services.web_facade import WebFacade
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
+# v4.2 truth reset: 当前 backend 正式支持的 NodeType
+_SUPPORTED_EXPLORE_TYPES = {"card", "source", "wiki_section", "tag"}
+# 已定义的 NodeType 枚举值但 backend 尚未实现
+_UNSUPPORTED_EXPLORE_TYPES = {"community", "topic", "entity", "concept_candidate"}
+
 
 @router.get("/node", response_model=GraphResponse)
 def graph_node(
@@ -37,15 +42,24 @@ def graph_node(
 
 @router.get("/explore", response_model=GraphResponse)
 def graph_explore(
-    node_type: str = Query(..., description="Node type (v3.7 ontology): card, source, wiki_section, tag, community, topic, entity, concept_candidate"),
+    node_type: str = Query(..., description="Node type: card, source, wiki_section, tag"),
     node_id: str = Query(..., description="Node identifier"),
     depth: int = Query(1, ge=1, le=3, description="Graph expansion depth (1-3)"),
     facade: WebFacade = Depends(get_facade),
 ) -> GraphResponse:
-    """以任意节点类型为中心的图浏览（v3.7 ontology）。
+    """以任意已支持的节点类型为中心的图浏览。
 
-    支持全部 8 种 NodeType：card / source / wiki_section / tag / community / topic / entity / concept_candidate。
+    当前支持 4 种 NodeType：card / source / wiki_section / tag。
+    community / topic / entity / concept_candidate 尚未实现，
+    传入将返回 422 UnsupportedNodeType 错误。
     """
+    if node_type in _UNSUPPORTED_EXPLORE_TYPES:
+        raise user_error(
+            422, "unsupported_node_type",
+            f"不支持的节点类型: {node_type}。",
+            f"当前支持的 NodeType: {', '.join(sorted(_SUPPORTED_EXPLORE_TYPES))}。"
+            f" community / topic / entity / concept_candidate 尚未实现。",
+        )
     result = facade.get_graph_explore(node_type, node_id, depth=depth)
     if result is None:
         raise user_error(

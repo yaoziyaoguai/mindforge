@@ -48,8 +48,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mindforge", "src/mindforge_web"]
-artifacts = ["src/mindforge/assets/**"]
 include = ["src/mindforge/assets/**"]
+exclude = ["src/mindforge/assets/.mindforge/**"]
+
+# 安全说明：exclude 规则永久排除 .mindforge/ 目录（包含 secrets.json/key/token
+# 等敏感文件），确保 wheel/sdist 构建产物不会打包本地运行时密钥。
+# .mindforge/ 已在 .gitignore 中排除，不会进入版本控制。
 
 [tool.ruff]
 line-length = 100

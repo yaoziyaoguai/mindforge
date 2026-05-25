@@ -183,6 +183,22 @@ class TestGraphExploreEndpoint:
         resp = client.get("/api/graph/explore?node_type=invalid&node_id=x")
         assert resp.status_code == 404
 
+    def test_explore_unsupported_type_returns_422(self, tmp_path: Path):
+        """v4.2 truth reset: community/topic/entity/concept_candidate 尚未实现，
+        传入必须返回 422 UnsupportedNodeType，不得返回空图冒充成功。"""
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        unsupported_types = ["community", "topic", "entity", "concept_candidate"]
+        for nt in unsupported_types:
+            resp = client.get(f"/api/graph/explore?node_type={nt}&node_id=test")
+            assert resp.status_code == 422, (
+                f"不支持的 node_type={nt} 应返回 422，实际 {resp.status_code}: {resp.text}"
+            )
+            data = resp.json()
+            assert "unsupported_node_type" in data.get("detail", {}).get("error", ""), (
+                f"错误码应包含 unsupported_node_type: {data}"
+            )
+
 
 class TestGraphEdgeEndpoint:
     def test_edge_between_related_cards(self, tmp_path: Path):
@@ -260,7 +276,7 @@ class TestDiscoveryContextEndpoint:
         resp = client.get("/api/discovery/context?ref=card_1")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["direct_matches"]) >= 0  # 至少接受空列表
+        assert isinstance(data["direct_matches"], list), "direct_matches 必须是 list"
         # 非空时验证字段
         for match in data["direct_matches"]:
             assert match["relation_reason"]
@@ -388,3 +404,55 @@ class TestKnowledgeCommunitiesEndpoint:
         counts = [c["member_count"] for c in data["communities"]]
         assert counts == sorted(counts, reverse=True), \
             f"Expected descending order, got: {counts}"
+
+
+# ── v4.2 Truth Reset Tests ─────────────────────────────
+
+
+class TestGraphExposedNodeTypes:
+    """v4.2 truth reset: 验证 Graph API/UI 暴露的 NodeType 与 backend 支持对齐。"""
+
+    def test_explore_endpoint_only_supports_implemented_types(self, tmp_path: Path):
+        """GET /api/graph/explore 只接受已实现的 4 种 NodeType。"""
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        supported = {"card", "source", "wiki_section", "tag"}
+        unsupported = {"community", "topic", "entity", "concept_candidate"}
+
+        for nt in supported:
+            node_id = "card_1" if nt == "card" else "src_1" if nt == "source" else "ai" if nt == "tag" else "Machine Learning"
+            resp = client.get(f"/api/graph/explore?node_type={nt}&node_id={node_id}")
+            assert resp.status_code == 200, (
+                f"已支持的 node_type={nt} 应返回 200，实际 {resp.status_code}"
+            )
+
+        for nt in unsupported:
+            resp = client.get(f"/api/graph/explore?node_type={nt}&node_id=test")
+            assert resp.status_code == 422, (
+                f"未实现的 node_type={nt} 应返回 422，实际 {resp.status_code}"
+            )
+
+    def test_candidate_graph_not_exposed_as_fact(self, tmp_path: Path):
+        """v4.2 truth reset: CONCEPT_CANDIDATE 属于 candidate graph，
+        Graph API 不得将其当作 fact graph 节点暴露。"""
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/graph/explore?node_type=concept_candidate&node_id=test")
+        assert resp.status_code == 422, (
+            f"concept_candidate 属于 candidate graph，不得通过 fact graph API 暴露，"
+            f"实际 {resp.status_code}"
+        )
+        data = resp.json()
+        assert "unsupported" in data.get("detail", {}).get("error", ""), (
+            f"错误码应指示 unsupported: {data}"
+        )
+
+    def test_node_endpoint_only_card_centered(self, tmp_path: Path):
+        """GET /api/graph/node 只支持以 Card 为中心的查询。"""
+        cfg_path, _, _ = _make_temp_vault(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        # card 查询应成功
+        resp = client.get("/api/graph/node?ref=card_1&depth=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["center_type"] == "card"

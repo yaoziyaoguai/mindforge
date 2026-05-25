@@ -155,12 +155,50 @@ class TestGraphPortMethods:
         assert node is not None
         assert node.card_count == 2
 
-    def test_get_node_concept_candidate_returns_none(self):
-        """CONCEPT_CANDIDATE 节点尚未在 DeterministicGraphBuilder 中实现精细查询，
-        当前 fallback 返回 None — 待 v3.9 Entity Resolution 实现。"""
+    def test_get_node_unsupported_types_return_none(self):
+        """不支持的 NodeType（community/topic/entity/concept_candidate）
+        get_node() 当前返回 None，表示 backend 尚未实现。
+
+        v4.2 truth reset: 这不是 expected/correct 行为，而是当前实现的限制。
+        测试明确标记为 lab/internal 状态。
+        """
         builder = DeterministicGraphBuilder([])
-        node = builder.get_node("test", NodeType.CONCEPT_CANDIDATE)
-        assert node is None
+        unsupported = [
+            NodeType.COMMUNITY,
+            NodeType.TOPIC,
+            NodeType.ENTITY,
+            NodeType.CONCEPT_CANDIDATE,
+        ]
+        for nt in unsupported:
+            node = builder.get_node("test", nt)
+            assert node is None, (
+                f"{nt.value} 当前返回 None（backend 未实现），"
+                f"不应在 Graph UI/API/docs 中宣称支持"
+            )
+
+    def test_get_graph_unsupported_types_return_empty(self):
+        """不支持的 NodeType 的 get_graph() 返回空图（nodes=(), edges=()）。
+
+        v4.2 truth reset: 空图 != 成功。API 层必须拦截 unsupported types，
+        不允许将空图当作正常响应返回给前端。
+        """
+        cards = [
+            _to_record(SyntheticRelationCard(id="c1", source_id="src_1")),
+        ]
+        builder = DeterministicGraphBuilder(cards)
+        unsupported = [
+            NodeType.COMMUNITY,
+            NodeType.TOPIC,
+            NodeType.ENTITY,
+            NodeType.CONCEPT_CANDIDATE,
+        ]
+        for nt in unsupported:
+            graph = builder.get_graph("test", nt, depth=1)
+            assert len(graph.nodes) == 0, (
+                f"{nt.value} get_graph() 应返回空图（未实现），"
+                f"但 API 层不得将此当作正常响应"
+            )
+            assert len(graph.edges) == 0
 
     def test_get_edges_returns_related_cards(self):
         cards = [

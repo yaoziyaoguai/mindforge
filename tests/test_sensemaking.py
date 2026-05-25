@@ -45,10 +45,11 @@ class TestBridgeNodeDetection:
             self._card("c2", "Card 2", source_id="src1", tags=["ai"]),
         ]
         result = detect_bridge_nodes(cards)
-        # 每张卡片仅属于 1 个社区（source + tag），但桥接要求 2+ 不同社区
-        # 实际上 c1 既在 source:src1 也在 tag:ai，所以它是桥接
-        # 这是正确行为：一张卡片同时有 source 和 tag 就是桥接
-        assert len(result) >= 0  # 至少不报错
+        # c1: source:src1 + tag:ai = 2 个社区 → 是桥接
+        # c2: source:src1 + tag:ai = 2 个社区 → 也是桥接
+        bridge_ids = {b.card_id for b in result}
+        assert "c1" in bridge_ids, "c1 跨越 2 个社区，应被识别为桥接"
+        assert "c2" in bridge_ids, "c2 跨越 2 个社区，应被识别为桥接"
 
     def test_bridge_node_connecting_source_and_tag(self):
         """卡片同时属于 source 社区和 tag 社区 → 桥接节点。"""
@@ -532,3 +533,26 @@ class TestSensemakingBoundary:
         )
         assert o.size == len(o.card_ids)
         assert o.size == len(o.card_titles)
+
+    def test_module_docstring_marks_lab_internal(self):
+        """v4.2 truth reset: sensemaking 模块必须标记为 LAB/INTERNAL。"""
+        import ast
+        from pathlib import Path
+        src = Path(__file__).resolve().parent.parent / "src" / "mindforge" / "relations" / "sensemaking.py"
+        module = ast.parse(src.read_text(encoding="utf-8"))
+        docstring = ast.get_docstring(module)
+        assert docstring is not None, "sensemaking.py 必须有模块 docstring"
+        assert "LAB" in docstring.upper() or "INTERNAL" in docstring.upper(), (
+            f"sensemaking 模块 docstring 必须标记为 LAB/INTERNAL，"
+            f"当前: {docstring[:100]}..."
+        )
+
+    def test_sensemaking_not_production_ready(self):
+        """v4.2 truth reset: sensemaking 数据类 docstring 不得声称 production-ready。"""
+        prohibited = {"production-ready", "product-grade", "production grade"}
+        for cls in [BridgeNode, SourceInfluencePath, CardEvolutionPath, SensemakingAnalysis]:
+            doc = (cls.__doc__ or "").lower()
+            for term in prohibited:
+                assert term not in doc, (
+                    f"{cls.__name__} docstring 不得声称 {term}，当前是 lab/internal"
+                )

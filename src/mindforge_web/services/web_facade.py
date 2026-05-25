@@ -531,10 +531,22 @@ class WebFacade:
         graph = builder.get_graph(card_id, GraphNodeType.CARD, depth=depth)
         return _graph_response(graph)
 
+    # NodeType 当前 backend 正式支持的集合（v4.2 truth reset）
+    _SUPPORTED_GRAPH_NODE_TYPES: set[GraphNodeType] = {
+        GraphNodeType.CARD,
+        GraphNodeType.SOURCE,
+        GraphNodeType.TAG,
+        GraphNodeType.WIKI_SECTION,
+    }
+
     def get_graph_explore(
         self, node_type: str, node_id: str, *, depth: int = 1,
     ) -> GraphResponse | None:
-        """以任意 NodeType 为中心的图浏览。"""
+        """以已支持的 NodeType 为中心的图浏览（v4.2 truth reset）。
+
+        community / topic / entity / concept_candidate 尚未实现，返回 None
+        （router 层将其转换为 422 UnsupportedNodeType 错误）。
+        """
         builder = _build_graph_builder(self.cfg)
         if builder is None:
             return None
@@ -542,6 +554,8 @@ class WebFacade:
             nt = GraphNodeType(node_type)
         except ValueError:
             return None
+        if nt not in self._SUPPORTED_GRAPH_NODE_TYPES:
+            return None  # 不支持的 NodeType，router 层给出明确错误
         graph = builder.get_graph(node_id, nt, depth=depth)
         return _graph_response(graph)
 

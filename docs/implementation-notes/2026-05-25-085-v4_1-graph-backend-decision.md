@@ -104,6 +104,20 @@ class GraphRepository:
 
 ---
 
+## v4.2 Truth Reset（追记）
+
+**日期**: 2026-05-25（同 v4.1 日，红队审计后追记）
+
+红队审计结论（Overall 5.1/10, No-Go for feature expansion）后执行 truth reset：
+- Graph API 暴露范围从声称的 8 种 NodeType 收缩到实际支持的 4 种（card/source/tag/wiki_section）
+- community/topic/entity/concept_candidate 从 API/docs/UI 明确标记为 unsupported
+- Sensemaking 降级为 lab/internal，从主导航隐藏
+- BridgeNode/CardEvolutionPath/SourceInfluencePath 标记为 deterministic heuristics
+- 修复 3 个 no-op/tatutological tests，新增 unsupported node type 测试
+- pyproject.toml 排除 .mindforge/** 防止 wheel 打包泄露 secrets
+- README 新增 Lab/Internal 功能章节，收缩 Graph/Sensemaking 声明
+- GraphPage/SensemakingPage 从 Sidebar 主导航移除，保留 Library GraphExplorer 入口
+
 ## 总结: v3.7-v4.1 全量交付
 
 | 版本 | 内容 | Commits | Tests |

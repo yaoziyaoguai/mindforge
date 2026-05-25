@@ -1,13 +1,22 @@
-"""v4.0 Graph-backed Sensemaking — 基于图分析的知识理解工具。
+"""v4.0 Sensemaking Analysis — 确定性图分析工具（LAB / INTERNAL）。
 
-中文学习型说明：本模块提供 sensemaking workspace 所需的分析原语：
-- bridge node detection（连接多个社区的桥接卡片）
+中文学习型说明：本模块提供基于确定性规则的图分析原语。
+所有分析基于集合运算 + 图遍历，不调用 LLM / embedding / vector DB。
+
+当前状态（v4.2 truth reset）：
+- 本模块是 lab/internal 层，不是 MindForge 主产品路径。
+- BridgeNode 检测基于简单的社区交集计数，不支持 centrality/modularity 分析。
+- CardEvolutionPath 仅按 card_id 排序，不代表真实时间/知识演化。
+- SourceInfluencePath 仅做简单 BFS 遍历。
+- 不应用于生产级 knowledge sensemaking，仅作为实验性分析辅助。
+- SensemakingPage 不从主 Sidebar 导航暴露，保留从 Library 的受控入口。
+
+分析原语：
+- bridge node detection（简单社区交集计数）
 - orphan island detection（无共享关系的孤立卡片群）
-- evidence trail（边的完整溯源链）
-- source influence path（源文档的影响传播路径）
-- card evolution path（同源卡片的知识演化）
-
-所有分析基于确定性规则（集合运算 + 图遍历），不调用 LLM / embedding / vector DB。
+- evidence trail（确定性共享实体溯源）
+- source influence path（简单 BFS 影响传播）
+- card evolution path（按 card_id 排序的同源卡片列表）
 """
 
 from __future__ import annotations
@@ -21,10 +30,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class BridgeNode:
-    """连接多个知识社区的桥接卡片。
+    """简单社区交集计数的桥接卡片标记（lab/internal）。
 
-    中文学习型说明：当一张卡片同时属于 2+ 个不同的 source/tag/wiki_section
-    社区时，它是桥接节点 — 连接不同知识领域的关键卡片。
+    中文学习型说明：基于卡片所属的 source/tag/wiki_section 社区数量判断。
+    不涉及 centrality/modularity/betweenness 等复杂图算法。
+    community_count >= 2 即标记为桥接，不代表该卡片在知识结构中具有关键性。
+    这是 deterministic heuristic，不是科学桥接检测。
     """
 
     card_id: str
@@ -78,10 +89,11 @@ class EvidenceTrail:
 
 @dataclass(frozen=True)
 class SourceInfluencePath:
-    """源文档的影响传播路径。
+    """源文档的简单 BFS 影响传播路径（lab/internal）。
 
-    中文学习型说明：展示从 Source → 直接派生 Card → 间接关联 Card 的
-    知识影响传播链。每一层卡片通过 shared_tag/wiki_section 关联。
+    中文学习型说明：通过 BFS 遍历从 source 的直接派生卡片及其 tag/wiki_section
+    邻居，生成影响传播链。不涉及 causal inference / information theory。
+    这是 deterministic heuristic，不是科学影响分析。
     """
 
     source_id: str
@@ -98,10 +110,11 @@ class SourceInfluencePath:
 
 @dataclass(frozen=True)
 class CardEvolutionStep:
-    """同源卡片的知识演化步骤。
+    """同源卡片按 card_id 排序的步骤（lab/internal）。
 
-    中文学习型说明：来自同一 source 的卡片按某种顺序排列，
-    展示知识如何从源文档逐步演化。
+    中文学习型说明：来自同一 source 的卡片按 card_id 字符串排序，
+    不代表真实时间顺序或知识演化阶段。card_id 顺序是任意的确定性排序，
+    不是 semantic/temporal evolution。
     """
 
     card_id: str
@@ -141,10 +154,11 @@ class CommunitySubgraph:
 
 @dataclass(frozen=True)
 class SensemakingAnalysis:
-    """以某张卡片为中心的综合 sensemaking 分析结果。
+    """以某张卡片为中心的 lab/internal 分析结果。
 
-    中文学习型说明：包含桥接节点、孤立岛屿、证据溯源、源影响路径、
-    卡片演化路径、社区子图等全部 sensemaking 维度的分析结果。
+    中文学习型说明：聚合桥接标记、孤立检测、证据溯源、影响传播、
+    演化排序、社区摘要等实验性分析维度。所有分析基于确定性 heuristics，
+    不涉及 LLM / embedding / centrality 算法。仅供实验性探索，不是产品主路径。
     """
 
     center_card_id: str
