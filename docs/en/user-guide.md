@@ -339,7 +339,10 @@ Start with `mindforge web --open`, visit `http://127.0.0.1:8765`:
 | **Health** | Knowledge health diagnostics, maintenance suggestions |
 | **Dogfood** | Workspace usage reports, metrics dashboard |
 | **Trash** | Safe recycle bin with Restore |
-| **Import/Export** | Markdown folder import, batch paste, JSON/OPML/Zip export |
+
+There is no standalone **Import/Export** page in the current Web console. Folder
+import and source import live under **Sources**; card selection and JSON/OPML/Zip
+export live under **Library**.
 
 Port in use? Switch ports:
 
@@ -375,7 +378,8 @@ Export knowledge cards in multiple formats:
 | **OPML** | Outline format for mind-mapping tools |
 | **Zip** | Streaming zip package with `cards.md` + `manifest.json` |
 
-All exports preserve provenance data and approval status. Use the Web **Import/Export** page to preview before downloading.
+All exports preserve provenance data and approval status. Use the export controls
+on the Web **Library** page to preview before downloading.
 
 ### Safety
 
@@ -446,3 +450,6 @@ Deleted knowledge cards go to Trash with Restore support. Manage on the Web **Tr
 - No automatic approval
 - Graph and community detection are deterministic only — no learned embeddings or GNN-based graph learning
 - Embedded graph backend (Kuzu) is spike-only; not in production path
+- Full Graph and Sensemaking routes are lab/internal. The product path exposes
+  Local Graph Preview in Library, with `card`, `source`, `tag`, and
+  `wiki_section` as the currently supported graph node types.

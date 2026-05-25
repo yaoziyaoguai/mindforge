@@ -4,6 +4,11 @@
 **状态**: complete
 **基于**: [v3.7-v4.1 Graph View Roadmap](../plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md)
 
+> **v4.2 truth reset**: 本文记录 v4.0 当时交付的实验功能。Sensemaking 已在
+> v4.2 后降级为 lab/internal，不是 MindForge 主产品路径；BridgeNode、
+> SourceInfluencePath、CardEvolutionPath 等结果来自简单确定性 heuristics，
+> 不代表成熟 graph analytics、centrality、causal inference 或真实知识演化。
+
 ---
 
 ## 实现范围

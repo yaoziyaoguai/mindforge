@@ -45,7 +45,9 @@ class GraphRepository:
 **决定**: 继续使用 In-Memory DeterministicGraphBuilder 作为默认实现。
 
 核心依据（基于 v3.7-v4.0 workload 验证）:
-- 8 种 NodeType + 14 种 EdgeType 的全维度查询均通过 BFS + DFS + set ops 实现
+- v4.1 当时记录的“8 种 NodeType 全维度查询”已被 v4.2 truth reset 修正；
+  当前正式支持并暴露的是 card/source/tag/wiki_section 4 种 NodeType
+- ontology 中的 community/topic/entity/concept_candidate 仍未进入生产级 Graph API/UI 能力
 - Bridge node detection, orphan island detection, evidence trail, source influence,
   card evolution, community subgraphs — 全部 deterministic, < 50ms @ 100 cards
 - GraphPort + GraphRepository 两层抽象已就绪，可安全替换后端

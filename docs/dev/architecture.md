@@ -145,6 +145,9 @@ FastAPI 应用，与 CLI 共享同一 Python 服务层。路由：
 ### 图谱与关系 (`relations/`)
 
 确定性知识图谱，基于共享标签、来源、Wiki 章节等构建关系。不调用 LLM，不使用 embedding/vector DB。
+当前正式支持并暴露的 graph NodeType 只有 `card` / `source` / `tag` / `wiki_section`。
+`community` / `topic` / `entity` / `concept_candidate` 仍是 ontology 或 lab/internal
+概念，不应作为已完成的主产品图查询能力声明。
 
 | 模块 | 职责 |
 |------|------|
@@ -153,6 +156,11 @@ FastAPI 应用，与 CLI 共享同一 Python 服务层。路由：
 | `relations/community.py` | 知识社区检测与分组 |
 | `relations/discovery_context.py` | 可解释发现上下文组装 |
 | `relations/graph_port.py` | GraphPort 抽象（参考 ADR-002） |
+
+> **当前状态**: Library 内的 Local Graph Preview / Graph Explorer 是用户可见入口。
+> 独立 `/graph` 路由和 Sensemaking 分析保留为 lab/internal；Sensemaking 的
+> bridge/evolution/influence 等结果来自简单确定性 heuristics，不是成熟的
+> graph analytics 或产品主路径。
 
 ### 检索 (`lexical_index.py`)
 

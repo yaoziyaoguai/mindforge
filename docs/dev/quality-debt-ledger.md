@@ -15,6 +15,8 @@
 | P2-04 | P2 | RetrievalPort ABC 未集成到 recall_service — recall_service 绕过端口直接调用 lexical_index | v2.2 → v3.6 | resolved — v3.6.1 Batch B2 | v3.7 |
 | P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | v2.x → v3.x | open | v3.7 |
 | P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | v2.x → v3.x | open | v3.7 |
+| P1-04 | P1 | v4.2 后 `/graph` 独立页仍展示 8 种 NodeType selector，其中 community/topic/entity/concept_candidate 会被 API 422；GraphExplorer 主入口已收缩，但内部路由仍可误导 | v4.2 post-remediation re-audit | open | 下一轮稳定化 |
+| P2-07 | P2 | 旧 ADR / roadmap / implementation notes 中仍有 v4.2 前的 graph/sensemaking 过度声明；本轮只修正 user guide、architecture 和关键 notes，完整文档归档/收缩仍未做 | v4.2 post-remediation re-audit | open | Documentation System Reset |
 | P3-01 | P3 | npm build chunk size >500KB | v2.5 | open (非阻塞) | — |
 | P3-02 | P3 | 1 skipped test (conditional: no runs written) | pre-existing | acknowledged (正常条件跳过) | — |
 | P3-03 | P3 | test_approval/review/process_service_boundaries 三文件间 ~50% AST helper 同构代码（有意不共享 fixture，独立可理解） | v2.x | acknowledged (设计选择) | — |

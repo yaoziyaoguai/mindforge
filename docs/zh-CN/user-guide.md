@@ -348,7 +348,9 @@ Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存
 | **Health** | 知识健康诊断、维护建议 |
 | **Dogfood** | 工作区使用报告、指标面板 |
 | **Trash** | 安全回收站，支持 Restore |
-| **Import/Export** | Markdown 文件夹导入、批量粘贴、JSON/OPML/Zip 导出 |
+
+当前 Web 控制台没有独立的 **Import/Export** 页面。文件夹导入和 source
+导入入口在 **Sources**；卡片选择和 JSON/OPML/Zip 导出入口在 **Library**。
 
 端口被占用时换端口：
 
@@ -386,7 +388,7 @@ MindForge 支持安全本地导入导出，显式审批不可绕过。
 | **OPML** | 大纲格式，兼容思维导图工具 |
 | **Zip** | 流式 zip 包，包含 `cards.md` + `manifest.json` |
 
-所有导出保留 provenance 数据和审批状态。使用 Web **Import/Export** 页面预览后再下载。
+所有导出保留 provenance 数据和审批状态。使用 Web **Library** 页面的导出控件预览后再下载。
 
 ### 安全
 
@@ -456,5 +458,8 @@ Dogfood 报告完全本地运行 — 无遥测、无外部分析。
 - 不支持 RAG answering、embedding、向量数据库、语义检索
 - 图谱和社区检测为纯确定性计算 — 不使用 embedding、GNN 或向量数据库
 - 嵌入式图数据库 (Kuzu) 仅限 spike 阶段，未进入生产路径
+- 独立 Graph 和 Sensemaking 路由属于 lab/internal；主产品路径只暴露 Library
+  中的 Local Graph Preview。当前正式支持的图节点类型是 `card`、`source`、
+  `tag`、`wiki_section`。
 - 不支持 Obsidian plugin
 - 不支持自动审批
