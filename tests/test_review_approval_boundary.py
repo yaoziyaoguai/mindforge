@@ -324,6 +324,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # 解释 ontology 规则：ai_draft / human_approved 是 Card 的 status property，
             # 不是独立 NodeType。这是边界定义，强化了审批语义，不修改状态、不执行 approve。
             "graph_models.py",
+            # entity_resolution.py (v3.9) 只在 docstring 中用 "human_approved"
+            # 声明 ConceptCandidate 不能自动升级为 Entity —
+            # 升级需用户显式确认（human_approved pipeline）。
+            # 这是反向边界守护，不修改状态、不执行 approve。
+            "entity_resolution.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")
