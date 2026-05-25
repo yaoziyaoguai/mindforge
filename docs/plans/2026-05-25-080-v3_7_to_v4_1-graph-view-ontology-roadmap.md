@@ -1,7 +1,13 @@
 # v3.7-v4.1 Graph View & Knowledge Ontology Roadmap
 
+> **v4.2 truth reset 追记 (2026-05-25)**：本 roadmap 中规划的 Graph/Sensemaking 全能力已在
+> v4.2 red team audit 后降级为 lab/internal。当前仅 card / source / tag / wiki_section 4 种
+> NodeType 在 Graph API 中正式暴露，community / topic / entity / concept_candidate 返回 422。
+> Sensemaking 已被标记为 LAB/INTERNAL 并从主导航隐藏。本文档保留为 historical planning artifact。
+> 当前产品方向见 `docs/plans/2026-05-25-087-post-stabilization-direction.md`。
+
 **日期**: 2026-05-25
-**状态**: active
+**状态**: active (historical — v4.2 truth reset applied)
 **上一阶段**: v3.6.1 Audit Remediation (Batch A + B1 + B2 完成)
 **产品方向**: 从"本地知识工作台"推进到"可视化、可查询、可解释的个人知识图谱系统"
 

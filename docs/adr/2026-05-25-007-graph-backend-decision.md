@@ -1,5 +1,12 @@
 # ADR-007: Graph Backend Decision — v3.7-v4.0 Workload Validation
 
+> **v4.2 truth reset 追记 (2026-05-25)**：本文档记录的"8 种 NodeType 全维度 workload"中，
+> community / topic / entity / concept_candidate 4 种 NodeType 当前 backend 并未实现
+> （`DeterministicGraphBuilder` 仅支持 card / source / tag / wiki_section）。
+> Graph API 对这 4 种类型返回 422。ADR-007 的 In-Memory Graph Backend 决策本身仍然
+> 有效，但 workload 验证范围的描述以 v4.2 实现状态为准。
+> 详见 `docs/implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md`。
+
 ## 日期
 2026-05-25
 

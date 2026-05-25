@@ -4,6 +4,13 @@ date: 2026-05-25
 status: active
 ---
 
+> **v4.2 truth reset 追记 (2026-05-25)**：本文档定义的 8 种 NodeType（含 COMMUNITY、TOPIC、
+> ENTITY、CONCEPT_CANDIDATE）和 14 种 EdgeType 是 ontology 完整定义。当前 backend
+> (`DeterministicGraphBuilder`) 仅实现其中 4 种 NodeType：card / source / tag / wiki_section。
+> 其余 4 种 NodeType 的 API 端点返回 422。本文档的 ontology 定义仍然有效，但实现状态
+> 以 v4.2 为准。
+> 详见 `docs/implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md`。
+
 # ADR-006: Graph Ontology v1 — Node/Edge/Entity Semantics for v3.7
 
 ## Context

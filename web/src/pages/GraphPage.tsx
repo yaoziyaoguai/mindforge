@@ -5,17 +5,17 @@ import type { GraphNodeType, GraphResponse } from "../api/types";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { useLocale } from "../lib/i18n";
 
-/** v3.7 ontology: 所有支持探索的 NodeType */
-const EXPLORABLE_TYPES: { type: GraphNodeType; icon: string }[] = [
+/** v4.2.1 truth reset: 仅展示当前 backend 正式支持的 4 种 NodeType 作为可选项。
+    community / topic / entity / concept_candidate 尚未实现，仅作 lab note 展示。 */
+const SUPPORTED_TYPES: { type: GraphNodeType; icon: string }[] = [
   { type: "card", icon: "📄" },
   { type: "source", icon: "📁" },
   { type: "tag", icon: "#" },
   { type: "wiki_section", icon: "📖" },
-  { type: "community", icon: "👥" },
-  { type: "topic", icon: "🔴" },
-  { type: "entity", icon: "💎" },
-  { type: "concept_candidate", icon: "🔍" },
 ];
+
+/** 尚未实现的 NodeType — 仅作为 lab/internal 说明，不可选择 */
+const UNSUPPORTED_TYPES = ["community", "topic", "entity", "concept_candidate"];
 
 interface Props {
   initialCardId?: string;
@@ -104,9 +104,9 @@ export function GraphPage({ initialCardId, onNavigateBack }: Props) {
 
       {/* Explore controls */}
       <div className="flex flex-wrap items-end gap-2">
-        {/* Node type selector */}
+        {/* Node type selector — 仅展示正式支持的 4 种 */}
         <div className="flex flex-wrap gap-1">
-          {EXPLORABLE_TYPES.map(({ type, icon }) => (
+          {SUPPORTED_TYPES.map(({ type, icon }) => (
             <button
               key={type}
               type="button"
@@ -129,6 +129,17 @@ export function GraphPage({ initialCardId, onNavigateBack }: Props) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* v4.2.1: Lab/Internal — 尚未实现的 NodeType */}
+      <div className="text-xs text-muted/70 border border-dashed border-muted/20 rounded-md p-2 space-y-0.5">
+        <span className="font-medium">Lab / Internal — 尚未实现的节点类型：</span>{" "}
+        {UNSUPPORTED_TYPES.join(", ")}
+        <br />
+        <span>
+          这些类型在 ontology 中定义但 backend 尚未实现，API 会返回 422。
+          仅作为未来规划参考，不可选择。
+        </span>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -201,7 +212,8 @@ export function GraphPage({ initialCardId, onNavigateBack }: Props) {
       ) : !loading && !error ? (
         <div className="flex items-center justify-center py-16">
           <p className="text-sm text-muted">
-            选择一个节点类型并输入标识符，点击探索即可查看子图。
+            选择一个节点类型（当前支持 4 种：card / source / tag / wiki_section）并输入标识符，点击探索即可查看子图。
+            community / topic / entity / concept_candidate 尚未实现，仅供 lab 参考。
           </p>
         </div>
       ) : null}

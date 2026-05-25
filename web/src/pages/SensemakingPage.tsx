@@ -73,6 +73,30 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
+      {/* v4.2.1: LAB/INTERNAL warning banner */}
+      <div style={{
+        border: "2px solid #f59e0b", borderRadius: "8px",
+        background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+        padding: "0.85rem 1rem", marginBottom: "1.25rem",
+        fontSize: "0.85rem", lineHeight: 1.6,
+      }}>
+        <div style={{ fontWeight: 700, color: "#92400e", marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <span style={{ fontSize: "1.1rem" }}>⚠️</span> LAB / INTERNAL — 实验性分析功能
+        </div>
+        <div style={{ color: "#a16207", fontSize: "0.8rem" }}>
+          <p style={{ margin: 0 }}>本页面提供的是基于确定性 heuristics 的实验性分析（BFS + 集合运算），不是成熟的 sensemaking 产品能力。</p>
+          <ul style={{ margin: "0.35rem 0 0 1.2rem", padding: 0 }}>
+            <li>BridgeNode: 简单社区交集计数，不涉及 centrality / modularity</li>
+            <li>CardEvolutionPath: 按 card_id 排序，不代表真实时间演化</li>
+            <li>SourceInfluencePath: 简单 BFS，不涉及 causal inference</li>
+            <li>Evidence Trail: 集合交集匹配，仅供探索参考</li>
+          </ul>
+          <p style={{ margin: "0.35rem 0 0 0" }}>
+            这不是 production sensemaking 功能。分析结果不应作为知识质量的权威依据。
+          </p>
+        </div>
+      </div>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
         {onNavigateBack && (
@@ -93,7 +117,12 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
         <h1 style={{ fontSize: "1.4rem", fontWeight: 700, margin: 0 }}>
           {t("sensemaking.title")}
         </h1>
-        <span style={{ fontSize: "0.8rem", color: "var(--text-muted, #94a3b8)" }}>v4.0</span>
+        <span style={{
+          fontSize: "0.7rem", background: "#fef3c7", color: "#92400e",
+          borderRadius: "4px", padding: "0.15rem 0.45rem", fontWeight: 600,
+        }}>
+          LAB
+        </span>
       </div>
 
       {/* Search bar */}
@@ -189,7 +218,8 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
 
       {!loading && !error && !analysis && (
         <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted, #94a3b8)" }}>
-          <p>Enter a card ID to analyze its knowledge graph relationships.</p>
+          <p>输入卡片 ID 以探索实验性知识图谱分析（LAB / INTERNAL）。</p>
+          <p style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>所有分析基于确定性 heuristics，不涉及 LLM / embedding / vector DB。</p>
         </div>
       )}
 

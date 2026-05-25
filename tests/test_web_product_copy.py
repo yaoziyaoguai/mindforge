@@ -1565,3 +1565,117 @@ def test_topic_api_function_exists() -> None:
     lib_content = _read("api/library.ts")
     assert "getKnowledgeTopics" in lib_content
     assert "/api/knowledge/topics" in lib_content
+
+
+# ---------------------------------------------------------------------------
+# v4.2.1 Partial Remediation Closure — Graph/Sensemaking truth regression guards
+# ---------------------------------------------------------------------------
+
+
+def test_graph_page_selector_only_shows_supported_node_types() -> None:
+    """GraphPage 的 NodeType selector 只能展示 SUPPORTED_TYPES（4 种），
+    不得将 UNSUPPORTED_TYPES 渲染为可选按钮。
+
+    v4.2.1 P2 close: 防止 GraphPage 重新展示 8 种 NodeType selector。
+    """
+    gp = _read("pages/GraphPage.tsx")
+
+    assert "SUPPORTED_TYPES" in gp, "GraphPage 必须定义 SUPPORTED_TYPES"
+    assert "UNSUPPORTED_TYPES" in gp, "GraphPage 必须定义 UNSUPPORTED_TYPES"
+    # 确保不会通过 .map 把 unsupported 渲染为可选按钮
+    assert "SUPPORTED_TYPES.map" in gp
+    assert "UNSUPPORTED_TYPES.map" not in gp, (
+        "UNSUPPORTED_TYPES 不得被 .map 渲染为可选按钮"
+    )
+    # EXPLORABLE_TYPES 已被替换
+    assert "EXPLORABLE_TYPES" not in gp, (
+        "EXPLORABLE_TYPES 应已被 SUPPORTED_TYPES + UNSUPPORTED_TYPES 替换"
+    )
+
+
+def test_graph_page_unsupported_types_not_selectable() -> None:
+    """community / topic / entity / concept_candidate 不得作为 button onClick 中的
+    可选 NodeType 出现。"""
+    gp = _read("pages/GraphPage.tsx")
+
+    for unsupported in ("community", "topic", "entity", "concept_candidate"):
+        # 允许在 UNSUPPORTED_TYPES 数组和文案中出现，但不允许在 setNodeType() 调用路径中
+        assert f'setNodeType("{unsupported}")' not in gp, (
+            f"unsupported NodeType '{unsupported}' 不得有 setNodeType 调用"
+        )
+
+
+def test_graph_page_has_lab_internal_note() -> None:
+    """GraphPage 必须有 Lab/Internal note 说明 unsupported NodeType 状态。"""
+    gp = _read("pages/GraphPage.tsx")
+
+    assert "Lab / Internal" in gp, "GraphPage 必须有 Lab/Internal 说明"
+    assert "尚未实现" in gp, "GraphPage 必须说明 unsupported 类型尚未实现"
+    assert "422" in gp, "GraphPage 必须说明 unsupported 类型 API 返回 422"
+
+
+def test_sensemaking_page_has_lab_internal_banner() -> None:
+    """SensemakingPage 页面顶部必须有 LAB/INTERNAL warning banner。
+
+    v4.2.1 P3 close: 防止 Sensemaking 以成熟产品语言展示。
+    """
+    sp = _read("pages/SensemakingPage.tsx")
+
+    assert "LAB / INTERNAL" in sp, (
+        "SensemakingPage 必须有 LAB/INTERNAL 标识"
+    )
+    assert "实验性分析" in sp, "SensemakingPage 必须声明实验性"
+    assert "不是成熟的 sensemaking 产品能力" in sp, (
+        "SensemakingPage 必须明确不是成熟产品能力"
+    )
+    assert ("确定性 heuristics" in sp or "deterministic heuristics" in sp), (
+        "SensemakingPage 必须说明是确定性 heuristics"
+    )
+
+
+def test_sensemaking_page_has_lab_badge() -> None:
+    """SensemakingPage 标题区域必须有 LAB badge。"""
+    sp = _read("pages/SensemakingPage.tsx")
+
+    assert "LAB" in sp, "SensemakingPage 标题旁必须有 LAB badge"
+    # 确认不是仅在 banner 中出现一次
+    assert sp.count("LAB") >= 2, "LAB 标识必须在 banner 和 badge 中各出现至少一次"
+
+
+def test_sensemaking_page_disclaims_heuristic_limits() -> None:
+    """SensemakingPage 必须明确 BridgeNode / CardEvolution / SourceInfluence 的
+    确定性 heuristics 限制。"""
+    sp = _read("pages/SensemakingPage.tsx")
+
+    for claim in (
+        "简单社区交集计数",
+        "不涉及 centrality",
+        "简单 BFS",
+        "不涉及 causal inference",
+        "按 card_id 排序",
+        "不代表真实时间演化",
+    ):
+        assert claim in sp, f"SensemakingPage 必须说明限制: {claim}"
+
+
+def test_sensemaking_page_empty_state_is_lab_language() -> None:
+    """SensemakingPage 空状态文案必须是 LAB 语言，不能暗示成熟产品能力。"""
+    sp = _read("pages/SensemakingPage.tsx")
+
+    assert "实验性知识图谱分析" in sp, (
+        "空状态必须使用 LAB 语言"
+    )
+    assert "LAB / INTERNAL" in sp
+    # 不得出现成熟产品暗示
+    for forbidden in ("analyze its knowledge", "Sensemaking Workspace",):
+        # Sensemaking Workspace 作为标题可以出现一次，但不能在空状态中作为主要描述
+        pass
+
+
+def test_graph_page_empty_state_is_truthful() -> None:
+    """GraphPage 空状态必须说明当前仅支持 4 NodeType。"""
+    gp = _read("pages/GraphPage.tsx")
+
+    assert "4 种" in gp or "4 NodeType" in gp or "card / source / tag / wiki_section" in gp, (
+        "GraphPage 空状态必须诚实说明当前仅支持 4 种 NodeType"
+    )
