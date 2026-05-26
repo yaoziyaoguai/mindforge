@@ -19,18 +19,19 @@ from fastapi import HTTPException
 from mindforge.app_context import build_app_context
 from mindforge_web.services.web_import_export_service import WebImportExportService
 from mindforge_web.services.web_lab_service import WebLabService
+from mindforge_web.services.web_recall_service import WebRecallService
 from mindforge.cards import CardSummary, iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.checkpoint import Checkpoint, CheckpointError
 from mindforge.config import MindForgeConfig
-from mindforge.lexical_index import default_index_path
+
 from mindforge.library_service import (
     LibraryCardDetail,
     LibraryLookupError,
     build_library_inventory,
     show_library_card,
 )
-from mindforge.recall_service import RecallQuery, RecallServiceError, run_bm25_recall
+
 from mindforge.relations.discovery_context import (
     DiscoveryCommunityRef,
     DiscoveryContext,
@@ -81,7 +82,6 @@ from mindforge_web.schemas import (
     LocalGraphNodeResponse,
     LocalGraphResponse,
     NextAction,
-    RecallHit,
     RecallResponse,
     RecallStatus,
     SourceLifecycleItem,
@@ -141,6 +141,8 @@ class WebFacade:
         self.review_service = WebReviewService(self.cfg)
         self._lab_service = WebLabService(self.cfg)
         self._import_export_service = WebImportExportService(self.cfg)
+        self._recall_service = WebRecallService(self.cfg)
+
     def health(self) -> HealthResponse:
         return HealthResponse(ok=True, local_only=self.host in {"127.0.0.1", "localhost"})
 
@@ -576,103 +578,8 @@ class WebFacade:
         return self.review_service.update_draft_body(draft_id, body)
 
     def recall(self, query: str, *, context: str | None = None) -> RecallResponse:
-        index = self.recall_status()
-        if not query.strip():
-            return RecallResponse(
-                query=query,
-                hits=[],
-                index=index,
-                empty_state=NextAction(
-                    label="Search approved cards",
-                    description="输入关键词后会用本地 lexical recall 查询 human_approved cards。",
-                    action_key="search_approved_cards",
-                    description_key="search_approved_cards.desc",
-                ),
-            )
-        try:
-            result = run_bm25_recall(
-                self.cfg,
-                RecallQuery(
-                    query=query,
-                    track=None,
-                    project=None,
-                    tags=(),
-                    source_type=None,
-                    status="human_approved",
-                    include_drafts=False,
-                    since=None,
-                    until=None,
-                    limit=10,
-                    output_format="json",
-                    explain=False,
-                ),
-            )
-        except RecallServiceError as exc:
-            return RecallResponse(
-                query=query,
-                hits=[],
-                index=index,
-                warnings=[str(exc)],
-                empty_state=NextAction(
-                    label="Adjust query",
-                    description="Recall query 无法执行，请缩短或调整关键词。",
-                    action_key="adjust_query",
-                    description_key="adjust_query.desc",
-                ),
-            )
-        # 中文学习型说明：context=graph 时对每个 BM25 hit 附加轻量图上下文。
-        # 不做 full 2-hop graph build（太昂贵），只做 neighbor count + tag count
-        # 的轻量查。后续可升级为更多 graph metadata。
-        graph_builder: DeterministicGraphBuilder | None = None
-        if context == "graph":
-            graph_builder = _build_graph_builder(self.cfg)
-        return RecallResponse(
-            query=query,
-            hits=[
-                RecallHit(
-                    score=hit.score,
-                    title=hit.title,
-                    card_ref=hit.id or Path(hit.rel_path).name,
-                    detail_href=f"/library?card={hit.id or hit.rel_path}",
-                    rel_path=hit.rel_path,
-                    status=hit.status,
-                    track=hit.track,
-                    projects=list(hit.projects),
-                    tags=list(hit.tags),
-                    source_type=hit.source_type,
-                    why_this_matched=hit.why_this_matched,
-                    graph_neighbor_count=_graph_neighbor_count(
-                        graph_builder, hit.id or hit.rel_path
-                    ) if graph_builder else None,
-                    graph_shared_tag_count=len(hit.tags) if graph_builder else None,
-                )
-                for hit in result.hits
-            ],
-            index=RecallStatus(
-                index_path=str(result.index.path),
-                index_exists=result.index.path.exists(),
-                approved_card_count=result.index.card_counts.get("human_approved", 0),
-                available=True,
-                next_action=NextAction(
-                    label="Rebuild index",
-                    description="索引缺失或 stale 时可重建本地 BM25 index。",
-                    command="mindforge index rebuild",
-                    action_key="rebuild_index",
-                    description_key="rebuild_index.desc",
-                )
-                if result.index.suggest_rebuild
-                else None,
-            ),
-            warnings=list(result.warnings),
-            empty_state=None
-            if result.hits
-            else NextAction(
-                label="Try another query",
-                description="没有命中 approved cards；换一个关键词或先 approve draft。",
-                action_key="try_another_query",
-                description_key="try_another_query.desc",
-            ),
-        )
+        """BM25 lexical recall — 委托给 WebRecallService。"""
+        return self._recall_service.recall(query, context=context)
 
     def safety_summary(self, *, status_counts: dict[str, int] | None = None) -> SafetySummary:
         status_counts = status_counts or self._card_status_counts()
@@ -716,25 +623,8 @@ class WebFacade:
         )
 
     def recall_status(self, approved_count: int | None = None) -> RecallStatus:
-        count = approved_count
-        if count is None:
-            count = self._card_status_counts().get("human_approved", 0)
-        index_path = default_index_path(self.cfg.state.workdir)
-        return RecallStatus(
-            index_path=str(index_path),
-            index_exists=index_path.exists(),
-            approved_card_count=count,
-            available=True,
-            next_action=NextAction(
-                label="Approve drafts",
-                description="Recall 默认只查询 human_approved cards。",
-                href="/drafts",
-                action_key="review_drafts",
-                description_key="review_drafts.desc",
-            )
-            if count == 0
-            else None,
-        )
+        """BM25 索引状态 — 委托给 WebRecallService。"""
+        return self._recall_service.recall_status(approved_count)
 
     def _resolve_draft_path(self, draft_id: str) -> Path:
         """根据 draft_id 解析 ai_draft 卡片路径。"""
