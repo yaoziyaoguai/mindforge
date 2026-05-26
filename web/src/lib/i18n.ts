@@ -319,6 +319,12 @@ const copy: Record<Locale, LocaleDict> = {
     "approval.confirm_final": "确认并保存此知识",
     "approval.cancel": "取消",
     "approval.reject": "拒绝此草稿",
+    "approval.status_timeline": "状态时间线",
+    "approval.status_created": "创建时间",
+    "approval.status_current": "当前状态",
+    "approval.status_approved_at": "确认时间",
+    "approval.status_ai_draft": "AI 草稿",
+    "approval.status_human_approved": "已人工确认",
 
     // ---- DraftList ----
     "draftlist.value_score": "价值评分",
@@ -1148,6 +1154,12 @@ const copy: Record<Locale, LocaleDict> = {
     "approval.confirm_final": "Approve & Save This Knowledge",
     "approval.cancel": "Cancel",
     "approval.reject": "Reject This Draft",
+    "approval.status_timeline": "Status Timeline",
+    "approval.status_created": "Created",
+    "approval.status_current": "Current Status",
+    "approval.status_approved_at": "Approved At",
+    "approval.status_ai_draft": "AI Draft",
+    "approval.status_human_approved": "Human Approved",
 
     // ---- DraftList ----
     "draftlist.value_score": "Value Score",
