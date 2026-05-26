@@ -97,6 +97,8 @@ class TestArchitectureMainPathBoundaries:
         """
         services_dir = _SRC / "mindforge_web" / "services"
         known_lab_imports: dict[str, set[str]] = {
+            # web_facade 保留 relations import 用于 local graph / provenance / quality
+            # 等非 lab 方法。lab 方法已提取到 web_lab_service。
             "web_facade.py": {
                 "mindforge.relations.community",
                 "mindforge.relations.discovery_context",
@@ -104,7 +106,15 @@ class TestArchitectureMainPathBoundaries:
                 "mindforge.relations.graph_models",
                 "mindforge.relations.local_graph",
                 "mindforge.relations.related_cards",
+            },
+            # web_lab_service 包含所有从 web_facade 提取的 lab/internal 方法
+            "web_lab_service.py": {
+                "mindforge.relations.community",
+                "mindforge.relations.discovery_context",
+                "mindforge.relations.graph_builder",
+                "mindforge.relations.graph_models",
                 "mindforge.relations.sensemaking",
+                "mindforge.relations.topic",
             },
             # dogfood_service 使用 graph_builder 计算 relation 统计 — internal 工具
             "dogfood_service.py": {
