@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Download, SlidersHorizontal, X } from "lucide-react";
 import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
 import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
@@ -62,12 +62,58 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
   const filterIds = filterCardsParam ? filterCardsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
-  const displayedCards = filterIds
+  const cardsFromUrl = filterIds
     ? data.cards.filter((card) => {
         const ref = card.id ?? card.rel_path;
         return filterIds.includes(ref);
       })
     : data.cards;
+
+  // Filter state — client-side library organization
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [trackFilter, setTrackFilter] = useState<string>("all");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<string>("all");
+  const [qualityFilter, setQualityFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("newest");
+
+  const uniqueTracks = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.track).filter(Boolean))].sort(), [cardsFromUrl]);
+  const uniqueSourceTypes = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.source_type).filter(Boolean))].sort(), [cardsFromUrl]);
+  const uniqueQualities = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.quality_level).filter(Boolean))].sort(), [cardsFromUrl]);
+
+  const displayedCards = useMemo(() => {
+    let filtered = cardsFromUrl;
+    if (statusFilter !== "all") filtered = filtered.filter((c) => c.status === statusFilter);
+    if (trackFilter !== "all") filtered = filtered.filter((c) => c.track === trackFilter);
+    if (sourceTypeFilter !== "all") filtered = filtered.filter((c) => c.source_type === sourceTypeFilter);
+    if (qualityFilter !== "all") filtered = filtered.filter((c) => c.quality_level === qualityFilter);
+
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case "oldest":
+        sorted.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+        break;
+      case "title":
+        sorted.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+        break;
+      case "score":
+        sorted.sort((a, b) => (b.quality_score ?? 0) - (a.quality_score ?? 0));
+        break;
+      case "newest":
+      default:
+        sorted.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+        break;
+    }
+    return sorted;
+  }, [cardsFromUrl, statusFilter, trackFilter, sourceTypeFilter, qualityFilter, sortBy]);
+
+  const activeFilterCount = [statusFilter, trackFilter, sourceTypeFilter, qualityFilter].filter((v) => v !== "all").length;
+
+  function clearAllFilters() {
+    setStatusFilter("all");
+    setTrackFilter("all");
+    setSourceTypeFilter("all");
+    setQualityFilter("all");
+  }
 
   useEffect(() => {
     if (!selected) return;
@@ -331,6 +377,62 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       {filterIds && displayedCards.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>
       ) : null}
+
+      {/* Filter Bar — track / source_type / quality / status with sort */}
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel p-3">
+        <SlidersHorizontal className="h-4 w-4 text-muted shrink-0" />
+        {/* Status filter */}
+        <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label={t("library.filter_status")}>
+          <option value="all">{t("library.filter_status")}: {t("library.filter_all")}</option>
+          <option value="ai_draft">{t("approval.status_ai_draft")}</option>
+          <option value="human_approved">{t("approval.status_human_approved")}</option>
+        </select>
+        {/* Track filter — only shown when tracks exist */}
+        {uniqueTracks.length > 0 ? (
+          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)} aria-label={t("library.filter_track")}>
+            <option value="all">{t("library.filter_track")}: {t("library.filter_all")}</option>
+            {uniqueTracks.map((tr) => (
+              <option key={tr} value={tr ?? ""}>{tr}</option>
+            ))}
+          </select>
+        ) : null}
+        {/* Source type filter — only shown when types exist */}
+        {uniqueSourceTypes.length > 0 ? (
+          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={sourceTypeFilter} onChange={(e) => setSourceTypeFilter(e.target.value)} aria-label={t("library.filter_source_type")}>
+            <option value="all">{t("library.filter_source_type")}: {t("library.filter_all")}</option>
+            {uniqueSourceTypes.map((st) => (
+              <option key={st} value={st ?? ""}>{sourceTypeBadge(st)}</option>
+            ))}
+          </select>
+        ) : null}
+        {/* Quality filter — only shown when qualities exist */}
+        {uniqueQualities.length > 0 ? (
+          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)} aria-label={t("library.filter_quality")}>
+            <option value="all">{t("library.filter_quality")}: {t("library.filter_all")}</option>
+            {uniqueQualities.map((q) => (
+              <option key={q} value={q ?? ""}>{q}</option>
+            ))}
+          </select>
+        ) : null}
+        {/* Sort */}
+        <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label={t("library.sort_label")}>
+          <option value="newest">{t("library.sort_newest")}</option>
+          <option value="oldest">{t("library.sort_oldest")}</option>
+          <option value="title">{t("library.sort_title")}</option>
+          <option value="score">{t("library.sort_score")}</option>
+        </select>
+        {/* Active filter badge + clear */}
+        {activeFilterCount > 0 ? (
+          <>
+            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              {t("library.filter_active").replace("{count}", String(activeFilterCount))}
+            </span>
+            <button type="button" className="text-xs text-muted hover:text-ink" onClick={clearAllFilters}>
+              {t("library.filter_clear")}
+            </button>
+          </>
+        ) : null}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatusCard label={t("library.stats_approved")} value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail={t("library.stats_approved_detail")} locale={locale} />
