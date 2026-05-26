@@ -102,14 +102,73 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
     ]).then(([g, commData]) => {
       setGraph(g);
       setCommunities(commData.communities);
-      const groups = groupEdgesByType(g.edges, g.center_id);
-      const auto: Record<string, boolean> = {};
-      Object.keys(groups).slice(0, 4).forEach((k) => { auto[k] = true; });
-      setExpandedGroups(auto);
     }).catch((err: unknown) =>
       setError(err instanceof Error ? err.message : "Graph load failed")
     ).finally(() => setLoading(false));
   }, [cardRef, depth]);
+
+  /* 中文学习型说明：所有 useMemo 必须在 early return 之前调用，
+   * 否则 loading → loaded 状态切换时 hook 数量变化会触发
+   * "Rendered more hooks than during the previous render"。 */
+
+  const cardEdges = useMemo(() => {
+    if (!graph) return [];
+    return graph.edges.filter(
+      (e) => e.source_id === graph.center_id || e.target_id === graph.center_id,
+    );
+  }, [graph]);
+
+  const groups = useMemo((): Record<GraphEdgeType, GraphEdgeResponse[]> => {
+    if (!graph) return {} as Record<GraphEdgeType, GraphEdgeResponse[]>;
+    return groupEdgesByType(cardEdges, graph.center_id);
+  }, [cardEdges, graph]);
+
+  // Auto-expand groups when graph data first arrives (separate effect, not in useMemo)
+  useEffect(() => {
+    if (!graph) return;
+    const g = groupEdgesByType(
+      graph.edges.filter((e) => e.source_id === graph.center_id || e.target_id === graph.center_id),
+      graph.center_id,
+    );
+    if (Object.keys(g).length === 0) return;
+    setExpandedGroups((prev) => {
+      // Only auto-expand if nothing is expanded yet
+      if (Object.values(prev).some(Boolean)) return prev;
+      const auto: Record<string, boolean> = {};
+      Object.keys(g).slice(0, 4).forEach((k) => { auto[k] = true; });
+      return auto;
+    });
+  }, [graph]);
+
+  const neighborCards = useMemo(() => {
+    if (!graph) return [];
+    return graph.nodes.filter(
+      (n) => n.type === "card" && n.id !== graph.center_id,
+    );
+  }, [graph]);
+
+  const neighborIds = useMemo(() => new Set(neighborCards.map((n) => n.id)), [neighborCards]);
+
+  const communityGroups = useMemo(() => {
+    if (groupingMode !== "by_community") return null;
+    const result: { community: KnowledgeCommunityResponse; cardIds: string[] }[] = [];
+    for (const comm of communities) {
+      const matchingIds = comm.member_card_ids.filter((mid) => neighborIds.has(mid));
+      if (matchingIds.length > 0) {
+        result.push({ community: comm, cardIds: matchingIds });
+      }
+    }
+    result.sort((a, b) => b.community.member_count - a.community.member_count);
+    return result;
+  }, [communities, neighborIds, groupingMode]);
+
+  const typeDistribution = useMemo(() => {
+    const dist: Record<string, number> = {};
+    for (const [etype, entries] of Object.entries(groups)) {
+      dist[etype] = entries?.length ?? 0;
+    }
+    return dist;
+  }, [groups]);
 
   if (loading) {
     return (
@@ -133,41 +192,6 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
       </section>
     );
   }
-
-  const cardEdges = graph.edges.filter(
-    (e) => e.source_id === graph.center_id || e.target_id === graph.center_id,
-  );
-  const groups = groupEdgesByType(cardEdges, graph.center_id);
-
-  const neighborCards = graph.nodes.filter(
-    (n) => n.type === "card" && n.id !== graph.center_id,
-  );
-
-  const neighborIds = new Set(neighborCards.map((n) => n.id));
-
-  // Build community groups for community view
-  const communityGroups = useMemo(() => {
-    if (groupingMode !== "by_community") return null;
-    const result: { community: KnowledgeCommunityResponse; cardIds: string[] }[] = [];
-    for (const comm of communities) {
-      const matchingIds = comm.member_card_ids.filter((mid) => neighborIds.has(mid));
-      if (matchingIds.length > 0) {
-        result.push({ community: comm, cardIds: matchingIds });
-      }
-    }
-    // Sort by member count desc
-    result.sort((a, b) => b.community.member_count - a.community.member_count);
-    return result;
-  }, [communities, neighborIds, groupingMode]);
-
-  // Edge type distribution for summary bar
-  const typeDistribution = useMemo(() => {
-    const dist: Record<string, number> = {};
-    for (const [etype, entries] of Object.entries(groups)) {
-      dist[etype] = entries?.length ?? 0;
-    }
-    return dist;
-  }, [groups]);
 
   const sortedTypes = Object.keys(groups).sort(
     (a, b) => (EDGE_TYPE_SORT[a] ?? 99) - (EDGE_TYPE_SORT[b] ?? 99),
