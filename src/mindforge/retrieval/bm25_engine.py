@@ -5,16 +5,58 @@
 
 v3.6.1 新增 load_or_build_index() — 将索引生命周期管理纳入端口边界，
 使 recall_service 无需直接依赖 lexical_index 模块的索引加载细节。
+
+v4.9 新增 Bm25Config — 将 BM25 参数封装为可测试、可比较的配置对象，
+支持 golden tuning tests。
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
 from mindforge import lexical_index as lx
 from mindforge.retrieval.retrieval_port import IndexLoadResult, RetrievalPort
+
+
+@dataclass(frozen=True)
+class Bm25Config:
+    """BM25 检索引擎的完整参数配置。
+
+    中文学习型说明：所有参数变更必须有对应的 golden test 记录预期行为。
+    不引入 grid search 或自动调参。tokenizer 保持纯 Python split-based。
+
+    Attributes:
+        field_weights: 各字段权重（title=5.0, source_title=3.0, tags=3.0, ...）
+        k1: BM25 term frequency saturation 参数，默认 1.2
+        b: BM25 document length normalization 参数，默认 0.75
+    """
+
+    field_weights: dict[str, float]
+    k1: float = 1.2
+    b: float = 0.75
+
+    @classmethod
+    def defaults(cls) -> "Bm25Config":
+        """返回 MindForge 默认 BM25 配置。"""
+        return cls(
+            field_weights={
+                "title": 5.0,
+                "source_title": 3.0,
+                "track": 2.0,
+                "tags": 3.0,
+                "projects": 2.0,
+                "source_type": 1.0,
+                "body_summary": 1.0,
+                "body_actions": 1.0,
+                "body_principles": 1.0,
+                "body_risks": 1.0,
+            },
+            k1=1.2,
+            b=0.75,
+        )
 
 
 class Bm25RetrievalEngine(RetrievalPort):
