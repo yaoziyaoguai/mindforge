@@ -85,6 +85,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [`docs/implementation-notes/2026-05-26-098-v4_7-architecture-debt-reduction.md`](implementation-notes/2026-05-26-098-v4_7-architecture-debt-reduction.md) | v4.7 Architecture Debt Reduction — schemas.py 拆分 |
 | [`docs/implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md`](implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md) | v4.6 Documentation Simplification |
 | [`docs/implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md`](implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md) | v4.4 UX Deepening |
 | [`docs/implementation-notes/2026-05-25-091-product-main-path-hardening.md`](implementation-notes/2026-05-25-091-product-main-path-hardening.md) | Product Main Path Hardening |
