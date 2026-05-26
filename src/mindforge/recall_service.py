@@ -415,3 +415,129 @@ def why_matched(fields: tuple[RecallFieldExplain, ...]) -> str:
     top = max(fields, key=lambda field: field.contribution)
     terms = ",".join(top.term_counts.keys())
     return f"top field={top.field}(w={top.weight}, +{top.contribution:.3f}) terms={terms}"
+
+
+# ---------------------------------------------------------------------------
+# v4.9 Direction C — Query Explain（查询解释层）
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class QueryExplain:
+    """查询级别的 explain 数据。
+
+    中文学习型说明：QueryExplain 是 RecallHitResult 之上的聚合层，
+    提供查询级别的诊断信息——不是单个 hit 的 why_matched，而是整个查询
+    的 "为什么命中/为什么没命中"。
+    """
+
+    query_text: str
+    total_hits: int
+    is_zero_hits: bool
+    matched_fields_summary: dict[str, int]
+    """每个字段的命中 hit 数（如 {"title": 3, "body_summary": 5}）。"""
+
+    top_contributing_terms: tuple[str, ...]
+    """所有 hits 中贡献最大的 term（去重，最多 10 个）。"""
+
+    miss_reason: str | None = None
+    """当 is_zero_hits 时，诊断为什么没有命中。"""
+
+    token_count: int = 0
+    """查询被 tokenize 后的 token 数量。"""
+
+    boundary_note: str = ""
+    """BM25 词法边界说明（中文），用于 Web/CLI 展示。"""
+
+
+def explain_zero_hits(query: RecallQuery, index: RecallIndexInfo) -> QueryExplain:
+    """诊断为什么查询返回了 0 hits。
+
+    中文学习型说明：不调用 LLM，纯 deterministic 分析。检查索引状态、
+    卡片数量、status_filter 等可确定的原因。
+    """
+    reasons: list[str] = []
+
+    if index.card_counts.get("total", 0) == 0:
+        reasons.append("知识库中没有任何卡片。请先导入知识源并生成卡片。")
+    elif index.card_counts.get("human_approved", 0) == 0:
+        if not query.include_drafts:
+            reasons.append(
+                "知识库中没有已审批的卡片（human_approved=0），"
+                "且当前查询不包含草稿。请先审批草稿或使用 include_drafts。"
+            )
+        else:
+            reasons.append("知识库中没有任何卡片（含草稿）。")
+    elif query.status == "human_approved" and index.card_counts.get("human_approved", 0) == 0:
+        reasons.append("没有已审批的卡片可供检索。")
+
+    if query.track:
+        reasons.append(f"当前按 track={query.track!r} 过滤，可能过于严格。尝试去掉 track 限制。")
+    if query.tags:
+        reasons.append(f"当前按 tags={list(query.tags)!r} 过滤，可能过于严格。尝试去掉 tag 限制。")
+    if query.source_type:
+        reasons.append(f"当前按 source_type={query.source_type!r} 过滤，可能过于严格。")
+
+    if index.stale:
+        reasons.append("索引已过期。建议运行 `mindforge index rebuild`。")
+    if index.source != "disk":
+        reasons.append("当前使用内存即时索引，建议运行 `mindforge index rebuild` 持久化。")
+
+    token_count = len(query.query.split())
+
+    if not reasons:
+        reasons.append(
+            "查询词与知识库中所有卡片的标题、标签和正文均无匹配。"
+            "尝试更短的关键词、换同义词，或使用 title/track 关键词。"
+        )
+
+    return QueryExplain(
+        query_text=query.query,
+        total_hits=0,
+        is_zero_hits=True,
+        matched_fields_summary={},
+        top_contributing_terms=(),
+        miss_reason="; ".join(reasons),
+        token_count=token_count,
+        boundary_note=(
+            "BM25 词法检索仅匹配精确关键词，不做语义理解。"
+            "如果查询词在卡片中不存在（如缩写 vs 全称），将无法命中。"
+        ),
+    )
+
+
+def explain_hits(result: RecallSearchResult) -> QueryExplain:
+    """为有结果的查询生成查询级别 explain。
+
+    汇总所有 hits 的 field contributions，提取 top contributing terms。
+    """
+    field_counts: dict[str, int] = {}
+    all_terms: dict[str, float] = {}  # term → total contribution
+
+    for hit in result.hits:
+        for fh in hit.field_hits:
+            field_counts[fh.field] = field_counts.get(fh.field, 0) + 1
+            for term, count in fh.term_counts.items():
+                all_terms[term] = all_terms.get(term, 0.0) + fh.contribution
+
+    # 按 contribution 排序取 top-10 terms
+    top_terms = tuple(
+        term for term, _ in sorted(all_terms.items(), key=lambda x: x[1], reverse=True)[:10]
+    )
+
+    return QueryExplain(
+        query_text=result.query.query,
+        total_hits=result.count,
+        is_zero_hits=False,
+        matched_fields_summary=field_counts,
+        top_contributing_terms=top_terms,
+        token_count=len(result.query.query.split()),
+        boundary_note=(
+            f"BM25 词法检索共命中 {result.count} 张卡片。"
+            "排名基于关键词频率和字段权重，不代表语义相关性。"
+            f"检索范围: {result.index.card_counts.get('human_approved', 0)} 张已审批卡片"
+            + (f" + {result.index.card_counts.get('ai_draft', 0)} 张草稿"
+               if result.query.include_drafts else "")
+            + "。"
+        ),
+    )
