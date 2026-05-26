@@ -33,7 +33,7 @@ mindforge/
 │       ├── app.py              # FastAPI 应用入口
 │       ├── routers/            # API 路由（15 个端点模块）
 │       ├── schemas/              # Pydantic 模型（package: __init__.py + 12 domain 子模块）
-│       └── services/           # Web 服务层
+│       └── services/           # Web 服务层（web_facade orchestration + 4 domain services）
 ├── web/                        # React 前端（TypeScript + Tailwind）
 ├── tests/                      # pytest 测试
 ├── prompts/                    # Prompt 模板（运行时资产）
@@ -177,12 +177,12 @@ BM25 词法匹配检索引擎。纯本地、确定性、零外部依赖。不调
 
 | 模块 | 职责 |
 |------|------|
-| `mindforge_web/services/web_facade.py` | 导入导出编排逻辑（import_card、preview_folder_import、import_from_folder、export_cards、_find_duplicates） |
-| `mindforge_web/routers/library.py` | 导入导出 API 端点（import、export、folder-import） |
+| `mindforge_web/services/web_import_export_service.py` | 导入逻辑（import_card、preview_folder_import、import_from_folder、_find_duplicates） |
+| `mindforge_web/routers/library.py` | 导入导出 API 端点（import、export、folder-import）；export_cards 仍在 router 层 |
 | `mindforge/sources/` (13 adapters) | 源文件格式解析（Markdown/DOCX/PDF/HTML/TXT/ChatExport 等） |
 | `mindforge/obsidian_stage.py` | Obsidian staged export 安全路径规划（不写真实 vault） |
 
-> **当前状态**: 导入导出逻辑集中在 `web_facade.py` (2033 行) 和 `routers/library.py` 中，尚未拆分为独立 `ImportService` / `ExportService`。v3.6 已定义 `ExportAdapter` ABC（`extensions/export_adapter.py`），未来将导出逻辑迁移至独立 service 并通过 port 调用。
+> **当前状态 (v4.8)**: import 逻辑已提取到 `web_import_export_service.py`；export 逻辑仍在 `routers/library.py` 中。`web_facade.py` 已从 2163 行减至 1487 行 (-31.3%)，lab/internal 方法已提取至 `web_lab_service.py`，recall 已提取至 `web_recall_service.py`。
 
 ### 知识健康 (`health/`)
 

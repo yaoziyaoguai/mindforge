@@ -2,7 +2,7 @@
 
 基于 v2.0-v3.6 independent delivery audit、v3.6.1 remediation Batch A、v4.2 red team stabilization、v4.2.1 partial remediation closure、Product Main Path Dogfood (2026-05-25)、v4.4 Product Main Path UX Deepening (2026-05-26) 和 v4.7 Architecture Debt Reduction (2026-05-26) 更新。
 
-更新日期: 2026-05-26 (v4.7 architecture debt reduction)
+更新日期: 2026-05-27 (v4.8 architecture quality reset)
 
 ---
 
@@ -10,7 +10,7 @@
 
 | ID | Priority | Description | Source | Status | Target |
 |----|----------|-------------|--------|--------|--------|
-| P2-02 | P2 | web_facade.py God Service (2033 行), 30+ public methods 跨 10+ 领域 | v2.x → v3.x | open | v3.7+ |
+| P2-02 | P2 | web_facade.py God Service — v4.8 前 2163 行/45 methods，提取后 1487 行 (-31.3%)，lab/internal methods → WebLabService，import/export → WebImportExportService，recall → WebRecallService | v2.x → v3.x | resolved (v4.8) | — |
 | P2-03 | P2 | schemas.py God Schema — was 1375 行/62 schema 单文件, v4.8 Slice 1 后 __init__.py 降至 399 行 (-63.4%), ~100 schema 提取至 12 个子模块: common + provider + source + library + recall + graph + sensemaking + trash + quality + import_export + dogfood_lifecycle + review | v2.x → v3.x | resolved (v4.8) | — |
 | P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | v2.x → v3.x | open | v3.7 |
 | P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | v2.x → v3.x | open | v3.7 |
