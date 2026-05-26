@@ -32,7 +32,7 @@ mindforge/
 │   └── mindforge_web/          # Web 后端（FastAPI）
 │       ├── app.py              # FastAPI 应用入口
 │       ├── routers/            # API 路由（15 个端点模块）
-│       ├── schemas/              # Pydantic 模型（package: __init__.py + import_export.py + dogfood_lifecycle.py）
+│       ├── schemas/              # Pydantic 模型（package: __init__.py + common.py + import_export.py + dogfood_lifecycle.py + review.py）
 │       └── services/           # Web 服务层
 ├── web/                        # React 前端（TypeScript + Tailwind）
 ├── tests/                      # pytest 测试
