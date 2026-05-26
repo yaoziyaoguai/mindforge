@@ -90,22 +90,24 @@ class TestModuleIsolation:
     """验证模块间的隔离边界不泄露内部实现细节。"""
 
     def test_schemas_do_not_import_core_services(self) -> None:
-        """schemas.py 只定义数据形状，不得 import 业务 service。"""
+        """schemas package（__init__.py + 子模块）只定义数据形状，不得 import 业务 service。"""
         import ast
         from pathlib import Path
 
-        schemas_path = Path(__file__).resolve().parents[1] / "src" / "mindforge_web" / "schemas.py"
-        tree = ast.parse(schemas_path.read_text(encoding="utf-8"))
+        schemas_dir = Path(__file__).resolve().parents[1] / "src" / "mindforge_web" / "schemas"
 
-        imports: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
-                module = node.module or ""
-                imports.append(module)
+        service_imports: list[str] = []
+        for py_file in sorted(schemas_dir.glob("*.py")):
+            tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    if "mindforge_web.services" in module or "mindforge_web.routers" in module:
+                        service_imports.append(f"{py_file.name}: from {module}")
 
-        # schemas 只允许 import mindforge 核心（类型引用），不得 import mindforge_web services
-        service_imports = [m for m in imports if "mindforge_web.services" in m or "mindforge_web.routers" in m]
-        assert not service_imports, f"schemas.py 不应 import Web service/router：{service_imports}"
+        assert not service_imports, (
+            f"schemas package 不应 import Web service/router：{service_imports}"
+        )
 
     def test_card_workspace_does_not_import_config_directly(self) -> None:
         """card_workspace_service 通过 MindForgeConfig 参数接收配置，不自行加载。"""
