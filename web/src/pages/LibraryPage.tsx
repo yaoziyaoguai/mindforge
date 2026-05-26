@@ -240,9 +240,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   if (data.cards.length === 0) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
-          <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
+        <header className="page-header">
+          <h1>{t("library.title")}</h1>
+          <p>{t("library.subtitle")}</p>
         </header>
         <EmptyState
           title={t("library.empty_title")}
@@ -259,10 +259,10 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">{t("library.title")}</h1>
-          <p className="mt-1 text-sm text-muted">{t("library.subtitle")}</p>
+          <h1>{t("library.title")}</h1>
+          <p>{t("library.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {filterIds ? (
@@ -285,7 +285,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           <FolderImportForm onImported={onRefresh ? () => onRefresh() : () => {}} />
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            style={{ background: "var(--mf-accent)" }}
             disabled={exportSelection.size === 0 || exporting}
             onClick={startExport}
           >
@@ -355,7 +356,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              style={{ background: "var(--mf-accent)" }}
               disabled={exporting}
               onClick={confirmExport}
             >
@@ -424,7 +426,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         {/* Active filter badge + clear */}
         {activeFilterCount > 0 ? (
           <>
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--mf-accent)]" style={{ background: "var(--mf-accent)15" }}>
               {t("library.filter_active").replace("{count}", String(activeFilterCount))}
             </span>
             <button type="button" className="text-xs text-muted hover:text-ink" onClick={clearAllFilters}>
@@ -463,13 +465,31 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           const accent = sourceTypeAccent[card.source_type ?? ""] ?? "border-t-neutral-300";
           return (
             <button
-              className={`w-full rounded-md border bg-panel p-5 text-left transition border-t-4 ${accent} ${isSelected ? "border-primary ring-2 ring-primary/20" : "border-line hover:border-primary"}`}
+              className={`w-full p-5 text-left transition ${
+                isSelected ? "ring-2" : ""
+              }`}
+              style={{
+                background: "var(--mf-surface)",
+                boxShadow: isSelected ? "var(--mf-shadow-card), 0 0 0 2px var(--mf-accent)" : "var(--mf-shadow-card)",
+                borderRadius: "var(--mf-radius-lg)",
+                border: "1px solid var(--mf-border)",
+                borderTop: `4px solid ${card.source_type === "pdf" ? "var(--mf-error)" : card.source_type === "html" ? "var(--mf-warning)" : card.source_type === "docx" ? "#3b82f6" : "var(--mf-text-tertiary)"}`,
+              }}
               key={card.rel_path}
               onClick={() => selectCard(ref)}
               type="button"
             >
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-ink leading-snug line-clamp-2">{card.title ?? t("card.untitled")}</h3>
+                <h3
+                  className="font-medium leading-snug line-clamp-2"
+                  style={{
+                    fontFamily: "var(--mf-font-serif)",
+                    fontSize: "var(--mf-text-h2)",
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {card.title ?? t("card.untitled")}
+                </h3>
                 <input
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 rounded border-line accent-primary"

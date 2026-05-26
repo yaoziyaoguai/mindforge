@@ -15,7 +15,15 @@ interface Props {
 
 export function StatusCard({ label, value, status = "info", detail, nextAction, href, onNavigate, locale }: Props) {
   const content = (
-    <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
+    <section
+      className="p-4"
+      style={{
+        background: "var(--mf-surface)",
+        border: "1px solid var(--mf-border)",
+        borderRadius: "var(--mf-radius-md)",
+        boxShadow: "var(--mf-shadow-raised)",
+      }}
+    >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium text-muted">{label}</h3>
         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${statusTone(status)}`}>
@@ -26,7 +34,7 @@ export function StatusCard({ label, value, status = "info", detail, nextAction, 
       <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
       {detail ? <p className="mt-2 text-sm text-muted">{detail}</p> : null}
       {nextAction ? (
-        <p className="mt-3 text-sm text-primary">
+        <p className="mt-3 text-sm" style={{ color: "var(--mf-accent)" }}>
           {nextActionLabel(nextAction.action_key, locale) ?? nextAction.label}
         </p>
       ) : null}
