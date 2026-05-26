@@ -85,11 +85,11 @@
 
 | 文档 | 说明 |
 |------|------|
+| [`docs/implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md`](implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md) | v4.6 Documentation Simplification |
 | [`docs/implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md`](implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md) | v4.4 UX Deepening |
 | [`docs/implementation-notes/2026-05-25-091-product-main-path-hardening.md`](implementation-notes/2026-05-25-091-product-main-path-hardening.md) | Product Main Path Hardening |
 | [`docs/implementation-notes/2026-05-25-090-product-main-path-dogfood-execution.md`](implementation-notes/2026-05-25-090-product-main-path-dogfood-execution.md) | Product Main Path Dogfood Execution |
 | [`docs/implementation-notes/2026-05-25-088-v4_2_1-partial-remediation-closure.md`](implementation-notes/2026-05-25-088-v4_2_1-partial-remediation-closure.md) | v4.2.1 Partial Remediation |
-| [`docs/implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md`](implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md) | v4.2 Red Team Stabilization |
 
 ---
 
