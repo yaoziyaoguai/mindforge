@@ -87,6 +87,16 @@ const copy: Record<Locale, LocaleDict> = {
     "home.onboarding.safety_note": "MindForge 是本地优先工具。默认不调用真实 LLM、不处理真实私人资料、不写真实 Obsidian vault。API Key 仅存储在本地。",
     "home.onboarding.get_started": "开始使用",
 
+    // ---- Sources Import Paths ----
+    "sources.import_paths_title": "导入方式说明",
+    "sources.import_paths_desc": "MindForge 支持三种方式将资料导入为知识卡片草稿。所有方式生成的卡片均为 ai_draft，需要你显式审阅确认后才会进入知识库。",
+    "sources.import_path_watch_title": "监控导入（本页）",
+    "sources.import_path_watch_desc": "添加文件或文件夹后，MindForge 自动监控新增和变更，定时扫描生成草稿。适合持续积累的知识源。",
+    "sources.import_path_oneshot_title": "一次性导入（CLI）",
+    "sources.import_path_oneshot_desc": "使用命令行 mindforge import /path/to/source 执行一次性处理，不建立持续监控。适合批量导入已有资料。",
+    "sources.import_path_paste_title": "粘贴/文件夹导入（知识库页）",
+    "sources.import_path_paste_desc": "在知识库页面直接粘贴 Markdown 内容或批量导入文件夹中的 .md 文件，即刻创建草稿。适合快速记录和迁移已有笔记。",
+
     // ---- SetupPage ----
     "setup.title": "连接模型和知识源",
     "setup.subtitle": "本地配置编辑器。连接真实 LLM 是可选的 —— MindForge 支持使用 demo 模型进行安全测试。API key 仅存储于本地安全凭据管理，不会发送给 Agent 或提交到仓库。",
@@ -213,6 +223,7 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.empty_title": "没有待确认的 AI 草稿",
     "drafts.empty_label": "添加资料",
     "drafts.empty_desc": "添加知识源并运行处理流程后，AI 生成的草稿会出现在这里等待你审阅确认。你也可以直接查看已确认的知识库。",
+    "drafts.why_review": "为什么需要审阅？AI 生成的卡片是草稿，不是最终知识。审阅确认后，卡片才会进入知识库、可被搜索（BM25 词法匹配）并纳入 Wiki。确认操作始终需要你显式手动执行，不会自动发生。",
 
     // ---- LibraryPage ----
     "library.title": "知识库",
@@ -893,6 +904,16 @@ const copy: Record<Locale, LocaleDict> = {
     "home.onboarding.safety_note": "MindForge is a local-first tool. By default, it does not call real LLMs, process real private data, or write to real Obsidian vaults. API keys are stored locally only.",
     "home.onboarding.get_started": "Get Started",
 
+    // ---- Sources Import Paths ----
+    "sources.import_paths_title": "Import Methods",
+    "sources.import_paths_desc": "MindForge supports three ways to import materials as knowledge card drafts. All methods produce ai_draft cards — explicit review and approval is always required before they enter your library.",
+    "sources.import_path_watch_title": "Watched Import (this page)",
+    "sources.import_path_watch_desc": "Add files or folders and MindForge monitors them for new and changed content, scanning on a schedule. Best for continuously growing knowledge sources.",
+    "sources.import_path_oneshot_title": "One-shot Import (CLI)",
+    "sources.import_path_oneshot_desc": "Use mindforge import /path/to/source for a single processing run without setting up ongoing monitoring. Best for bulk-importing existing materials.",
+    "sources.import_path_paste_title": "Paste / Folder Import (Library page)",
+    "sources.import_path_paste_desc": "Paste Markdown directly or batch-import .md files from a folder on the Library page to create drafts instantly. Best for quick notes and migrating existing notes.",
+
     // ---- SetupPage ----
     "setup.title": "Connect Models & Sources",
     "setup.subtitle": "Local configuration editor. Connecting a real LLM is optional — MindForge supports demo models for safe testing. API keys are stored only in local secure credential storage and are never sent to agents or committed to the repository.",
@@ -1019,6 +1040,7 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.empty_title": "No AI Drafts Pending",
     "drafts.empty_label": "Add Materials",
     "drafts.empty_desc": "After adding knowledge sources and running the processing flow, AI-generated drafts will appear here for your review. You can also browse the approved library directly.",
+    "drafts.why_review": "Why review? AI-generated cards are drafts, not final knowledge. After you review and approve them, they enter the library, become searchable (BM25 lexical matching), and are included in the Wiki. Approval is always explicit and manual — it never happens automatically.",
 
     // ---- LibraryPage ----
     "library.title": "Library",

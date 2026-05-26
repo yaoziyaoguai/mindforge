@@ -64,6 +64,12 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
         <h1 className="text-2xl font-semibold text-ink">{t("drafts.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("drafts.subtitle")}</p>
       </header>
+
+      {/* ── v4.4 A2: Why Review Matters ── */}
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-muted leading-relaxed">
+        {t("drafts.why_review")}
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-[320px_1fr_280px]">
         <DraftList drafts={data.drafts} selected={selected} onSelect={setSelected} />
         <div>

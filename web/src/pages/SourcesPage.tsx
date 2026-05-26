@@ -4,6 +4,7 @@ import { getFrequencyOptions } from "../components/SourceAddPanel";
 import { useLocale } from "../lib/i18n";
 import { sourceDueStatusLabel, sourceRunStatusLabel, sourceStatusLabel } from "../lib/utils";
 import { useState } from "react";
+import { ArrowDown, FolderOpen, Terminal, Clipboard } from "lucide-react";
 
 export function SourcesPage({
   data,
@@ -95,6 +96,18 @@ export function SourcesPage({
           {t("sources.add_source_in_setup")}
         </button>
       </header>
+
+      {/* ── v4.4 A2: Import Methods Explanation ── */}
+      <section className="rounded-md border border-line bg-panel p-5">
+        <h2 className="text-sm font-semibold text-ink">{t("sources.import_paths_title")}</h2>
+        <p className="mt-1 text-xs text-muted">{t("sources.import_paths_desc")}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <ImportPathCard icon={FolderOpen} title={t("sources.import_path_watch_title")} desc={t("sources.import_path_watch_desc")} />
+          <ImportPathCard icon={Terminal} title={t("sources.import_path_oneshot_title")} desc={t("sources.import_path_oneshot_desc")} />
+          <ImportPathCard icon={Clipboard} title={t("sources.import_path_paste_title")} desc={t("sources.import_path_paste_desc")} />
+        </div>
+      </section>
+
       <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -262,4 +275,21 @@ function sourceLabel(source: SourcesResponse["watched_sources"][number]) {
 
 function sourceDisplayPath(source: SourcesResponse["watched_sources"][number]) {
   return source.source_path_view?.display_path ?? source.path ?? "-";
+}
+
+/* ── v4.4 A2: Import Path Card ── */
+function ImportPathCard({ icon: Icon, title, desc }: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-md border border-line bg-white p-3">
+      <Icon className="h-5 w-5 shrink-0 text-muted mt-0.5" aria-hidden="true" />
+      <div>
+        <h3 className="text-sm font-medium text-ink">{title}</h3>
+        <p className="mt-1 text-xs text-muted leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
 }
