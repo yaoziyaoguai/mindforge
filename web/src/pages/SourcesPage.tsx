@@ -230,11 +230,11 @@ export function SourcesPage({
         </div>
         <p className="mt-3 text-sm text-muted">{t("sources.remove_warning")}</p>
       </section>
-      <section className="rounded-md border border-line bg-panel p-4 shadow-subtle">
-        <h2 className="text-lg font-semibold text-ink">{t("sources.advanced_tech_details")}</h2>
+      <details className="rounded-md border border-line bg-panel p-4 shadow-subtle">
+        <summary className="cursor-pointer text-lg font-semibold text-ink">{t("sources.advanced_tech_details")}</summary>
         <p className="mt-2 text-sm text-muted">{t("sources.advanced_note_default")}</p>
         <code className="mt-3 block text-xs text-ink">mindforge import /path/to/source</code>
-      </section>
+      </details>
     </div>
   );
 }
