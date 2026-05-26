@@ -444,14 +444,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           {/* 步骤 1：连接模型 */}
           {step === "models" && (<>
           {/* 中文学习型说明：onboarding 解释文案 —— 每个 step 回答用户"为什么需要这一步"。 */}
-          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3" open>
+          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_model")}</summary>
             <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_model_answer")}</p>
           </details>
           <section className="space-y-4 rounded-md border border-line p-4">
             {/* v2.5 U4 Provider Readiness Center —— 增强 provider 就绪状态面板 */}
             {editable && (
-              <details className="rounded-md border border-line bg-stone-50 p-3" open>
+              <details className="rounded-md border border-line bg-stone-50 p-3">
                 <summary className="cursor-pointer text-sm font-medium text-ink">
                   <span>{t("setup.provider_readiness")}: </span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -792,7 +792,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           {/* 步骤 2：选择知识源 */}
           {step === "sources" && (<>
           {/* 中文学习型说明：onboarding 解释 —— 帮助用户理解 source/workflow/processing 关系。 */}
-          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3" open>
+          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_sources")}</summary>
             <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_sources_answer")}</p>
           </details>
