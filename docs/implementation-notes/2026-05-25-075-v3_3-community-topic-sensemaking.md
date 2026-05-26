@@ -7,6 +7,8 @@ Topic 合成（交叉社区合并为更宽泛知识主题）。
 
 所有计算均为确定性，不调用 LLM，不做 embedding，不做 vector DB。
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: Community/Topic/Sensemaking features are lab/internal. They are not part of the product main path, not exposed in main navigation, and have no API stability承诺. See docs/README.md and docs/dev/docs-reset-index.md.
+
 ## 已完成
 
 ### U1: Community Detection Enhancement (`community.py` v3.3)

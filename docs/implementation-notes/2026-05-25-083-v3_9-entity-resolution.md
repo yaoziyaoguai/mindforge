@@ -4,6 +4,8 @@
 **状态**: complete
 **基于**: [v3.7-v4.1 Graph View Roadmap](../plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md)
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: Entity Resolution is lab/internal. Only ConceptCandidate deterministic detection exists; automatic entity promotion/linking is not supported. Not part of the product main path. See docs/README.md and docs/dev/docs-reset-index.md.
+
 ---
 
 ## 实现范围

@@ -5,6 +5,8 @@
 **基于**: [v3.7-v4.1 Graph View Roadmap](../plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md)
 **ADR**: [ADR-007 Graph Backend Decision](../adr/2026-05-25-007-graph-backend-decision.md)
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: GraphRepository/GraphBackendPort are internal-only, used in tests. The 8 NodeType declaration in ADR-007 has been corrected — only 4 (card/source/tag/wiki_section) are formally supported. See docs/README.md and docs/dev/docs-reset-index.md.
+
 ---
 
 ## 实现范围

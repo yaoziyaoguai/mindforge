@@ -5,6 +5,8 @@
 **基于**: [v3.7-v4.1 Graph View Roadmap](../plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md)
 **ADR**: [ADR-006 Graph Ontology v1](../adr/2026-05-25-006-graph-ontology-v1.md)
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: Graph Ontology v1 defined 8 NodeType (card/source/tag/wiki_section/community/topic/entity/concept_candidate), but only 4 (card/source/tag/wiki_section) are formally supported in the product main path. Community/topic/entity/concept_candidate are lab/internal. See docs/README.md and docs/dev/docs-reset-index.md.
+
 ---
 
 ## 实现范围 (U1-U4)
