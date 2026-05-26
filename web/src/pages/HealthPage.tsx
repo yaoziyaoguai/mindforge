@@ -78,8 +78,10 @@ export function HealthPage({ onNavigate }: { onNavigate: (href: string) => void 
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">{t("health.page_title")}</h1>
-      <p className="mt-1 text-sm text-muted">{t("health.page_desc")}</p>
+      <header className="page-header">
+        <h1>{t("health.page_title")}</h1>
+        <p>{t("health.page_desc")}</p>
+      </header>
 
       {/* Stats Grid */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">

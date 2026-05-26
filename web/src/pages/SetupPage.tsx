@@ -326,9 +326,9 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("setup.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("setup.subtitle")}</p>
+      <header className="page-header">
+        <h1>{t("setup.title")}</h1>
+        <p>{t("setup.subtitle")}</p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">

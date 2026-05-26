@@ -89,9 +89,9 @@ export function SourcesPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("sources.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("sources.subtitle")}</p>
+      <header className="page-header">
+        <h1>{t("sources.title")}</h1>
+        <p>{t("sources.subtitle")}</p>
         <button className="mt-3 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink" onClick={() => onNavigate("/setup")} type="button">
           {t("sources.add_source_in_setup")}
         </button>

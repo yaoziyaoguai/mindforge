@@ -15,8 +15,8 @@ interface WikiHeaderProps {
 export function WikiHeader({ title }: WikiHeaderProps) {
   const { t } = useLocale();
   return (
-    <header>
-      <h1 className="text-2xl font-semibold text-ink">{title ?? t("wiki.title")}</h1>
+    <header className="page-header">
+      <h1>{title ?? t("wiki.title")}</h1>
       <p className="mt-1 text-sm text-muted">{t("wiki.subtitle")}</p>
     </header>
   );
