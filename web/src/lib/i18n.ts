@@ -343,6 +343,13 @@ const copy: Record<Locale, LocaleDict> = {
     "recall.score_low": "低相关",
     "recall.match_reason": "匹配原因",
     "recall.open_card": "打开知识卡片",
+    "recall.explain_title": "搜索说明",
+    "recall.explain_lexical_boundary": "BM25 词法检索根据关键词精确匹配，不进行语义理解或向量搜索。结果基于词频和字段权重排列。",
+    "recall.explain_matched_fields": "命中字段分布",
+    "recall.explain_top_terms": "主要命中词",
+    "recall.explain_no_hits_reason": "未命中原因",
+    "recall.explain_show": "查看搜索详情",
+    "recall.explain_hide": "收起搜索详情",
 
     // ---- SourcesPage ----
     "sources.title": "知识源",
@@ -1165,6 +1172,13 @@ const copy: Record<Locale, LocaleDict> = {
     "recall.score_low": "Low Match",
     "recall.match_reason": "Match reason",
     "recall.open_card": "Open Knowledge Card",
+    "recall.explain_title": "Search Details",
+    "recall.explain_lexical_boundary": "BM25 lexical search matches exact keywords — no semantic understanding or vector search. Results are ranked by term frequency and field weights.",
+    "recall.explain_matched_fields": "Matched Fields",
+    "recall.explain_top_terms": "Top Matching Terms",
+    "recall.explain_no_hits_reason": "Why No Results",
+    "recall.explain_show": "Show search details",
+    "recall.explain_hide": "Hide search details",
 
     // ---- SourcesPage ----
     "sources.title": "Sources",

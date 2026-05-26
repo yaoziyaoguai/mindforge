@@ -677,6 +677,8 @@ export interface RecallResponse {
     tags: string[];
     source_type?: string | null;
     why_this_matched: string;
+    matched_fields?: string[] | null;
+    matched_terms_list?: string[] | null;
   }>;
   index: RecallStatus;
   warnings: string[];

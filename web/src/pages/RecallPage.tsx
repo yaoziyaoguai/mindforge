@@ -18,12 +18,14 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
   const [data, setData] = useState<RecallResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [showExplain, setShowExplain] = useState(false);
   const { locale, t } = useLocale();
 
   async function runSearch(queryText: string): Promise<void> {
     if (!queryText) return;
     setError(null);
     setSearching(true);
+    setShowExplain(false);
     try {
       setData(await recall(queryText));
     } catch (err) {
@@ -119,6 +121,53 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
               </article>
             );
           })}
+        </div>
+      ) : null}
+      {(data && (data.hits.length > 0 || data.hits.length === 0)) ? (
+        <div className="mt-4 border-t border-line pt-4">
+          <button
+            className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors"
+            onClick={() => setShowExplain(!showExplain)}
+            type="button"
+          >
+            <span className={`inline-block transition-transform ${showExplain ? "rotate-90" : ""}`}>&#9654;</span>
+            {showExplain ? t("recall.explain_hide") : t("recall.explain_show")}
+          </button>
+          {showExplain ? (
+            <div className="mt-3 rounded-md border border-line bg-panel p-4 space-y-3 text-sm">
+              <h3 className="font-medium text-ink">{t("recall.explain_title")}</h3>
+              <p className="text-muted">{t("recall.explain_lexical_boundary")}</p>
+              {data.hits.length > 0 ? (
+                <>
+                  <div>
+                    <span className="font-medium text-ink">{t("recall.explain_matched_fields")}: </span>
+                    <span className="text-muted">{data.hits.slice(0, 3).map((h) => h.matched_fields?.join(", ") ?? "-").join(" | ")}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-ink">{t("recall.explain_top_terms")}: </span>
+                    <span className="text-muted">
+                      {(() => {
+                        const terms = new Set<string>();
+                        for (const h of data.hits.slice(0, 5)) {
+                          for (const t of h.matched_terms_list ?? []) {
+                            if (t && t !== "-") terms.add(t);
+                          }
+                        }
+                        return [...terms].slice(0, 8).join(", ") || "-";
+                      })()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <span className="font-medium text-ink">{t("recall.explain_no_hits_reason")}: </span>
+                  <span className="text-muted">
+                    {data.empty_state?.description ?? t("recall.empty_no_results_desc")}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
