@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindForge Design Shotgun — 5 Variant Comparison</title>
+<style>
+  :root {
+    --bg: #f0ede8;
+    --text: #1c1b18;
+    --border: rgba(0,0,0,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  header {
+    max-width: 1400px;
+    margin: 0 auto 32px;
+    text-align: center;
+  }
+  header h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  header p { color: #5e5c56; font-size: 15px; max-width: 600px; margin: 0 auto; }
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #5e5c56;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1400px) { .comparison-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 900px) { .comparison-grid { grid-template-columns: 1fr; } }
+  .variant-col {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0px 2px 12px rgba(0,0,0,0.04), 0px 1px 4px rgba(0,0,0,0.02);
+  }
+  .variant-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .variant-letter {
+    display: inline-block;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 28px;
+    margin-right: 8px;
+  }
+  .variant-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .variant-header .mood {
+    font-size: 12px;
+    color: #8a8880;
+    line-height: 1.4;
+  }
+  .variant-tokens {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .token-swatch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #5e5c56;
+  }
+  .token-swatch span:first-child {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+  .variant-preview {
+    padding: 12px;
+  }
+  .variant-preview iframe {
+    width: 100%;
+    height: 520px;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 6px;
+  }
+
+  /* Letter colors */
+  .letter-a { background: #8b6358; }
+  .letter-b { background: #c8975c; }
+  .letter-c { background: #4a6b5d; }
+  .letter-d { background: #6b6b6b; }
+  .letter-e { background: #7b6b8a; }
+
+  .nav-links {
+    text-align: center;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+  }
+  .nav-links a {
+    color: #2d7d5f;
+    text-decoration: none;
+    font-size: 14px;
+    margin: 0 8px;
+  }
+  .nav-links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MindForge Web — 5 Design Variants</h1>
+  <p>All variants show the same <strong>Review Queue</strong> page content, styled per direction. &ldquo;Calm Editorial Knowledge Compiler&rdquo; base.</p>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot letter-a"></span> A: Calm Editorial Knowledge Desk</div>
+    <div class="legend-item"><span class="legend-dot letter-b"></span> B: Warm Research Library</div>
+    <div class="legend-item"><span class="legend-dot letter-c"></span> C: Precision Review Console</div>
+    <div class="legend-item"><span class="legend-dot letter-d"></span> D: Minimal Local-First Notebook</div>
+    <div class="legend-item"><span class="legend-dot letter-e"></span> E: Quiet AI Knowledge Lab</div>
+  </div>
+</header>
+
+<div class="comparison-grid">
+
+  <!-- Variant A -->
+  <div class="variant-col">
+    <div class="variant-header">
+      <span class="variant-letter letter-a">A</span>
+      <h2>Calm Editorial Knowledge Desk</h2>
+      <p class="mood">Magazine-layout reading, serif headlines, single-column, generous whitespace. Reading feels like a well-edited literary journal.</p>
+    </div>
+    <div class="variant-tokens">
+      <div class="token-swatch"><span style="background:#faf9f5"></span> bg #faf9f5</div>
+      <div class="token-swatch"><span style="background:#ffffff"></span> surface</div>
+      <div class="token-swatch"><span style="background:#2d7d5f"></span> accent</div>
+      <div class="token-swatch"><span style="background:#b8860b"></span> draft</div>
+      <div class="token-swatch" style="font-family:Georgia,serif">serif titles</div>
+      <div class="token-swatch">3-layer shadow</div>
+    </div>
+    <div class="variant-preview">
+      <iframe src="variant-a-review.html" title="Variant A: Calm Editorial"></iframe>
+    </div>
+  </div>
+
+  <!-- Variant B -->
+  <div class="variant-col">
+    <div class="variant-header">
+      <span class="variant-letter letter-b">B</span>
+      <h2>Warm Research Library</h2>
+      <p class="mood">Card-catalog metaphor, tactile surfaces, 4-layer paper shadows. Feels like browsing a physical card catalog in a sunlit library.</p>
+    </div>
+    <div class="variant-tokens">
+      <div class="token-swatch"><span style="background:#faf9f5"></span> bg #faf9f5</div>
+      <div class="token-swatch"><span style="background:#ffffff"></span> surface</div>
+      <div class="token-swatch"><span style="background:#2d7d5f"></span> accent</div>
+      <div class="token-swatch"><span style="background:#b8860b"></span> draft</div>
+      <div class="token-swatch">4-layer shadow</div>
+      <div class="token-swatch">10px radius</div>
+    </div>
+    <div class="variant-preview">
+      <iframe src="variant-b-review.html" title="Variant B: Warm Library"></iframe>
+    </div>
+  </div>
+
+  <!-- Variant C -->
+  <div class="variant-col">
+    <div class="variant-header">
+      <span class="variant-letter letter-c">C</span>
+      <h2>Precision Review Console</h2>
+      <p class="mood">Approval-first, high-contrast decisions, Swiss precision. The queue says &ldquo;you are here to make judgments.&rdquo;</p>
+    </div>
+    <div class="variant-tokens">
+      <div class="token-swatch"><span style="background:#faf9f5"></span> bg #faf9f5</div>
+      <div class="token-swatch"><span style="background:#ffffff"></span> surface</div>
+      <div class="token-swatch"><span style="background:#2d7d5f"></span> approve</div>
+      <div class="token-swatch"><span style="background:#c04040"></span> reject</div>
+      <div class="token-swatch">sans-dominant</div>
+      <div class="token-swatch">2-layer shadow</div>
+    </div>
+    <div class="variant-preview">
+      <iframe src="variant-c-review.html" title="Variant C: Precision Console"></iframe>
+    </div>
+  </div>
+
+  <!-- Variant D -->
+  <div class="variant-col">
+    <div class="variant-header">
+      <span class="variant-letter letter-d">D</span>
+      <h2>Minimal Local-First Notebook</h2>
+      <p class="mood">Radical subtraction, border-only cards (no shadows), content-first. Local-first identity felt through extreme simplicity.</p>
+    </div>
+    <div class="variant-tokens">
+      <div class="token-swatch"><span style="background:#faf9f5"></span> bg #faf9f5</div>
+      <div class="token-swatch"><span style="background:#ffffff"></span> surface</div>
+      <div class="token-swatch"><span style="background:#2d7d5f"></span> accent</div>
+      <div class="token-swatch">sans-only</div>
+      <div class="token-swatch">flat (0 shadow)</div>
+      <div class="token-swatch">8px radius</div>
+    </div>
+    <div class="variant-preview">
+      <iframe src="variant-d-review.html" title="Variant D: Minimal Notebook"></iframe>
+    </div>
+  </div>
+
+  <!-- Variant E -->
+  <div class="variant-col">
+    <div class="variant-header">
+      <span class="variant-letter letter-e">E</span>
+      <h2>Quiet AI Knowledge Lab</h2>
+      <p class="mood">Process visibility through typography — italic serif for AI drafts, roman for approved. Knowledge transformation as aesthetic.</p>
+    </div>
+    <div class="variant-tokens">
+      <div class="token-swatch"><span style="background:#faf9f5"></span> bg #faf9f5</div>
+      <div class="token-swatch"><span style="background:#ffffff"></span> surface</div>
+      <div class="token-swatch"><span style="background:#2d7d5f"></span> accent</div>
+      <div class="token-swatch"><span style="background:#b8860b"></span> draft</div>
+      <div class="token-swatch">italic AI text</div>
+      <div class="token-swatch">colored border</div>
+    </div>
+    <div class="variant-preview">
+      <iframe src="variant-e-review.html" title="Variant E: AI Knowledge Lab"></iframe>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav-links">
+  <p style="margin-bottom:8px;color:#5e5c56;font-size:13px;">Also available as standalone pages:</p>
+  <a href="variant-a-review.html">A: Review</a> &middot;
+  <a href="variant-b-review.html">B: Review</a> &middot;
+  <a href="variant-c-review.html">C: Review</a> &middot;
+  <a href="variant-d-review.html">D: Review</a> &middot;
+  <a href="variant-e-review.html">E: Review</a>
+</div>
+
+</body>
+</html>

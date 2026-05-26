@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Variant A: Calm Editorial Knowledge Desk — Review Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --surface-alt: #f3f1eb;
+    --text-primary: #1c1b18;
+    --text-secondary: #5e5c56;
+    --text-tertiary: #8a8880;
+    --border: rgba(0,0,0,0.08);
+    --border-hover: rgba(0,0,0,0.12);
+    --accent: #2d7d5f;
+    --accent-hover: #236b4f;
+    --draft: #b8860b;
+    --draft-subtle: rgba(184,134,11,0.08);
+    --approved: #2d7d5f;
+    --approved-subtle: rgba(45,125,95,0.08);
+    --error: #c04040;
+    --warning: #cc7a00;
+    --font-serif: 'Source Serif 4', Georgia, serif;
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --shadow-raised: 0px 2px 12px rgba(0,0,0,0.03), 0px 1px 4px rgba(0,0,0,0.015), 0px 0.4px 1.5px rgba(0,0,0,0.008);
+    --shadow-hover: 0px 4px 20px rgba(0,0,0,0.05), 0px 2px 6px rgba(0,0,0,0.02);
+    --radius-lg: 10px;
+    --radius-md: 8px;
+    --radius-full: 9999px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── App Shell ── */
+  .app {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--surface-alt);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-brand {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 32px;
+    letter-spacing: -0.01em;
+  }
+  .sidebar-nav { list-style: none; flex: 1; }
+  .sidebar-nav li { margin-bottom: 2px; }
+  .sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: background 120ms;
+  }
+  .sidebar-nav a:hover { background: rgba(0,0,0,0.04); color: var(--text-primary); }
+  .sidebar-nav a.active {
+    background: rgba(45,125,95,0.08);
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
+  }
+  .sidebar-nav a .badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    min-width: 18px;
+    text-align: center;
+  }
+  .sidebar-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .sidebar-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+    padding-left: 10px;
+  }
+
+  /* ── Main Content ── */
+  .main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 40px 48px;
+  }
+  .content {
+    width: 100%;
+    max-width: 720px;
+  }
+
+  /* ── Page Header ── */
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 {
+    font-family: var(--font-serif);
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  .page-header p {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  /* ── Queue Stats ── */
+  .queue-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 20px;
+    flex: 1;
+    box-shadow: var(--shadow-raised);
+  }
+  .stat-card .stat-num {
+    font-family: var(--font-serif);
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .stat-card .stat-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+  .stat-card.pending .stat-num { color: var(--draft); }
+
+  /* ── Review Queue ── */
+  .queue-list { display: flex; flex-direction: column; gap: 16px; }
+
+  .review-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    box-shadow: var(--shadow-raised);
+    transition: box-shadow 180ms ease-out;
+  }
+  .review-card:hover { box-shadow: var(--shadow-hover); }
+
+  .review-card .card-source-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .review-card .source-icon {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    background: var(--surface-alt);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+  }
+  .review-card .source-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .review-card .source-status {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--draft-subtle);
+    color: var(--draft);
+  }
+
+  .review-card h2 {
+    font-family: var(--font-serif);
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .review-card .summary {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .review-card .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .review-card .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .review-card .value-score {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .review-card .actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .btn {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: background 150ms, transform 80ms;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-approve {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-approve:hover { background: var(--accent-hover); }
+  .btn-reject {
+    background: transparent;
+    color: var(--error);
+    border: 1px solid rgba(192,64,64,0.25);
+  }
+  .btn-reject:hover { background: rgba(192,64,64,0.06); }
+  .btn-detail {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-detail:hover { background: var(--surface-alt); }
+
+  /* ── Approved (dimmer) ── */
+  .review-card.approved { opacity: 0.55; }
+  .review-card.approved .source-status {
+    background: var(--approved-subtle);
+    color: var(--approved);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-brand">MindForge</div>
+    <ul class="sidebar-nav">
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Sources</a></li>
+      <li><a href="#" class="active">Review<span class="badge">3</span></a></li>
+      <li><a href="#">Library</a></li>
+      <li><a href="#">Recall</a></li>
+      <li><a href="#">Wiki</a></li>
+    </ul>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Lab / Internal</div>
+      <ul class="sidebar-nav">
+        <li><a href="#">Graph</a></li>
+        <li><a href="#">Sensemaking</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <header class="page-header">
+        <h1>Review Queue</h1>
+        <p>Review AI-generated knowledge drafts. Each card below needs your explicit approval before it enters your library.</p>
+      </header>
+
+      <div class="queue-stats">
+        <div class="stat-card pending">
+          <div class="stat-num">3</div>
+          <div class="stat-label">Pending review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">12</div>
+          <div class="stat-label">Approved this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">47</div>
+          <div class="stat-label">Total in library</div>
+        </div>
+      </div>
+
+      <div class="queue-list">
+        <!-- Card 1: Pending -->
+        <article class="review-card">
+          <div class="card-source-row">
+            <span class="source-icon">S</span>
+            <span class="source-name">docs/architecture.md</span>
+            <span class="source-status">ai draft</span>
+          </div>
+          <h2>MindForge Uses a Layered Service Architecture with Explicit Approval Gates</h2>
+          <p class="summary">The backend follows a four-layer pattern: API routers handle HTTP concerns, service layer contains business logic, strategy layer encapsulates algorithm choices, and the persistence layer manages data storage. All knowledge cards must pass through an explicit approval gate — AI generates drafts, but only human confirmation promotes them to the library.</p>
+          <div class="meta-row">
+            <span class="meta-item">Value: <span class="value-score">0.87</span></span>
+            <span class="meta-item">6 sources referenced</span>
+            <span class="meta-item">~4 min read</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+            <button class="btn btn-approve">Approve</button>
+            <button class="btn btn-reject">Reject</button>
+          </div>
+        </article>
+
+        <!-- Card 2: Pending -->
+        <article class="review-card">
+          <div class="card-source-row">
+            <span class="source-icon">S</span>
+            <span class="source-name">docs/specs/api-design.md</span>
+            <span class="source-status">ai draft</span>
+          </div>
+          <h2>REST API Follows Consistent Envelope Pattern with Semantic Status Codes</h2>
+          <p class="summary">All endpoints return a uniform JSON envelope with success flag, data payload, error message, and optional metadata for pagination. The approval workflow is reflected in the API through dedicated status transitions — cards move from ai_draft through review to human_approved with full provenance tracking at each step.</p>
+          <div class="meta-row">
+            <span class="meta-item">Value: <span class="value-score">0.79</span></span>
+            <span class="meta-item">4 sources referenced</span>
+            <span class="meta-item">~3 min read</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+            <button class="btn btn-approve">Approve</button>
+            <button class="btn btn-reject">Reject</button>
+          </div>
+        </article>
+
+        <!-- Card 3: Already approved (dimmer) -->
+        <article class="review-card approved">
+          <div class="card-source-row">
+            <span class="source-icon">S</span>
+            <span class="source-name">docs/dev/engineering-workflow.md</span>
+            <span class="source-status">human approved</span>
+          </div>
+          <h2>Engineering Workflow Uses Spec-First Development with Gate Enforcement</h2>
+          <p class="summary">All feature work begins with a specification document reviewed against architectural constraints. Implementation is tracked through implementation notes, and every change must pass defined gates — ruff linting, pytest suite, and frontend build — before merging to main. The workflow ensures no untracked changes enter the knowledge base.</p>
+          <div class="meta-row">
+            <span class="meta-item">Value: <span class="value-score">0.92</span></span>
+            <span class="meta-item">Approved May 25</span>
+            <span class="meta-item">8 sources referenced</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

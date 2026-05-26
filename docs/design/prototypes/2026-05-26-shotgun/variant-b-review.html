@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Variant B: Warm Research Library — Review Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --surface-alt: #f5f2eb;
+    --text-primary: #1c1b18;
+    --text-secondary: #5e5c56;
+    --text-tertiary: #8a8880;
+    --border: rgba(0,0,0,0.08);
+    --border-hover: rgba(0,0,0,0.14);
+    --accent: #2d7d5f;
+    --accent-hover: #236b4f;
+    --draft: #b8860b;
+    --draft-subtle: rgba(184,134,11,0.1);
+    --approved: #2d7d5f;
+    --approved-subtle: rgba(45,125,95,0.1);
+    --error: #c04040;
+    --font-serif: 'Source Serif 4', Georgia, serif;
+    --font-sans: 'DM Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    /* 4-layer tactile shadow — key differentiator for Library variant */
+    --shadow-card: 0px 0.6px 2.2px rgba(0,0,0,0.006),
+                   0px 1.6px 5.4px rgba(0,0,0,0.009),
+                   0px 3.6px 11px rgba(0,0,0,0.012),
+                   0px 8px 22px rgba(0,0,0,0.018);
+    --shadow-card-hover: 0px 1px 3px rgba(0,0,0,0.008),
+                          0px 2.6px 8px rgba(0,0,0,0.012),
+                          0px 5.6px 16px rgba(0,0,0,0.016),
+                          0px 12px 28px rgba(0,0,0,0.024);
+    --radius-card: 10px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
+    --radius-full: 9999px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar: warmer, library-shelf metaphor ── */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: #f7f4ed;
+    border-right: 1px solid rgba(0,0,0,0.06);
+    padding: 20px 16px;
+  }
+  .sidebar-brand {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 28px;
+  }
+  .sidebar-section-title {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+    padding-left: 10px;
+  }
+  .sidebar-nav { list-style: none; margin-bottom: 20px; }
+  .sidebar-nav li { margin-bottom: 1px; }
+  .sidebar-nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); text-decoration: none;
+  }
+  .sidebar-nav a:hover { background: rgba(45,125,95,0.06); }
+  .sidebar-nav a.active {
+    background: rgba(45,125,95,0.1);
+    color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .sidebar-nav a .pill {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: var(--radius-full);
+  }
+  .sidebar-divider {
+    border: none;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    margin: 12px 0;
+  }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    padding: 40px 44px;
+    display: flex;
+    justify-content: center;
+  }
+  .content { width: 100%; max-width: 760px; }
+
+  /* ── Page Header — Library Catalog feel ── */
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 {
+    font-family: var(--font-serif);
+    font-size: 26px; font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .page-header p {
+    font-size: 14px; color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ── Stats as catalog cards ── */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 24px; }
+  .stat-card {
+    flex: 1; background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-card);
+    text-align: center;
+  }
+  .stat-card .stat-num {
+    font-family: var(--font-serif);
+    font-size: 28px; font-weight: 500;
+    color: var(--text-primary);
+  }
+  .stat-card .stat-label {
+    font-size: 11px; color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+  .stat-card.pending .stat-num { color: var(--draft); }
+
+  /* ── Review Cards — Tactile catalog entries ── */
+  .queue-list { display: flex; flex-direction: column; gap: 14px; }
+  .review-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 200ms;
+    position: relative;
+  }
+  .review-card:hover { box-shadow: var(--shadow-card-hover); }
+  .review-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: var(--radius-card);
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 40%);
+  }
+
+  .card-source-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px; position: relative;
+  }
+  .source-name {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .status-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 3px 10px; border-radius: var(--radius-full);
+    letter-spacing: 0.03em;
+  }
+  .status-badge.draft {
+    background: var(--draft-subtle);
+    color: var(--draft);
+  }
+  .status-badge.approved {
+    background: var(--approved-subtle);
+    color: var(--approved);
+  }
+
+  .review-card h2 {
+    font-family: var(--font-serif);
+    font-size: 18px; font-weight: 500;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 8px; position: relative;
+  }
+  .review-card .summary {
+    font-size: 14px; line-height: 1.55;
+    color: var(--text-secondary);
+    margin-bottom: 12px; position: relative;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .meta-row {
+    display: flex; gap: 16px; font-size: 11px;
+    color: var(--text-tertiary); margin-bottom: 14px;
+    position: relative;
+  }
+  .value-score {
+    font-family: var(--font-mono);
+    color: var(--accent); font-weight: 500;
+  }
+  .actions {
+    display: flex; gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    position: relative;
+  }
+  .btn {
+    font-family: var(--font-sans); font-size: 13px;
+    font-weight: 500; padding: 8px 18px;
+    border-radius: var(--radius-md); border: none;
+    cursor: pointer; transition: all 150ms;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-detail {
+    background: transparent; color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-detail:hover { background: var(--surface-alt); }
+  .btn-approve {
+    background: var(--accent); color: #fff;
+    box-shadow: 0px 1px 3px rgba(45,125,95,0.2);
+  }
+  .btn-approve:hover {
+    background: var(--accent-hover);
+    box-shadow: 0px 2px 6px rgba(45,125,95,0.25);
+  }
+  .btn-reject {
+    background: transparent; color: var(--error);
+    border: 1px solid rgba(192,64,64,0.2);
+  }
+  .btn-reject:hover { background: rgba(192,64,64,0.05); }
+
+  .review-card.approved { opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-brand">MindForge</div>
+    <div class="sidebar-section-title">Knowledge</div>
+    <ul class="sidebar-nav">
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Sources</a></li>
+      <li><a href="#" class="active">Review<span class="pill">3</span></a></li>
+      <li><a href="#">Library</a></li>
+      <li><a href="#">Recall</a></li>
+      <li><a href="#">Wiki</a></li>
+    </ul>
+    <hr class="sidebar-divider">
+    <div class="sidebar-section-title">Lab</div>
+    <ul class="sidebar-nav">
+      <li><a href="#">Graph</a></li>
+      <li><a href="#">Sensemaking</a></li>
+    </ul>
+  </aside>
+  <main class="main">
+    <div class="content">
+      <header class="page-header">
+        <h1>Review Queue</h1>
+        <p>Review AI-generated knowledge drafts. Each entry needs your explicit approval before entering the library.</p>
+      </header>
+      <div class="stats-row">
+        <div class="stat-card pending"><div class="stat-num">3</div><div class="stat-label">Pending review</div></div>
+        <div class="stat-card"><div class="stat-num">12</div><div class="stat-label">Approved this week</div></div>
+        <div class="stat-card"><div class="stat-num">47</div><div class="stat-label">Total catalog</div></div>
+      </div>
+      <div class="queue-list">
+        <article class="review-card">
+          <div class="card-source-row">
+            <span class="source-name">docs/architecture.md</span>
+            <span class="status-badge draft">ai draft</span>
+          </div>
+          <h2>MindForge Uses a Layered Service Architecture with Explicit Approval Gates</h2>
+          <p class="summary">The backend follows a four-layer pattern: API routers handle HTTP concerns, service layer contains business logic, strategy layer encapsulates algorithm choices, and the persistence layer manages data storage. All knowledge cards must pass through an explicit approval gate — AI generates drafts, but only human confirmation promotes them to the library.</p>
+          <div class="meta-row">
+            <span>Value: <span class="value-score">0.87</span></span>
+            <span>6 sources</span>
+            <span>~4 min</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+            <button class="btn btn-approve">Approve</button>
+            <button class="btn btn-reject">Reject</button>
+          </div>
+        </article>
+        <article class="review-card">
+          <div class="card-source-row">
+            <span class="source-name">docs/specs/api-design.md</span>
+            <span class="status-badge draft">ai draft</span>
+          </div>
+          <h2>REST API Follows Consistent Envelope Pattern with Semantic Status Codes</h2>
+          <p class="summary">All endpoints return a uniform JSON envelope with success flag, data payload, error message, and optional metadata for pagination. The approval workflow is reflected in the API through dedicated status transitions — cards move from ai_draft through review to human_approved with full provenance tracking at each step.</p>
+          <div class="meta-row">
+            <span>Value: <span class="value-score">0.79</span></span>
+            <span>4 sources</span>
+            <span>~3 min</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+            <button class="btn btn-approve">Approve</button>
+            <button class="btn btn-reject">Reject</button>
+          </div>
+        </article>
+        <article class="review-card approved">
+          <div class="card-source-row">
+            <span class="source-name">docs/dev/engineering-workflow.md</span>
+            <span class="status-badge approved">human approved</span>
+          </div>
+          <h2>Engineering Workflow Uses Spec-First Development with Gate Enforcement</h2>
+          <p class="summary">All feature work begins with a specification document reviewed against architectural constraints. Implementation is tracked through implementation notes, and every change must pass defined gates — ruff linting, pytest suite, and frontend build — before merging to main.</p>
+          <div class="meta-row">
+            <span>Value: <span class="value-score">0.92</span></span>
+            <span>Approved May 25</span>
+            <span>8 sources</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-detail">View detail</button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
