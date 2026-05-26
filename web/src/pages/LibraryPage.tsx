@@ -271,11 +271,27 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                         : "bg-white border border-line text-muted hover:text-ink"
                     }`}
                     onClick={() => setExportFormat(f)}
+                    title={
+                      f === "markdown" ? t("library.export_format_md_desc") :
+                      f === "json" ? t("library.export_format_json_desc") :
+                      f === "opml" ? t("library.export_format_opml_desc") :
+                      t("library.export_format_zip_desc")
+                    }
                   >
                     {f === "markdown" ? "Markdown" : f === "zip" ? "ZIP" : f.toUpperCase()}
                   </button>
                 ))}
               </div>
+              <p className="mt-1 text-[11px] text-muted">
+                {exportFormat === "markdown" ? t("library.export_format_md_desc") :
+                 exportFormat === "json" ? t("library.export_format_json_desc") :
+                 exportFormat === "opml" ? t("library.export_format_opml_desc") :
+                 t("library.export_format_zip_desc")}
+              </p>
+              {/* v4.4 A3: Export safety note */}
+              <p className="mt-2 text-[11px] text-muted italic border-t border-line/50 pt-2">
+                {t("library.export_safety_note")}
+              </p>
               <div className="mt-3 max-h-48 overflow-y-auto">
                 <div className="grid gap-1 sm:grid-cols-2">
                   {Array.from(exportSelection).map((ref) => {
