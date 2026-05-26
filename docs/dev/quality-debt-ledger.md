@@ -11,7 +11,7 @@
 | ID | Priority | Description | Source | Status | Target |
 |----|----------|-------------|--------|--------|--------|
 | P2-02 | P2 | web_facade.py God Service (2033 行), 30+ public methods 跨 10+ 领域 | v2.x → v3.x | open | v3.7+ |
-| P2-03 | P2 | schemas.py God Schema — was 1375 行/62 schema 单文件, v4.7 Slice A-D 后 __init__.py 降至 1091 行 (-21%), 38 schema 提取至 4 个子模块: common.py (78 行, 4 types) + import_export.py (120 行, 14 classes) + dogfood_lifecycle.py (89 行, 4 classes) + review.py (85 行, 6 classes) | v2.x → v3.x | in_progress (v4.7) | v3.7+ |
+| P2-03 | P2 | schemas.py God Schema — was 1375 行/62 schema 单文件, v4.8 Slice 1 后 __init__.py 降至 399 行 (-63.4%), ~100 schema 提取至 12 个子模块: common + provider + source + library + recall + graph + sensemaking + trash + quality + import_export + dogfood_lifecycle + review | v2.x → v3.x | resolved (v4.8) | — |
 | P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | v2.x → v3.x | open | v3.7 |
 | P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | v2.x → v3.x | open | v3.7 |
 | P3-01 | P3 | npm build chunk size >500KB | v2.5 | open (非阻塞) | — |
