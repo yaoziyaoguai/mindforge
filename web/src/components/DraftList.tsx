@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DraftSummary } from "../api/types";
 import { getDraftDetail } from "../api/drafts";
-import { cardStatusBadgeClass, friendlyStatus, statusIcon } from "../lib/utils";
+import { cardStatusBadgeClass, friendlyStatus, friendlyTrack, statusIcon } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
 /* status → 3px left border accent (Variant E simplified) */
@@ -98,9 +98,9 @@ export function DraftList({
                 {draft.strategy_label ? <span>{draft.strategy_label}</span> : null}
                 {draft.strategy_note ? <span>{draft.strategy_note}</span> : null}
                 {draft.source_title || draft.source_path_view?.display_path ? (
-                  <span>source:{draft.source_title ?? draft.source_path_view?.display_path}</span>
+                  <span>{draft.source_title ?? draft.source_path_view?.display_path}</span>
                 ) : null}
-                {draft.track ? <span>track:{draft.track}</span> : null}
+                {draft.track ? <span>{friendlyTrack(draft.track, locale)}</span> : null}
                 {draft.projects.map((project) => (
                   <span key={project}>project:{project}</span>
                 ))}

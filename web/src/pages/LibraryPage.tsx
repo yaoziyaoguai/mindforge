@@ -12,7 +12,7 @@ import { ImportCardForm } from "../components/ImportCardForm";
 import { FolderImportForm } from "../components/FolderImportForm";
 import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
-import { friendlyStatus } from "../lib/utils";
+import { friendlyStatus, friendlyTrack } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
 const sourceTypeAccent: Record<string, string> = {
@@ -21,6 +21,7 @@ const sourceTypeAccent: Record<string, string> = {
   html: "border-t-orange-400",
   pdf: "border-t-red-400",
   docx: "border-t-blue-400",
+  cubox_markdown: "border-t-purple-400",
 };
 
 const sourceTypeLabels: Record<string, string> = {
@@ -29,6 +30,7 @@ const sourceTypeLabels: Record<string, string> = {
   html: "HTML",
   pdf: "PDF",
   docx: "Word",
+  cubox_markdown: "Cubox",
 };
 
 function formatDate(dateStr: string | null | undefined, locale: string): string {
@@ -394,7 +396,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)} aria-label={t("library.filter_track")}>
             <option value="all">{t("library.filter_track")}: {t("library.filter_all")}</option>
             {uniqueTracks.map((tr) => (
-              <option key={tr} value={tr ?? ""}>{tr}</option>
+              <option key={tr} value={tr ?? ""}>{friendlyTrack(tr, locale)}</option>
             ))}
           </select>
         ) : null}
@@ -508,7 +510,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 {card.source_type ? (
                   <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card.source_type)}</span>
                 ) : null}
-                {card.track ? <span className="text-muted">{card.track}</span> : null}
+                {card.track ? <span className="text-muted">{friendlyTrack(card.track, locale)}</span> : null}
               </div>
               <p className="mt-2 text-xs text-muted line-clamp-1">{card.source_title ?? card.source_path_view?.display_path}</p>
               {card.updated_at ? (

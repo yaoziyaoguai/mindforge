@@ -9,8 +9,8 @@ import { ProvenanceTrail } from "./ProvenanceTrail";
 import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse, ProvenanceTrailResponse } from "../api/types";
-import { friendlyStatus, statusIcon, truncateMiddle } from "../lib/utils";
-import { useLocale } from "../lib/i18n";
+import { friendlyStatus, friendlyTrack, statusIcon, truncateMiddle } from "../lib/utils";
+import { useLocale, type Locale } from "../lib/i18n";
 
 const sourceTypeLabels: Record<string, string> = {
   plain_markdown: "Markdown",
@@ -18,6 +18,7 @@ const sourceTypeLabels: Record<string, string> = {
   html: "HTML",
   pdf: "PDF",
   docx: "Word",
+  cubox_markdown: "Cubox",
 };
 
 type Detail = DraftDetailResponse | LibraryCardDetailResponse;
@@ -37,6 +38,7 @@ const sourceTypeIcons: Record<string, React.ComponentType<{ className?: string }
   html: FileCode,
   pdf: FileType,
   docx: FileEdit,
+  cubox_markdown: FileText,
 };
 
 export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, onSelectCard }: Props) {
@@ -141,10 +143,10 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
                   {qualityLevelLabel(card.quality_level ?? "", t)} {card.quality_score}
                 </span>
               ) : null}
-              {card.track ? <span>track:{card.track}</span> : null}
+              {card.track ? <span className="rounded bg-muted/20 px-1 py-0.5 text-[11px]">{friendlyTrack(card.track, locale)}</span> : null}
               {card.strategy_label ? <span>{card.strategy_label}</span> : null}
-              {mode === "library" && "approved_at" in card && card.approved_at ? <span>approved:{card.approved_at.slice(0, 10)}</span> : null}
-              {sourceLabel(card) ? <span>source:{sourceLabel(card)}</span> : null}
+              {mode === "library" && "approved_at" in card && card.approved_at ? <span>{card.approved_at.slice(0, 10)}</span> : null}
+              {sourceLabel(card) ? <span>{sourceLabel(card)}</span> : null}
             </div>
           </div>
           <div className="flex gap-2">
@@ -396,7 +398,7 @@ function SummaryPanel({ body, card, open, onToggle, t, locale }: {
   open: boolean;
   onToggle: () => void;
   t: (key: string) => string;
-  locale: string;
+  locale: Locale;
 }) {
   const headings = extractHeadings(body);
 
@@ -424,7 +426,7 @@ function SummaryPanel({ body, card, open, onToggle, t, locale }: {
             <p className="text-sm text-muted">{stripMarkdown(body).slice(0, 150)}{body.length > 150 ? "..." : ""}</p>
           )}
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-            {card.track ? <span className="rounded bg-muted/20 px-1.5 py-0.5">track: {card.track}</span> : null}
+            {card.track ? <span className="rounded bg-muted/20 px-1.5 py-0.5">{friendlyTrack(card.track, locale)}</span> : null}
             {card.strategy_label ? <span className="rounded bg-muted/20 px-1.5 py-0.5">{card.strategy_label}</span> : null}
           </div>
         </div>

@@ -42,6 +42,18 @@ export function truncateMiddle(value: string, max = 72): string {
  *  不改数据字段、不改 API 返回值、不改 approval 语义。
  *  locale 参数可选，默认 zh；传入 locale 时返回对应语言标签。
  *  技术原始状态通过 CardWorkspace 的 "Technical details" 折叠区保留，满足开发排查需要。 */
+/** track 值 → i18n key 映射。已知内部 track 值（如 unrouted）转用户可读标签；
+ *  用户自定义 track 原样展示。*/
+export function friendlyTrack(track?: string | null, locale?: Locale): string {
+  const map: Record<string, string> = {
+    unrouted: "track.unrouted",
+  };
+  if (track && map[track]) {
+    return locale ? t(map[track], locale) : t(map[track], "zh");
+  }
+  return track || "-";
+}
+
 export function friendlyStatus(status?: string | null, locale?: Locale): string {
   const keyMap: Record<string, string> = {
     ai_draft: "status.ai_draft",
