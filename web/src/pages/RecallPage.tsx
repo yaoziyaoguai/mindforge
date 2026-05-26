@@ -42,9 +42,9 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("recall.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("recall.subtitle")}</p>
+      <header className="page-header">
+        <h1>{t("recall.title")}</h1>
+        <p>{t("recall.subtitle")}</p>
       </header>
       <form className="flex gap-2" onSubmit={handleSubmit}>
         <input
@@ -57,7 +57,8 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
           disabled={searching}
         />
         <button
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          style={{ background: "var(--mf-accent)" }}
           disabled={searching || !query.trim()}
           type="submit"
         >
@@ -105,7 +106,16 @@ export function RecallPage({ onNavigate }: { onNavigate: (href: string) => void 
           {data.hits.map((hit) => {
             const sl = scoreLabel(hit.score, t);
             return (
-              <article key={hit.rel_path} className="rounded-md border border-line bg-panel p-4">
+              <article
+            key={hit.rel_path}
+            className="p-4"
+            style={{
+              background: "var(--mf-surface)",
+              border: "1px solid var(--mf-border)",
+              borderRadius: "var(--mf-radius-md)",
+              boxShadow: "var(--mf-shadow-raised)",
+            }}
+          >
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="font-semibold text-ink">{hit.title ?? hit.rel_path}</h2>
                   <span className={`text-sm font-medium ${sl.tone}`}>{sl.label}</span>

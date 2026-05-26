@@ -20,14 +20,16 @@ export function EmptyState({ title, action, locale }: { title: string; action?: 
           {/* action.href 渲染 a 链接；action.onClick 渲染 button；两者互斥，href 优先 */}
           {action.href ? (
             <a
-              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-white no-underline"
+              className="mt-4 inline-block rounded-md px-4 py-2 text-sm font-medium text-white no-underline"
+              style={{ background: "var(--mf-accent)" }}
               href={action.href}
             >
               {displayLabel}
             </a>
           ) : action.onClick ? (
             <button
-              className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
+              className="mt-4 rounded-md px-4 py-2 text-sm font-medium text-white"
+              style={{ background: "var(--mf-accent)" }}
               onClick={action.onClick}
               type="button"
             >

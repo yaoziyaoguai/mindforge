@@ -82,9 +82,9 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("home.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("home.subtitle")}</p>
+      <header className="page-header">
+        <h1>{t("home.title")}</h1>
+        <p>{t("home.subtitle")}</p>
       </header>
 
       {/* ── U1: Knowledge Overview Cards ── */}
@@ -206,7 +206,7 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
                   </span>
                   <span className="text-sm text-ink">{item.message}</span>
                 </div>
-                {item.href && <span className="text-xs text-primary">查看 →</span>}
+                {item.href && <span className="text-xs" style={{ color: "var(--mf-accent)" }}>查看 →</span>}
               </button>
             ))}
           </div>
@@ -286,7 +286,7 @@ function QuickAction({ icon: Icon, label, href, onNavigate }: {
       onClick={() => onNavigate(href)}
       type="button"
     >
-      <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+      <span className="text-[var(--mf-accent)]"><Icon className="h-5 w-5" aria-hidden="true" /></span>
       <span className="text-sm font-medium text-ink">{label}</span>
     </button>
   );
@@ -302,7 +302,13 @@ function FirstRunGuide({ t, onNavigate }: { t: (key: string) => string; onNaviga
   ];
 
   return (
-    <section className="rounded-lg border-2 border-primary/20 bg-gradient-to-b from-blue-50/60 to-white p-6">
+    <section
+      className="rounded-lg border-2 p-6"
+      style={{
+        borderColor: "var(--mf-accent)30",
+        background: `linear-gradient(to bottom, var(--mf-accent)08, var(--mf-surface))`,
+      }}
+    >
       <div className="text-center mb-6">
         <h2 className="text-xl font-semibold text-ink">{t("home.onboarding.title")}</h2>
         <p className="mt-2 text-sm text-muted max-w-lg mx-auto">{t("home.onboarding.subtitle")}</p>
@@ -311,14 +317,15 @@ function FirstRunGuide({ t, onNavigate }: { t: (key: string) => string; onNaviga
       <div className="grid gap-4 sm:grid-cols-2">
         {steps.map((step, idx) => (
           <div key={idx} className="flex gap-3 rounded-md border border-line bg-white p-4">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <span className="text-sm font-semibold text-primary">{idx + 1}</span>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--mf-accent)15" }}>
+              <span className="text-sm font-semibold" style={{ color: "var(--mf-accent)" }}>{idx + 1}</span>
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-ink">{t(step.titleKey)}</h3>
               <p className="mt-1 text-xs text-muted leading-relaxed">{t(step.descKey)}</p>
               <button
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline"
+                style={{ color: "var(--mf-accent)" }}
                 onClick={() => onNavigate(step.href)}
                 type="button"
               >
