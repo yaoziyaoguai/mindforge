@@ -1,8 +1,8 @@
 # Quality Debt Ledger
 
-基于 v2.0-v3.6 independent delivery audit、v3.6.1 remediation Batch A、v4.2 red team stabilization、v4.2.1 partial remediation closure 和 Product Main Path Dogfood (2026-05-25) 更新。
+基于 v2.0-v3.6 independent delivery audit、v3.6.1 remediation Batch A、v4.2 red team stabilization、v4.2.1 partial remediation closure、Product Main Path Dogfood (2026-05-25) 和 v4.4 Product Main Path UX Deepening (2026-05-26) 更新。
 
-更新日期: 2026-05-25 (final overnight hardening update)
+更新日期: 2026-05-26 (v4.4 UX deepening final update)
 
 ---
 
@@ -18,6 +18,15 @@
 | P3-02 | P3 | 1 skipped test (conditional: no runs written) | pre-existing | acknowledged (正常条件跳过) | — |
 | P3-03 | P3 | test_approval/review/process_service_boundaries 三文件间 ~50% AST helper 同构代码（有意不共享 fixture，独立可理解） | v2.x | acknowledged (设计选择) | — |
 | P3-04 | P3 | FakeProvider keyword injection 虽已注入但 BM25 标题权重(5.0)主导 recall — body 字段增量贡献有限 | 2026-05-25 dogfood | acknowledged (BM25 TF 饱和效应，非 bug；recall 10/10 通过样本覆盖) | — |
+
+## Resolved Debt (v4.4 Product Main Path UX Deepening — 2026-05-26)
+
+| ID | Priority | Description | Source | Resolution |
+|----|----------|-------------|--------|------------|
+| P2-ux-01 | P2 | HomePage 缺少 first-run 空 workspace 引导 — 新用户不知道从哪里开始 | v4.2 red team | v4.4 A1: FirstRunGuide 组件 + 4 步骤引导 + 安全边界说明 |
+| P2-ux-02 | P2 | SourcesPage 导入方式说明缺失 — 用户不知道 watch/one-shot/paste 三种路径 | v4.2 red team | v4.4 A2: ImportPathCard 三种导入方式解释 + i18n |
+| P2-ux-03 | P2 | DraftsPage 缺少"为什么需要审阅"解释 — explicit approval 语义不够明确 | v4.2 red team | v4.4 A2: why_review 信息横幅 |
+| P3-ux-01 | P3 | Export 预览缺少安全说明和格式描述 — 用户可能误解导出会写 vault | v4.2 red team | v4.4 A3: export_safety_note + 四种格式描述 |
 
 ## Resolved Debt (Product Main Path Dogfood — 2026-05-25)
 
