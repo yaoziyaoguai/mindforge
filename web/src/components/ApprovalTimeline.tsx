@@ -82,7 +82,7 @@ export function ApprovalTimeline({ created_at, approved_at, updated_at }: Props)
     <div className="mt-4 border border-line rounded-lg bg-panel overflow-hidden">
       {/* Header */}
       <div className="px-5 py-3 border-b border-line bg-stone-50/50 flex items-center gap-2.5">
-        <span className="flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary">
+        <span className="flex items-center justify-center w-7 h-7 rounded-md text-[var(--mf-accent)]" style={{ background: "var(--mf-accent)15" }}>
           <GitCommit className="h-3.5 w-3.5" />
         </span>
         <div>
@@ -112,13 +112,13 @@ export function ApprovalTimeline({ created_at, approved_at, updated_at }: Props)
                   node.pending
                     ? "border-2 border-dashed border-muted text-muted"
                     : node.active
-                    ? "bg-primary/10 text-primary"
+                    ? "text-[var(--mf-accent)]"
                     : "bg-muted/10 text-muted"
-                }`}>
+                }`} style={node.active && !node.pending ? { background: "var(--mf-accent)15" } : undefined}>
                   <node.icon className="h-3.5 w-3.5" aria-hidden="true" />
                 </div>
                 {!isLast ? (
-                  <div className={`w-0.5 flex-1 min-h-[20px] ${node.pending ? "border-l-2 border-dashed border-muted/50" : "bg-primary/20"}`} />
+                  <div className={`w-0.5 flex-1 min-h-[20px] ${node.pending ? "border-l-2 border-dashed border-muted/50" : ""}`} style={!node.pending ? { background: "var(--mf-accent)30" } : undefined} />
                 ) : null}
               </div>
               {/* Content */}

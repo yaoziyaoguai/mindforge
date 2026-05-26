@@ -60,13 +60,20 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink">{t("drafts.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("drafts.subtitle")}</p>
+      <header className="page-header">
+        <h1>{t("drafts.title")}</h1>
+        <p>{t("drafts.subtitle")}</p>
       </header>
 
-      {/* ── v4.4 A2: Why Review Matters ── */}
-      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-muted leading-relaxed">
+      {/* v4.4 A2: Why Review Matters — calm callout per Variant A */}
+      <div
+        className="rounded-md border p-3 text-xs leading-relaxed"
+        style={{
+          borderColor: "var(--mf-border)",
+          background: "var(--mf-surface-alt)",
+          color: "var(--mf-text-secondary)",
+        }}
+      >
         {t("drafts.why_review")}
       </div>
 

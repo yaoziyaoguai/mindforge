@@ -58,36 +58,63 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
     }
   }
 
+  const accentColor = "var(--mf-accent)";
+  const accentHover = "var(--mf-accent-hover)";
+  const surfaceBg = "var(--mf-surface)";
+
   return (
-    <aside className="rounded-md border border-line bg-panel p-5">
+    <aside
+      className="rounded-lg border border-[var(--mf-border)] p-5"
+      style={{
+        background: surfaceBg,
+        boxShadow: "var(--mf-shadow-raised)",
+        borderRadius: "var(--mf-radius-lg)",
+      }}
+    >
       {/* 信息区：标题 → 状态说明 → 价值评分 */}
-      <h2 className="text-lg font-semibold text-ink">{t("approval.title")}</h2>
-      <p className="mt-2 text-sm text-muted">{t("approval.description")}</p>
-      <div className="mt-3 rounded-md border border-line bg-stone-50 px-3 py-2">
-        <span className="text-xs text-muted">{t("approval.value_score")}</span>
-        <div className="text-lg font-semibold text-ink">
+      <h2
+        className="font-medium text-[var(--mf-text-primary)]"
+        style={{ fontFamily: "var(--mf-font-serif)", fontSize: "var(--mf-text-h3)" }}
+      >
+        {t("approval.title")}
+      </h2>
+      <p className="mt-2 text-sm text-[var(--mf-text-secondary)]" style={{ lineHeight: 1.6 }}>
+        {t("approval.description")}
+      </p>
+      <div
+        className="mt-3 rounded-md px-3 py-2"
+        style={{ background: "var(--mf-surface-alt)" }}
+      >
+        <span className="text-xs text-[var(--mf-text-tertiary)]">{t("approval.value_score")}</span>
+        <div className="text-lg font-semibold text-[var(--mf-text-primary)]">
           {detail.draft.value_score != null ? detail.draft.value_score : "-"}
         </div>
       </div>
 
       {/* 状态时间线：ai_draft → human_approved 的完整审批路径 */}
-      <div className="mt-3 border-t border-line pt-3">
-        <h3 className="text-xs font-medium text-muted uppercase tracking-wide">{t("approval.status_timeline")}</h3>
+      <div className="mt-3 border-t border-[var(--mf-border)] pt-3">
+        <h3 className="text-xs font-medium text-[var(--mf-text-tertiary)] uppercase tracking-wide">
+          {t("approval.status_timeline")}
+        </h3>
         <div className="mt-2 space-y-1.5 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted">{t("approval.status_created")}</span>
-            <span className="text-ink">{formatDate(detail.draft.created_at)}</span>
+            <span className="text-[var(--mf-text-secondary)]">{t("approval.status_created")}</span>
+            <span className="text-[var(--mf-text-primary)]">{formatDate(detail.draft.created_at)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-muted">{t("approval.status_current")}</span>
-            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(detail.draft.status)}`}>
-              {detail.draft.status === "human_approved" ? t("approval.status_human_approved") : t("approval.status_ai_draft")}
+            <span className="text-[var(--mf-text-secondary)]">{t("approval.status_current")}</span>
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(detail.draft.status)}`}
+            >
+              {detail.draft.status === "human_approved"
+                ? t("approval.status_human_approved")
+                : t("approval.status_ai_draft")}
             </span>
           </div>
           {isApproved && detail.draft.approved_at ? (
             <div className="flex justify-between">
-              <span className="text-muted">{t("approval.status_approved_at")}</span>
-              <span className="text-ink">{formatDate(detail.draft.approved_at)}</span>
+              <span className="text-[var(--mf-text-secondary)]">{t("approval.status_approved_at")}</span>
+              <span className="text-[var(--mf-text-primary)]">{formatDate(detail.draft.approved_at)}</span>
             </div>
           ) : null}
         </div>
@@ -95,14 +122,15 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
 
       {/* 操作区：审查确认 → 主操作（确认）→ 次操作（拒绝） */}
       {!isApproved ? (
-      <div className="mt-5 border-t border-line pt-4">
-        <label className="flex items-start gap-2 text-sm text-ink">
+      <div className="mt-5 border-t border-[var(--mf-border)] pt-4">
+        <label className="flex items-start gap-2 text-sm text-[var(--mf-text-primary)]">
           <input checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} type="checkbox" />
           {t("approval.reviewed_checkbox")}
         </label>
         {!confirming ? (
           <button
-            className="mt-3 w-full rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-stone-300"
+            className="mt-3 w-full rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: accentColor }}
             disabled={!reviewed || busy}
             onClick={() => setConfirming(true)}
             type="button"
@@ -110,10 +138,19 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
             {t("approval.confirm_button")}
           </button>
         ) : (
-          <div className="mt-3 rounded-md border border-primary/30 bg-blue-50 p-3">
-            <p className="text-sm text-primary">{t("approval.confirm_title")}</p>
+          <div
+            className="mt-3 rounded-md p-3"
+            style={{
+              border: `1px solid ${accentColor}40`,
+              background: `${accentColor}0D`,
+            }}
+          >
+            <p className="text-sm" style={{ color: accentColor }}>
+              {t("approval.confirm_title")}
+            </p>
             <button
-              className="mt-3 w-full rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white"
+              className="mt-3 w-full rounded-md px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: accentColor }}
               disabled={busy}
               onClick={approve}
               type="button"
@@ -121,7 +158,8 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
               {t("approval.confirm_final")}
             </button>
             <button
-              className="mt-2 w-full rounded-md border border-line bg-panel px-4 py-2 text-sm"
+              className="mt-2 w-full rounded-md border border-[var(--mf-border)] px-4 py-2 text-sm"
+              style={{ background: surfaceBg }}
               onClick={() => setConfirming(false)}
               type="button"
             >
@@ -130,7 +168,12 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
           </div>
         )}
         <button
-          className="mt-2 w-full rounded-md border border-danger/30 px-4 py-2 text-sm text-danger hover:bg-red-50"
+          className="mt-2 w-full rounded-md border px-4 py-2 text-sm hover:opacity-80"
+          style={{
+            borderColor: "var(--mf-error)",
+            color: "var(--mf-error)",
+            background: `${"var(--mf-error)"}08`,
+          }}
           disabled={busy}
           onClick={reject}
           type="button"
@@ -139,7 +182,7 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
         </button>
       </div>
       ) : null}
-      {message ? <p className="mt-4 text-sm text-muted">{message}</p> : null}
+      {message ? <p className="mt-4 text-sm text-[var(--mf-text-secondary)]">{message}</p> : null}
     </aside>
   );
 }
