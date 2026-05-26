@@ -14,10 +14,10 @@
 | `docs/README.md` | 1 | 文档入口 | **canonical** (new) | Docs | v4.6 新增，指向所有 canonical docs |
 | `docs/en/` | 5 | 英文用户文档 | **canonical** | User Docs | user-guide, getting-started, model-setup, sources, troubleshooting |
 | `docs/zh-CN/` | 9 | 中文用户文档 | **canonical** | User Docs | user-guide + 8 专题文档 |
-| `docs/dev/` | 11 | 开发者文档 | **canonical** (核心 7 个) + **active** (docs-reset-index, quality-baseline) | Dev | architecture, engineering-workflow, quality-debt-ledger 等 |
+| `docs/dev/` | 13 | 开发者文档 | **canonical** (核心 7 个) + **active** (documentation-inventory, documentation-debt-ledger, docs-reset-index, quality-baseline) | Dev | architecture, engineering-workflow, quality-debt-ledger, documentation-debt-ledger, documentation-inventory 等 |
 | `docs/internal/` | 3 | 内部规则/契约 | **canonical** | Product | product-contracts, development rules, roadmap ledger |
 | `docs/audits/` | 3 | 独立审计报告 | **canonical** (current) + **historical** (v2.0-v3.6 audit) | Quality | current-capability-map 是最新 |
-| `docs/plans/` | 17 | 阶段计划 | **active** (094, 089, 087) + **historical** (其余) | Planning | 仅 094/089/087 是当前活跃计划 |
+| `docs/plans/` | 18 | 阶段计划 | **active** (094, 089, 087, 097) + **historical** (其余) | Planning | 仅 094/089/087/097 是当前活跃计划 |
 | `docs/specs/` | 17 | 功能规格 | **historical** | Engineering | 实现可能已偏离，不代表当前能力 |
 | `docs/implementation-notes/` | 68 | 实现记录 | **active** (最新 5 个) + **historical** (其余) | Engineering | 按日期排序；2026-05-25 之后的更接近当前状态 |
 | `docs/adr/` | 7 | 架构决策记录 | **current** (001-005) + **superseded** (006-007) | Architecture | 006/007 已被 v4.2 truth reset 修正 |
@@ -83,17 +83,17 @@
 - `docs/plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md` — Graph/Sensemaking 全能力路线已降级
 - `docs/implementation-notes/2026-05-25-085-v4_1-graph-backend-decision.md` — 8 NodeType 已追记修正
 
-### 额外 superseded candidates（本轮可标记）
+### 额外 superseded candidates（本轮已全部标记）
 
-这些文档包含 Graph/Sensemaking/Community 的扩展描述，可能被误解为当前能力：
+这些文档包含 Graph/Sensemaking/Community 的扩展描述，可能被误解为当前能力。**v4.6 已全部添加 status note：**
 
-- `docs/implementation-notes/2026-05-25-082-v3_8-graph-view-mvp.md` — 描述 vis-network 图可视化（含 8 种 NodeType UI 渲染），当前仅 4 种正式支持
-- `docs/implementation-notes/2026-05-25-081-v3_7-graph-ontology.md` — Graph Ontology v1 实现笔记（定义 8 种类型，仅实现 4 种）
-- `docs/implementation-notes/2026-05-25-084-v4_0-sensemaking-workspace.md` — Sensemaking 描述为"知识理解工作台"，实际是 lab/internal
-- `docs/implementation-notes/2026-05-25-083-v3_9-entity-resolution.md` — Entity Resolution 描述，实际仅 ConceptCandidate 检测
-- `docs/implementation-notes/2026-05-25-075-v3_3-community-topic-sensemaking.md` — Community/Topic/Sensemaking 描述
-- `docs/implementation-notes/2026-05-24-045-v1_2-u3-knowledge-community.md` — Knowledge Community 早期实现（实际已被收缩）
-- `docs/implementation-notes/2026-05-25-049-v1_4-w2-knowledge-community-browser.md` — Community Browser 描述
+- `docs/implementation-notes/2026-05-25-082-v3_8-graph-view-mvp.md` — 描述 vis-network 图可视化（含 8 种 NodeType UI 渲染），当前仅 4 种正式支持（已有 v4.2 truth reset 注释）
+- `docs/implementation-notes/2026-05-25-081-v3_7-graph-ontology.md` — Graph Ontology v1 实现笔记（定义 8 种类型，仅实现 4 种）✅ v4.6 status note
+- `docs/implementation-notes/2026-05-25-084-v4_0-sensemaking-workspace.md` — Sensemaking 描述为"知识理解工作台"，实际是 lab/internal（已有 v4.2 truth reset 注释）
+- `docs/implementation-notes/2026-05-25-083-v3_9-entity-resolution.md` — Entity Resolution 描述，实际仅 ConceptCandidate 检测 ✅ v4.6 status note
+- `docs/implementation-notes/2026-05-25-075-v3_3-community-topic-sensemaking.md` — Community/Topic/Sensemaking 描述 ✅ v4.6 status note
+- `docs/implementation-notes/2026-05-24-045-v1_2-u3-knowledge-community.md` — Knowledge Community 早期实现（实际已被收缩）✅ v4.6 status note
+- `docs/implementation-notes/2026-05-25-049-v1_4-w2-knowledge-community-browser.md` — Community Browser 描述 ✅ v4.6 status note
 
 ---
 
@@ -123,4 +123,18 @@
 - 不改写历史内容
 - 通过 `docs/README.md` 和本文档建立导航/分类层
 
-未来如果需要进行文件级归档（如 `docs/archive/` 目录），建议单独 spec。
+### 本轮新增文件
+
+- `docs/dev/documentation-debt-ledger.md` — 文档债台账，追踪 superseded 状态和开放文档债
+- `docs/plans/2026-05-26-097-documentation-archive-plan.md` — 文档归档计划（draft），定义未来归档策略
+- `docs/implementation-notes/2026-05-26-107-v4_6-docs-debt-closure.md` — 本轮实现笔记
+
+### 本轮状态标记补充
+
+在 v4.6 Loop 3 基础上，额外为 2 个 Knowledge Community 相关文档添加了 superseded status note：
+- `docs/implementation-notes/2026-05-24-045-v1_2-u3-knowledge-community.md`
+- `docs/implementation-notes/2026-05-25-049-v1_4-w2-knowledge-community-browser.md`
+
+至此，documentation-inventory.md 中列出的全部 7 个额外 superseded candidates 均已标记。
+
+未来如果需要进行文件级归档（如 `docs/archive/` 目录），建议参考 `docs/plans/2026-05-26-097-documentation-archive-plan.md` 并单独 spec。

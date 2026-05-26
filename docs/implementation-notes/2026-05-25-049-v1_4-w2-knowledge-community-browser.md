@@ -1,5 +1,7 @@
 # v1.4 W2: Knowledge Community Browser — Implementation Note
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: Knowledge Community Browser is lab/internal. The `GET /api/knowledge/communities` endpoint and collapsible community panel are not part of the product main path. This feature has been contracted — community detection is preserved as internal capability but not exposed in main navigation. See docs/README.md and docs/dev/docs-reset-index.md.
+
 **Date:** 2025-05-25
 **Status:** Complete
 

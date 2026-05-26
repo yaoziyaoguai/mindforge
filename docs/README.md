@@ -49,6 +49,8 @@
 | [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + 可重现 gate baseline |
 | [`docs/dev/copy-policy.md`](dev/copy-policy.md) | UI copy 规范 |
 | [`docs/dev/docs-reset-index.md`](dev/docs-reset-index.md) | v4.2 文档 truth reset 索引 |
+| [`docs/dev/documentation-inventory.md`](dev/documentation-inventory.md) | 完整文档清单 + 分类 |
+| [`docs/dev/documentation-debt-ledger.md`](dev/documentation-debt-ledger.md) | 文档债台账 + superseded 追踪 |
 | [`docs/dev/design-system.md`](dev/design-system.md) | 设计系统参考 |
 | [`docs/dev/testing.md`](dev/testing.md) | 测试规范 |
 | [`docs/dev/release-process.md`](dev/release-process.md) | 发布流程 |
@@ -71,6 +73,7 @@
 | [`docs/plans/2026-05-25-094-next-deepening-roadmap.md`](plans/2026-05-25-094-next-deepening-roadmap.md) | **当前活跃路线图** — v4.4 UX Deepening / v4.5 Recall Lab / v4.6 Docs Simplification |
 | [`docs/plans/2026-05-25-087-post-stabilization-direction.md`](plans/2026-05-25-087-post-stabilization-direction.md) | v4.2 后产品方向 |
 | [`docs/plans/2026-05-25-089-product-main-path-dogfood-plan.md`](plans/2026-05-25-089-product-main-path-dogfood-plan.md) | Product Main Path Dogfood 计划 |
+| [`docs/plans/2026-05-26-097-documentation-archive-plan.md`](plans/2026-05-26-097-documentation-archive-plan.md) | 文档归档计划（draft，未执行） |
 | [`docs/dogfood-runbook.md`](dogfood-runbook.md) | Dogfood 执行手册 |
 
 ### 审计文档

@@ -1,5 +1,7 @@
 # v1.2 U3 Knowledge Community Concept — Implementation Notes
 
+> **Status note (v4.6 docs simplification, 2026-05-26)**: This document is historical implementation evidence. Current product truth: Knowledge Community features (source/tag/wiki_section community detection, community browser) are lab/internal. They are not part of the product main path, not exposed in main navigation, and have no API stability commitment. The deterministic community detection approach described here (no LLM, no embedding) is preserved for reference value, but the feature itself has been contracted. See docs/README.md and docs/dev/docs-reset-index.md.
+
 ## 决策
 
 ### 社区检测完全确定性
