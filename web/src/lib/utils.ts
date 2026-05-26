@@ -54,6 +54,19 @@ export function friendlyTrack(track?: string | null, locale?: Locale): string {
   return track || "-";
 }
 
+/** 将内部 provider/routing ID 映射为用户可读名称。
+ *  __model_routing__ 等双下划线前缀名称为内部路由配置，非用户可见模型。 */
+export function friendlyProviderName(name?: string | null, locale?: Locale): string {
+  if (!name) return "-";
+  if (name === "__model_routing__") {
+    return locale === "en" ? "Per-stage routing" : "按阶段路由";
+  }
+  if (name.startsWith("__") && name.endsWith("__")) {
+    return locale === "en" ? "Auto routing" : "自动路由";
+  }
+  return name;
+}
+
 export function friendlyStatus(status?: string | null, locale?: Locale): string {
   const keyMap: Record<string, string> = {
     ai_draft: "status.ai_draft",

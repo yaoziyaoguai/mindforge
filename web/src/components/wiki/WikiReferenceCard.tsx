@@ -8,7 +8,8 @@
  */
 
 import { FileText, Tag, Star, CheckCircle } from "lucide-react";
-import { useLocale } from "../../lib/i18n";
+import { useLocale, type Locale } from "../../lib/i18n";
+import { friendlyTrack } from "../../lib/utils";
 import type { WikiReferenceView } from "../../api/wiki";
 
 interface WikiReferenceCardProps {
@@ -27,7 +28,7 @@ const sourceTypeLabels: Record<string, string> = {
 };
 
 export function WikiReferenceCard({ ref }: WikiReferenceCardProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const sourceLabel =
     (ref.source_type ? sourceTypeLabels[ref.source_type] : null) ??
@@ -69,7 +70,7 @@ export function WikiReferenceCard({ ref }: WikiReferenceCardProps) {
           {ref.track && (
             <span className="inline-flex items-center gap-1">
               <Tag size={10} />
-              {ref.track}
+                            {friendlyTrack(ref.track, locale)}
             </span>
           )}
           {ref.value_score != null && (

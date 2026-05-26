@@ -5,7 +5,7 @@ import { getDogfoodReport } from "../api/dogfood";
 import { useLocale } from "../lib/i18n";
 
 export function DogfoodPage({ onNavigate }: { onNavigate: (href: string) => void }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [report, setReport] = useState<DogfoodReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,7 +167,7 @@ export function DogfoodPage({ onNavigate }: { onNavigate: (href: string) => void
 
       {/* ── 生成时间 ── */}
       <p className="text-xs text-muted/60">
-        {t("dogfood.generated_at")}: {report.generated_at}
+        {t("dogfood.generated_at")}: {new Date(report.generated_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
       </p>
     </div>
   );

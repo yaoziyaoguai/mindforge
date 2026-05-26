@@ -38,7 +38,7 @@ export function WikiStatusBar({
   readerMode,
   onToggleReaderMode,
 }: WikiStatusBarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -61,7 +61,7 @@ export function WikiStatusBar({
           <div className="rounded-md border border-line bg-panel px-3 py-2">
             <span className="text-muted">{t("wiki.last_rebuilt")}: </span>
             <span className="text-ink">
-              {lastRebuiltAt?.slice(0, 19) ?? "—"}
+              {lastRebuiltAt ? new Date(lastRebuiltAt).toLocaleString(locale === "zh" ? "zh-CN" : "en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}
             </span>
           </div>
           <div className="rounded-md border border-line bg-panel px-3 py-2">

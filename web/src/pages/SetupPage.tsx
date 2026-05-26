@@ -4,7 +4,7 @@ import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigRespons
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
 import { useLocale } from "../lib/i18n";
-import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription } from "../lib/utils";
+import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription, friendlyProviderName } from "../lib/utils";
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -461,7 +461,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                   </span>
                   {editable.llm.active_provider ? (
                     <span className="ml-2 text-xs text-muted">
-                      {t("setup.active_provider")}: {editable.llm.active_provider}
+                      {t("setup.active_provider")}: {friendlyProviderName(editable.llm.active_provider, locale)}
                     </span>
                   ) : null}
                 </summary>

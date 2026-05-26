@@ -14,6 +14,8 @@ const routeLabels: Record<string, string> = {
   "/health": "nav.health",
   "/trash": "nav.trash",
   "/dogfood": "nav.dogfood",
+  "/graph": "nav.graph",
+  "/sensemaking": "nav.sensemaking",
 };
 
 export function Breadcrumb({ path }: { path: string }) {
