@@ -20,6 +20,7 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Sidebar ----
     "nav.group.processing": "知识处理",
     "nav.group.using": "知识使用",
+    "nav.group.lab": "实验区",
     "nav.setup": "连接模型",
     "nav.sources": "知识源",
     "nav.drafts": "审阅草稿",
@@ -867,6 +868,7 @@ const copy: Record<Locale, LocaleDict> = {
     // ---- Sidebar ----
     "nav.group.processing": "Processing",
     "nav.group.using": "Using Knowledge",
+    "nav.group.lab": "Lab",
     "nav.setup": "Connect Models",
     "nav.sources": "Sources",
     "nav.drafts": "Review Drafts",

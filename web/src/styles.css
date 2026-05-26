@@ -103,6 +103,27 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1rem;
 }
 
+/* ── Page Header 基础样式 (Stage 2) ── */
+
+.page-header {
+  margin-bottom: var(--mf-space-lg);
+}
+
+.page-header h1 {
+  font-family: var(--mf-font-serif);
+  font-size: var(--mf-text-h1);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--mf-text-primary);
+  margin-bottom: var(--mf-space-2xs);
+}
+
+.page-header p {
+  font-size: var(--mf-text-body-s);
+  color: var(--mf-text-tertiary);
+  line-height: 1.45;
+}
+
 /* ── Wiki 阅读排版优化 (Milestone G U4) ── */
 
 .wiki-prose {

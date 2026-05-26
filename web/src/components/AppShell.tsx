@@ -16,7 +16,7 @@ export function AppShell({
   onNavigate: (href: string) => void;
 }) {
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="flex min-h-screen" style={{ background: "var(--mf-bg)" }}>
       <Sidebar path={path} onNavigate={onNavigate} />
       <div className="flex min-w-0 flex-1 flex-col">
         <SafetyBar safety={safety} />

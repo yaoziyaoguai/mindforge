@@ -1,9 +1,28 @@
-import { BarChart3, BookOpen, BookMarked, CheckSquare, Globe, Heart, Home, Inbox, Library, Search, Settings, Trash2 } from "lucide-react";
+import { useState } from "react";
+import {
+  BarChart3,
+  BookMarked,
+  BookOpen,
+  Brain,
+  CheckSquare,
+  ChevronDown,
+  FlaskConical,
+  Globe,
+  Heart,
+  Home,
+  Inbox,
+  Library,
+  Network,
+  Search,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { cx } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
 export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {
   const { locale, setLocale, t } = useLocale();
+  const [labOpen, setLabOpen] = useState(false);
 
   const groups = [
     {
@@ -28,8 +47,16 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
     },
   ];
 
+  const labItems = [
+    { href: "/graph", label: t("nav.graph"), icon: Network },
+    { href: "/sensemaking", label: t("nav.sensemaking"), icon: Brain },
+  ];
+
   return (
-    <nav className="flex w-64 shrink-0 flex-col border-r border-line bg-[#efebe3] px-3 py-4" aria-label="Main navigation">
+    <nav
+      className="flex w-64 shrink-0 flex-col border-r border-line bg-[#efebe3] px-3 py-4"
+      aria-label="Main navigation"
+    >
       <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold text-ink">
         <BookOpen className="h-5 w-5" aria-hidden="true" />
         MindForge
@@ -37,10 +64,13 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
       <div className="flex-1 space-y-2">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">{group.label}</p>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
+              {group.label}
+            </p>
             <div className="space-y-1">
               {group.items.map((item) => {
-                const active = path === item.href || (item.href !== "/" && path.startsWith(item.href));
+                const active =
+                  path === item.href || (item.href !== "/" && path.startsWith(item.href));
                 const Icon = item.icon;
                 return (
                   <button
@@ -48,8 +78,10 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
                     type="button"
                     onClick={() => onNavigate(item.href)}
                     className={cx(
-                      "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm",
-                      active ? "bg-panel text-ink shadow-subtle" : "text-muted hover:bg-white/60 hover:text-ink",
+                      "flex w-full items-center gap-2 rounded-r-md border-l-2 px-3 py-2 text-left text-sm",
+                      active
+                        ? "border-[var(--mf-accent)] bg-[var(--mf-accent)]/8 text-[var(--mf-accent)] font-medium"
+                        : "border-transparent text-muted hover:bg-white/60 hover:text-ink",
                     )}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -60,8 +92,52 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
             </div>
           </div>
         ))}
+
+        {/* Lab Section — collapsed by default per design direction */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setLabOpen(!labOpen)}
+            className="flex w-full items-center gap-1 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted hover:text-ink"
+            aria-expanded={labOpen}
+          >
+            <ChevronDown
+              className={cx(
+                "h-3 w-3 transition-transform",
+                labOpen ? "rotate-0" : "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+            <FlaskConical className="h-3 w-3" aria-hidden="true" />
+            {t("nav.group.lab")}
+          </button>
+          {labOpen && (
+            <div className="mt-1 space-y-1">
+              {labItems.map((item) => {
+                const active = path === item.href || path.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => onNavigate(item.href)}
+                    className={cx(
+                      "flex w-full items-center gap-2 rounded-r-md border-l-2 px-3 py-2 text-left text-sm",
+                      active
+                        ? "border-[var(--mf-lab)] bg-[var(--mf-lab)]/8 text-[var(--mf-lab)] font-medium"
+                        : "border-transparent text-muted hover:bg-white/60 hover:text-ink",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
-      {/* 语言切换 —— sidebar footer，最小改动路径 */}
+
       <div className="mt-auto border-t border-line pt-3">
         <button
           type="button"
