@@ -10,6 +10,10 @@ from mindforge_web.schemas import (
     CardBodyUpdateResponse,
     BatchImportCardRequest,
     BatchImportCardResponse,
+    CollectionCardsRequest,
+    CollectionResponse,
+    CollectionsListResponse,
+    CreateCollectionRequest,
     ExportCardsRequest,
     ExportCardsResponse,
     FolderImportPreviewRequest,
@@ -334,3 +338,51 @@ def delete_view(
     facade: WebFacade = Depends(get_facade),
 ) -> dict:
     return facade.delete_view(view_id)
+
+
+# ── Collections ──────────────────────────────────────────────────────────
+
+
+@router.get("/library/collections", response_model=CollectionsListResponse)
+def list_collections(facade: WebFacade = Depends(get_facade)) -> CollectionsListResponse:
+    return facade.list_collections()
+
+
+@router.post("/library/collections", response_model=CollectionResponse)
+def create_collection(
+    payload: CreateCollectionRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> CollectionResponse:
+    return facade.create_collection(payload)
+
+
+@router.post("/library/collections/{col_id}/cards", response_model=CollectionResponse)
+def add_to_collection(
+    col_id: str,
+    payload: CollectionCardsRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> CollectionResponse:
+    result = facade.add_to_collection(col_id, payload)
+    if result is None:
+        raise user_error(404, "collection_not_found", "未找到该 Collection。", "检查 Collection ID 是否正确。")
+    return result
+
+
+@router.delete("/library/collections/{col_id}/cards", response_model=CollectionResponse)
+def remove_from_collection(
+    col_id: str,
+    payload: CollectionCardsRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> CollectionResponse:
+    result = facade.remove_from_collection(col_id, payload)
+    if result is None:
+        raise user_error(404, "collection_not_found", "未找到该 Collection。", "检查 Collection ID 是否正确。")
+    return result
+
+
+@router.delete("/library/collections/{col_id}")
+def delete_collection(
+    col_id: str,
+    facade: WebFacade = Depends(get_facade),
+) -> dict:
+    return facade.delete_collection(col_id)

@@ -40,7 +40,11 @@ from mindforge_web.presenters import (
 )
 
 from mindforge_web.schemas import (
+    CollectionCardsRequest,
+    CollectionResponse,
+    CollectionsListResponse,
     ConfigStatusResponse,
+    CreateCollectionRequest,
     DiscoveryContextResponse,
     DraftDetailResponse,
     DraftsResponse,
@@ -976,6 +980,85 @@ class WebFacade:
 
         store = ViewStore(self.cfg.vault.root)
         deleted = store.delete_view(view_id)
+        return {"ok": deleted}
+
+    # ── Collections ──────────────────────────────────────────────────
+
+    def list_collections(self) -> CollectionsListResponse:
+        from mindforge.services.collection_store import CollectionStore
+
+        store = CollectionStore(self.cfg.vault.root)
+        cols = store.list_collections()
+        return CollectionsListResponse(
+            collections=[
+                CollectionResponse(
+                    id=c.id,
+                    name=c.name,
+                    description=c.description,
+                    card_refs=list(c.card_refs),
+                    rule_tags=list(c.rule_tags),
+                    created_at=c.created_at,
+                )
+                for c in cols
+            ]
+        )
+
+    def create_collection(self, payload: CreateCollectionRequest) -> CollectionResponse:
+        from mindforge.services.collection_store import Collection, CollectionStore
+
+        store = CollectionStore(self.cfg.vault.root)
+        col = store.create_collection(Collection(
+            id=payload.id,
+            name=payload.name,
+            description=payload.description,
+            rule_tags=tuple(payload.rule_tags),
+        ))
+        return CollectionResponse(
+            id=col.id,
+            name=col.name,
+            description=col.description,
+            card_refs=list(col.card_refs),
+            rule_tags=list(col.rule_tags),
+            created_at=col.created_at,
+        )
+
+    def add_to_collection(self, col_id: str, payload: CollectionCardsRequest) -> CollectionResponse | None:
+        from mindforge.services.collection_store import CollectionStore
+
+        store = CollectionStore(self.cfg.vault.root)
+        col = store.add_cards(col_id, payload.card_refs)
+        if col is None:
+            return None
+        return CollectionResponse(
+            id=col.id,
+            name=col.name,
+            description=col.description,
+            card_refs=list(col.card_refs),
+            rule_tags=list(col.rule_tags),
+            created_at=col.created_at,
+        )
+
+    def remove_from_collection(self, col_id: str, payload: CollectionCardsRequest) -> CollectionResponse | None:
+        from mindforge.services.collection_store import CollectionStore
+
+        store = CollectionStore(self.cfg.vault.root)
+        col = store.remove_cards(col_id, payload.card_refs)
+        if col is None:
+            return None
+        return CollectionResponse(
+            id=col.id,
+            name=col.name,
+            description=col.description,
+            card_refs=list(col.card_refs),
+            rule_tags=list(col.rule_tags),
+            created_at=col.created_at,
+        )
+
+    def delete_collection(self, col_id: str) -> dict:
+        from mindforge.services.collection_store import CollectionStore
+
+        store = CollectionStore(self.cfg.vault.root)
+        deleted = store.delete_collection(col_id)
         return {"ok": deleted}
 
     def create_sample_workspace(self) -> dict:

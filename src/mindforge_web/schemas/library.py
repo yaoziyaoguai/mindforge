@@ -140,3 +140,30 @@ class SaveViewRequest(BaseModel):
     source_type_filter: str = "all"
     quality_filter: str = "all"
     sort_by: str = "newest"
+
+
+# ── Collections ────────────────────────────────────────────────────────
+
+
+class CollectionResponse(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    card_refs: list[str] = Field(default_factory=list)
+    rule_tags: list[str] = Field(default_factory=list)
+    created_at: str = ""
+
+
+class CollectionsListResponse(BaseModel):
+    collections: list[CollectionResponse]
+
+
+class CreateCollectionRequest(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    rule_tags: list[str] = Field(default_factory=list)
+
+
+class CollectionCardsRequest(BaseModel):
+    card_refs: list[str]
