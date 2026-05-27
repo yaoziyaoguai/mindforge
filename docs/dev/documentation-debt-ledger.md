@@ -65,9 +65,9 @@
 
 | ID | Priority | Description | Status | Target |
 |----|----------|-------------|--------|--------|
-| DOC-01 | P3 | 无英文 docs/README.md 翻译 | open | — |
-| DOC-02 | P3 | 部分旧 ADR 缺少 "当前状态" 更新 | open | — |
-| DOC-03 | P3 | `docs/design/` 下较多设计文档未与当前实现对齐 | open | — |
+| DOC-01 | P3 | 无英文 docs/README.md 翻译 | resolved (v3.7): docs/README-en.md 已创建，完整英文翻译 | — |
+| DOC-02 | P3 | 部分旧 ADR 缺少 "当前状态" 更新 | resolved (v3.7): ADR-006 frontmatter status 从 active 更新为 partial (4/8 NodeType implemented) | — |
+| DOC-03 | P3 | `docs/design/` 下较多设计文档未与当前实现对齐 | resolved (v3.7): docs/design/README.md 新增 historical/reference 状态说明，obsidian-binding-design.md 标记为 deferred | — |
 | DOC-04 | P3 | 无文件级归档机制（`docs/archive/` 目录） | deferred | 单独 spec |
 
 ---

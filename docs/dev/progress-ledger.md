@@ -8,9 +8,20 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Documentation Reset Batch 2
+
+- **Commit**: `fb98003` → (pending)
+- **Workstream**: Documentation Reset
+- **Task type**: docs_cleanup
+- **Outcome**: DOC-01: 创建 docs/README-en.md 英文版文档入口。DOC-02: ADR-006 frontmatter status 从 active → partial (4/8 NodeType)。DOC-03: docs/design/README.md 新增 historical/reference 状态说明，obsidian-binding-design.md 标记 deferred。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md`
+- **Gates**: `git diff --check` (0)
+- **Next**: Web frontend test coverage expansion（vitest + happy-dom 基础设施已就绪）
+- **Workstream changed**: no
+
 ### 2026-05-27: v3.7 Quality Platform
 
-- **Commit**: `e159e29` → (pending)
+- **Commit**: `e159e29` → `fb98003`
 - **Workstream**: v3.7 Quality Platform
 - **Task type**: feature_implementation
 - **Outcome**: P2-05 (vitest + happy-dom + @testing-library/react 前端测试基础设施) + P2-06 ([tool.coverage] 配置, pytest --cov 可用, 88% baseline) + web_config_service.py env detection 提取至 web_config_env.py。ErrorState 组件测试示范通过。

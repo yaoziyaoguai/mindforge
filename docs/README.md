@@ -1,6 +1,6 @@
 # MindForge Documentation
 
-这是 MindForge 的文档入口页面，帮助读者快速定位正确的文档。
+这是 MindForge 的文档入口页面，帮助读者快速定位正确的文档。 | [English version](README-en.md)
 
 ---
 

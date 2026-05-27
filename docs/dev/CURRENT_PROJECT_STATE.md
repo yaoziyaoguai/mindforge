@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.7 Quality Platform — P2-05/P2-06 resolved, vitest + coverage configured)
+更新日期: 2026-05-27 (v3.7 Documentation Reset Batch 2 — DOC-01/02/03 closed, docs/README-en.md 创建)
 
 ---
 
@@ -11,15 +11,16 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `(pending)` (v3.7 Quality Platform) |
+| 审计基线 HEAD | `fb98003` (v3.7 Quality Platform) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md` |
-| 最新 architecture reset plan | `docs/plans/2026-05-27-122-targeted-architecture-quality-reset.md` |
 | 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
+| 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
+| 最新 docs reset notes | `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md` |
 
 最近关键 commits:
 ```
@@ -160,8 +161,8 @@ Source / Import
 | AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | resolved (v4.8+Slice 1+2): core→web 层依赖已修复，presenter 模块已提取，web_facade.py 从 2163→922 行 (-57.4%) |
 | AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | open |
 | AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | open |
-| DOC-01 | P3 | docs/README.md 无英文翻译 | open |
-| DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | open |
+| DOC-01 | P3 | 无英文 docs/README.md 翻译 | resolved (v3.7): docs/README-en.md 已创建 |
+| DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | resolved (v3.7): design/README.md + obsidian-binding-design.md 状态标注 |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
 
 质量债台账完整记录: [`docs/dev/quality-debt-ledger.md`](quality-debt-ledger.md)
@@ -172,10 +173,9 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: docs_cleanup -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: docs_cleanup -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Documentation Reset Batch 2 — archive/delete 规则已在 plan 中明确，可执行 -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Web frontend test coverage expansion — 扩展组件/页面测试覆盖（基础设施已就绪） -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: test_expansion -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Web frontend test coverage expansion — 扩展组件/页面测试覆盖，vitest + happy-dom 基础设施已就绪 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 按推荐顺序:

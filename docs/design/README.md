@@ -51,3 +51,13 @@ docs/design/
 - **SDD**：详细设计，面向实现。回答"具体怎么做"。
 - **Roadmap**：迭代规划和时间线。回答"什么时候做"。
 - **ADR**：架构决策记录。回答"为什么选 A 不选 B"。
+
+---
+
+## 当前状态说明 (v4.6+, updated v3.7)
+
+> **Historical/Reference Status**: 本目录下的 RFC（4 个）和 SDD（3 个）均为 2026-05-14 至 2026-05-17 期间的设计阶段产物（Draft 状态），不代表当前实现。实现可能已显著偏离设计文档的描述。这些文件作为设计讨论的历史证据保留，不应被理解为当前 canonical docs。
+>
+> **活跃文档**: 2026-05-26 的设计方向文档（102/104/105）和 target architecture map（100）是较新的设计决策，但其状态以 `CURRENT_PROJECT_STATE.md` 为准。
+>
+> **Obsidian Binding**: `obsidian-binding-design.md` 描述的功能（Obsidian vault 写入）是 MindForge 明确非目标（参见 `CURRENT_PROJECT_STATE.md` §4）。该文档保留作为早期设计讨论的历史证据。

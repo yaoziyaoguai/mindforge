@@ -1,7 +1,7 @@
 ---
 title: "ADR-006: Graph Ontology v1 — Node/Edge/Entity Semantics for v3.7"
 date: 2026-05-25
-status: active
+status: partial — ontology definition valid, but only 4/8 NodeType (card/source/tag/wiki_section) implemented as of v4.2; remaining 4 (community/topic/entity/concept_candidate) are lab/internal
 ---
 
 > **v4.2 truth reset 追记 (2026-05-25)**：本文档定义的 8 种 NodeType（含 COMMUNITY、TOPIC、
