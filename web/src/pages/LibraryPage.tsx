@@ -12,6 +12,8 @@ import { ImportCardForm } from "../components/ImportCardForm";
 import { FolderImportForm } from "../components/FolderImportForm";
 import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
+import { ViewSwitcher } from "../components/ViewSwitcher";
+import type { SavedViewResponse } from "../api/types";
 import { friendlyStatus, friendlyTrack } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
@@ -115,6 +117,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     setTrackFilter("all");
     setSourceTypeFilter("all");
     setQualityFilter("all");
+  }
+
+  function applyView(view: SavedViewResponse) {
+    setStatusFilter(view.status_filter);
+    setTrackFilter(view.track_filter);
+    setSourceTypeFilter(view.source_type_filter);
+    setQualityFilter(view.quality_filter);
+    setSortBy(view.sort_by);
   }
 
   useEffect(() => {
@@ -382,8 +392,17 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>
       ) : null}
 
-      {/* Filter Bar — track / source_type / quality / status with sort */}
+      {/* Filter Bar — view switcher + track / source_type / quality / status with sort */}
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel p-3">
+        <ViewSwitcher
+          statusFilter={statusFilter}
+          trackFilter={trackFilter}
+          sourceTypeFilter={sourceTypeFilter}
+          qualityFilter={qualityFilter}
+          sortBy={sortBy}
+          onApplyView={applyView}
+        />
+        <span className="text-muted">|</span>
         <SlidersHorizontal className="h-4 w-4 text-muted shrink-0" />
         {/* Status filter */}
         <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label={t("library.filter_status")}>

@@ -1013,3 +1013,30 @@ export interface SensemakingResponse {
   community_subgraphs: SensemakingCommunitySubgraph[];
   total_cards_analyzed: number;
 }
+
+// ── v0.8 Saved Views ──────────────────────────────────────────────────
+
+export interface SavedViewResponse {
+  id: string;
+  name: string;
+  status_filter: string;
+  track_filter: string;
+  source_type_filter: string;
+  quality_filter: string;
+  sort_by: string;
+  created_at: string;
+}
+
+export interface SavedViewsListResponse {
+  views: SavedViewResponse[];
+}
+
+export interface SaveViewRequest {
+  id: string;
+  name: string;
+  status_filter?: string;
+  track_filter?: string;
+  source_type_filter?: string;
+  quality_filter?: string;
+  sort_by?: string;
+}

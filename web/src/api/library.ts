@@ -1,5 +1,5 @@
-import { apiGet, apiPatch, apiPost } from "./client";
-import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, WorkflowSummaryResponse } from "./types";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
+import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -41,4 +41,18 @@ export function previewFolderImport(folderPath: string) {
 
 export function importFromFolder(folderPath: string, indices: number[]) {
   return apiPost<FolderImportResponse>("/api/knowledge/import/folder", { folder_path: folderPath, indices });
+}
+
+// ── v0.8 Saved Views ──────────────────────────────────────────────────
+
+export function getViews() {
+  return apiGet<SavedViewsListResponse>("/api/library/views");
+}
+
+export function saveView(payload: SaveViewRequest) {
+  return apiPost<SavedViewResponse>("/api/library/views", payload);
+}
+
+export function deleteView(viewId: string) {
+  return apiDelete<{ ok: boolean }>(`/api/library/views/${encodeURIComponent(viewId)}`);
 }

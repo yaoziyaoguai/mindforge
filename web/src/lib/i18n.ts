@@ -935,6 +935,18 @@ const copy: Record<Locale, LocaleDict> = {
     "dogfood.errors_found": "发现错误",
     "dogfood.errors_none": "无错误",
     "dogfood.generated_at": "生成时间",
+
+    // ---- v0.8 Saved Views ----
+    "views.all_cards": "全部卡片",
+    "views.save_current": "保存当前筛选",
+    "views.save_title": "保存视图",
+    "views.save_desc": "保存当前筛选和排序状态为命名视图，以后可快速切换。",
+    "views.save": "保存",
+    "views.name_placeholder": "视图名称",
+    "views.no_saved": "暂无已保存视图",
+    "views.delete": "删除",
+    "views.delete_confirm_title": "删除视图？",
+    "views.delete_confirm_desc": "此操作不可撤销。删除该视图后需重新保存。",
   },
 
   en: {
@@ -1855,6 +1867,18 @@ const copy: Record<Locale, LocaleDict> = {
     "dogfood.errors_found": "Errors found",
     "dogfood.errors_none": "No errors",
     "dogfood.generated_at": "Generated at",
+
+    // ---- v0.8 Saved Views ----
+    "views.all_cards": "All Cards",
+    "views.save_current": "Save Current View",
+    "views.save_title": "Save View",
+    "views.save_desc": "Save the current filter and sort state as a named view for quick switching later.",
+    "views.save": "Save",
+    "views.name_placeholder": "View name",
+    "views.no_saved": "No saved views",
+    "views.delete": "Delete",
+    "views.delete_confirm_title": "Delete view?",
+    "views.delete_confirm_desc": "This action cannot be undone. You will need to save the view again.",
   },
 };
 
