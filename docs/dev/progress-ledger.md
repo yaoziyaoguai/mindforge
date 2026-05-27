@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Architecture Quality Reset — Plan + Slice 0 Boundary Tests
+
+- **Commit**: `1b39edb` → `8eb3fd4`
+- **Workstream**: Architecture Quality Reset
+- **Task type**: architecture_refactor (plan/spec + boundary tests)
+- **Outcome**: 完成 architecture evidence audit + targeted reset plan（7 个 core→web 反向依赖、3 个 implementation slices）。Slice 0 在 test_architecture_boundaries.py 中新增 6 个架构边界测试（3 个 test class），全部 14 个测试通过。plan 明确 Slice 1 修复 core→web 层反向依赖、Slice 2 提取 presenter、Slice 3+ deferred。
+- **Docs/notes**: `docs/plans/2026-05-27-122-targeted-architecture-quality-reset.md`, `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md`
+- **Gates**: `git diff --check` (0), `ruff check src/ tests/ docs/` (0), `pytest tests/test_architecture_boundaries.py -q --tb=short` (0, 14 passed), `pytest tests/test_web_product_copy.py -q --tb=short` (0, 9 passed), `npm --prefix web run build` (0)
+- **Next**: Slice 1 — 修复 core→web 反向依赖（需 plan 批准后执行）
+- **Workstream changed**: yes (from Autopilot Governance)
+
 ### 2026-05-27: Autopilot Governance — Auto-Continue Policy Hardening
 
 - **Commit**: `3c829da` → `56b3d23`
@@ -167,21 +178,19 @@
 
 ## 2. Active Workstream
 
-**当前 recommended active workstream: Product Main Path Real Dogfood (2026-05-27)**
+**当前 active workstream: Architecture Quality Reset (2026-05-27)**
 
 - Post-Governance audit 已完成，结论为 Conditional Go
-- Batch 1 已完成: 8 个 stale 文件删除 + 残留引用修复（14 个历史文档已标注）
-- Batch 2 (Archive Candidates): 暂停自由推进 — 只有 exact archive/delete rules 明确并获批后才执行
-- 推荐下一轮验证真实主路径，而不是继续删除文档、扩张 Graph/Sensemaking 或做无路径证据的架构大拆分
+- Architecture Quality Reset plan + Slice 0 boundary tests 已完成
+- Slice 1（修复 core→web 反向依赖）为下一优先级，需 plan 批准后执行
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **Product Main Path Real Dogfood** — 使用安全、隔离、可复现数据验证 Source/Import → ai_draft → Review → explicit approval → human_approved → Library → Recall/Wiki → Export
-2. **Web IA/UX Loop 2** — 修复 Dogfood 主导航、Export 文档/文案漂移、内部术语、Setup cognitive load，并补 fresh browser evidence
-3. **Targeted Architecture Quality Reset** — 由 dogfood 证据排序，重点收敛 `web_facade.py`、schema `__init__.py`、facade helper 反向依赖
-4. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
+1. **Slice 1: Fix Core → Web Reverse Dependency** — 将 `processing_run_service.py` 处理逻辑迁移至 `src/mindforge/processing/`，消除 7 个 core→web 反向 import（含 2 个 private symbol import）。由 Slice 0 boundary tests 保护。
+2. **Slice 2: Extract web_facade.py Private Helpers to Presenters** — `_library_card_response`、`_graph_response` 等 ~500 行纯数据变换函数提取到 `presenters/` 模块。
+3. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
 
 ---
 

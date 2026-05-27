@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (Autopilot Governance — auto-continue policy hardened)
+更新日期: 2026-05-27 (Architecture Quality Reset — plan + Slice 0 boundary tests)
 
 ---
 
@@ -11,16 +11,21 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `3c829da` (已包含 Web IA/UX Loop 2 + autopilot governance) |
+| 审计基线 HEAD | `8eb3fd4` (已包含 Architecture Quality Reset plan + Slice 0 boundary tests) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md` |
+| 最新 architecture reset plan | `docs/plans/2026-05-27-122-targeted-architecture-quality-reset.md` |
+| 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
 
 最近关键 commits:
 ```
+8eb3fd4 test: add Slice 0 architecture boundary tests for targeted quality reset
+1b39edb chore: finalize HANDOFF.md with accurate repo snapshot
+56b3d23 chore: harden mf-autopilot auto-continue policy
 3c829da chore: update implementation notes with final commit hash
 6145b72 fix: reduce post-dogfood web IA debt
 97d57fb feat: improve FakeProvider keyword extraction — title + raw_text
@@ -151,7 +156,7 @@ Source / Import
 | P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
 | AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | open |
 | AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | open |
-| AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | open |
+| AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | Slice 0 完成（plan + boundary tests），Slice 1 pending（修复 core→web 反向依赖） |
 | AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | open |
 | AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | open |
 | DOC-01 | P3 | docs/README.md 无英文翻译 | open |
@@ -167,11 +172,9 @@ Source / Import
 
 按推荐顺序:
 
-1. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`（审计 P1-03）。**下一步: 编写 plan/spec（auto-continue allowed，无需用户确认）。** 需要先写 spec/plan，再进入实现。
-2. **Web IA/UX Loop 2 (completed 2026-05-27)** — Dogfood nav 移至 lab、LocalGraphPreview i18n 化、DogfoodPage 添加 LAB/INTERNAL 横幅 ✅
-3. **Product Main Path Real Dogfood (completed 2026-05-27)** — FakeProvider keyword extraction 改进完成，English recall 91.7% ✅
-4. **Documentation Reset Batch 2** — 暂停自由推进；只有在 exact archive/delete rules 明确后才能执行
-5. **Recall/Search Quality Lab** — 基于 dogfood 暴露的 recall 特征再进入调参
+1. **Slice 1: Fix Core → Web Reverse Dependency (P1)** — 将 `processing_run_service.py` 处理逻辑迁移至 `src/mindforge/processing/`，消除 7 个 core→web 反向 import。由 Slice 0 boundary tests 保护。需 plan 批准后执行。
+2. **Slice 2: Extract web_facade.py Private Helpers to Presenters (P2)** — ~500 行纯数据变换函数提取到 `presenters/` 模块。低风险。
+3. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
 
 ---
 
