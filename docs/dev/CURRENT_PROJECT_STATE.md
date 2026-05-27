@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (Web IA/UX Loop 2 completed)
+更新日期: 2026-05-27 (Autopilot Governance — auto-continue policy hardened)
 
 ---
 
@@ -11,15 +11,19 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `20a3038` (已包含 post-governance audit) |
+| 审计基线 HEAD | `3c829da` (已包含 Web IA/UX Loop 2 + autopilot governance) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
+| 最新 autopilot governance | `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md` |
 
 最近关键 commits:
 ```
+3c829da chore: update implementation notes with final commit hash
+6145b72 fix: reduce post-dogfood web IA debt
+97d57fb feat: improve FakeProvider keyword extraction — title + raw_text
 7312245 docs: update commit hash in state/ledger after residual refs cleanup
 ac6aa47 docs: clean residual references after docs batch 1
 49c138c docs: update commit hash references post batch 1
@@ -163,7 +167,7 @@ Source / Import
 
 按推荐顺序:
 
-1. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`（审计 P1-03）。需要先写 spec/plan。
+1. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`（审计 P1-03）。**下一步: 编写 plan/spec（auto-continue allowed，无需用户确认）。** 需要先写 spec/plan，再进入实现。
 2. **Web IA/UX Loop 2 (completed 2026-05-27)** — Dogfood nav 移至 lab、LocalGraphPreview i18n 化、DogfoodPage 添加 LAB/INTERNAL 横幅 ✅
 3. **Product Main Path Real Dogfood (completed 2026-05-27)** — FakeProvider keyword extraction 改进完成，English recall 91.7% ✅
 4. **Documentation Reset Batch 2** — 暂停自由推进；只有在 exact archive/delete rules 明确后才能执行

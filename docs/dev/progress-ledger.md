@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Autopilot Governance — Auto-Continue Policy Hardening
+
+- **Commit**: `3c829da` → (pending)
+- **Workstream**: Autopilot Governance
+- **Task type**: autopilot_governance
+- **Outcome**: 修复 /mf-autopilot auto-continue 治理 bug：新增 §5.7 Auto-Continue Decision Table（12 auto-continue + 10 must-ask 条件）、§5.8 Self-routing after final report（6 步自路由流程）、§5.9 Banned soft-stop phrases（8 个禁止表述）。注册 autopilot_governance task type。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0), `pytest tests/test_web_product_copy.py -q --tb=short` (0)
+- **Next**: Architecture Quality Reset plan（现在通过 auto-continue 规则可直接进入 plan 编写）
+- **Workstream changed**: yes (from Web IA/UX Loop 2 to Autopilot Governance)
+
 ### 2026-05-27: Web IA/UX Loop 2 — Post-Dogfood User-Facing Debt Fix
 
 - **Commit**: `97d57fb` → (pending)

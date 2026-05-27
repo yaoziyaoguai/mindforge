@@ -127,6 +127,7 @@ Agent 必须根据用户指令和当前 repo 状态判断 task type：
 | `audit_only` | 用户要求审查 / 审计 / 不改产品代码 |
 | `dogfood` | 用户要求 dogfood run / 验证 |
 | `design_review` | 用户要求设计审查 / 视觉对比 |
+| `autopilot_governance` | 用户要求修复 /mf-autopilot 自身规则或治理机制 |
 
 ### 各 Task Type 的 Loop 入口
 
@@ -168,6 +169,11 @@ repo facts → dogfood plan → isolated workspace → run → report → fix P1
 #### design_review
 ```
 repo facts → browser/MCP screenshots → compare → report → progress ledger → commit/push (if docs changed)
+```
+
+#### autopilot_governance
+```
+repo facts → read governance rules → identify gaps → update rules → docs gates → progress ledger → commit/push
 ```
 
 ### 入口选择规则
@@ -249,7 +255,7 @@ spec / plan
 
 - **Commit**: `<hash>` 或 `<start-hash>` → `<end-hash>`
 - **Workstream**: <active workstream name>
-- **Task type**: <bug_fix | docs_cleanup | ui_ux_polish | architecture_refactor | feature_implementation | audit_only | dogfood | design_review>
+- **Task type**: <bug_fix | docs_cleanup | ui_ux_polish | architecture_refactor | feature_implementation | audit_only | dogfood | design_review | autopilot_governance>
 - **Outcome**: <1-2 句话描述结果>
 - **Docs/notes**: <新建的 docs/implementation-notes 路径>
 - **Gates**: <gate 命令 + exit codes>
@@ -366,6 +372,91 @@ Minor bug fix 至少追加一行：
 3. context < 5%: 放弃当前变更（stash if needed），立即写 HANDOFF.md，commit/push。
 4. 新 session 启动时，`/mf-autopilot` 的 §2 必读文件列表包含 `docs/dev/HANDOFF.md`（如果存在）。
 5. 如果 HANDOFF.md 存在且新 loop 成功启动，新 loop 的 commit 应删除 HANDOFF.md（或标记为 resolved）。
+
+### 5.7 Auto-Continue Decision Table
+
+每个 loop 完成后，必须根据下一步的行动类型决定是自动继续还是停止。
+
+**Auto-continue without asking user（直接继续，不询问）:**
+
+| 下一步行动 | 说明 |
+|-----------|------|
+| audit（审计） | 只读审计，不改产品代码 |
+| plan/spec 编写 | 只写文档，不改产品代码 |
+| implementation notes 编写 | 只写文档，不改产品代码 |
+| docs cleanup（在已批准规则内） | 清理/归档/更新文档 |
+| browser/MCP QA | 只读验证，不改产品代码 |
+| targeted P1/P2 fix | 小范围修复，边界清晰 |
+| tests/gates | 只跑测试和 gate |
+| small safe implementation slice（已由当前 plan 授权） | plan 已覆盖的实现单元 |
+| architecture_refactor plan/spec only | 只写重构方案，不动代码 |
+| architecture boundary tests | 只写测试，不动实现 |
+| low-risk schema/service cleanup（已由 plan 覆盖） | plan 已批准的清理 |
+| 更新 CURRENT_PROJECT_STATE / progress-ledger / HANDOFF | 治理文档维护 |
+
+**Must ask user / HARD_STOP_PRODUCT_DECISION（必须停止询问）:**
+
+| 触发条件 | 说明 |
+|---------|------|
+| real API key needed | 需要真实 API key / secrets |
+| real LLM/Cubox/Upstage required | 需要调用真实外部 AI 服务 |
+| real private user data needed | 需要处理真实私人资料 |
+| real Obsidian vault write needed | 需要写真实 Obsidian vault |
+| large archive/delete batch without exact rules | 大范围删除但无明确规则 |
+| large architecture implementation without plan/review | 无 plan 的大架构实现 |
+| new heavy dependency | 新增大型框架 / 重依赖 |
+| product direction conflict | 产品方向有歧义或冲突 |
+| restoring Graph/Sensemaking/Entity/Community expansion | 重新扩张已收缩的 lab/internal 能力 |
+| irreversible or destructive action | 不可逆或破坏性操作 |
+
+**Low-context override（context 不足时覆盖正常决策）:**
+
+| Context | 行为 |
+|---------|------|
+| < 15% | 不得开启新的大型实现单元。Plan/spec/docs/handoff 在边界小且清晰时可继续 |
+| < 10% | 只完成当前变更、跑 minimal gates、commit/push。不得开启新工作 |
+| < 5% | 立即写 HANDOFF.md、跑最小 gate、commit/push、停止并输出 `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` |
+
+### 5.8 Self-routing after final report
+
+每次 final report 之前必须执行以下自路由流程：
+
+1. **parse own completed loop outcome** — 解析刚完成的 loop 结果
+2. **identify next recommended loop** — 从 `CURRENT_PROJECT_STATE.md` §6 和当前进度识别下一步
+3. **classify next loop task type** — 判断下一 loop 的 task type（`bug_fix` / `docs_cleanup` / `ui_ux_polish` / `architecture_refactor` / `feature_implementation` / `audit_only` / `dogfood` / `design_review` / `autopilot_governance`）
+4. **check hard-stop table** — 对照 §5.7 的 Auto-Continue Decision Table
+5. **check context policy** — 对照 §5.5 和 §5.7 的 low-context override
+6. **decide:**
+   - 如果 auto-continue allowed → **立即进入下一步，不得输出"是否继续"类询问**
+   - 如果 not allowed → 更新 `CURRENT_PROJECT_STATE.md`、更新 `progress-ledger.md`、按需写 `HANDOFF.md`、停止并输出明确的 `HARD_STOP_*` reason
+
+**以下行动不得询问用户，必须直接执行：**
+
+- 写 plan/spec → 这是 plan/spec only，不是大拆实现，直接进入
+- review output and choose next loop → 这是 `/mf-autopilot` 的职责，直接执行
+- 更新 CURRENT_PROJECT_STATE / progress-ledger → 每轮必须做的治理动作，直接执行
+- 跑 gates 和 commit/push → loop 收口动作，直接执行
+
+### 5.9 Banned soft-stop phrases
+
+以下语句**禁止**作为最终停止理由出现在报告或输出中：
+
+- "是否继续？"
+- "等待用户指令"
+- "建议下一步是 X"（如果是 auto-continue 范围，必须直接执行 X，不写这句话然后停止）
+- "可以进入 X"
+- "是否要我继续？"
+- "需要我继续吗？"
+- "要不要我…"
+- "准备好了就告诉我"
+
+如果报告写了"下一步是 X"且 X 在 auto-continue 范围内，**必须立即执行 X**，不得在报告后停下。
+
+只有在伴随明确 `HARD_STOP_*` reason 时，才允许停止。有效停止格式：
+
+```
+HARD_STOP_PRODUCT_DECISION: <具体原因，说明为什么不能从 roadmap/spec/plan 推断>
+```
 
 ---
 
