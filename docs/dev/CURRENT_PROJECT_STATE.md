@@ -228,8 +228,8 @@ failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
-plan_path=docs/plans/2026-05-26-097-recall-search-quality-lab.md
-spec_path=docs/specs/2026-05-26-097-recall-search-quality-lab.md
+plan_path=docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md
+spec_path=docs/specs/2026-05-26-104-recall-search-quality-lab-spec.md
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
