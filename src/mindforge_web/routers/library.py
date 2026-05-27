@@ -8,6 +8,8 @@ from mindforge_web.presenters.web_errors import user_error
 from mindforge_web.schemas import (
     BulkUpdateRequest,
     BulkUpdateResponse,
+    LinkCardsRequest,
+    LinkCardsResponse,
     CardBodyUpdateRequest,
     CardBodyUpdateResponse,
     BatchImportCardRequest,
@@ -403,3 +405,15 @@ def bulk_update_cards(
     if not payload.set_tags and not payload.set_track:
         raise user_error(400, "fields_required", "请指定要修改的字段。", "set_tags 和 set_track 至少指定一个。")
     return facade.bulk_update_cards(payload)
+
+
+@router.post("/library/cards/link", response_model=LinkCardsResponse)
+def link_cards(
+    payload: LinkCardsRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> LinkCardsResponse:
+    if not payload.card1_ref.strip():
+        raise user_error(400, "card1_ref_required", "请指定第一张卡片。", "card1_ref 不能为空。")
+    if not payload.card2_ref.strip():
+        raise user_error(400, "card2_ref_required", "请指定第二张卡片。", "card2_ref 不能为空。")
+    return facade.link_cards(payload)

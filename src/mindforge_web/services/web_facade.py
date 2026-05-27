@@ -42,6 +42,8 @@ from mindforge_web.presenters import (
 from mindforge_web.schemas import (
     BulkUpdateRequest,
     BulkUpdateResponse,
+    LinkCardsRequest,
+    LinkCardsResponse,
     CollectionCardsRequest,
     CollectionResponse,
     CollectionsListResponse,
@@ -1075,6 +1077,14 @@ class WebFacade:
             set_track=payload.set_track,
         )
         return BulkUpdateResponse(updated_count=updated, errors=errors)
+
+    def link_cards(self, payload: LinkCardsRequest) -> LinkCardsResponse:
+        from mindforge.card_workspace_service import link_cards
+
+        ok, message = link_cards(
+            self.cfg, payload.card1_ref, payload.card2_ref, reason=payload.reason,
+        )
+        return LinkCardsResponse(ok=ok, message=message)
 
     def create_sample_workspace(self) -> dict:
         """Create demo knowledge cards for Guided Onboarding first-run experience."""

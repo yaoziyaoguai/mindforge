@@ -181,3 +181,14 @@ class BulkUpdateRequest(BaseModel):
 class BulkUpdateResponse(BaseModel):
     updated_count: int
     errors: list[str] = Field(default_factory=list)
+
+
+class LinkCardsRequest(BaseModel):
+    card1_ref: str
+    card2_ref: str
+    reason: str = "see_also"
+
+
+class LinkCardsResponse(BaseModel):
+    ok: bool
+    message: str

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Link, Save, Trash2, X } from "lucide-react";
 import { revealSourceByRef } from "../api/sources";
-import { getProvenanceTrail } from "../api/library";
+import { getProvenanceTrail, linkCards } from "../api/library";
 import { ApprovalTimeline } from "./ApprovalTimeline";
 import { GraphNavigationPanel } from "./GraphNavigationPanel";
 import { LocalGraphPreview } from "./LocalGraphPreview";
@@ -286,6 +286,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
           relatedCards={detail.related_cards}
           onSelectCard={onSelectCard}
           t={t}
+          currentCardRef={card.id ?? card.rel_path ?? ""}
         />
       ) : null}
 
@@ -444,16 +445,48 @@ const REASON_GROUP_KEYS: Record<string, string> = {
   source_location_neighbor: "library.related_group_source_location_neighbor",
 };
 
-function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
+function RelatedCardsPanel({ relatedCards, onSelectCard, t, currentCardRef }: {
   relatedCards: Array<{ card: LibraryCardResponse; reasons: Array<{ reason: string; label: string; detail: string; strength: number }> }>;
   onSelectCard?: (ref: string) => void;
   t: (key: string) => string;
+  currentCardRef?: string;
 }) {
-  if (relatedCards.length === 0) {
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [linkTarget, setLinkTarget] = useState("");
+  const [linkReason, setLinkReason] = useState("see_also");
+  const [linking, setLinking] = useState(false);
+  const [linkMsg, setLinkMsg] = useState("");
+
+  async function handleLink() {
+    if (!linkTarget.trim() || !currentCardRef) return;
+    setLinking(true);
+    setLinkMsg("");
+    try {
+      const r = await linkCards({ card1_ref: currentCardRef, card2_ref: linkTarget.trim(), reason: linkReason });
+      setLinkMsg(r.ok ? t("card.link_success") : r.message);
+      if (r.ok) {
+        setLinkTarget("");
+        setShowLinkForm(false);
+      }
+    } catch (e) {
+      setLinkMsg(String(e));
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  if (relatedCards.length === 0 && !showLinkForm) {
     return (
       <section className="border-t border-line p-5">
         <h3 className="text-sm font-semibold text-ink">{t("library.related_cards")}</h3>
         <p className="mt-3 text-sm text-muted leading-relaxed">{t("library.related_empty_guide")}</p>
+        <button
+          type="button"
+          className="mt-3 inline-flex items-center gap-1.5 rounded border border-line bg-white px-2 py-1 text-xs text-ink hover:bg-muted/10"
+          onClick={() => setShowLinkForm(true)}
+        >
+          <Link className="h-3 w-3" /> {t("card.link_card")}
+        </button>
       </section>
     );
   }
@@ -521,6 +554,61 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t }: {
           );
         })}
       </div>
+
+      {/* Manual link button + form */}
+      {!showLinkForm ? (
+        <button
+          type="button"
+          className="mt-3 inline-flex items-center gap-1.5 rounded border border-line bg-white px-2 py-1 text-xs text-ink hover:bg-muted/10"
+          onClick={() => setShowLinkForm(true)}
+        >
+          <Link className="h-3 w-3" /> {t("card.link_card")}
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2 rounded-md border border-dashed border-line p-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-1 rounded border border-line px-2 py-1 text-xs text-ink placeholder:text-muted"
+              placeholder={t("card.link_target_placeholder")}
+              value={linkTarget}
+              onChange={(e) => setLinkTarget(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleLink(); if (e.key === "Escape") setShowLinkForm(false); }}
+              autoFocus
+            />
+            <select
+              className="rounded border border-line bg-white px-2 py-1 text-xs text-ink"
+              value={linkReason}
+              onChange={(e) => setLinkReason(e.target.value)}
+            >
+              <option value="see_also">See Also</option>
+              <option value="related">Related</option>
+              <option value="cites">Cites</option>
+              <option value="extends">Extends</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-xs font-medium text-white disabled:opacity-50 inline-flex items-center gap-1"
+              style={{ background: "var(--mf-accent)" }}
+              disabled={!linkTarget.trim() || linking}
+              onClick={handleLink}
+            >
+              <Link className="h-3 w-3" />
+              {linking ? "..." : t("card.link_apply")}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-line px-2 py-1 text-xs text-muted hover:text-ink"
+              onClick={() => { setShowLinkForm(false); setLinkMsg(""); }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          {linkMsg ? <p className={`text-[11px] ${linkMsg === t("card.link_success") ? "text-green-600" : "text-red-500"}`}>{linkMsg}</p> : null}
+        </div>
+      )}
     </section>
   );
 }

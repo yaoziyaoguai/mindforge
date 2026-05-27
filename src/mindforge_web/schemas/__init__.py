@@ -70,6 +70,8 @@ from mindforge_web.schemas.library import (  # noqa: E402, F401
     LibraryCardResponse,
     LibraryCardsResponse,
     LibraryStatsResponse,
+    LinkCardsRequest,
+    LinkCardsResponse,
     LocalGraphEdgeResponse,
     LocalGraphNodeResponse,
     LocalGraphResponse,

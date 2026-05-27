@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
-import type { BulkUpdateRequest, BulkUpdateResponse, CardBodyUpdateResponse, CollectionCardsRequest, CollectionResponse, CollectionsListResponse, CreateCollectionRequest, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
+import type { BulkUpdateRequest, BulkUpdateResponse, CardBodyUpdateResponse, CollectionCardsRequest, CollectionResponse, CollectionsListResponse, CreateCollectionRequest, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, LinkCardsRequest, LinkCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -83,4 +83,8 @@ export function deleteCollection(colId: string) {
 
 export function bulkUpdateCards(payload: BulkUpdateRequest) {
   return apiPost<BulkUpdateResponse>("/api/library/bulk-update", payload);
+}
+
+export function linkCards(payload: LinkCardsRequest) {
+  return apiPost<LinkCardsResponse>("/api/library/cards/link", payload);
 }

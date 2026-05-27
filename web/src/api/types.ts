@@ -1079,3 +1079,14 @@ export interface BulkUpdateResponse {
   updated_count: number;
   errors: string[];
 }
+
+export interface LinkCardsRequest {
+  card1_ref: string;
+  card2_ref: string;
+  reason: string;
+}
+
+export interface LinkCardsResponse {
+  ok: boolean;
+  message: string;
+}

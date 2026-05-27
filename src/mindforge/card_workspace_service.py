@@ -109,7 +109,91 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
-__all__ = ["CardBodyUpdateResult", "CardWorkspaceError", "bulk_update_cards", "update_card_body"]
+def link_cards(
+    cfg: MindForgeConfig,
+    card1_ref: str,
+    card2_ref: str,
+    reason: str = "see_also",
+) -> tuple[bool, str]:
+    """手动关联两张卡片 — 在双方 frontmatter 中写入 manual_links 条目。
+
+    返回 (ok, message)。
+    """
+    from datetime import datetime, timezone
+
+    from .cards import iter_cards
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cards_by_ref: dict[str, Path] = {}
+    for card in scan.cards:
+        if card.id:
+            cards_by_ref[card.id] = card.path
+        cards_by_ref[card.rel_path] = card.path
+        cards_by_ref[str(card.path)] = card.path
+
+    path1 = cards_by_ref.get(card1_ref)
+    path2 = cards_by_ref.get(card2_ref)
+    if path1 is None:
+        return False, f"card not found: {card1_ref}"
+    if path2 is None:
+        return False, f"card not found: {card2_ref}"
+    if path1 == path2:
+        return False, "cannot link a card to itself"
+
+    ts = datetime.now(timezone.utc).isoformat()
+    try:
+        _add_manual_link_to_frontmatter(path1, target_ref=card2_ref, reason=reason, created_at=ts)
+        _add_manual_link_to_frontmatter(path2, target_ref=card1_ref, reason=reason, created_at=ts)
+        return True, "ok"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _add_manual_link_to_frontmatter(
+    card_path: Path,
+    *,
+    target_ref: str,
+    reason: str,
+    created_at: str,
+) -> None:
+    """在卡片 frontmatter 的 manual_links 列表中添加一条关联记录。"""
+    import yaml
+
+    raw = card_path.read_text(encoding="utf-8")
+    if not raw.startswith("---\n"):
+        raise CardWorkspaceError("card 缺少 frontmatter")
+    rest = raw[4:]
+    end = rest.find("\n---\n")
+    if end == -1:
+        raise CardWorkspaceError("card frontmatter 未闭合")
+
+    fm_text = rest[:end]
+    body = rest[end + 5:]
+
+    try:
+        fm = yaml.safe_load(fm_text)
+    except Exception as exc:
+        raise CardWorkspaceError(f"frontmatter YAML 解析失败: {exc}") from exc
+
+    if not isinstance(fm, dict):
+        fm = {}
+
+    existing: list[dict] = fm.get("manual_links", [])
+    if not isinstance(existing, list):
+        existing = []
+    # 去重 — 避免重复写入同一个 link
+    for entry in existing:
+        if isinstance(entry, dict) and entry.get("target") == target_ref:
+            return  # already linked
+    existing.append({"target": target_ref, "reason": reason, "created_at": created_at})
+    fm["manual_links"] = existing
+
+    new_fm = yaml.dump(fm, allow_unicode=True, default_flow_style=False).rstrip("\n")
+    new_body = body if body.endswith("\n") else f"{body}\n"
+    _atomic_write(card_path, f"---\n{new_fm}\n---\n{new_body}")
+
+
+__all__ = ["CardBodyUpdateResult", "CardWorkspaceError", "bulk_update_cards", "link_cards", "update_card_body"]
 
 
 def bulk_update_cards(
