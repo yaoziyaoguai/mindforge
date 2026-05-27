@@ -329,6 +329,11 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # 升级需用户显式确认（human_approved pipeline）。
             # 这是反向边界守护，不修改状态、不执行 approve。
             "entity_resolution.py",
+            # sample_workspace.py (v0.7 Guided Onboarding) 为 demo 卡片设置
+            # human_approved + approval_method: demo_sample。这些是系统 demo 内容，
+            # 标签为 [demo sample]，不经过用户数据的 ai_draft 管道。
+            # 用户数据审批边界不受影响。
+            "sample_workspace.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

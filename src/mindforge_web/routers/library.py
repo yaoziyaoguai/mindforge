@@ -296,3 +296,14 @@ def knowledge_topics(
 ) -> KnowledgeTopicsResponse:
     """获取知识主题列表（v3.3 交叉社区合成的更宽泛主题）。"""
     return facade.knowledge_topics()
+
+
+@router.post("/sample-workspace")
+def create_sample_workspace(
+    facade: WebFacade = Depends(get_facade),
+):
+    """创建示例工作区（Guided Onboarding — 首次运行引导）。
+
+    生成 6 张 MindForge 概念 demo 卡片。已存在则返回已有状态。
+    """
+    return facade.create_sample_workspace()

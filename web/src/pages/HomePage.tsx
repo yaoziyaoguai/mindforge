@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, AlertCircle, Heart, Library, Upload, Search, FolderOpen, ArrowRight, Zap, FolderPlus, Eye, Layout } from "lucide-react";
+import { BookOpen, FileText, AlertCircle, Heart, Library, Upload, Search, FolderOpen, ArrowRight } from "lucide-react";
 import type { HomeStatusResponse, LifecycleResponse, WorkflowSummaryResponse } from "../api/types";
 import type { HealthReportResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
+import { QuickStartWizard } from "../components/QuickStartWizard";
 
 interface WikiStatus {
   section_count?: number;
@@ -225,7 +226,7 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
 
       {/* ── v4.4 A1: First-Run Guided Onboarding ── */}
       {totalCards === 0 && sourceCount === 0 && (
-        <FirstRunGuide t={t} onNavigate={onNavigate} />
+        <QuickStartWizard onNavigate={onNavigate} />
       )}
     </div>
   );
@@ -289,56 +290,5 @@ function QuickAction({ icon: Icon, label, href, onNavigate }: {
       <span className="text-[var(--mf-accent)]"><Icon className="h-5 w-5" aria-hidden="true" /></span>
       <span className="text-sm font-medium text-ink">{label}</span>
     </button>
-  );
-}
-
-/* ── v4.4 A1: First-Run Guided Onboarding ── */
-function FirstRunGuide({ t, onNavigate }: { t: (key: string) => string; onNavigate: (href: string) => void }) {
-  const steps = [
-    { icon: Zap, titleKey: "home.onboarding.step1_title", descKey: "home.onboarding.step1_desc", actionKey: "home.onboarding.step1_action", href: "/setup" },
-    { icon: FolderPlus, titleKey: "home.onboarding.step2_title", descKey: "home.onboarding.step2_desc", actionKey: "home.onboarding.step2_action", href: "/sources" },
-    { icon: Eye, titleKey: "home.onboarding.step3_title", descKey: "home.onboarding.step3_desc", actionKey: "home.onboarding.step3_action", href: "/drafts" },
-    { icon: Layout, titleKey: "home.onboarding.step4_title", descKey: "home.onboarding.step4_desc", actionKey: "home.onboarding.step4_action", href: "/library" },
-  ];
-
-  return (
-    <section
-      className="rounded-lg border-2 p-6"
-      style={{
-        borderColor: "var(--mf-accent)30",
-        background: `linear-gradient(to bottom, var(--mf-accent)08, var(--mf-surface))`,
-      }}
-    >
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-semibold text-ink">{t("home.onboarding.title")}</h2>
-        <p className="mt-2 text-sm text-muted max-w-lg mx-auto">{t("home.onboarding.subtitle")}</p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        {steps.map((step, idx) => (
-          <div key={idx} className="flex gap-3 rounded-md border border-line bg-white p-4">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--mf-accent)15" }}>
-              <span className="text-sm font-semibold" style={{ color: "var(--mf-accent)" }}>{idx + 1}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-ink">{t(step.titleKey)}</h3>
-              <p className="mt-1 text-xs text-muted leading-relaxed">{t(step.descKey)}</p>
-              <button
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium hover:underline"
-                style={{ color: "var(--mf-accent)" }}
-                onClick={() => onNavigate(step.href)}
-                type="button"
-              >
-                {t(step.actionKey)} →
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-5 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-muted leading-relaxed">
-        {t("home.onboarding.safety_note")}
-      </div>
-    </section>
   );
 }

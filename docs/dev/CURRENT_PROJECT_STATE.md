@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (v4.1 — P1 pipeline blocker 修复已验证 + AUTOPILOT-QUEUE 推进至 Guided Onboarding)
+更新日期: 2026-05-28 (v0.7 — Guided Onboarding MVP 已完成 + AUTOPILOT-QUEUE 推进至 User Validation)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `aef49df` (P1 修复验证完成 + governance truth sync，AUTOPILOT-QUEUE 推进至 Guided Onboarding) |
+| 当前 HEAD | `<pending>` (Guided Onboarding MVP 实现完成) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -19,6 +19,7 @@
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-27-139-mf-autopilot-skill-framework-routing.md` |
+| 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
 | 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新产品创新审计 | `docs/product/2026-05-28-001-mindforge-product-innovation-review.md` |
@@ -166,7 +167,7 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: guided_onboarding_design -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_guided_onboarding_validation_next -->
 <!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
 <!-- AUTOPILOT-QUEUE-ITEM-1:
 workstream=Product Main Path P1 Pipeline Blocker Fix
@@ -183,18 +184,18 @@ hard_stop_required=false
 status=resolved (commit 87453f0, verified gates all pass 2026-05-28)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-2:
-workstream=Guided Onboarding Design
+workstream=Guided Onboarding MVP
 task_type=feature_implementation
-current_node=pending
-next_action=design_sample_workspace_and_step_by_step_onboarding
-required_skill=/brainstorming
+current_node=done
+next_action=N/A
+required_skill=none
 frameworks_checked=product_strategy_audit_2026-05-28
-review_node=user_validation
+review_node=spec_acceptance_review
 failure_class=none
 remediation_target=none
-auto_continue_allowed=false
-hard_stop_required=true
-hard_stop_reason=requires_user_validation_before_proceeding
+auto_continue_allowed=true
+hard_stop_required=false
+status=resolved (v0.7 Guided Onboarding MVP — wizard + hints + sample workspace, all gates pass 2026-05-28)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-3:
 workstream=User Validation — Core Hypothesis Test

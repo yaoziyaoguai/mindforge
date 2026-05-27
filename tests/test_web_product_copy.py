@@ -901,6 +901,73 @@ def test_onboarding_explanation_i18n_keys_exist() -> None:
         assert key in en, f"Onboarding en key missing: {key}"
 
 
+def test_guided_onboarding_i18n_keys_complete() -> None:
+    """Guided Onboarding MVP (v0.7) 的 wizard + hint i18n key 必须同时存在于 zh 和 en。"""
+    zh = _read_i18n_zh()
+    en = _read_i18n_en()
+
+    hint_keys = [
+        "onboarding.hint.dismiss",
+        "onboarding.hint.home",
+        "onboarding.hint.setup",
+        "onboarding.hint.sources",
+        "onboarding.hint.review",
+        "onboarding.hint.library",
+        "onboarding.hint.recall",
+        "onboarding.hint.wiki",
+        "onboarding.hint.export",
+    ]
+    wizard_keys = [
+        "onboarding.wizard.demo_badge",
+        "onboarding.wizard.welcome_title",
+        "onboarding.wizard.welcome_desc",
+        "onboarding.wizard.step1",
+        "onboarding.wizard.step2",
+        "onboarding.wizard.step3",
+        "onboarding.wizard.step1_title",
+        "onboarding.wizard.step1_desc",
+        "onboarding.wizard.step2_title",
+        "onboarding.wizard.step2_desc",
+        "onboarding.wizard.step3_title",
+        "onboarding.wizard.step3_desc",
+        "onboarding.wizard.create_btn",
+        "onboarding.wizard.creating",
+        "onboarding.wizard.done_title",
+        "onboarding.wizard.done_desc",
+        "onboarding.wizard.view_library",
+        "onboarding.wizard.view_review",
+        "onboarding.wizard.error_title",
+        "onboarding.wizard.retry",
+        "onboarding.wizard.safety_note",
+    ]
+
+    for key in hint_keys + wizard_keys:
+        assert key in zh, f"Guided Onboarding zh key missing: {key}"
+        assert key in en, f"Guided Onboarding en key missing: {key}"
+
+    # 验证 wizard demo badge 文案不暴露 demo 模式给非 tech 用户
+    assert "安全演示" in zh.get("onboarding.wizard.demo_badge", "")
+    assert "Safe Demo" in en.get("onboarding.wizard.demo_badge", "")
+
+    # 安全提示必须同时存在于 zh/en
+    assert "不调用外部 API" in zh.get("onboarding.wizard.safety_note", "")
+    assert "No external API calls" in en.get("onboarding.wizard.safety_note", "")
+
+
+def test_guided_onboarding_components_use_locale() -> None:
+    """QuickStartWizard 和 OnboardingHint 组件必须通过 useLocale() 获取文案。"""
+    wizard = _read("components/QuickStartWizard.tsx")
+    hint = _read("components/OnboardingHint.tsx")
+
+    assert "useLocale" in wizard
+    assert "useLocale" in hint
+    # 组件不能硬编码中英文文案
+    assert "Welcome to MindForge" not in wizard
+    assert "欢迎使用 MindForge" not in wizard
+    assert "Close" not in hint
+    assert "关闭" not in hint
+
+
 def test_milestone_e_action_keys_in_next_action_label_mapping() -> None:
     """Milestone E 新增的 15 个 action_key（13 from prior session + 2 from P3 close）必须同时有 zh/en label 映射。"""
     u = _read("lib/utils.ts")

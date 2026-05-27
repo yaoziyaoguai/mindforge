@@ -8,6 +8,24 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Guided Onboarding MVP — 3-step wizard + per-page hints + sample workspace
+
+- **Commit**: `aef49df` → `<pending>`
+- **Workstream**: Guided Onboarding MVP (v0.7)
+- **Task type**: feature_implementation
+- **Outcome**: 完成 Guided Onboarding MVP 全部 8 个 implementation units。Backend: `POST /api/sample-workspace` endpoint + `sample_workspace.py` service 创建 6 张 MindForge 概念 demo 卡片（human_approved + demo_sample）。Frontend: QuickStartWizard（3 步可交互向导，替代旧 FirstRunGuide） + OnboardingHint（8 页面可关闭提示横幅，AppShell 注入） + i18n zh/en 各 33 keys。Tests: Python 5 tests + Vitest 13 tests + product copy 2 tests。5 个 gate 全部通过（ruff 0, git diff 0, pytest 100%, npm build 0, vitest 63/63）。审批边界：demo 卡片不经过用户数据的 ai_draft 管道，approval_method: demo_sample 标记区分。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md`, `docs/plans/2026-05-27-141-guided-onboarding-mvp.md`
+- **Gates**: `ruff check src/ tests/ docs/` (0, All checks passed), `git diff --check` (0), `python -m pytest tests/ -q` (0, 100%), `npm --prefix web run build` (0), `npm --prefix web run test -- --run` (0, 63/63)
+- **Review result**: PASS — spec_acceptance_review, 8/8 units implemented, all gates green
+- **Gate result**: PASS (5/5 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: G-stack (design-shotgun, design-consultation); Superpowers (/brainstorming for design); Compound Engineering (ce-work for implementation execution)
+- **Required skill invoked**: yes (/brainstorming ✅, ce-work ✅)
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: AUTOPILOT-QUEUE-ITEM-3 (User Validation — recruit 5 non-technical users)，但 ITEM-3 需要真实用户 (hard_stop_required=true)。可行的 next loop 为: UI polish loop（可选）、docs cleanup、或回到产品创新审计的其他 bet。
+- **Workstream changed**: yes (Guided Onboarding MVP → needs next active workstream)
+
 ### 2026-05-28: Product Innovation Audit — MindForge 产品创新审计和机会地图
 
 - **Commit**: `f263287` → `94328a3`

@@ -920,3 +920,14 @@ class WebFacade:
             total_approved=approved,
             total_drafts=drafts,
         )
+
+    def create_sample_workspace(self) -> dict:
+        """Create demo knowledge cards for Guided Onboarding first-run experience."""
+        from mindforge.services.sample_workspace import build_sample_workspace
+
+        result = build_sample_workspace(self.cfg.vault.cards_dir)
+        return {
+            "created": result.created,
+            "card_count": result.card_count,
+            "message": result.message,
+        }
