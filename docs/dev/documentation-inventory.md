@@ -35,8 +35,6 @@
 
 ### 早期 plans
 
-- `docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md` — 早期 dogfood 准备计划
-- `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` — 早期真实 LLM dogfood 计划
 - `docs/plans/2026-05-22-002-feat-web-ux-improvement-plan.md` — v0.x Web UX 改进计划
 - `docs/plans/2026-05-24-003-feat-web-polish-planning-review.md` — v0.x Web 打磨
 - `docs/plans/2026-05-24-004-v0_3-wrapup-v0_4-planning-review.md` — v0.3→v0.4 过渡
@@ -60,15 +58,12 @@
 
 ### 早期 design docs
 
-- `docs/design/roadmap/V0_2_ROADMAP.md` — v0.2 路线（已过时）
-- `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md` — v0.3 路线（已过时）
-- `docs/design/sdd/` 下 4 个 SDD 文档 — 设计产物，不代表当前实现
+- `docs/design/sdd/` 下剩余 SDD 文档 — 设计产物，不代表当前实现（TDD/SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION 已删除）
 - `docs/design/rfc/RFC_0003_LEGACY_DOC_EVALUATION.md` — 历史遗留文档评估
 
 ### 早期 internal
 
-- `docs/internal/V0_2_DEVELOPMENT_RULES.md` — v0.2 开发规则（已被更新的开发规则取代）
-- `docs/internal/V0_3_DEVELOPMENT_RULES.md` — v0.3 开发规则（已被更新的开发规则取代）
+（V0_2/V0_3_DEVELOPMENT_RULES.md 已在 batch 1 删除）
 
 ---
 

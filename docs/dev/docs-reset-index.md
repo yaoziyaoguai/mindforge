@@ -60,8 +60,6 @@ v4.2 truth reset 后，docs 被分为 canonical / superseded / lab-internal / ar
 
 以下文档可考虑在未来 docs reset 中归档（当前保留以便历史追溯）：
 
-- `docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md` — 早期 dogfood 计划
-- `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` — 早期真实 LLM dogfood 计划
 - `docs/plans/2026-05-24-041-v1_1_to_v1_5-multi-stage-roadmap.md` — v1.x 路线（已过时）
 - `docs/plans/2026-05-25-059-v2_0_to_v2_5-long-horizon-roadmap.md` — v2.x 路线（已过时）
 - `docs/plans/2026-05-25-071-v3_0_to_v3_6-long-horizon-roadmap.md` — v3.x 路线（已过时）

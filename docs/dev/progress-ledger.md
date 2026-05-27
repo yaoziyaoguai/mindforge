@@ -8,6 +8,28 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Docs Cleanup Batch 1 — 8 stale files removed
+
+- **Commit**: `64d7a52` → (pending)
+- **Workstream**: Documentation Reset
+- **Task type**: docs_cleanup
+- **Outcome**: 删除 8 个明显过时文档（v0.2/v0.3 roadmap、TDD/SDD、v0.2/v0.3 dev rules、早期 dogfood plans）；更新 documentation-reset-plan、documentation-inventory、docs-reset-index 中的引用
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-116-docs-cleanup-batch-1.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0), `pytest tests/test_web_product_copy.py -q` (0)
+- **Next**: batch 2（处理历史 RFC/SDD/spec/implementation-notes 中的残留引用）
+- **Workstream changed**: yes (from mf-autopilot reliability upgrade)
+
+### 2026-05-27: mf-autopilot Reliability Upgrade
+
+- **Commit**: `64d7a52`
+- **Workstream**: mf-autopilot Reliability Upgrade
+- **Task type**: docs_cleanup
+- **Outcome**: 补齐 4 类治理规则 — active workstream rules、stale window rules、progress template、handoff protocol
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-115-mf-autopilot-reliability-upgrade.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0), `pytest tests/test_web_product_copy.py -q --tb=short` (0)
+- **Next**: Documentation cleanup batch 1
+- **Workstream changed**: no (continuing governance work)
+
 ### 2026-05-27: Docs Reset & Governance — Loop 1 (canonical state + progress ledger)
 
 - **Commit**: `0248755`
@@ -90,11 +112,11 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: mf-autopilot Reliability Upgrade (2026-05-27)**
+**当前 active workstream: Documentation Reset (2026-05-27)**
 
-- 本轮不是产品功能、UI polish、架构重构
-- 本轮是 `/mf-autopilot` 治理规则补强: active workstream rules, stale window rules, progress template, handoff protocol
-- 正在执行: 4 类优化 → gates → commit/push
+- Batch 1 已完成: 8 个 stale 文件删除 + 引用更新
+- Batch 2: 待处理残留引用（历史 RFC/SDD/spec/implementation-notes 中的 stale references）
+- 不涉及产品功能、UI、backend
 
 ---
 

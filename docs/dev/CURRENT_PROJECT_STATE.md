@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `0248755` |
+| HEAD | `64d7a52` (pending: batch 1 commit)
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -151,9 +151,8 @@ Source / Import
 
 按推荐顺序:
 
-1. **mf-autopilot reliability upgrade** — [当前] 补齐 active workstream / stale window / progress template / handoff 治理规则
-2. **Documentation cleanup batch** — 清理 stale/superseded 文档（per `docs/dev/documentation-reset-plan.md`）
-3. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
+1. **Documentation cleanup batch 2** — 继续清理历史文档引用（batch 1 已完成 8 文件删除）
+2. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
 4. **Recall/Search Quality Lab** — 基于已有 plan `docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md`
 5. **Real dogfood** — 真实 LLM opt-in 验证 (`docs/real-llm-dogfood.md`)
 

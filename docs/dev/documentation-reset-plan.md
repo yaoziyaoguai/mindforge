@@ -1,7 +1,7 @@
 # Documentation Reset Plan
 
 **日期**: 2026-05-27
-**状态**: active — Loop 1 完成（canonical state + progress ledger），待执行 batch 1 cleanup
+**状态**: batch 1 complete — 8 stale files removed; batch 2 pending
 
 ---
 
@@ -38,20 +38,22 @@
 
 ## 3. Cleanup Batches
 
-### Batch 1: Obvious Stale Docs (8 个)
+### Batch 1: Obvious Stale Docs (8 个) — ✅ COMPLETED 2026-05-27
 
-这些文件是最明显的过时文档，由后续版本完全取代：
+~~这些文件是最明显的过时文档，由后续版本完全取代：~~
 
-| # | 文件 | 原因 | 行动 |
-|---|------|------|------|
-| 1 | `docs/design/roadmap/V0_2_ROADMAP.md` | v0.2 路线，已被 v0.3+ 取代 | 删除 |
-| 2 | `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md` | v0.3 路线，已被后续取代 | 删除 |
-| 3 | `docs/design/tdd/TDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md` | 早期 TDD 文档，不再使用 | 删除 |
-| 4 | `docs/design/sdd/SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md` | v0.3 SDD，已被实现取代 | 删除 |
-| 5 | `docs/internal/V0_2_DEVELOPMENT_RULES.md` | v0.2 开发规则，已被取代 | 删除 |
-| 6 | `docs/internal/V0_3_DEVELOPMENT_RULES.md` | v0.3 开发规则，已被取代 | 删除 |
-| 7 | `docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md` | 早期 dogfood plan，已被执行并取代 | 删除 |
-| 8 | `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` | 早期真实 LLM plan，已被取代 | 删除 |
+| # | 文件 | 状态 |
+|---|------|------|
+| 1 | `docs/design/roadmap/V0_2_ROADMAP.md` | ~~删除~~ ✅ |
+| 2 | `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md` | ~~删除~~ ✅ |
+| 3 | `docs/design/tdd/TDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md` | ~~删除~~ ✅ |
+| 4 | `docs/design/sdd/SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md` | ~~删除~~ ✅ |
+| 5 | `docs/internal/V0_2_DEVELOPMENT_RULES.md` | ~~删除~~ ✅ |
+| 6 | `docs/internal/V0_3_DEVELOPMENT_RULES.md` | ~~删除~~ ✅ |
+| 7 | `docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md` | ~~删除~~ ✅ |
+| 8 | `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` | ~~删除~~ ✅ |
+
+**已知残留引用**: 部分历史 RFC/SDD/spec/implementation-notes 仍引用以上文件。这些是 stale references in already-historical docs，不影响当前 canonical docs，留给后续 batch 处理。
 
 ### Batch 2: Archive Candidates (待下一轮)
 
