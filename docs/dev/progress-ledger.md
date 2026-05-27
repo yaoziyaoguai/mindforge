@@ -10,26 +10,27 @@
 
 ### 2026-05-28: Fresh Clone P0/P1 Blocker Fixes
 
-- **Commit**: `eccd8db` → `<pending>`
+- **Commit**: `eccd8db` → `bbaed30`
 - **Workstream**: Fresh Clone Dogfood — P0/P1 Blocker Fixes
 - **Task type**: bug_fix
 - **Outcome**: (1) P0: 收紧 `apply_provider_selection()` 的 fake fallback 条件 — 只在 `model_setup_readiness` 返回 `"demo"`（空 models）时回退，不在 `"needs_setup"`（已配置但缺 key）时回退。保留用户显式配置真实模型时的错误报告路径。(2) P1: `web_facade.py` 修复 — `self.cfg.vault.cards_dir`(str) → `self.cfg.vault.cards_path`(Path)，消除 sample-workspace API 的 str/Path TypeError → HTTP 500。
 - **Docs/notes**: `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md`
 - **Gates**: `ruff check src/ tests/` (0), `git diff --check` (0), `python -m pytest tests/ -q` (0, 3693 passed, 1 skipped), `npm --prefix web run build` (0)
+- **Fresh clone re-dogfood**: PASS — 从 GitHub fresh clone `/tmp/mindforge-fresh-dogfood-20260528` 重新验证：ruff (0), pytest (3693 passed, 3 pre-existing env failures), web build (0), P0 CLI smoke (fake fallback logic 正确), P1 sample-workspace (cards_path Path 类型正确)
 - **Review result**: PASS — both fixes scoped correctly, tests verify boundary behavior
-- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Gate result**: PASS (4/4 gates + fresh clone re-verify, all exit 0)
 - **Failure class**: none
 - **Remediation action**: none
 - **Skill frameworks checked**: none required (bug_fix, targeted 2-line changes + tests)
 - **Required skill invoked**: N/A
-- **Evidence binding**: tests/test_cli_runtime.py (5 new) + tests/test_web_api.py (2 new) + gate exit codes
-- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: commit/push → fresh clone re-dogfood
+- **Evidence binding**: tests/test_cli_runtime.py (5 new) + tests/test_web_api.py (2 new) + gate exit codes + fresh clone re-verification
+- **Next ACTION token**: HARD_STOP_PRODUCT_DECISION. Reason: P0/P1 fix + fresh clone re-dogfood 完成，下一阶段是 Guided Onboarding MVP 实现（已有 spec）或继续其他 roadmap workstream，均需用户选择方向。
 
 ---
 
 ### 2026-05-28: mf-autopilot Skill Redesign Review + Low-Risk Improvements
 
-- **Commit**: `eccd8db` → `<pending>`
+- **Commit**: `eccd8db` → `2f7e787`
 - **Workstream**: mf-autopilot Skill Governance Upgrade
 - **Task type**: autopilot_governance
 - **Outcome**: 完成 FirstAgent auto-run vs MindForge mf-autopilot 对比 review（`docs/dev/mf-autopilot-skill-redesign-review.md`），实施 5 项低风险改进：(1) §5.4+§7 停止条件合并去重为单一权威来源 (2) 新增 §7.2 集中非停止条件清单 (3) 新增 §23 Claim-to-Evidence Gate — RESOLVED 声称需绑定 evidence (4) §16 Skill Routing Decision 允许低风险 task 简化输出 (5) §20 progress-ledger 模板新增 Evidence binding 字段
