@@ -8,6 +8,25 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Fresh Clone P0/P1 Blocker Fixes
+
+- **Commit**: `eccd8db` → `<pending>`
+- **Workstream**: Fresh Clone Dogfood — P0/P1 Blocker Fixes
+- **Task type**: bug_fix
+- **Outcome**: (1) P0: 收紧 `apply_provider_selection()` 的 fake fallback 条件 — 只在 `model_setup_readiness` 返回 `"demo"`（空 models）时回退，不在 `"needs_setup"`（已配置但缺 key）时回退。保留用户显式配置真实模型时的错误报告路径。(2) P1: `web_facade.py` 修复 — `self.cfg.vault.cards_dir`(str) → `self.cfg.vault.cards_path`(Path)，消除 sample-workspace API 的 str/Path TypeError → HTTP 500。
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md`
+- **Gates**: `ruff check src/ tests/` (0), `git diff --check` (0), `python -m pytest tests/ -q` (0, 3693 passed, 1 skipped), `npm --prefix web run build` (0)
+- **Review result**: PASS — both fixes scoped correctly, tests verify boundary behavior
+- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (bug_fix, targeted 2-line changes + tests)
+- **Required skill invoked**: N/A
+- **Evidence binding**: tests/test_cli_runtime.py (5 new) + tests/test_web_api.py (2 new) + gate exit codes
+- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: commit/push → fresh clone re-dogfood
+
+---
+
 ### 2026-05-28: mf-autopilot Skill Redesign Review + Low-Risk Improvements
 
 - **Commit**: `eccd8db` → `<pending>`

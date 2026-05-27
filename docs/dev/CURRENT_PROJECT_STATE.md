@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `660e781` (mf-autopilot skill redesign review — stop conditions merge + claim-to-evidence gate) |
+| 当前 HEAD | `pending` (P0/P1 fresh clone blocker fixes — auto-fallback refine + sample-workspace Path fix) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -21,7 +21,7 @@
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-28-143-mf-autopilot-skill-redesign-review.md` |
 | 最新 mf-autopilot skill review | `docs/dev/mf-autopilot-skill-redesign-review.md` |
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
-| 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
+| 最新 P0/P1 修复 notes | `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
 | 最新 Remediation Plan | `docs/plans/2026-05-28-post-mint4-remediation-plan.md` |
@@ -251,6 +251,20 @@ failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-6:
+workstream=Fresh Clone Dogfood — P0/P1 Blocker Fixes
+task_type=bug_fix
+current_node=in_progress
+next_action=commit_push_fresh_clone_re-dogfood
+required_skill=none
+frameworks_checked=none (direct mf-autopilot, targeted fixes with tests)
+review_node=gate_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+status=in_progress (P0/P1 fixes applied + tests + gates passing, pending commit/push)
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 

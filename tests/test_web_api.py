@@ -5451,3 +5451,99 @@ def test_old_reveal_path_endpoint_returns_410(tmp_path: Path) -> None:
 
     body = resp.json()
     assert outside_path not in str(body)
+
+
+# ---------------------------------------------------------------------------
+# P1: sample-workspace API — 验证 cards_path(Path) 非 cards_dir(str)
+# ---------------------------------------------------------------------------
+
+
+def test_sample_workspace_api_returns_200_not_500(tmp_path: Path) -> None:
+    """POST /api/sample-workspace 必须返回 200，不能因类型错误返回 500。
+
+    中文学习型说明：P1 修复前 web_facade.py 将 cfg.vault.cards_dir(str)
+    传给 build_sample_workspace(Path)，导致 Path / str TypeError → 500。
+    修复后使用 cfg.vault.cards_path(Path)，本测试验证该路径在生产配置下
+    不再爆炸。
+    """
+    cfg_path, _vault, _cards = _write_config(tmp_path)
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+    resp = client.post("/api/sample-workspace")
+    assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+
+    body = resp.json()
+    assert body["created"] is True
+    assert body["card_count"] == 6
+    assert "Created" in body["message"]
+
+    # 再次调用 — 幂等返回
+    resp2 = client.post("/api/sample-workspace")
+    assert resp2.status_code == 200
+    body2 = resp2.json()
+    assert body2["created"] is False
+    assert "already exists" in body2["message"]
+
+
+def test_sample_workspace_api_with_custom_cards_dir(tmp_path: Path) -> None:
+    """cards_dir 为自定义路径名时 sample-workspace 同样不 500。
+
+    中文学习型说明：确保 str → Path 修正确实是 web_facade 层的类型修正,
+    而不是碰巧只在 "20-Knowledge-Cards" 下通过。
+    """
+    vault = tmp_path / "custom-vault"
+    cards = vault / "my-cards"
+    inbox = vault / "00-Inbox" / "ManualNotes"
+    cards.mkdir(parents=True)
+    inbox.mkdir(parents=True)
+    (vault / "30-Projects").mkdir(parents=True)
+
+    cfg_path = tmp_path / "mindforge.yaml"
+    cfg_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 0.7,
+                "vault": {
+                    "root": str(vault),
+                    "inbox_root": "00-Inbox",
+                    "cards_dir": "my-cards",
+                    "archive_dir": "90-Archive/Skipped",
+                    "projects_dir": "30-Projects",
+                },
+                "sources": {"enabled": [], "registry": {}},
+                "state": {
+                    "workdir": str(tmp_path / ".mindforge"),
+                    "state_file": "state.json",
+                    "runs_dir": "runs",
+                    "index_file": "index.jsonl",
+                    "backup_state": True,
+                },
+                "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+                "llm": {
+                    "active_profile": "fake",
+                    "profiles": {"fake": {s: "f1" for s in ("triage", "distill", "link_suggestion", "review_questions", "action_extraction")}},
+                    "models": {"f1": {"provider": "fake", "type": "fake", "base_url": "fake://", "model": "fake-1", "timeout_seconds": 5, "max_retries": 0}},
+                },
+                "prompts": {
+                    "triage_version": "v1", "distill_version": "v1",
+                    "link_suggestion_version": "v1", "review_questions_version": "v1",
+                    "action_extraction_version": "v1",
+                },
+                "logging": {"level": "INFO", "file": str(tmp_path / "mf.log")},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+    resp = client.post("/api/sample-workspace")
+    assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.text}"
+
+    body = resp.json()
+    assert body["created"] is True
+    assert body["card_count"] == 6
+    # 确认卡片确实创建在自定义 cards_dir 下
+    demo_dir = cards / "demo-workspace"
+    assert demo_dir.is_dir()
+    assert len(list(demo_dir.glob("*.md"))) == 6

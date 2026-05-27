@@ -1090,7 +1090,7 @@ class WebFacade:
         """Create demo knowledge cards for Guided Onboarding first-run experience."""
         from mindforge.services.sample_workspace import build_sample_workspace
 
-        result = build_sample_workspace(self.cfg.vault.cards_dir)
+        result = build_sample_workspace(self.cfg.vault.cards_path)
         return {
             "created": result.created,
             "card_count": result.card_count,

@@ -17,6 +17,7 @@ from rich.console import Console
 from .app_context import AppContextError, load_app_config, resolve_user_source_path
 from .config import MindForgeConfig, with_fake_llm_profile
 from .env_loader import load_dotenv_silently
+from .model_setup_readiness import model_setup_readiness
 
 console = Console()
 
@@ -197,11 +198,11 @@ def apply_provider_selection(
     selected = provider or legacy_profile
     source = "--provider" if provider else ("legacy --profile" if legacy_profile else "llm.active")
     if not selected:
-        # 中文学习型说明：当用户尚未配置任何真实模型（default_model=None、
-        # models={}）时，自动注入 fake profile，使 "安全模式：本地模拟" 成为
-        # 真正的零配置 demo 体验。fake models 仅在内存中注入，不会写入 YAML
-        # 或污染 Setup 主 UI。用户配置真实模型后 fake 自动退出。
-        if cfg.llm.default_model is None and not cfg.llm.models:
+        # 中文学习型说明：自动回退至 fake provider 以支持零配置 demo 体验。
+        # 只有当无有效模型配置时（demo 状态）才回退 fake；如果 models
+        # 已配置但缺少 API key（needs_setup），应给出可操作提示而非静默回退。
+        readiness = model_setup_readiness(cfg)
+        if readiness.status == "demo":
             safe_llm = with_fake_llm_profile(cfg.llm)
             return replace(
                 cfg,
