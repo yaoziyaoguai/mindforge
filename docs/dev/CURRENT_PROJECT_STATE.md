@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.8 — Product Main Path Real Dogfood v2 per Codex audit recommendation)
+更新日期: 2026-05-27 (v3.9 — P1 Pipeline Blocker 修复完成，进入 Web Product UX Deepening)
 
 ---
 
@@ -11,18 +11,18 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
+| 当前 HEAD | `87453f0` (P1 管道阻塞修复 — auto-fallback to fake provider) |
+| Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
-| 审计前工作树 | clean |
+| 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md` |
 | 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
 | 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
-| 最新 docs reset notes | `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md` |
-| 最新 test expansion notes | `docs/implementation-notes/2026-05-27-131-breadcrumb-safetybar-tests.md` |
-| 最新 AUDIT-118 closure notes | `docs/implementation-notes/2026-05-27-132-audit-118-product-debt-closure.md` |
+| 最新 dogfood v2 notes | `docs/implementation-notes/2026-05-27-135-product-main-path-real-dogfood-v2.md` |
+| 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
 
 最近关键 commits:
 ```

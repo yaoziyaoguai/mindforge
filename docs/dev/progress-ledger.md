@@ -10,7 +10,7 @@
 
 ### 2026-05-27: P1 管道阻塞修复 — demo/fake 模式自动回退
 
-- **Commit**: (`256f5be`) → `<pending>`
+- **Commit**: `256f5be` → `87453f0`
 - **Workstream**: Product Main Path Real Dogfood v2 (P1 fix)
 - **Task type**: bug_fix
 - **Outcome**: 修复 P1 管道阻塞 — CLI import/process/watch 和 Web import/scan 在无模型配置时自动注入 fake profile。`apply_provider_selection()` (CLI) 和 `_ensure_processing_model_configured()` (Web) 两处注入点。9 个测试从期望 error 改为期望 auto-fallback success。fake models 仅在内存注入，不写 YAML，不污染 Setup UI。
