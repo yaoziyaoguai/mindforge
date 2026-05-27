@@ -570,13 +570,13 @@ def test_failed_run_does_not_update_last_processed_at(
     added = runner.invoke(app, ["watch", "add", str(source), "--every", "manual", "--config", str(cfg)])
     assert added.exit_code == 0, added.output
 
-    # 无模型配置 → background run 应失败
+    # v0.7 P1 fix: 无模型自动回退 fake → run 应成功
     _wait_for_watch_add_run(cfg, added.output)
     reg = _registry(vault)
     assert len(reg.sources) == 1
-    # 关键断言：failed run 后 source-level last_processed_at 必须为 null
-    assert reg.sources[0].last_processed_at is None, (
-        f"failed run 后 last_processed_at 必须为 null，实际为 {reg.sources[0].last_processed_at!r}"
+    # 成功处理后 last_processed_at 应更新为非 null
+    assert reg.sources[0].last_processed_at is not None, (
+        f"auto-fallback 成功后 last_processed_at 应更新，实际为 {reg.sources[0].last_processed_at!r}"
     )
 
 
@@ -601,29 +601,29 @@ def test_unchanged_unprocessed_file_retried_after_model_fix(
     )
     assert added_no_model.exit_code == 0, added_no_model.output
     _wait_for_watch_add_run(cfg, added_no_model.output)
-    # 无模型 → 确认没有 draft 生成
-    assert len(_cards(vault)) == 0
-    reg_after_fail = _registry(vault)
-    assert reg_after_fail.sources[0].last_processed_at is None
+    # v0.7 P1 fix: 无模型自动回退 fake → 第一次 run 即可成功生成 draft
+    assert len(_cards(vault)) > 0, (
+        f"auto-fallback 应生成 ai_draft，但 20-Knowledge-Cards 为空。\n"
+    )
+    reg_after_first = _registry(vault)
+    assert reg_after_first.sources[0].last_processed_at is not None
 
-    # 第二阶段：修正模型配置（模拟用户在 Web Setup 修正 provider）
-    _rewrite_config_with_fake_provider(cfg, vault)
-
-    # retry: watch scan --all
+    # 第二阶段：确认 retry 时已处理文件不会被重复处理（already_processed）
+    # 注：config 本身不变（auto-fallback 已在使用 fake）
     scan = runner.invoke(app, ["watch", "scan", "--all", "--config", str(cfg)])
     assert scan.exit_code == 0, scan.output
     _wait_for_scan_runs(scan.output, cfg)
 
-    # 关键断言：retry 后必须生成 draft
+    # 关键断言：已处理文件不应产生重复 draft
     cards = _cards(vault)
-    assert len(cards) > 0, (
-        f"retry after model fix 应生成 ai_draft，但 20-Knowledge-Cards 为空。\n"
+    assert len(cards) == 1, (
+        f"already_processed 文件不应产生 duplicate draft，实际 cards={len(cards)}。\n"
         f"scan output: {scan.output}"
     )
-    # source-level last_processed_at 应更新为成功处理时间
+    # source-level last_processed_at 应保持非 null
     reg_final = _registry(vault)
     assert reg_final.sources[0].last_processed_at is not None, (
-        "retry 成功后 last_processed_at 不应为 null"
+        "last_processed_at 不应被清除"
     )
 
 
@@ -683,22 +683,20 @@ def test_no_output_run_status_is_failed_not_succeeded(
     )
     source_id = source.id
 
-    # 切换回无模型 config → retry → 应 failed（不是 succeeded）
+    # v0.7 P1 fix: auto-fallback → 文件 unchanged 且 content hash 匹配，
+    # run 被标记为 skipped（already_processed），不应是 succeeded 伪装。
     _write_no_model_config(tmp_path)
     scan = runner.invoke(app, ["watch", "scan", source_id, "--config", str(cfg)])
     assert scan.exit_code == 0, scan.output
     _wait_for_scan_runs(scan.output, cfg)
 
-    # 检查 background run 状态：应为 failed
+    # 检查 background run 状态：应为 skipped（already_processed）
     run_id = _run_id_from_output(scan.output)
     run = get_processing_run(load_cfg(cfg, read_env=False), run_id)
     assert run is not None
-    assert run.status in {"failed", "needs_model_setup"}, (
-        f"no-output run 必须为 failed，实际 status={run.status}, "
-        f"summary={run.summary}, message={run.message}"
-    )
-    assert "succeeded" not in run.status, (
-        f"run status 不能为 succeeded: {run.status}"
+    assert run.status in {"skipped"}, (
+        f"unchanged file with auto-fallback 应为 skipped (already_processed)，"
+        f"实际 status={run.status}, summary={run.summary}, message={run.message}"
     )
 
 

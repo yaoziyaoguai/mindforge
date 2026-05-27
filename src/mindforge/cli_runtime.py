@@ -197,6 +197,23 @@ def apply_provider_selection(
     selected = provider or legacy_profile
     source = "--provider" if provider else ("legacy --profile" if legacy_profile else "llm.active")
     if not selected:
+        # 中文学习型说明：当用户尚未配置任何真实模型（default_model=None、
+        # models={}）时，自动注入 fake profile，使 "安全模式：本地模拟" 成为
+        # 真正的零配置 demo 体验。fake models 仅在内存中注入，不会写入 YAML
+        # 或污染 Setup 主 UI。用户配置真实模型后 fake 自动退出。
+        if cfg.llm.default_model is None and not cfg.llm.models:
+            safe_llm = with_fake_llm_profile(cfg.llm)
+            return replace(
+                cfg,
+                llm=safe_llm,
+                raw={
+                    **cfg.raw,
+                    "_mindforge_provider_selection": {
+                        "selected": "fake",
+                        "source": f"auto-fallback ({source} — no models configured)",
+                    },
+                },
+            )
         return replace(
             cfg,
             raw={

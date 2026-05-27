@@ -8,6 +8,28 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: P1 管道阻塞修复 — demo/fake 模式自动回退
+
+- **Commit**: (`256f5be`) → `<pending>`
+- **Workstream**: Product Main Path Real Dogfood v2 (P1 fix)
+- **Task type**: bug_fix
+- **Outcome**: 修复 P1 管道阻塞 — CLI import/process/watch 和 Web import/scan 在无模型配置时自动注入 fake profile。`apply_provider_selection()` (CLI) 和 `_ensure_processing_model_configured()` (Web) 两处注入点。9 个测试从期望 error 改为期望 auto-fallback success。fake models 仅在内存注入，不写 YAML，不污染 Setup UI。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md`
+- **Gates**: `ruff check` (0), `pytest tests/` (0, 100%), `npm run build` (0), `pytest tests/test_web_product_copy.py` (0, 80 passed), `git diff --check` (0)
+- **Next**: Web Product UX Deepening (Codex audit §10.B 推荐次优先)
+- **Workstream changed**: yes (Dogfood v2 → Web Product UX Deepening)
+
+### 2026-05-27: Product Main Path Real Dogfood v2
+
+- **Commit**: `4ef9ed2` → `256f5be`
+- **Workstream**: Product Main Path Real Dogfood v2
+- **Task type**: dogfood
+- **Outcome**: 完成 Chrome DevTools MCP 浏览器级别完整主路径 walkthrough — Source→Draft→Review→Approval→Library→Recall→Wiki→Export 全部通过。记录 8 项 UX 摩擦发现 (P1×1, P2×2, P3×5)。P1 发现: demo/fake 模式并非真正零配置，import 管道在无模型时报错。Governance truth sync 完成 CPS/ledger 状态更新。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-135-product-main-path-real-dogfood-v2.md`
+- **Gates**: `ruff check` (0), `pytest tests/` (0, 100%), `npm run build` (0), `pytest tests/test_web_product_copy.py` (0), MCP smoke 8 页全部通过
+- **Next**: 修复 P1 管道阻塞 (demo/fake 模式零配置) → 然后进入 Web Product UX Deepening
+- **Workstream changed**: yes (Dogfood v2 → P1 Fix)
+
 ### 2026-05-27: Codex Independent Strategic Red Team Audit
 
 - **Commit**: `4ef9ed2`

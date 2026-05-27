@@ -175,10 +175,10 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: dogfood_v2 -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: dogfood -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Product Main Path Real Dogfood v2 — full pipeline Source→Draft→Review→Approval→Library→Recall→Wiki→Export, browser-level UX friction recording -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening — Library IA fix, Export contract alignment, Setup clarity, full main-path page smoke (per Codex audit §10.B) -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: web_ux_deepening -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: ui_ux_polish -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Web Product UX Deepening — Library IA fix, Export contract alignment, Setup clarity, full main-path page smoke (per Codex audit §10.B + Dogfood v2 发现的 8 项 UX 摩擦) -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Targeted Architecture Quality Reset — 仅在 UX 深度优化暴露真实痛点后执行 (per Codex audit recommendation) -->
 <!-- AUTOPILOT-QUEUE-ITEM-3: Governance truth drift fix — CPS HEAD/ledger/audit index consistency -->
 <!-- AUTOPILOT-QUEUE-END -->
 

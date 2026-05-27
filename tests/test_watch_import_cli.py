@@ -1106,10 +1106,12 @@ def test_import_invalid_active_provider_fails_with_available_providers(
     assert "fake" in result.output
 
 
-def test_import_without_model_config_reports_setup_action(
+def test_import_without_model_auto_fallback_to_fake(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    # 中文学习型说明：v0.7 P1 fix — 无模型时自动回退 fake provider，
+    # import 应成功生成 ai_draft（不再报 failed）。
     cfg, vault = _write_config(tmp_path)
     raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -1122,15 +1124,17 @@ def test_import_without_model_config_reports_setup_action(
 
     assert result.exit_code == 0, result.output
     run = _wait_for_cli_run(cfg, result.output)
-    assert run.status == "failed"
-    assert "No model configured for stage 'triage'" in (run.error_message or run.message)
-    assert "Add a model in Web Setup" in (run.error_message or run.message)
+    # 自动 fake fallback 后 run 应成功，不再 failed
+    assert run.status == "succeeded", f"expected succeeded, got {run.status}: {run.error_message or run.message}"
+    assert run.message and "Generated" in run.message
 
 
-def test_process_without_model_config_reports_setup_action(
+def test_process_without_model_auto_fallback_to_fake(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    # 中文学习型说明：v0.7 P1 fix — process 命令同样受益于自动 fake fallback，
+    # 不再因缺模型而 exit 2。
     cfg, vault = _write_config(tmp_path)
     raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -1139,22 +1143,18 @@ def test_process_without_model_config_reports_setup_action(
 
     result = runner.invoke(app, ["process", "--config", str(cfg), "--limit", "1"])
 
-    assert result.exit_code == 2, result.output
-    assert "No model configured for stage 'triage'" in result.output
-    assert "Add a model in Web Setup" in result.output
+    # 自动 fake fallback 后 process 应成功，不再 exit 2
+    assert result.exit_code == 0, result.output
     assert "Traceback" not in result.output
 
 
-def test_import_missing_model_setup_run_has_friendly_next_actions(
+def test_import_without_model_auto_fallback_runs_show(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """缺 model setup 是后台 run 的可观察状态，不是 import 命令的同步失败。
-
-    中文学习型说明：CLI import 主路径只负责创建 durable run 并返回 run_id。
-    worker 失败后，用户通过 runs show 看到 Web Setup / local secret store 的
-    下一步，而不是 env/fake/profile 之类历史诊断。
-    """
+    # 中文学习型说明：v0.7 P1 fix — 无模型时 import 自动回退 fake provider，
+    # 成功生成 ai_draft。runs show 展示正常 run 信息，不再报 model setup 错误。
+    """ """
 
     cfg, vault = _write_config(tmp_path)
     raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
@@ -1169,24 +1169,18 @@ def test_import_missing_model_setup_run_has_friendly_next_actions(
     shown = runner.invoke(app, ["runs", "show", run.run_id, "--config", str(cfg)])
 
     assert result.exit_code == 0, result.output
-    assert run.status in {"failed", "needs_model_setup"}
-    assert "Model setup is incomplete" in shown.output or "Add a model in Web Setup" in shown.output
-    assert "retry after setup" in shown.output or "Retry after completing model setup" in shown.output
-    for token in ("fake", ".env", " env", "demo", "profile", "api_key_env"):
+    # 自动 fake fallback 后 run 应成功
+    assert run.status == "succeeded", f"expected succeeded, got {run.status}: {run.error_message or run.message}"
+    for token in (".env", " env"):
         assert token not in shown.output
 
 
-def test_watch_scan_without_model_config_reports_setup_action(
+def test_watch_scan_without_model_auto_fallback_to_fake(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """无 model setup 时，watch scan 应创建 background run 并 failed，而非同步崩溃。
-
-    中文学习型说明：watch scan 现在使用 process_changes=False 做只读 scan，
-    然后为有变更的 source 创建 background ProcessingRun。model setup 错误应
-    出现在 background run 中（通过 runs show 观察），而不是 watch scan 命令
-    同步返回错误码。
-    """
+    # 中文学习型说明：v0.7 P1 fix — watch scan 同样受益于自动 fake fallback，
+    # background run 应成功而非 failed。
     cfg, vault = _write_config(tmp_path)
     raw = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -1204,11 +1198,9 @@ def test_watch_scan_without_model_config_reports_setup_action(
     assert result.exit_code == 0, result.output
     assert "scanned=1" in result.output
 
-    # background run 应该 fail with model setup error
+    # 自动 fake fallback 后 background run 应成功，不再 failed
     run = _wait_for_cli_run(cfg, result.output)
-    assert run.status in {"failed", "needs_model_setup"}
-    assert "No model configured" in (run.error_message or run.message) or \
-           "model setup" in (run.error_message or run.message).lower()
+    assert run.status == "succeeded", f"expected succeeded, got {run.status}: {run.error_message or run.message}"
     assert "traceback" not in (run.error_message or run.message).lower()
 
 

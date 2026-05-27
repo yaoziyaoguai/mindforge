@@ -2616,10 +2616,13 @@ def test_web_process_uses_default_model_when_routing_is_missing(
     assert len(list(cards.rglob("*.md"))) == 1
 
 
-def test_web_process_without_model_returns_friendly_error(
+def test_web_process_without_model_auto_fallback_to_fake(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    # 中文学习型说明：v0.7 P1 fix — 当系统没有配置任何真实模型时，
+    # 自动注入 fake provider，使 "安全模式：本地模拟" 真正零配置可用。
+    # 之前这个测试验证的是 friendly error (400)，现在验证 fake fallback (200)。
     cfg_path, _vault, _cards = _write_config(tmp_path)
     raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -2634,17 +2637,19 @@ def test_web_process_without_model_returns_friendly_error(
 
     response = client.post("/api/sources/watch", json={"path": str(source)})
 
-    assert response.status_code == 400
-    detail = response.json()["detail"]["message"]
-    assert "No model configured for stage 'triage'" in detail
-    assert "Add a model in Web Setup" in detail
-    assert "Traceback" not in response.text
+    # 无模型时自动回退 fake provider，watch/add 应成功返回（不再报 400）
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("ok") is True
+    assert "watch_id" in data
 
 
-def test_web_watch_scan_without_model_returns_friendly_error(
+def test_web_watch_scan_without_model_auto_fallback_to_fake(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    # 中文学习型说明：v0.7 P1 fix — watch_scan 同样受益于自动 fake fallback。
+    # 之前这个测试验证的是 friendly error (400)，现在验证 fake fallback (200)。
     cfg_path, _vault, _cards = _write_config(tmp_path)
     raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
     raw["llm"] = {"default_model": None, "models": {}, "routing": {}}
@@ -2663,9 +2668,10 @@ def test_web_watch_scan_without_model_returns_friendly_error(
 
     response = client.post(f"/api/sources/watch/scan?ref={registered['watch_id']}")
 
-    assert response.status_code == 400
-    assert "No model configured for stage 'triage'" in response.json()["detail"]["message"]
-    assert "Traceback" not in response.text
+    # 无模型时自动回退 fake provider，watch/scan 应成功返回（不再报 400）
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("ok") is True
 
 
 def test_sources_api_returns_recursive_folder_watch_diagnostics(

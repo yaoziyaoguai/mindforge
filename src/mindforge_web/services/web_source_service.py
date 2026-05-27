@@ -681,6 +681,16 @@ def _due_status(source) -> str:
 
 
 def _ensure_processing_model_configured(cfg: MindForgeConfig) -> None:
+    # 中文学习型说明：当用户尚未配置任何真实模型时，自动注入 fake profile，
+    # 使 "安全模式：本地模拟" 成为真正的零配置 demo 体验。fake models 仅在
+    # 内存中注入，不会写入 YAML 或污染 Setup 主 UI。
+    # 注意：cfg 是同一个 MindForgeConfig 实例（非 frozen），在此修改 llm
+    # 字段后，后续 import_sources / watch_scan_sources 也会使用 fake provider。
+    if cfg.llm.default_model is None and not cfg.llm.models:
+        from mindforge.config import with_fake_llm_profile
+
+        cfg.llm = with_fake_llm_profile(cfg.llm)
+        return
     try:
         for stage in REQUIRED_STAGES:
             cfg.llm.resolve_stage_alias(stage)
