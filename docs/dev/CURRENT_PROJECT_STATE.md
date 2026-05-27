@@ -11,13 +11,19 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `ac6aa47`
+| 审计基线 HEAD | `7312245` |
 | 分支 | `main` |
-| 工作树 | clean |
+| 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
+| 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 
 最近关键 commits:
 ```
+7312245 docs: update commit hash in state/ledger after residual refs cleanup
+ac6aa47 docs: clean residual references after docs batch 1
+49c138c docs: update commit hash references post batch 1
+fcb96c7 docs: remove stale documentation batch 1
+64d7a52 chore: harden mf-autopilot loop governance
 0248755 docs: add canonical project state, progress ledger, and task-type-aware autopilot
 6f5db2c docs: add export page MVP implementation notes
 fb87ce0 feat: add safe export page MVP with preview, download, and safety notice
@@ -138,6 +144,11 @@ Source / Import
 | P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | open, target v3.7 |
 | P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | open, target v3.7 |
 | P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
+| AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | open |
+| AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | open |
+| AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | open |
+| AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | open |
+| AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | open |
 | DOC-01 | P3 | docs/README.md 无英文翻译 | open |
 | DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | open |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
@@ -151,10 +162,11 @@ Source / Import
 
 按推荐顺序:
 
-1. **Documentation cleanup batch 2 (Archive Candidates)** — batch 1 文件删除 + 残留引用修复均已完成；下一步决定是否进入 archive candidates 或结束本 workstream
-2. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
-4. **Recall/Search Quality Lab** — 基于已有 plan `docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md`
-5. **Real dogfood** — 真实 LLM opt-in 验证 (`docs/real-llm-dogfood.md`)
+1. **Product Main Path Real Dogfood** — 使用安全、隔离、可复现的数据跑通 Source/Import → ai_draft → Review → explicit approval → human_approved → Library → Recall/Wiki → Export；默认 fake/local，不默认调用真实 LLM
+2. **Web IA/UX Loop 2** — 修复 Dogfood 主导航暴露、Export 文档/文案漂移、LocalGraphPreview/Dogfood/Graph 内部术语、Setup cognitive load，并补 fresh browser evidence
+3. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`，但应由 dogfood 证据排序
+4. **Documentation Reset Batch 2** — 暂停自由推进；只有在 exact archive/delete rules 明确后才能执行
+5. **Recall/Search Quality Lab** — 基于真实 dogfood 暴露的召回失败再进入调参
 
 ---
 

@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Post-Governance Global Red Team Audit
+
+- **Commit**: `7312245` → this audit commit
+- **Workstream**: Post-Governance Global Red Team Audit
+- **Task type**: audit_only
+- **Outcome**: 完成一次只读全局红队审计；结论为 Conditional Go，总分 6.1/10。主路径和 approval-first 安全语义是最强资产；下一步不建议自由推进 Batch 2，而应优先做 Product Main Path Real Dogfood。
+- **Docs/notes**: `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0; warning: no Python files found), `python -m pytest tests/test_web_product_copy.py -q --tb=short` (0)
+- **Next**: Product Main Path Real Dogfood；secondary: Web IA/UX Loop 2；Batch 2 暂停，除非 exact archive/delete rules 获批
+- **Workstream changed**: yes (from Documentation Reset to Product Main Path Real Dogfood recommendation)
+
 ### 2026-05-27: Docs Cleanup — Batch 1 Residual References Cleaned
 
 - **Commit**: `ac6aa47`
@@ -123,18 +134,21 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Documentation Reset (2026-05-27)**
+**当前 recommended active workstream: Product Main Path Real Dogfood (2026-05-27)**
 
+- Post-Governance audit 已完成，结论为 Conditional Go
 - Batch 1 已完成: 8 个 stale 文件删除 + 残留引用修复（14 个历史文档已标注）
-- Batch 2 (Archive Candidates): 待决定 — 需要明确的 delete/archive 规则
-- 不涉及产品功能、UI、backend
+- Batch 2 (Archive Candidates): 暂停自由推进 — 只有 exact archive/delete rules 明确并获批后才执行
+- 推荐下一轮验证真实主路径，而不是继续删除文档、扩张 Graph/Sensemaking 或做无路径证据的架构大拆分
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **评估 documentation Batch 2** — 如果 delete/archive 规则明确则可执行；否则结束本 workstream
-2. 回到 product work — 参见 `CURRENT_PROJECT_STATE.md` §6
+1. **Product Main Path Real Dogfood** — 使用安全、隔离、可复现数据验证 Source/Import → ai_draft → Review → explicit approval → human_approved → Library → Recall/Wiki → Export
+2. **Web IA/UX Loop 2** — 修复 Dogfood 主导航、Export 文档/文案漂移、内部术语、Setup cognitive load，并补 fresh browser evidence
+3. **Targeted Architecture Quality Reset** — 由 dogfood 证据排序，重点收敛 `web_facade.py`、schema `__init__.py`、facade helper 反向依赖
+4. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
 
 ---
 
