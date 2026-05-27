@@ -345,12 +345,14 @@ Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存
 | **Library** | 浏览已审批知识卡片、Related Cards、Community Browser、Local Graph Preview |
 | **Recall** | 本地 BM25 词法检索 |
 | **Wiki** | LLM synthesis Wiki 生成、Wiki Quality Bar |
+| **Export** | 浏览器本地下载 Markdown/ZIP — 安全导出，不写 Obsidian vault |
 | **Health** | 知识健康诊断、维护建议 |
-| **Dogfood** | 工作区使用报告、指标面板 |
+| **Dogfood** | 内部开发工具 — 使用报告、指标面板 |
 | **Trash** | 安全回收站，支持 Restore |
 
-当前 Web 控制台没有独立的 **Import/Export** 页面。文件夹导入和 source
-导入入口在 **Sources**；卡片选择和 JSON/OPML/Zip 导出入口在 **Library**。
+Source 导入和文件夹导入入口在 **Sources**。**Export** 页面提供独立的
+已审批卡片导出界面（Markdown / ZIP 格式）— 下载完全在浏览器本地完成，
+绝不会写入外部 vault。
 
 端口被占用时换端口：
 
@@ -399,9 +401,10 @@ MindForge 支持安全本地导入导出，显式审批不可绕过。
 
 ---
 
-## Dogfood（使用报告）
+## Dogfood（内部开发工具）
 
-**Dogfood** 页面提供工作区使用分析和基础设施状态：
+**Dogfood** 页面是内部开发和维护工具 — **不是面向用户的產品功能**。
+它位于侧边栏的「实验区」分组下，供开发者和维护者查看工作区指标。
 
 | 区域 | 说明 |
 |------|------|
@@ -410,7 +413,8 @@ MindForge 支持安全本地导入导出，显式审批不可绕过。
 | **基础设施** | Provider 就绪状态、存储统计、索引健康 |
 | **建议** | 基于检测模式的操作建议（stale 卡片、未使用 source 等） |
 
-Dogfood 报告完全本地运行 — 无遥测、无外部分析。
+Dogfood 报告完全本地运行 — 无遥测、无外部分析。Dogfood 页面
+**不属于主用户路径**，可能随时变更而不另行通知。
 
 ---
 

@@ -1,7 +1,21 @@
 # Handoff — 2026-05-27
 
+> **status: resolved** — workstream completed, AUDIT-118 closure in progress.
+> This file is a low-context bridge, NOT the primary entry point.
+> `docs/dev/CURRENT_PROJECT_STATE.md` is always the authoritative source.
+>
+> **How to read this file:**
+> - `status: active` — context was forced low mid-workstream. Agent MUST resume from
+>   "Next /mf-autopilot Instruction" section.
+> - `status: completed` — workstream finished. Agent should read CPS §6 for next loops.
+> - `status: resolved` — handoff content superseded by newer commits. Reference only.
+> - `status: historical` — template or archive reference, never active.
+>
+> **Agent rule:** If this file exists but status is NOT `active`, ignore the
+> "Next /mf-autopilot Instruction" and use CPS §6 as the canonical next-step source.
+
 ## Repo Snapshot
-- HEAD: 7acb47e
+- HEAD: 8507c82
 - Branch: main
 - Working tree: clean
 - vs origin/main: 0 0

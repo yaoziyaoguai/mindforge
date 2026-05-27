@@ -280,11 +280,12 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 tr
 | **Sources** | 管理 watched sources、Process now、Import |
 | **Review** | 查看 AI 草稿、审批或移入 Trash |
 | **Library** | 浏览已审批知识卡片、查看 Related cards、Local Graph Preview（Graph Explorer）|
-| **Trash** | 安全回收站，支持 Restore |
 | **Recall** | 本地 BM25 词法检索 |
 | **Wiki** | LLM synthesis 生成 Wiki，查看 Wiki quality / references |
+| **Export** | 浏览器本地下载 Markdown/ZIP — 安全导出，不写 Obsidian vault |
 | **Health** | Knowledge Health 维护报告 |
-| **Dogfood** | 开发者/维护者工具（internal） |
+| **Trash** | 安全回收站，支持 Restore |
+| **Dogfood** | 内部开发工具（Lab 分组下，非用户主路径）|
 
 ## CLI 参考
 

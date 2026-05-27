@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: AUDIT-118 P1 Product Debt Closure
+
+- **Commit**: `8507c82` → (pending)
+- **Workstream**: AUDIT-118 P1 Product Debt Closure
+- **Task type**: ui_ux_polish + docs_cleanup + smoke_evidence
+- **Outcome**: 关闭全部 4 项剩余 AUDIT-118 P1 产品债。AUDIT-118-01: user guides + README 更新 Export 文档，标注 browser-local download；AUDIT-118-02: Dogfood i18n label 加 (Internal) 标记，user guides 重写为内部工具；AUDIT-118-04: Chrome DevTools MCP smoke 验证主路径全部页面正常；AUDIT-118-05: HANDOFF.md 新增 status 字段体系 (active/completed/resolved/historical)，CPS §8 更新读取规则。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-132-audit-118-product-debt-closure.md`
+- **Gates**: `git diff --check` (0), `npm run build` (0), `npm run test` (0, 50 passed/6 files), `pytest tests/test_web_product_copy.py` (0)
+- **Next**: 按 CPS §6 AUTOPILOT-QUEUE 继续 frontend test coverage expansion 或 Documentation Reset Batch 2
+- **Workstream changed**: yes (AUDIT-118 → Quality Platform)
+
 ### 2026-05-27: Breadcrumb / SafetyBar Component Tests
 
 - **Commit**: `140a472` → (pending)
@@ -261,17 +272,18 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: v3.7 Quality Platform (2026-05-27)**
+**当前 active workstream: Quality Platform / Frontend Test Coverage (2026-05-27)**
 
-- v3.7 Quality Platform workstream 已完成 (P2-05 + P2-06 resolved, web_config_service.py env extraction done)
-- 下一 workstream: Documentation Reset Batch 2（archive/delete 规则已明确）
+- AUDIT-118 P1 Product Debt Closure workstream 已完成 — 全部 4 项 resolved
+- 下一 workstream: 按 CPS §6 AUTOPILOT-QUEUE 继续
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **Documentation Reset Batch 2** — archive/delete 规则已在 plan 中明确。下一步: 执行实际归档/删除（docs_cleanup task type）。
-2. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
+1. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
+2. **Documentation Reset Batch 2** — archive/delete 规则已在 plan 中明确。
+3. **P3-01 npm build chunk size optimization** — 非阻塞。
 
 ---
 

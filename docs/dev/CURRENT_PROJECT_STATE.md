@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.7 — Web frontend test expansion: 2→6 files, 25→50 tests)
+更新日期: 2026-05-27 (v3.7 — AUDIT-118 P1 Product Debt Closure: Export docs/Dogfood nav/HANDOFF semantics/Browser smoke)
 
 ---
 
@@ -22,6 +22,7 @@
 | 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
 | 最新 docs reset notes | `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md` |
 | 最新 test expansion notes | `docs/implementation-notes/2026-05-27-131-breadcrumb-safetybar-tests.md` |
+| 最新 AUDIT-118 closure notes | `docs/implementation-notes/2026-05-27-132-audit-118-product-debt-closure.md` |
 
 最近关键 commits:
 ```
@@ -157,11 +158,11 @@ Source / Import
 | P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | resolved (v3.7): vitest + happy-dom + @testing-library/react 基础设施已搭建 |
 | P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | resolved (v3.7): [tool.coverage.run] + [tool.coverage.report] 已配置, --cov 可用 |
 | P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
-| AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | open |
-| AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | open |
+| AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | resolved (v3.7): user guides + README 已更新，Export 页面已写入 Web Console 表格，明确 browser-local download |
+| AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | resolved (v3.7): Dogfood 已在 Lab 折叠区，i18n label 加 (Internal) 标记，user guides 明确标注为内部开发工具 |
 | AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | resolved (v4.8+Slice 1+2): core→web 层依赖已修复，presenter 模块已提取，web_facade.py 从 2163→922 行 (-57.4%) |
-| AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | open |
-| AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | open |
+| AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | resolved (v3.7): Chrome DevTools MCP smoke 已跑，Home/Setup/Sources/Review/Library/Recall/Wiki/Export 全部加载正常 |
+| AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | resolved (v3.7): HANDOFF.md 新增 status 字段 (active/completed/resolved/historical)，CPS §8 更新读取规则 |
 | DOC-01 | P3 | 无英文 docs/README.md 翻译 | resolved (v3.7): docs/README-en.md 已创建 |
 | DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | resolved (v3.7): design/README.md + obsidian-binding-design.md 状态标注 |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
@@ -174,17 +175,14 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: product_decision -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: audit_only -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: AUDIT-118-01 — Export route docs/README 状态漂移修复 -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: AUDIT-118-02 — Dogfood 主导航与 internal 定位冲突 -->
-<!-- AUTOPILOT-QUEUE-ITEM-3: AUDIT-118-04 — 缺少 fresh browser/MCP Web 主路径证据 -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_quality_platform -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Web frontend test coverage expansion — vitest + happy-dom 基础设施已就绪 -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Documentation Reset Batch 2 — archive/delete 规则已明确 -->
+<!-- AUTOPILOT-QUEUE-ITEM-3: P3-01 — npm build chunk size optimization (非阻塞) -->
 <!-- AUTOPILOT-QUEUE-END -->
 
-按推荐顺序:
-
-1. **Documentation Reset Batch 2** — archive/delete 规则已在 `docs/plans/2026-05-26-097-documentation-archive-plan.md` 中明确。
-2. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
+AUDIT-118 全部 P1 项已关闭。按推荐顺序:
 
 ---
 
@@ -215,12 +213,25 @@ Source / Import
 
 当 context 不足（< 15%）时，必须在 `docs/dev/HANDOFF.md` 写入 handoff 文档。
 
+**HANDOFF.md 状态标记（必填）：**
+
+每个 HANDOFF.md 必须在文件顶部包含 `status` 标记：
+
+| Status | 含义 | Agent 行为 |
+|--------|------|-----------|
+| `active` | context 不足导致中断，workstream 未完成 | 必须从 "Next /mf-autopilot Instruction" 继续 |
+| `completed` | workstream 正常完成，等待产品决策 | 读取 CPS §6 获取推荐 next loop |
+| `resolved` | handoff 内容已被后续 commit 覆盖 | 参考历史，不执行其中指令 |
+| `historical` | 模板或存档参考 | 忽略，不作为当前任务来源 |
+
 **HANDOFF.md 读取规则:**
 - 新 session 启动时，`/mf-autopilot` §2 必读文件包含 `docs/dev/HANDOFF.md`（如果存在）
-- 如果 HANDOFF.md 存在，其内容优先于 current next loops 建议
-- 如果 HANDOFF.md 中的 active workstream 与 progress-ledger.md 不一致，以 HANDOFF.md 为准（它是最新的 session 出口状态）
+- 如果 HANDOFF.md 的 status 为 `active`，其内容优先于 CPS §6 的 next loops 建议
+- 如果 HANDOFF.md 的 status 为 `completed` / `resolved` / `historical`，以 CPS §6 为准
+- 如果 HANDOFF.md 中的 active workstream 与 progress-ledger.md 不一致，且 status 为 `active`，以 HANDOFF.md 为准（它是最新的 session 出口状态）
 
 **HANDOFF.md 生命周期:**
-- context < 15% 时写入
-- 新 session 成功启动新 loop 后，该 loop 的 commit 应删除或标记 resolved
-- 如果 HANDOFF.md 持续存在超过 2 个 loop 而未被处理，说明进度断裂，需要人工介入
+- context < 15% 且 workstream 未完成时写入（status: `active`）
+- workstream 正常完成但需要产品决策时写入（status: `completed`）
+- 新 session 成功处理 handoff 后，该 loop 的 commit 应将 status 改为 `resolved` 或删除文件
+- 如果 HANDOFF.md 持续 status `active` 超过 2 个 loop 而未被处理，说明进度断裂，需要人工介入

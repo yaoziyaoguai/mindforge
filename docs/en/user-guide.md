@@ -336,13 +336,15 @@ Start with `mindforge web --open`, visit `http://127.0.0.1:8765`:
 | **Library** | Browse approved knowledge cards, related cards, local graph preview |
 | **Recall** | Local BM25 lexical search |
 | **Wiki** | LLM synthesis Wiki generation, Wiki quality bar |
+| **Export** | Browser-local Markdown/ZIP download — safe, no Obsidian vault write |
 | **Health** | Knowledge health diagnostics, maintenance suggestions |
-| **Dogfood** | Workspace usage reports, metrics dashboard |
+| **Dogfood** | Internal development tool — usage reports, metrics dashboard |
 | **Trash** | Safe recycle bin with Restore |
 
-There is no standalone **Import/Export** page in the current Web console. Folder
-import and source import live under **Sources**; card selection and JSON/OPML/Zip
-export live under **Library**.
+Source import and folder import live under **Sources**. The **Export** page
+provides a dedicated interface for downloading approved cards in Markdown or
+ZIP format — downloads happen entirely in the browser, never writing to an
+external vault.
 
 Port in use? Switch ports:
 
@@ -390,9 +392,11 @@ on the Web **Library** page to preview before downloading.
 
 ---
 
-## Dogfood (Usage Reports)
+## Dogfood (Internal Development Tool)
 
-The **Dogfood** page provides workspace usage analytics and infrastructure status:
+The **Dogfood** page is an internal development and maintenance tool — **not a
+user-facing product feature**. It is located in the Lab section of the sidebar
+and is intended for developers and maintainers to inspect workspace metrics.
 
 | Section | Description |
 |---------|-------------|
@@ -401,7 +405,8 @@ The **Dogfood** page provides workspace usage analytics and infrastructure statu
 | **Infrastructure** | Provider readiness, storage stats, index health |
 | **Suggestions** | Actions based on detected patterns (stale cards, unused sources, etc.) |
 
-Dogfood reports run entirely locally — no telemetry, no external analytics.
+Dogfood reports run entirely locally — no telemetry, no external analytics. The
+Dogfood page is **not part of the main user path** and may change without notice.
 
 ---
 
