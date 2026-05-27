@@ -1,9 +1,9 @@
 # Handoff — 2026-05-27
 
 ## Repo Snapshot
-- HEAD: (pending commit)
+- HEAD: 70a1475
 - Branch: main
-- Working tree: dirty (Slice 2 changes pending commit)
+- Working tree: clean (hash correction pending)
 - vs origin/main: 0 0
 
 ## Active Workstream
@@ -13,7 +13,7 @@
 ## Last Completed Loop
 - Task type: architecture_refactor
 - Outcome: Slice 2 — 提取 web_facade.py ~540 行私有 helper 到 5 个 presenter 子模块。web_facade.py 从 1487→922 行，累计从 2163 行减少 57.4%。零行为变更，零循环导入。
-- Commit: (pending)
+- Commit: 70a1475
 
 ## In-Progress Files
 - All changes staged for commit

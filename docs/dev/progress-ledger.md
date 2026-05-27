@@ -10,7 +10,7 @@
 
 ### 2026-05-27: Architecture Quality Reset — Slice 2 (Extract web_facade.py Private Helpers to Presenters)
 
-- **Commit**: `9c598a4` → (pending)
+- **Commit**: `9c598a4` → `70a1475`
 - **Workstream**: Architecture Quality Reset
 - **Task type**: architecture_refactor
 - **Outcome**: 将 web_facade.py 中 ~540 行私有 helper 函数提取到 5 个 presenter 子模块（shared/graph/library/discovery/provenance）。web_facade.py 从 1487 行降至 922 行 (-38.0%)，累计从 2163 行减少 57.4%。所有命名 `_xxx` → `build_xxx`/`get_xxx`。3 个 service 文件 + 2 个测试文件导入更新。零行为变更，零循环导入。

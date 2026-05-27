@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | (pending commit — Slice 1 + Slice 2 完成) |
+| 审计基线 HEAD | `70a1475` (Slice 1 + Slice 2 完成，Architecture Quality Reset 完结) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
