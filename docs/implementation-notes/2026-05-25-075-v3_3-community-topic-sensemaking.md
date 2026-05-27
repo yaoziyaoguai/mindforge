@@ -1,5 +1,8 @@
 # v3.3 Community / Topic Sensemaking Layer
 
+> **状态: superseded (by-contraction, 2026-05-28)**
+> Community/Topic/Sensemaking 已降级为 lab/internal。参考: CPS §3
+
 ## 概述
 
 增强 v2.1 社区检测为 v3.3，新增代表性卡片选择、来源覆盖率、增强证据链、

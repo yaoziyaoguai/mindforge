@@ -1,5 +1,8 @@
 # v1.2 U4 Retrieval Context Composer Enhancement — Implementation Notes
 
+> **状态: superseded (by-contraction, 2026-05-28)**
+> Community/Topic Detection 已降级为 lab。参考: CPS §3 lab
+
 ## 决策
 
 ### 社区信息注入点

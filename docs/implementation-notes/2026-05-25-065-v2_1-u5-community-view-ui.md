@@ -1,7 +1,7 @@
 ---
 title: "v2.1 U5 Community View UI Enhancement — Implementation Note"
 date: 2026-05-25
-status: Complete
+status: superseded (by-contraction, 2026-05-28 — Community/Topic Detection 降级为 lab)
 version: v2.1
 ---
 

@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Post-Mint4 Remediation — P4 Autopilot Simplification Analysis 完成)
+更新日期: 2026-05-28 (Post-Mint4 Remediation — 全部 5 个 P 完成)
 
 ---
 
@@ -243,8 +243,7 @@ hard_stop_required=false
 <!-- AUTOPILOT-QUEUE-ITEM-5:
 workstream=Post-Mint4 Remediation: P5 Docs Governance Cost Reduction
 task_type=docs_cleanup
-current_node=implementing
-next_action=small_batch_cleanup_stale_docs
+status=resolved (Batch 1: 3 Community/Topic notes marked superseded by-contraction)
 required_skill=none
 frameworks_checked=none
 review_node=docs_truth_review
@@ -259,12 +258,12 @@ hard_stop_required=false
 - Direction A/C/F 已全部完成
 - User Validation 已列为 P0
 
-Post-Mint4 Remediation (当前执行中):
+Post-Mint4 Remediation (全部完成 ✅):
 1. **P1: User Validation Kit** — 5 个验证文档已就绪 ✅ → HARD_STOP_PRODUCT_DECISION (需要真实用户)
 2. **P2: Web UX Remediation** — 3 fixes 完成 ✅ (commit `0c96f5d`)
 3. **P3: Design System Foundation** — tokens.ts + design-system.md ✅
 4. **P4: Autopilot Simplification** — 分析文档完成 ✅
-5. **P5: Docs Governance Cost Reduction** — 小 batch 清理 → 执行中
+5. **P5: Docs Governance Cost Reduction** — Batch 1 完成 ✅ (3 notes marked superseded)
 
 ---
 

@@ -80,6 +80,24 @@
 
 ---
 
+### 2026-05-28: Post-Mint4 Remediation — P5 Docs Governance Cost Reduction (Batch 1)
+
+- **Commit**: `9ea8976` → (pending)
+- **Workstream**: Post-Mint4 Remediation — P5 Docs Governance Cost Reduction (Batch 1)
+- **Task type**: docs_cleanup
+- **Outcome**: Batch 1 — 3 Community/Topic 相关 implementation notes 标记为 superseded (by-contraction)。社区/Topic Detection 已降级为 lab，对应 notes 反映的已是过期能力声明。
+- **Diffs**: 3 files in `docs/implementation-notes/` (status markers only)
+- **Gates**: `git diff --check` (pending)
+- **Review result**: PASS — docs truth review, status markers match CPS §3 lab/internal status
+- **Gate result**: pending
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (docs_cleanup)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: WORKSTREAM_COMPLETE. Post-Mint4 Remediation 全部 5 个 P 完成
+
+---
+
 ### 2026-05-28: Post-Mint4 Independent Retrospective / Lessons Learned
 
 - **Commit**: `4f2482b` (retrospective standalone commit)
