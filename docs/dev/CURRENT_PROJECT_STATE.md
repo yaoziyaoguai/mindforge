@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `<pending>` (Guided Onboarding MVP 实现完成) |
+| 当前 HEAD | `d7c59a8` (Guided Onboarding MVP 实现完成) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
