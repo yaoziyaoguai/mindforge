@@ -78,20 +78,93 @@ git log --oneline -20
 
 ---
 
-## 2. 读取工程宪法和路线
+## 2. 读取工程宪法和状态
 
-必须读取以下文件（按顺序）：
+每个 `/mf-autopilot` run 必须先读取以下文件（按顺序）：
 
-1. `docs/dev/engineering-workflow.md`
-2. `docs/design/roadmap/` 下最新 roadmap 文件
-3. `docs/plans/` 下最新 active plan 文件
-4. `docs/specs/` 下最近最新的 spec 文件
-5. `docs/implementation-notes/` 下最新的 notes / handoff 文件
-6. `docs/dev/copy-policy.md`
+1. **`docs/dev/CURRENT_PROJECT_STATE.md`** — 项目当前状态（第一入口）
+2. **`docs/dev/progress-ledger.md`** — 进度跟踪
+3. **`docs/dev/engineering-workflow.md`** — 工程工作流规范
+4. `docs/design/roadmap/` 下最新 roadmap 文件（如需）
+5. `docs/plans/` 下最新 active plan 文件（如需）
+6. `docs/specs/` 下最近最新的 spec 文件（如需）
+7. `docs/implementation-notes/` 下最新的 notes / handoff 文件（如需）
+8. `docs/dev/copy-policy.md`（如需）
+
+前 3 个文件是所有 task type 的必读项。剩余文件按 task type 按需读取。
 
 ---
 
-## 3. 自动判断当前阶段
+## 3. 按 Task Type 选择入口
+
+`/mf-autopilot` 必须根据当前 task type 选择合适的 loop 起点，**不一定每次从 spec → implementation 从头开始**。
+
+### Task Type 判断
+
+Agent 必须根据用户指令和当前 repo 状态判断 task type：
+
+| Task Type | 触发信号 |
+|-----------|---------|
+| `bug_fix` | 用户报告 bug / test failure / gate 失败 / 行为异常 |
+| `docs_cleanup` | 用户要求清理文档 / 归档 / 更新 docs |
+| `ui_ux_polish` | 用户要求 UI 改进 / 设计 QA / 视觉调整 |
+| `architecture_refactor` | 用户要求架构改进 / 重构 / 拆分巨石 |
+| `feature_implementation` | 用户要求新功能 / 完整 milestone |
+| `audit_only` | 用户要求审查 / 审计 / 不改产品代码 |
+| `dogfood` | 用户要求 dogfood run / 验证 |
+| `design_review` | 用户要求设计审查 / 视觉对比 |
+
+### 各 Task Type 的 Loop 入口
+
+#### bug_fix
+```
+repo facts → bug context → reproduce/inspect → fix → targeted gates → notes → progress ledger → commit/push
+```
+
+#### docs_cleanup
+```
+repo facts → docs inventory → code-truth check → cleanup/rewrite/archive → docs gates → progress ledger → commit/push
+```
+
+#### ui_ux_polish
+```
+repo facts → browser/MCP audit → P1/P2 fix → product copy/build gates → progress ledger → commit/push
+```
+
+#### architecture_refactor
+```
+repo facts → architecture audit → target design → boundary tests → small slice → gates → progress ledger → commit/push
+```
+
+#### feature_implementation
+```
+repo facts → spec/plan → self-review → implementation → gates → notes → progress ledger → commit/push
+```
+
+#### audit_only
+```
+repo facts → read evidence → report → no production code → docs gates → progress ledger → commit/push (if docs changed)
+```
+
+#### dogfood
+```
+repo facts → dogfood plan → isolated workspace → run → report → fix P1/P2 → gates → progress ledger → commit/push
+```
+
+#### design_review
+```
+repo facts → browser/MCP screenshots → compare → report → progress ledger → commit/push (if docs changed)
+```
+
+### 入口选择规则
+
+1. 不论从哪个入口开始，都必须: **落文档 → 更新 progress ledger → 跑 gate → commit/push**
+2. 如果无法判断 task type，读取 `CURRENT_PROJECT_STATE.md` §6 找推荐 next loop
+3. 如果仍然无法判断，更新 `CURRENT_PROJECT_STATE.md` 后 `HARD_STOP_PRODUCT_DECISION`
+
+---
+
+## 4. 自动判断当前阶段 (Legacy — 仍可用于 feature_implementation 类型)
 
 Agent 必须根据工程事实和文档判断当前处于哪种状态：
 
@@ -107,9 +180,9 @@ Agent 必须根据工程事实和文档判断当前处于哪种状态：
 
 ---
 
-## 4. 自动跑完整 Loop
+## 5. 自动跑完整 Loop
 
-只要没有触发停止条件，Agent 必须自己完成以下循环：
+只要没有触发停止条件，Agent 必须自己完成以下循环（feature_implementation 的完整路径；其他 task type 使用 §3 的对应入口）：
 
 ```
 spec / plan
@@ -120,6 +193,7 @@ spec / plan
   → gate（真实运行 exit code gate）
   → browser / API smoke
   → commit + push main
+  → 更新 progress ledger
   → 判断下一阶段
   → 继续下一轮
 ```
@@ -128,9 +202,9 @@ spec / plan
 - 不在每个 milestone 完成后停下来问用户
 - 不在 gate 通过后停下来问用户是否 commit
 - 不在 commit 后停下来问用户是否继续
-- 只有触发 §6 的停止条件时才停
+- 只有触发 §7 的停止条件时才停
 
-### 4.1 Auto-continue contract
+### 5.1 Auto-continue contract
 
 如果最终报告能写出明确的下一步行动，Autopilot 必须立即进入下一步，不得停止。
 
@@ -140,16 +214,31 @@ spec / plan
 - "实现下一个 roadmap item"
 - "写下一个 spec"
 - "跑下一个 smoke"
+- "继续 docs cleanup batch 2"
 
 禁止输出"下一步是 X"然后停止。
 
+**spec 写完不是停止点** — 如果 spec 通过 review，必须立即进入实现。
+**docs 写完不是停止点** — 如果 docs 清理计划写好，必须立即执行 batch 1。
 **commit/push 不是停止点，是检查点。** commit/push 后，Autopilot 必须：
 1. 重新建立工程事实（git status、branch、log）
-2. 按需重新读取活跃 roadmap/spec/notes
+2. 按需重新读取 `CURRENT_PROJECT_STATE.md`、`progress-ledger.md`、活跃 roadmap/spec/notes
 3. 判断是否存在 hard-stop
 4. 如无 hard-stop，继续下一轮
 
-### 4.2 Stop reason must be explicit
+### 5.2 Progress update rule
+
+每个 loop 结束必须更新：
+
+| 文件 | 何时更新 |
+|------|---------|
+| `docs/dev/progress-ledger.md` | **always** — 每次 loop 结束 |
+| `docs/dev/CURRENT_PROJECT_STATE.md` | 当项目状态发生变化时（新功能完成、HEAD 变动、能力变更、债务变化） |
+| `docs/implementation-notes/` | 当 code/docs 有实质改动时 |
+
+即使是 minor bug fix loop，也至少在 progress-ledger.md 追加一行。
+
+### 5.3 Stop reason must be explicit
 
 如果 Autopilot 停止，必须输出以下其中一个 stop reason：
 
@@ -168,7 +257,7 @@ spec / plan
 
 如果以上无一适用，Autopilot 必须继续。
 
-### 4.3 Context policy
+### 5.4 Context policy
 
 根据 context 剩余比例决定行为：
 
@@ -183,7 +272,7 @@ spec / plan
 
 ---
 
-## 5. 允许自动继续的范围
+## 6. 允许自动继续的范围
 
 以下范围 Agent 可以自主决定并执行，无需用户确认：
 
@@ -204,7 +293,7 @@ spec / plan
 
 ---
 
-## 6. 全局硬红线（始终生效）
+## 7. 全局硬红线（始终生效）
 
 只有以下情况才停止并询问用户：
 
@@ -239,7 +328,7 @@ spec / plan
 
 ---
 
-## 7. Gate 规则
+## 8. Gate 规则
 
 必须真实运行并报告 exit code，不得伪造：
 
@@ -257,7 +346,7 @@ spec / plan
 - 不能把 code-level review 伪装成 browser smoke
 - gate 不通过不得 commit
 
-### 7.1 Gate evidence rule
+### 8.1 Gate evidence rule
 
 不得使用 `tail`、`head` 或截断的命令输出来证明 gate passed。
 
@@ -276,7 +365,7 @@ spec / plan
 
 ---
 
-## 8. Commit / Push 规则
+## 9. Commit / Push 规则
 
 - Gate 通过后默认 fast lane commit + push main
 - Commit message 格式：`<type>: <中文描述>`
@@ -286,7 +375,7 @@ spec / plan
 
 ---
 
-## 9. 输出报告
+## 10. 输出报告
 
 每轮完成后必须输出以下报告：
 

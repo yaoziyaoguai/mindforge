@@ -1,0 +1,180 @@
+# MindForge Current Project State
+
+**这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
+
+更新日期: 2026-05-27
+
+---
+
+## 1. Current Repo Snapshot
+
+| 字段 | 值 |
+|------|-----|
+| 日期 | 2026-05-27 |
+| HEAD | `6f5db2c` |
+| 分支 | `main` |
+| 工作树 | clean |
+| vs origin/main | `0 0` (对齐) |
+
+最近关键 commits:
+```
+6f5db2c docs: add export page MVP implementation notes
+fb87ce0 feat: add safe export page MVP with preview, download, and safety notice
+9eb4108 docs: specify export page product direction + backend copy sanitization notes
+7bb4a76 fix: sanitize backend generated web copy — health/wiki labels → Chinese
+a1556f9 docs: Web IA simplification implementation notes
+f0427e7 fix: Web IA simplification — hide internal labels, format timestamps, replace BM25 jargon
+54110d4 fix: map internal enum labels to user-friendly display values
+```
+
+---
+
+## 2. Product Identity
+
+**MindForge 是 local-first, approval-first personal knowledge compiler.**
+
+主路径:
+```
+Source / Import
+→ ai_draft (AI 生成草稿)
+→ Review (人工审阅)
+→ explicit approval (显式确认)
+→ human_approved (正式知识卡片)
+→ Library (浏览) / Recall (BM25 检索) / Wiki (LLM synthesis)
+→ Export (Markdown / ZIP 本地下载)
+```
+
+**MindForge 不是:**
+- 不是 RAG 平台
+- 不做 embedding / vector DB
+- 不是 GraphRAG
+- 不是 Obsidian plugin
+- 不是云端 SaaS
+- 不自动审批
+- 不默认调用真实 LLM
+
+---
+
+## 3. Current Real Capabilities
+
+### production-like / dogfoodable
+
+| 能力 | 状态 | 实现位置 | 说明 |
+|------|------|---------|------|
+| Source Import/Watch | done | `src/mindforge/sources/` (13 adapters) | Markdown/TXT/HTML/PDF/DOCX |
+| AI Draft 五段处理 | done | `src/mindforge/processors/` | Triage→Distill→Link→Questions→Actions |
+| Human Review & Explicit Approval | done | `src/mindforge/review_service.py`, `approval_service.py` | `ai_draft` → `human_approved`，不可绕过 |
+| Knowledge Library | done | `src/mindforge/library_service.py`, `web/src/pages/LibraryPage.tsx` | 卡片浏览、筛选、排序 |
+| BM25 Recall | done | `src/mindforge/recall_service.py`, `lexical_index.py` | 本地词法检索 |
+| Wiki (LLM synthesis) | done | `src/mindforge/wiki_service.py` | 从 `human_approved` 生成 Wiki |
+| Knowledge Health | done | `src/mindforge/health/health_service.py` | 8 项诊断（review_backlog, low_quality, etc.），只读，不修改 |
+| Source Provenance | done | `src/mindforge/provenance/` | 来源追溯 |
+| Related Cards | done | `src/mindforge/relations/related_cards.py` | same_source/same_tag/same_wiki_section 确定性关系 |
+| Local Graph Preview | done | `web/src/components/GraphExplorer.tsx` | 4 NodeType (card/source/tag/wiki_section)，确定性图 |
+| Export (Markdown/ZIP) | done | `routers/library.py` (API) + `web/src/pages/ExportPage.tsx` | 浏览器本地下载，不写 Obsidian vault |
+| Provider Setup | done | `web/src/pages/SetupPage.tsx` | Web 配置模型和 API key |
+| Dogfood | done | `src/mindforge/dogfood/` | 开发者/维护者工具，`/dogfood` 页面 |
+| Trash | done | `src/mindforge/trash_service.py` | 安全回收站，支持 Restore |
+| Web UI (14 pages) | done | `web/src/pages/` | React SPA + Tailwind |
+| i18n (zh/en) | done | `web/src/lib/i18n.ts` | 双语文案 |
+| CLI | done | `src/mindforge/cli.py` + 各 `*_cli.py` | 完整 CLI 入口 |
+
+### internal
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| Graph Page (`/graph`) | internal | 独立全页图可视化，保留路由但不在主导航 |
+| GraphRepository | internal | GraphPort 之上的 Repository Pattern 封装，仅测试使用 |
+
+### lab
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| Sensemaking (`/sensemaking`) | lab | bridge detection/card evolution 等基于简单 heuristics |
+| Entity Resolution | lab | ConceptCandidate 确定性检测，不支持自动升级 |
+| Extension Plugin | lab | ExtensionManifest/ExportAdapter 架构预留 |
+| Community / Topic Detection | lab | 实验性，非主产品路径 |
+
+### deferred
+
+| 能力 | 说明 |
+|------|------|
+| RAG / embedding / vector DB | 明确不做 |
+| Obsidian plugin / vault write | 明确不做 |
+| Mail / email storage | 明确不做 |
+| Auto approve | 明确不做 |
+| Real provider auto-call | 默认不调用，需显式 opt-in |
+| Frontend tests (vitest/happy-dom) | P2 debt，target v3.7 |
+
+### deprecated / superseded
+
+| 能力 | 说明 |
+|------|------|
+| Graph/Sensemaking 8 NodeType 声明 | 已收缩至 4 种正式支持 |
+| v3.x 路线图中的 Graph/Sensemaking/Community 全能力 | 已降级为 lab/internal |
+
+---
+
+## 4. Current Non-Goals / Hard Constraints
+
+- 不做 RAG / embedding / vector DB
+- 不做 GraphRAG
+- 不默认调用真实 LLM/Cubox/Upstage
+- 不处理真实私人资料
+- 不写真实 Obsidian vault
+- 不做 auto approve
+- 不做 Graph/Sensemaking 扩张（除非显式重新授权）
+- 不新增大型依赖（除非 spec 明确说明）
+- 不破坏 `ai_draft` → `human_approved` explicit approval 语义
+- 不做 mail/email/mail storage
+
+---
+
+## 5. Current Open Debts
+
+| ID | Priority | Description | Status |
+|----|----------|-------------|--------|
+| P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | open, target v3.7 |
+| P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | open, target v3.7 |
+| P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
+| DOC-01 | P3 | docs/README.md 无英文翻译 | open |
+| DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | open |
+| DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
+
+质量债台账完整记录: [`docs/dev/quality-debt-ledger.md`](quality-debt-ledger.md)
+文档债台账完整记录: [`docs/dev/documentation-debt-ledger.md`](documentation-debt-ledger.md)
+
+---
+
+## 6. Current Recommended Next Loops
+
+按推荐顺序:
+
+1. **Documentation cleanup batch** — 本轮 docs reset 的继续，清理 stale/superseded 文档
+2. **Web IA remaining P2 cleanup** — 如果还有 pending Web IA debt
+3. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
+4. **Recall/Search Quality Lab** — 基于已有 plan `docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md`
+5. **Real dogfood** — 真实 LLM opt-in 验证 (`docs/real-llm-dogfood.md`)
+
+---
+
+## 7. Autopilot Entry Rules
+
+`/mf-autopilot` 必须根据 task type 选择入口:
+
+| Task Type | Entry Sequence |
+|-----------|---------------|
+| `feature_implementation` | repo facts → spec/plan → self-review → implementation → gates → notes → progress ledger → commit/push |
+| `bug_fix` | repo facts → bug context → reproduce/inspect → fix → targeted gates → notes → progress ledger → commit/push |
+| `docs_cleanup` | repo facts → docs inventory → code-truth check → cleanup/rewrite/archive → docs gates → progress ledger → commit/push |
+| `ui_ux_polish` | repo facts → browser/MCP audit → P1/P2 fix → product copy/build gates → progress ledger → commit/push |
+| `architecture_refactor` | repo facts → architecture audit → target design → small slice → gates → progress ledger → commit/push |
+| `audit_only` | repo facts → read evidence → report → docs gates → progress ledger → commit/push (if docs changed) |
+| `dogfood` | repo facts → dogfood plan → isolated workspace → run → report → fix P1/P2 → gates → progress ledger → commit/push |
+
+每个 loop 结束必须:
+- 更新 `docs/dev/progress-ledger.md` (always)
+- 更新 `docs/dev/CURRENT_PROJECT_STATE.md` (if state changed)
+- 更新 implementation notes (if code/docs changed significantly)
+
+**Auto-continue:** spec/doc/gate/commit/push 都不是停止点。只有 HARD_STOP_* 条件触发停止。

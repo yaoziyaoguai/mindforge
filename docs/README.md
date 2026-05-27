@@ -9,12 +9,13 @@
 | # | 文档 | 说明 |
 |---|------|------|
 | 1 | [`README.md`](../README.md) | 项目入口：能力、限制、安全边界、Lab/Internal 功能 |
-| 2 | [`docs/en/user-guide.md`](en/user-guide.md) | 英文用户指南 |
-| 3 | [`docs/zh-CN/user-guide.md`](zh-CN/user-guide.md) | 中文用户指南 |
-| 4 | [`docs/dev/architecture.md`](dev/architecture.md) | 代码架构概览 |
-| 5 | [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + gate baseline |
-| 6 | [`docs/audits/2026-05-25-092-current-capability-map.md`](audits/2026-05-25-092-current-capability-map.md) | 当前能力地图 |
-| 7 | [`docs/plans/2026-05-25-094-next-deepening-roadmap.md`](plans/2026-05-25-094-next-deepening-roadmap.md) | 下一阶段路线图 |
+| 2 | [`docs/dev/CURRENT_PROJECT_STATE.md`](dev/CURRENT_PROJECT_STATE.md) | **项目当前状态（agent 第一入口）** |
+| 3 | [`docs/dev/progress-ledger.md`](dev/progress-ledger.md) | 进度台账 — 已完成 loops、当前 active workstream |
+| 4 | [`docs/en/user-guide.md`](en/user-guide.md) | 英文用户指南 |
+| 5 | [`docs/zh-CN/user-guide.md`](zh-CN/user-guide.md) | 中文用户指南 |
+| 6 | [`docs/dev/architecture.md`](dev/architecture.md) | 代码架构概览 |
+| 7 | [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + gate baseline |
+| 8 | [`docs/audits/2026-05-25-092-current-capability-map.md`](audits/2026-05-25-092-current-capability-map.md) | 当前能力地图 |
 
 ---
 
@@ -44,11 +45,12 @@
 
 | 文档 | 说明 |
 |------|------|
+| [`docs/dev/CURRENT_PROJECT_STATE.md`](dev/CURRENT_PROJECT_STATE.md) | **项目当前状态 — 所有 agent 第一入口** |
+| [`docs/dev/progress-ledger.md`](dev/progress-ledger.md) | 进度台账 — 已完成 loops + 活跃 workstream |
 | [`docs/dev/architecture.md`](dev/architecture.md) | 代码架构概览（已修正不存在的文件引用） |
 | [`docs/dev/engineering-workflow.md`](dev/engineering-workflow.md) | 工程工作流规范 |
 | [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + 可重现 gate baseline |
 | [`docs/dev/copy-policy.md`](dev/copy-policy.md) | UI copy 规范 |
-| [`docs/dev/docs-reset-index.md`](dev/docs-reset-index.md) | v4.2 文档 truth reset 索引 |
 | [`docs/dev/documentation-inventory.md`](dev/documentation-inventory.md) | 完整文档清单 + 分类 |
 | [`docs/dev/documentation-debt-ledger.md`](dev/documentation-debt-ledger.md) | 文档债台账 + superseded 追踪 |
 | [`docs/dev/design-system.md`](dev/design-system.md) | 设计系统参考 |
