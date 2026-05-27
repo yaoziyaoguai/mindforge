@@ -15,3 +15,14 @@ def user_error(status_code: int, kind: str, message: str, next_action: str | Non
     if next_action:
         detail["next_action"] = next_action
     return HTTPException(status_code=status_code, detail=detail)
+
+
+def http_error(status_code: int, message: str) -> HTTPException:
+    """把用户主路径错误保持为前端可读的 `{detail:{message}}`。
+
+    中文学习型说明：Add Source / Process Now 是普通用户第一阶段主链路。
+    后端拒绝相对路径、缺模型或其它用户可修复错误时，不能只返回字符串
+    detail，否则 Web fetch helper 会退化成浏览器的 `Bad Request` 文案。
+    """
+
+    return HTTPException(status_code=status_code, detail={"message": message})

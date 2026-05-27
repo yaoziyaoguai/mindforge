@@ -1,30 +1,39 @@
 # Handoff — 2026-05-27
 
 ## Repo Snapshot
-- HEAD: 2cba857
+- HEAD: (pending commit)
 - Branch: main
-- Working tree: dirty (state docs pending commit)
+- Working tree: dirty (Slice 2 changes pending commit)
 - vs origin/main: 0 0
 
 ## Active Workstream
 - Workstream: Architecture Quality Reset
-- Status: Slice 1 done, Slice 2 pending
+- Status: Slice 1 + Slice 2 完成，workstream 完结
 
 ## Last Completed Loop
 - Task type: architecture_refactor
-- Outcome: Slice 1 — 将 processing run 逻辑迁移到 core（mindforge.processing.run_store），消除 5 个 core→web import 和 2 个 private symbol import。层依赖方向修复。
-- Commit: 2cba857
+- Outcome: Slice 2 — 提取 web_facade.py ~540 行私有 helper 到 5 个 presenter 子模块。web_facade.py 从 1487→922 行，累计从 2163 行减少 57.4%。零行为变更，零循环导入。
+- Commit: (pending)
+
+## In-Progress Files
+- All changes staged for commit
+
+## Gates Last Run
+- `ruff check src/ tests/`: exit 0
+- `pytest tests/ -q --tb=short`: exit 0 (545 passed, 1 skipped)
+- `git diff --check`: exit 0
+- `npm --prefix web run build`: exit 0
+- `python -m pytest tests/test_web_product_copy.py -q --tb=short`: exit 0
 
 ## Next /mf-autopilot Instruction
 ```
 /mf-autopilot
 
-继续 Architecture Quality Reset → Slice 2。
-上次完成了 Slice 1（修复 core→web 反向依赖，commit 2cba857）。
-下一步: Slice 2 — 提取 web_facade.py 私有 helper 到 presenters/ 模块。
-Plan 在 docs/plans/2026-05-27-122-targeted-architecture-quality-reset.md。
+Architecture Quality Reset workstream 已完成。
+下一步: v3.7 Quality Platform — P2-05 (frontend tests vitest/happy-dom) + P2-06 (coverage config) + web_config_service.py split。
+需独立 spec/plan 后进入实现。
 ```
 
 ## Hard Stops / Warnings
-- Slice 2 风险低（纯数据变换函数，无 IO，无副作用），auto-continue allowed
-- 2 个 remaining known violations（P2 dogfood_service + P3 web_cli）不阻塞 Slice 2
+- v3.7 Quality Platform 需用户 approve spec/plan 后才可进入实现 — 新 workstream 启动需 spec 授权
+- AUDIT-118-03 resolved — web_facade.py architecture debt paid

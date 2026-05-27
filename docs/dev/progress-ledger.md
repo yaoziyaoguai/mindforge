@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Architecture Quality Reset — Slice 2 (Extract web_facade.py Private Helpers to Presenters)
+
+- **Commit**: `9c598a4` → (pending)
+- **Workstream**: Architecture Quality Reset
+- **Task type**: architecture_refactor
+- **Outcome**: 将 web_facade.py 中 ~540 行私有 helper 函数提取到 5 个 presenter 子模块（shared/graph/library/discovery/provenance）。web_facade.py 从 1487 行降至 922 行 (-38.0%)，累计从 2163 行减少 57.4%。所有命名 `_xxx` → `build_xxx`/`get_xxx`。3 个 service 文件 + 2 个测试文件导入更新。零行为变更，零循环导入。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-125-architecture-quality-reset-slice-2.md`
+- **Gates**: `ruff check src/ tests/` (0), `pytest tests/ -q --tb=short` (0, 545 passed/1 skipped), `git diff --check` (0), `npm --prefix web run build` (0), `python -m pytest tests/test_web_product_copy.py -q --tb=short` (0)
+- **Next**: Architecture Quality Reset Slice 1+2 完成，workstream 完结。剩余 debt (P2-05/P2-06/web_config_service split) deferred to v3.7。
+- **Workstream changed**: no
+
 ### 2026-05-27: Architecture Quality Reset — Slice 1 (Fix Core→Web Layer Violation)
 
 - **Commit**: `c4f5c25` → `2cba857`
@@ -191,17 +202,15 @@
 
 **当前 active workstream: Architecture Quality Reset (2026-05-27)**
 
-- Post-Governance audit 已完成，结论为 Conditional Go
-- Architecture Quality Reset plan + Slice 0 boundary tests 已完成
-- Slice 1（修复 core→web 反向依赖）为下一优先级，需 plan 批准后执行
+- Architecture Quality Reset workstream 已完成 (Slice 0 boundary tests + Slice 1 layer fix + Slice 2 presenter extraction)
+- 下一 workstream: v3.7 Quality Platform (P2-05 frontend tests, P2-06 coverage, web_config_service split — 需独立 spec/plan)
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **Slice 1: Fix Core → Web Reverse Dependency** — 将 `processing_run_service.py` 处理逻辑迁移至 `src/mindforge/processing/`，消除 7 个 core→web 反向 import（含 2 个 private symbol import）。由 Slice 0 boundary tests 保护。
-2. **Slice 2: Extract web_facade.py Private Helpers to Presenters** — `_library_card_response`、`_graph_response` 等 ~500 行纯数据变换函数提取到 `presenters/` 模块。
-3. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
+1. **v3.7 Quality Platform** — P2-05 (frontend tests vitest/happy-dom) + P2-06 (coverage config) + web_config_service.py split。需独立 spec/plan 后执行。
+2. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
 
 ---
 

@@ -30,7 +30,7 @@ class _FakeCard:
 
 def _compute_related_sources(source_id, approved):
     """从 web_facade 导入或就地定义（避免循环导入）。"""
-    from mindforge_web.services.web_facade import _compute_related_sources as fn
+    from mindforge_web.presenters import compute_related_sources as fn
     return fn(source_id, approved)
 
 

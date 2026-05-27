@@ -44,9 +44,9 @@ class WebLabService:
             SubCommunityRefResponse,
             CommunityOverlapResponse,
         )
-        from mindforge_web.services.web_facade import _build_graph_builder
+        from mindforge_web.presenters import build_graph_builder
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return KnowledgeCommunitiesResponse(communities=[])
 
@@ -96,9 +96,9 @@ class WebLabService:
             KnowledgeTopicResponse,
             TopicMemberCommunityResponse,
         )
-        from mindforge_web.services.web_facade import _build_graph_builder
+        from mindforge_web.presenters import build_graph_builder
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return KnowledgeTopicsResponse(topics=[])
 
@@ -133,32 +133,32 @@ class WebLabService:
     def get_graph_node(self, ref: str, *, depth: int = 2) -> GraphResponse | None:
         """以卡片为中心的图。"""
         from mindforge.relations.graph_models import NodeType
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _graph_response,
-            _resolve_card_id,
+        from mindforge_web.presenters import (
+            build_graph_builder,
+            build_graph_response,
+            resolve_card_id,
         )
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return None
-        card_id = _resolve_card_id(self._cfg, ref)
+        card_id = resolve_card_id(self._cfg, ref)
         if card_id is None:
             return None
         graph = builder.get_graph(card_id, NodeType.CARD, depth=depth)
-        return _graph_response(graph)
+        return build_graph_response(graph)
 
     def get_graph_explore(
         self, node_type: str, node_id: str, *, depth: int = 1,
     ) -> GraphResponse | None:
         """以已支持的 NodeType 为中心的图浏览（v4.2 truth reset）。"""
         from mindforge.relations.graph_models import NodeType
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _graph_response,
+        from mindforge_web.presenters import (
+            build_graph_builder,
+            build_graph_response,
         )
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return None
         try:
@@ -173,19 +173,19 @@ class WebLabService:
         }:
             return None
         graph = builder.get_graph(node_id, nt, depth=depth)
-        return _graph_response(graph)
+        return build_graph_response(graph)
 
     def get_graph_edge(
         self, source: str, target: str,
     ) -> GraphEdgeDetailResponse | None:
         """查询两节点间的所有边及其可解释证据。"""
         from mindforge_web.schemas import GraphEdgeDetailResponse
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _graph_edge_response,
+        from mindforge_web.presenters import (
+            build_graph_builder,
+            build_graph_edge_response,
         )
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return None
         edges = builder.get_edges(source, direction="outgoing")
@@ -195,7 +195,7 @@ class WebLabService:
         return GraphEdgeDetailResponse(
             source_id=source,
             target_id=target,
-            edges=[_graph_edge_response(e) for e in matching],
+            edges=[build_graph_edge_response(e) for e in matching],
         )
 
     # -- Sensemaking -------------------------------------------------------------
@@ -214,15 +214,15 @@ class WebLabService:
             SensemakingResponse,
             SensemakingSourceInfluenceResponse,
         )
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _resolve_card_id,
+        from mindforge_web.presenters import (
+            build_graph_builder,
+            resolve_card_id,
         )
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return None
-        card_id = _resolve_card_id(self._cfg, ref)
+        card_id = resolve_card_id(self._cfg, ref)
         if card_id is None:
             return None
 
@@ -319,20 +319,20 @@ class WebLabService:
         """获取以卡片为中心的 graph-aware 发现上下文（R6）。"""
         from mindforge.relations.discovery_context import assemble_discovery_context
         from mindforge.relations.graph_models import NodeType
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _center_card_communities,
-            _discovery_context_response,
-            _resolve_card_id,
+        from mindforge_web.presenters import (
+            build_discovery_context_response,
+            build_graph_builder,
+            get_center_card_communities,
+            resolve_card_id,
         )
 
-        builder = _build_graph_builder(self._cfg)
+        builder = build_graph_builder(self._cfg)
         if builder is None:
             return None
-        card_id = _resolve_card_id(self._cfg, ref)
+        card_id = resolve_card_id(self._cfg, ref)
         if card_id is None:
             return None
         graph = builder.get_graph(card_id, NodeType.CARD, depth=2)
-        communities = _center_card_communities(card_id, builder._cards)
+        communities = get_center_card_communities(card_id, builder._cards)
         ctx = assemble_discovery_context(graph, communities=communities)
-        return _discovery_context_response(ctx)
+        return build_discovery_context_response(ctx)

@@ -322,8 +322,8 @@ class TestSourcePathErrorIsNotRuntimeError:
         # ValueError → 400, RuntimeError → 500 必须是两条独立 except 分支
         assert "except ValueError" in source
         assert "except RuntimeError" in source
-        assert "_http_error(400" in source
-        assert "_http_error(500" in source
+        assert "http_error(400" in source
+        assert "http_error(500" in source
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

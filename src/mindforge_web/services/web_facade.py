@@ -14,47 +14,34 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from mindforge_web.schemas import SensemakingResponse
 
-from fastapi import HTTPException
-
 from mindforge.app_context import build_app_context
 from mindforge_web.services.web_import_export_service import WebImportExportService
 from mindforge_web.services.web_lab_service import WebLabService
 from mindforge_web.services.web_recall_service import WebRecallService
-from mindforge.cards import CardSummary, iter_cards
+from mindforge.cards import iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.checkpoint import Checkpoint, CheckpointError
-from mindforge.config import MindForgeConfig
 
 from mindforge.library_service import (
-    LibraryCardDetail,
     LibraryLookupError,
     build_library_inventory,
     show_library_card,
 )
 
-from mindforge.relations.discovery_context import (
-    DiscoveryCommunityRef,
-    DiscoveryContext,
-)
-from mindforge.relations.graph_builder import DeterministicGraphBuilder
-from mindforge.relations.graph_models import (
-    Graph as GraphResult,
-    GraphEdge,
-    GraphNode,
-)
-from mindforge.relations.local_graph import LocalGraph, NodeType, build_card_centered_graph
-from mindforge.relations.related_cards import RelatedCardEdge, compute_multi_hop_related_cards
 from mindforge.health.health_service import build_knowledge_health_report
-from mindforge.strategy_display import strategy_display
+
+from mindforge_web.presenters import (
+    build_graph_builder,
+    build_library_card_response,
+    build_library_detail_response,
+    build_library_stats_response,
+    build_provenance_trail_response,
+    http_error,
+)
 
 from mindforge_web.schemas import (
     ConfigStatusResponse,
-    DiscoveryCardRefResponse,
-    DiscoveryCommunityRefResponse,
     DiscoveryContextResponse,
-    DiscoverySectionRefResponse,
-    DiscoverySourceRefResponse,
-    DiscoveryTagRefResponse,
     DraftDetailResponse,
     DraftsResponse,
     DogfoodReportResponse,
@@ -62,8 +49,6 @@ from mindforge_web.schemas import (
     ProviderReadinessResponse,
     CardBodyUpdateResponse,
     GraphEdgeDetailResponse,
-    GraphEdgeResponse,
-    GraphNodeResponse,
     GraphResponse,
     HealthIssueResponse,
     HealthReportResponse,
@@ -75,23 +60,12 @@ from mindforge_web.schemas import (
     IngestionActionResponse,
     LifecycleResponse,
     LibraryCardDetailResponse,
-    LibraryCardResponse,
     LibraryCardsResponse,
-    LibraryStatsResponse,
-    LocalGraphEdgeResponse,
-    LocalGraphNodeResponse,
-    LocalGraphResponse,
     NextAction,
+    ProvenanceTrailResponse,
     RecallResponse,
     RecallStatus,
     SourceLifecycleItem,
-    ProvenanceTrailRelatedSource,
-    ProvenanceTrailResponse,
-    ProvenanceTrailSection,
-    ProvenanceTrailSiblingCard,
-    ProvenanceTrailSource,
-    RelatedCardReasonResponse,
-    RelatedCardResponse,
     SafetySummary,
     SetupConfigPatch,
     SetupConfigUpdateResponse,
@@ -335,17 +309,17 @@ class WebFacade:
                 process_now=process_now,
             )
         except ValueError as exc:
-            raise _http_error(400, str(exc)) from exc
+            raise http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise _http_error(500, str(exc)) from exc
+            raise http_error(500, str(exc)) from exc
 
     def watch_scan(self, ref: str | None = None, *, all_sources: bool = False) -> IngestionActionResponse:
         try:
             return self.source_service.watch_scan(ref=ref, all_sources=all_sources)
         except ValueError as exc:
-            raise _http_error(400, str(exc)) from exc
+            raise http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise _http_error(500, str(exc)) from exc
+            raise http_error(500, str(exc)) from exc
 
     def processing_run(self, run_id: str) -> ProcessingRunResponse | None:
         record = get_processing_run(self.cfg, run_id)
@@ -363,9 +337,9 @@ class WebFacade:
         try:
             return self.source_service.import_source(path)
         except ValueError as exc:
-            raise _http_error(400, str(exc)) from exc
+            raise http_error(400, str(exc)) from exc
         except RuntimeError as exc:
-            raise _http_error(500, str(exc)) from exc
+            raise http_error(500, str(exc)) from exc
 
     def reveal_by_ref(
         self, *, card_id: str | None = None, draft_id: str | None = None
@@ -399,7 +373,7 @@ class WebFacade:
 
     def library_cards(self) -> LibraryCardsResponse:
         inventory = build_library_inventory(self.cfg, limit=500)
-        cards = [_library_card_response(card) for card in inventory.cards]
+        cards = [build_library_card_response(card) for card in inventory.cards]
         for c in cards:
             c.source_path_view = self.path_action_service.build_source_path_view(
                 c.source_path, source_title=c.source_title,
@@ -412,7 +386,7 @@ class WebFacade:
                 c.source_path, c.source_path_view
             )
         return LibraryCardsResponse(
-            stats=_library_stats_response(inventory.stats),
+            stats=build_library_stats_response(inventory.stats),
             cards=cards,
         )
 
@@ -420,14 +394,14 @@ class WebFacade:
         detail = show_library_card(self.cfg, ref, show_content=show_content)
         if isinstance(detail, LibraryLookupError):
             return None
-        return _library_detail_response(self.cfg, detail, path_action_service=self.path_action_service)
+        return build_library_detail_response(self.cfg, detail, path_action_service=self.path_action_service)
 
     def provenance_trail(self, ref: str) -> ProvenanceTrailResponse | None:
         """U3 Provenance Trail — source → sibling cards → wiki sections。"""
         detail = show_library_card(self.cfg, ref, show_content=False)
         if isinstance(detail, LibraryLookupError):
             return None
-        return _provenance_trail_response(self.cfg, detail)
+        return build_provenance_trail_response(self.cfg, detail)
 
     def knowledge_communities(self) -> object:
         """LAB/INTERNAL — 委托给 WebLabService。"""
@@ -744,7 +718,7 @@ class WebFacade:
         # Graph 密度：使用 DeterministicGraphBuilder 获取关系数
         relation_count = 0
         try:
-            builder = _build_graph_builder(self.cfg)
+            builder = build_graph_builder(self.cfg)
             if builder is not None and approved_count > 0:
                 # 取一张已确认卡片作为入口获取 graph snapshot
                 first_id = approved[0].id or approved[0].rel_path
@@ -946,542 +920,3 @@ class WebFacade:
             total_approved=approved,
             total_drafts=drafts,
         )
-
-
-def _library_stats_response(stats) -> LibraryStatsResponse:
-    return LibraryStatsResponse(
-        vault_root=str(stats.vault_root),
-        cards_dir=stats.cards_dir,
-        total_cards=stats.total_cards,
-        by_status=stats.by_status,
-        by_track=stats.by_track,
-        by_provider=stats.by_provider,
-        recent_count=stats.recent_count,
-        index_path=str(stats.index_path),
-        index_exists=stats.index_exists,
-        next_action=stats.next_action,
-    )
-
-
-def _http_error(status_code: int, message: str) -> HTTPException:
-    """把用户主路径错误保持为前端可读的 `{detail:{message}}`。
-
-    中文学习型说明：Add Source / Process Now 是普通用户第一阶段主链路。
-    后端拒绝相对路径、缺模型或其它用户可修复错误时，不能只返回字符串
-    detail，否则 Web fetch helper 会退化成浏览器的 `Bad Request` 文案。
-    """
-
-    return HTTPException(status_code=status_code, detail={"message": message})
-
-
-def _library_card_response(card) -> LibraryCardResponse:
-    summary = card.summary
-    strategy = strategy_display(summary.strategy_id)
-    return LibraryCardResponse(
-        id=summary.id,
-        title=summary.title,
-        status=summary.status,
-        status_explanation=card.status_explanation,
-        track=summary.track,
-        source_id=summary.source_id,
-        source_type=summary.source_type,
-        adapter_name=summary.adapter_name,
-        source_title=summary.source_title,
-        source_path=summary.source_path,
-        source_content_hash=summary.source_content_hash,
-        source_archive_path=summary.source_archive_path,
-        source_missing=card.source_missing,
-        profile=summary.profile,
-        provider=summary.provider,
-        strategy_id=summary.strategy_id,
-        strategy_label=strategy.label,
-        strategy_note=strategy.note,
-        strategy_canonical_id=strategy.canonical_id,
-        strategy_version=summary.strategy_version,
-        schema_version=summary.schema_version,
-        prompt_version=summary.prompt_version,
-        prompt_versions=dict(summary.prompt_versions),
-        stage_models=dict(summary.stage_models),
-        run_id=summary.run_id,
-        created_at=summary.created_at.isoformat() if summary.created_at else None,
-        approved_at=summary.approved_at.isoformat() if summary.approved_at else None,
-        updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
-        rel_path=summary.rel_path,
-        fallback_provider_note=card.fallback_provider_note,
-        quality_score=summary.quality_score,
-        quality_level=summary.quality_level,
-    )
-
-
-
-def _library_detail_response(
-    cfg: MindForgeConfig,
-    detail: LibraryCardDetail,
-    path_action_service: WebPathActionService | None = None,
-) -> LibraryCardDetailResponse:
-    related_context = _library_relationship_context(cfg, detail, path_action_service=path_action_service)
-    card = _library_card_response(detail.card)
-    if path_action_service is not None:
-        card.source_path_view = path_action_service.build_source_path_view(
-            card.source_path, source_title=card.source_title,
-            source_archive_path=card.source_archive_path,
-        )
-        card.source_path = path_action_service.safe_source_path(
-            card.source_path, card.source_path_view
-        )
-    return LibraryCardDetailResponse(
-        card=card,
-        body=detail.body,
-        local_graph=_local_graph_response(related_context.graph),
-        related_cards=related_context.related_cards,
-    )
-
-
-class _LibraryRelationshipContext:
-    def __init__(
-        self,
-        *,
-        graph: LocalGraph,
-        related_cards: list[RelatedCardResponse],
-    ) -> None:
-        self.graph = graph
-        self.related_cards = related_cards
-
-
-def _library_relationship_context(
-    cfg: MindForgeConfig,
-    detail: LibraryCardDetail,
-    path_action_service: WebPathActionService | None = None,
-) -> _LibraryRelationshipContext:
-    """为 Library card detail 构建只读关系上下文。
-
-    中文学习型说明：Relationship Preview 是用户入口，不是新的知识真相来源。
-    它只读取 approved card 摘要字段，调用 deterministic graph / related-card
-    engine，不读取 source 正文、不调用 LLM、不修改 approval 状态。
-    """
-
-    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    approved = [card for card in scan.cards if card.status == "human_approved"]
-    records = [_relation_record(card) for card in approved]
-    center_id = detail.card.summary.id or detail.card.summary.rel_path
-    graph = build_card_centered_graph(center_id, records)
-    cards_by_id = {
-        card.id or card.rel_path: _library_card_summary_response(card, path_action_service=path_action_service)
-        for card in approved
-    }
-    edges = compute_multi_hop_related_cards(center_id, records, context="library", max_depth=2)
-    return _LibraryRelationshipContext(
-        graph=graph,
-        related_cards=_related_card_responses(edges, cards_by_id),
-    )
-
-
-def _relation_record(card: CardSummary) -> dict[str, object]:
-    """把 CardSummary 转成 relations engine 的窄输入结构。"""
-
-    card_id = card.id or card.rel_path
-    return {
-        "id": card_id,
-        "title": card.title or Path(card.rel_path).stem,
-        "status": card.status,
-        "source_id": card.source_id,
-        "tags": list(card.tags),
-        "wiki_sections": list(card.wiki_sections),
-        "run_id": card.run_id,
-        "source_location_index": card.source_location_index,
-    }
-
-
-def _library_card_summary_response(
-    summary: CardSummary,
-    path_action_service: WebPathActionService | None = None,
-) -> LibraryCardResponse:
-    strategy = strategy_display(summary.strategy_id)
-    source_path_view = None
-    if path_action_service is not None:
-        source_path_view = path_action_service.build_source_path_view(
-            summary.source_path, source_title=summary.source_title,
-            source_archive_path=summary.source_archive_path,
-        )
-    safe_path = path_action_service.safe_source_path(
-        summary.source_path, source_path_view
-    ) if path_action_service is not None else None
-    return LibraryCardResponse(
-        id=summary.id,
-        title=summary.title,
-        status=summary.status,
-        status_explanation=(
-            "human_approved：显式 approve 后进入正式知识库"
-            if summary.status == "human_approved"
-            else f"{summary.status}：非 Library 主列表状态"
-        ),
-        track=summary.track,
-        source_id=summary.source_id,
-        source_type=summary.source_type,
-        adapter_name=summary.adapter_name,
-        source_title=summary.source_title,
-        source_path=safe_path,
-        source_content_hash=summary.source_content_hash,
-        source_archive_path=summary.source_archive_path,
-        source_missing=summary.source_missing,
-        profile=summary.profile,
-        provider=summary.provider,
-        strategy_id=summary.strategy_id,
-        strategy_label=strategy.label,
-        strategy_note=strategy.note,
-        strategy_canonical_id=strategy.canonical_id,
-        strategy_version=summary.strategy_version,
-        schema_version=summary.schema_version,
-        prompt_version=summary.prompt_version,
-        prompt_versions=dict(summary.prompt_versions),
-        stage_models=dict(summary.stage_models),
-        run_id=summary.run_id,
-        created_at=summary.created_at.isoformat() if summary.created_at else None,
-        approved_at=summary.approved_at.isoformat() if summary.approved_at else None,
-        updated_at=summary.updated_at.isoformat() if summary.updated_at else None,
-        rel_path=summary.rel_path,
-        fallback_provider_note=None,
-        source_path_view=source_path_view,
-        quality_score=summary.quality_score,
-        quality_level=summary.quality_level,
-    )
-
-
-def _local_graph_response(graph: LocalGraph) -> LocalGraphResponse:
-    section_card_counts: dict[str, int] = {}
-    for edge in graph.edges:
-        if edge.reason == "same_wiki_section":
-            section_card_counts[edge.target_id] = section_card_counts.get(edge.target_id, 0) + 1
-
-    return LocalGraphResponse(
-        center_id=graph.center_id,
-        center_type=graph.center_type.value,
-        nodes=[
-            LocalGraphNodeResponse(
-                id=node.id,
-                type=node.type.value,
-                label=node.label,
-                href=node.href,
-                card_count=section_card_counts.get(node.id) if node.type == NodeType.WIKI_SECTION else None,
-            )
-            for node in graph.nodes
-        ],
-        edges=[
-            LocalGraphEdgeResponse(
-                source_id=edge.source_id,
-                target_id=edge.target_id,
-                reason=edge.reason,
-                label=_relation_reason_label(edge.reason),
-            )
-            for edge in graph.edges
-        ],
-    )
-
-
-def _related_card_responses(
-    edges: list[RelatedCardEdge],
-    cards_by_id: dict[str, LibraryCardResponse],
-) -> list[RelatedCardResponse]:
-    grouped: dict[str, list[RelatedCardReasonResponse]] = {}
-    for edge in edges:
-        if edge.target_card_id not in cards_by_id:
-            continue
-        grouped.setdefault(edge.target_card_id, []).append(
-            RelatedCardReasonResponse(
-                reason=edge.reason.value,
-                label=_relation_reason_label(edge.reason.value),
-                detail=edge.reason_detail,
-                strength=edge.strength,
-                hop_distance=edge.hop_distance,
-                via_path=list(edge.via_path),
-            )
-        )
-    return [
-        RelatedCardResponse(card=cards_by_id[card_id], reasons=reasons)
-        for card_id, reasons in grouped.items()
-    ]
-
-
-def _relation_reason_label(reason: str) -> str:
-    labels = {
-        "same_source": "Same source",
-        "same_tag": "Same tag",
-        "same_wiki_section": "Same wiki section",
-        "same_review_batch": "Same review batch",
-        "source_location_neighbor": "Source location neighbor",
-        "manual_link": "Manual link",
-    }
-    return labels.get(reason, reason.replace("_", " ").title())
-
-
-# ── v0.6 Graph helpers ──────────────────────────────
-
-
-def _build_graph_builder(cfg: MindForgeConfig) -> DeterministicGraphBuilder | None:
-    """从 vault 中所有 approved cards 构建 DeterministicGraphBuilder。"""
-    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    approved = [card for card in scan.cards if card.status == "human_approved"]
-    if not approved:
-        return None
-    records = [_relation_record(card) for card in approved]
-    return DeterministicGraphBuilder(records)
-
-
-def _resolve_card_id(cfg: MindForgeConfig, ref: str) -> str | None:
-    """将用户输入的 ref 解析为卡片 id。"""
-    detail = show_library_card(cfg, ref, show_content=False)
-    if isinstance(detail, LibraryLookupError):
-        return None
-    return detail.card.summary.id or detail.card.summary.rel_path
-
-
-def _graph_response(graph: GraphResult) -> GraphResponse:
-    """将内部 Graph 转换为 API response。"""
-    return GraphResponse(
-        center_id=graph.center_id,
-        center_type=graph.center_type.value,
-        depth=graph.depth,
-        nodes=[_graph_node_response(n) for n in graph.nodes],
-        edges=[_graph_edge_response(e) for e in graph.edges],
-    )
-
-
-def _graph_node_response(node: GraphNode) -> GraphNodeResponse:
-    return GraphNodeResponse(
-        id=node.id,
-        type=node.type.value,
-        label=node.label,
-        href=node.href,
-        card_count=node.card_count,
-    )
-
-
-def _graph_edge_response(edge: GraphEdge) -> GraphEdgeResponse:
-    from mindforge_web.schemas import RelationEvidenceResponse
-    return GraphEdgeResponse(
-        source_id=edge.source_id,
-        target_id=edge.target_id,
-        edge_type=edge.edge_type.value,
-        evidence=RelationEvidenceResponse(
-            reason=edge.evidence.reason,
-            evidence=edge.evidence.evidence,
-            strength=edge.evidence.strength,
-            detail=edge.evidence.detail,
-        ),
-    )
-
-
-def _discovery_context_response(ctx: DiscoveryContext) -> DiscoveryContextResponse:
-    """将内部 DiscoveryContext 转换为 API response — v2.1 增强。"""
-    return DiscoveryContextResponse(
-        center_card_id=ctx.center_card_id,
-        center_card_title=ctx.center_card_title,
-        reasoning=ctx.reasoning,
-        estimated_token_count=ctx.estimated_token_count,
-        direct_matches=[
-            DiscoveryCardRefResponse(
-                card_id=ref.card_id,
-                title=ref.title,
-                relation_reason=ref.relation_reason,
-                relation_strength=ref.relation_strength,
-                evidence=ref.evidence,
-            )
-            for ref in ctx.direct_matches
-        ],
-        neighbor_cards=[
-            DiscoveryCardRefResponse(
-                card_id=ref.card_id,
-                title=ref.title,
-                relation_reason=ref.relation_reason,
-                relation_strength=ref.relation_strength,
-                evidence=ref.evidence,
-            )
-            for ref in ctx.neighbor_cards
-        ],
-        wiki_sections=[
-            DiscoverySectionRefResponse(
-                section_title=s.section_title,
-                card_count=s.card_count,
-            )
-            for s in ctx.wiki_sections
-        ],
-        shared_tags=[
-            DiscoveryTagRefResponse(tag=t.tag, card_count=t.card_count)
-            for t in ctx.shared_tags
-        ],
-        shared_sources=[
-            DiscoverySourceRefResponse(source_id=s.source_id, card_count=s.card_count)
-            for s in ctx.shared_sources
-        ],
-        communities=[
-            DiscoveryCommunityRefResponse(
-                community_type=c.community_type,
-                shared_entity=c.shared_entity,
-                member_count=c.member_count,
-                description=c.description,
-            )
-            for c in ctx.communities
-        ],
-    )
-
-
-def _center_card_communities(
-    center_card_id: str,
-    cards: list[dict[str, object]],
-) -> tuple[DiscoveryCommunityRef, ...]:
-    """检测中心卡片所属的知识社区（v1.2 U4）。
-
-    对所有卡片运行 detect_communities，筛选出包含 center_card_id 的社区，
-    返回 DiscoveryCommunityRef 元组。
-    """
-    from mindforge.relations.community import detect_communities
-
-    all_communities = detect_communities(cards, min_members=2)
-    result: list[DiscoveryCommunityRef] = []
-    for c in all_communities:
-        if center_card_id in c.member_card_ids:
-            result.append(DiscoveryCommunityRef(
-                community_type=c.community_type,
-                shared_entity=c.shared_entity,
-                member_count=c.member_count,
-                description=c.description,
-            ))
-    return tuple(result)
-
-
-def _compute_related_sources(
-    source_id: str | None,
-    approved: list,
-) -> list[ProvenanceTrailRelatedSource]:
-    """找出与给定 source 通过共享 tags/wiki_sections 关联的其他 source（v1.2 U5）。
-
-    双向探索的关键：从当前 card → source → 找到"哪些其他 source 有相似的知识"。
-    """
-    if not source_id:
-        return []
-
-    # 收集当前 source 的所有 tags 和 wiki_sections
-    source_tags: set[str] = set()
-    source_sections: set[str] = set()
-    for c in approved:
-        if c.source_id == source_id:
-            for t in c.tags:
-                source_tags.add(t)
-            for s in c.wiki_sections:
-                source_sections.add(s)
-
-    if not source_tags and not source_sections:
-        return []
-
-    # 统计其他 source 与当前 source 的共享情况
-    related: dict[str, dict] = {}  # source_id → {tags: set, sections: set, cards: set}
-    for c in approved:
-        sid = c.source_id
-        if not sid or sid == source_id:
-            continue
-        if sid not in related:
-            related[sid] = {"tags": set(), "sections": set(), "cards": set(), "title": c.source_title}
-        related[sid]["cards"].add(c.id or c.rel_path)
-        for t in c.tags:
-            if t in source_tags:
-                related[sid]["tags"].add(t)
-        for s in c.wiki_sections:
-            if s in source_sections:
-                related[sid]["sections"].add(s)
-
-    # 排序：共享 tag + section 总数降序
-    scored = [
-        (sid, info) for sid, info in related.items()
-        if info["tags"] or info["sections"]
-    ]
-    scored.sort(key=lambda x: len(x[1]["tags"]) + len(x[1]["sections"]), reverse=True)
-
-    result: list[ProvenanceTrailRelatedSource] = []
-    for sid, info in scored[:5]:
-        result.append(ProvenanceTrailRelatedSource(
-            source_id=sid,
-            source_title=info["title"],
-            card_count=len(info["cards"]),
-            shared_tags=sorted(info["tags"]),
-            shared_wiki_sections=sorted(info["sections"]),
-        ))
-
-    return result
-
-
-def _graph_neighbor_count(
-    builder: DeterministicGraphBuilder | None,
-    card_id: str,
-) -> int | None:
-    """获取卡片 1-hop 邻居数量（轻量，不做 full 2-hop build）。"""
-    if builder is None:
-        return None
-    try:
-        edges = builder.get_edges(card_id, direction="outgoing")
-        neighbor_ids = {e.target_id for e in edges}
-        return len(neighbor_ids)
-    except Exception:
-        return None
-
-
-def _provenance_trail_response(
-    cfg: MindForgeConfig,
-    detail: LibraryCardDetail,
-) -> ProvenanceTrailResponse:
-    """U3: 构建 provenance trail — source → siblings → wiki sections。"""
-    card = detail.card
-    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
-    approved = [c for c in scan.cards if c.status == "human_approved"]
-
-    summary = card.summary
-    card_id = summary.id or summary.rel_path
-    source_id = summary.source_id
-    source_title = summary.source_title
-
-    # Sibling cards: same source, excluding self, ≤ 5
-    siblings: list[ProvenanceTrailSiblingCard] = []
-    if source_id:
-        for c in approved:
-            if c.source_id != source_id:
-                continue
-            cid = c.id or c.rel_path
-            if cid == card_id:
-                continue
-            siblings.append(ProvenanceTrailSiblingCard(
-                card_id=cid,
-                title=c.title or Path(c.rel_path).stem,
-                quality_level=c.quality_level,
-                quality_score=c.quality_score,
-            ))
-            if len(siblings) >= 5:
-                break
-
-    # Wiki sections from siblings and self
-    seen_sections: dict[str, int] = {}
-    for c in approved:
-        csid = c.source_id
-        if csid != source_id:
-            continue
-        for sec in c.wiki_sections:
-            seen_sections[sec] = seen_sections.get(sec, 0) + 1
-
-    # Top 5 sections by card count
-    sorted_sections = sorted(seen_sections.items(), key=lambda x: x[1], reverse=True)[:5]
-    wiki_sections = [
-        ProvenanceTrailSection(title=title, card_count=count)
-        for title, count in sorted_sections
-    ]
-
-    # Related sources: other sources sharing tags/wiki_sections with this source
-    related_sources = _compute_related_sources(source_id, approved)
-
-    return ProvenanceTrailResponse(
-        card_id=card_id,
-        source=ProvenanceTrailSource(
-            source_id=source_id,
-            source_title=source_title,
-        ),
-        sibling_cards=siblings,
-        wiki_sections=wiki_sections,
-        related_sources=related_sources,
-    )

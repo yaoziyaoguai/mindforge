@@ -35,9 +35,9 @@ class WebRecallService:
             RecallResponse,
             RecallStatus,
         )
-        from mindforge_web.services.web_facade import (
-            _build_graph_builder,
-            _graph_neighbor_count,
+        from mindforge_web.presenters import (
+            build_graph_builder,
+            get_graph_neighbor_count,
         )
 
         index = self.recall_status()
@@ -87,7 +87,7 @@ class WebRecallService:
 
         graph_builder = None
         if context == "graph":
-            graph_builder = _build_graph_builder(self._cfg)
+            graph_builder = build_graph_builder(self._cfg)
 
         return RecallResponse(
             query=query,
@@ -104,7 +104,7 @@ class WebRecallService:
                     tags=list(hit.tags),
                     source_type=hit.source_type,
                     why_this_matched=hit.why_this_matched,
-                    graph_neighbor_count=_graph_neighbor_count(
+                    graph_neighbor_count=get_graph_neighbor_count(
                         graph_builder, hit.id or hit.rel_path
                     ) if graph_builder else None,
                     graph_shared_tag_count=len(hit.tags) if graph_builder else None,
