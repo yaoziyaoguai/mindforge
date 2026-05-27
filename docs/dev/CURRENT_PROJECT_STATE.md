@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `64d7a52` (pending: batch 1 commit)
+| HEAD | `fcb96c7`
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |

@@ -10,7 +10,7 @@
 
 ### 2026-05-27: Docs Cleanup Batch 1 — 8 stale files removed
 
-- **Commit**: `64d7a52` → (pending)
+- **Commit**: `fcb96c7`
 - **Workstream**: Documentation Reset
 - **Task type**: docs_cleanup
 - **Outcome**: 删除 8 个明显过时文档（v0.2/v0.3 roadmap、TDD/SDD、v0.2/v0.3 dev rules、早期 dogfood plans）；更新 documentation-reset-plan、documentation-inventory、docs-reset-index 中的引用
