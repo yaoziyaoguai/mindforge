@@ -32,8 +32,9 @@ mindforge/
 │   └── mindforge_web/          # Web 后端（FastAPI）
 │       ├── app.py              # FastAPI 应用入口
 │       ├── routers/            # API 路由（15 个端点模块）
-│       ├── schemas/              # Pydantic 模型（package: __init__.py + 12 domain 子模块）
-│       └── services/           # Web 服务层（web_facade orchestration + 4 domain services）
+│       ├── schemas/            # Pydantic 模型（package: __init__.py + 12 domain 子模块）
+│       ├── services/           # Web 服务层（web_facade orchestration + domain services）
+│       └── presenters/         # Web 展示层 — 从 web_facade.py 提取的响应构建器（v4.7-v4.8）
 ├── web/                        # React 前端（TypeScript + Tailwind）
 ├── tests/                      # pytest 测试
 ├── prompts/                    # Prompt 模板（运行时资产）
@@ -182,7 +183,7 @@ BM25 词法匹配检索引擎。纯本地、确定性、零外部依赖。不调
 | `mindforge/sources/` (13 adapters) | 源文件格式解析（Markdown/DOCX/PDF/HTML/TXT/ChatExport 等） |
 | `mindforge/obsidian_stage.py` | Obsidian staged export 安全路径规划（不写真实 vault） |
 
-> **当前状态 (v4.8)**: import 逻辑已提取到 `web_import_export_service.py`；export 逻辑仍在 `routers/library.py` 中。`web_facade.py` 已从 2163 行减至 1487 行 (-31.3%)，lab/internal 方法已提取至 `web_lab_service.py`，recall 已提取至 `web_recall_service.py`。
+> **当前状态 (v4.8)**: import 逻辑已提取到 `web_import_export_service.py`；export 逻辑仍在 `routers/library.py` 中。`web_facade.py` 已从 2163 行减至 922 行 (-57.4%)：lab/internal 方法 → `web_lab_service.py`、recall → `web_recall_service.py`、import/export → `web_import_export_service.py`、响应构建器 → `mindforge_web/presenters/`（7 个文件）。
 
 ### 知识健康 (`health/`)
 

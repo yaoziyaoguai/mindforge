@@ -8,6 +8,8 @@
 
 ## 1. Completed Major Loops
 
+- 2026-05-27: architecture.md 更新 — 补充 `mindforge_web/presenters/` 目录和正确的 web_facade.py 行数 (922, -57.4%) (`(pending)`)
+
 ### 2026-05-27: Web Frontend Test Coverage Expansion
 
 - **Commit**: `91f5ec7` → (pending)
