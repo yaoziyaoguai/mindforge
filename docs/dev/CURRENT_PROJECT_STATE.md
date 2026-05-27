@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (v0.7 — Guided Onboarding MVP 已完成 + AUTOPILOT-QUEUE 推进至 User Validation)
+更新日期: 2026-05-28 (Direction F: Structured Knowledge Workbench 全部 8 单元完成)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `d7c59a8` (Guided Onboarding MVP 实现完成) |
+| 当前 HEAD | `56d4c0d` (U6 Manual Card Linking)，U7/U8 tests + i18n 即将 commit |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -88,7 +88,12 @@ Source / Import
 | Trash | done | `src/mindforge/trash_service.py` | 安全回收站，支持 Restore |
 | Web UI (14 pages) | done | `web/src/pages/` | React SPA + Tailwind |
 | i18n (zh/en) | done | `web/src/lib/i18n.ts` | 双语文案 |
-| Frontend Tests | done | `web/src/components/__tests__/` | vitest + happy-dom + @testing-library/react, 6 files/50 tests |
+| Frontend Tests | done | `web/src/components/__tests__/` | vitest + happy-dom + @testing-library/react, 11 files/79 tests |
+| Backend Tests | done | `tests/` | pytest, 含 `test_card_workspace_service.py` (8 tests: bulk_update + link_cards) |
+| Saved Views | done | `src/mindforge/view_store.py`, `web/src/components/ViewSwitcher.tsx` | 视图保存/加载/删除，local JSON store |
+| Collections | done | `src/mindforge/collection_store.py`, `web/src/components/CollectionPanel.tsx` | 卡片集合 CRUD，API + frontend |
+| Bulk Maintenance | done | `src/mindforge/card_workspace_service.py`, `web/src/components/BulkActions.tsx` | YAML frontmatter 批量修改 tags/track |
+| Manual Card Linking | done | `src/mindforge/card_workspace_service.py`, `web/src/components/CardWorkspace.tsx` | 双向 frontmatter manual_links 写入 |
 | CLI | done | `src/mindforge/cli.py` + 各 `*_cli.py` | 完整 CLI 入口 |
 | Python Coverage | done | `pyproject.toml` [tool.coverage] | pytest --cov 可用, 88% baseline |
 
@@ -167,7 +172,7 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_guided_onboarding_validation_next -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_direction_c_recall_search_quality_lab -->
 <!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
 <!-- AUTOPILOT-QUEUE-ITEM-1:
 workstream=Product Main Path P1 Pipeline Blocker Fix
@@ -198,26 +203,41 @@ hard_stop_required=false
 status=resolved (v0.7 Guided Onboarding MVP — wizard + hints + sample workspace, all gates pass 2026-05-28)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-3:
-workstream=User Validation — Core Hypothesis Test
-task_type=dogfood
-current_node=pending
-next_action=recruit_5_non_technical_users_and_run_first_cycle_test
+workstream=Direction F: Structured Knowledge Workbench
+task_type=feature_implementation
+current_node=done
+next_action=N/A
 required_skill=none
-frameworks_checked=product_strategy_audit_2026-05-28
-review_node=go_no_go_decision
+frameworks_checked=none (direct mf-autopilot, 8 small implementation slices)
+review_node=spec_acceptance_review
 failure_class=none
 remediation_target=none
-auto_continue_allowed=false
-hard_stop_required=true
-hard_stop_reason=requires_5_real_non_technical_users
+auto_continue_allowed=true
+hard_stop_required=false
+status=resolved (U1-U8 all complete: Saved Views + Collections + Bulk Maintenance + Manual Card Linking + Tests + i18n, 2026-05-28)
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-4:
+workstream=Direction C: Recall/Search Quality Lab
+task_type=feature_implementation
+current_node=pending
+next_action=read_spec_and_begin_implementation
+required_skill=none
+frameworks_checked=product_strategy_audit_2026-05-28
+review_node=spec_acceptance_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+plan_path=docs/plans/2026-05-26-097-recall-search-quality-lab.md
+spec_path=docs/specs/2026-05-26-097-recall-search-quality-lab.md
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 产品创新审计 (HEAD `aef49df`) 推荐优先顺序:
 
-1. **Direction A: Product Main Path Deepening** (主 bet, 7.6/10) — P1 pipeline blocker 已 resolved，下一步 Guided Onboarding Design (需 /brainstorming)
-2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — Library 成为真正知识工作区
-3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — 建立检索质量测量体系
+1. **Direction A: Product Main Path Deepening** (主 bet, 7.6/10) — Guided Onboarding MVP 已完成 ✅
+2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — U1-U8 全部完成 ✅ (Saved Views + Collections + Bulk Maintenance + Manual Card Linking + Tests + i18n)
+3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — 建立检索质量测量体系，plan 已编写 (`docs/plans/2026-05-26-097-recall-search-quality-lab.md`)
 4. Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张 — 冻结
 
 ---

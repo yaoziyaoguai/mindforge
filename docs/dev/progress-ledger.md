@@ -8,6 +8,24 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: U6 Manual Card Linking — link_cards backend + frontmatter writing + CardWorkspace link UI
+
+- **Commit**: `5544a92` → `56d4c0d`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U6 Manual Card Linking 完成。新增 `link_cards()` + `_add_manual_link_to_frontmatter()` 后端服务（双向 YAML frontmatter manual_links 写入 + 去重），`LinkCardsRequest`/`LinkCardsResponse` Pydantic schemas，facade + API endpoint (`POST /api/library/cards/link`)，CardWorkspace RelatedCardsPanel 扩展 Link Card 表单（target ref 输入 + reason 下拉 + apply/cancel），6 个 zh/en i18n keys，TypeScript 类型 + API 函数。同时修复 card_workspace_service.py 中 2 个 pre-existing 未使用 import。
+- **Docs/notes**: (spec 已由之前 loop 创建)
+- **Gates**: `ruff check src/ tests/` (0, All checks passed), `npm --prefix web run build` (0, built in 3.63s), `python -m pytest tests/test_web_product_copy.py -q` (0, 100%), `git diff --check` (0)
+- **Review result**: PASS — U6 spec acceptance review, backend + frontend + link form
+- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for small implementation slice)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U7 Tests (backend + frontend tests for U1-U6)
+- **Workstream changed**: no
+
 ### 2026-05-28: U5 Bulk Maintenance — YAML frontmatter batch update + BulkActions + LibraryPage integration
 
 - **Commit**: `e0091d7` → `5544a92`
