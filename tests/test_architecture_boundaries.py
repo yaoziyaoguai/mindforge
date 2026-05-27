@@ -234,6 +234,289 @@ class TestArchitectureNoRAGNoEmbedding:
         )
 
 
+# ── Slice 0: Core → Web layer boundary ──────────────────────────────────
+
+# 中文学习型说明：known_core_web_imports 列出了当前已知的 core → web
+# 反向依赖。这些是 AUDIT-118-03 P1 债项，Slice 1 将逐个消除。
+# 新代码不得新增反向依赖。
+_CORE_WEB_KNOWN_VIOLATIONS: dict[str, set[str]] = {
+    "processing_worker.py": {
+        "mindforge_web.services.processing_run_service",
+    },
+    "cli_processing_runtime.py": {
+        "mindforge_web.services.processing_run_service",
+    },
+    "runs_cli.py": {
+        "mindforge_web.services.processing_run_service",
+    },
+    "watch_cli.py": {
+        "mindforge_web.services.processing_run_service",
+    },
+    "services/local_status.py": {
+        "mindforge_web.services.processing_run_service",
+    },
+    "dogfood/scenario_runner.py": {
+        "mindforge_web.services.dogfood_service",
+    },
+    # web_cli.py 是 web server 入口，import from mindforge_web 是合理的
+    "web_cli.py": {
+        "mindforge_web.server",
+    },
+}
+
+
+# 中文学习型说明：当前已知的 core → web private symbol import。
+# 这些是 AUDIT-118-03 P1 中最严重的反向依赖 —— core 依赖 web 内部实现。
+# Slice 1 必须消除这些。新代码不得新增此类依赖。
+_CORE_WEB_KNOWN_PRIVATE_IMPORTS: dict[str, set[str]] = {
+    "cli_processing_runtime.py": {"_save_record"},
+    "processing_worker.py": {"_run_worker"},
+}
+
+
+class TestArchitectureCoreWebLayerBoundary:
+    """core (src/mindforge/) 不得反向依赖 web (src/mindforge_web/)。
+
+    AUDIT-118-03 P1: processing_run_service 在 web 层但被 core 模块 import。
+    Slice 1 将把 processing 逻辑提取到 core，消除这些反向依赖。
+    """
+
+    def test_core_web_imports_are_known_only(self) -> None:
+        """core 目录下所有 mindforge_web import 必须是 known violation。"""
+        core_dir = _SRC / "mindforge"
+        violations: list[str] = []
+
+        for py_file in sorted(core_dir.rglob("*.py")):
+            if py_file.name == "__init__.py" and py_file.stat().st_size == 0:
+                continue
+            if "__pycache__" in str(py_file):
+                continue
+
+            rel = str(py_file.relative_to(core_dir))
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+
+            actual: set[str] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith("mindforge_web"):
+                        actual.add(node.module)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("mindforge_web"):
+                            actual.add(alias.name)
+
+            expected = _CORE_WEB_KNOWN_VIOLATIONS.get(rel, set())
+            new_violations = actual - expected
+
+            if new_violations:
+                violations.append(
+                    f"{rel}: 新增 mindforge_web import {new_violations}"
+                )
+
+        assert not violations, (
+            "core 模块不得新增 mindforge_web 反向依赖：\n"
+            + "\n".join(violations)
+            + "\n\n如果是新的合法 web server 入口或已知例外，"
+            "请更新 _CORE_WEB_KNOWN_VIOLATIONS。"
+        )
+
+    def test_no_core_imports_web_private_symbols(self) -> None:
+        """core 模块不得 import mindforge_web 中的 private symbol（`_` 前缀）。
+
+        中文学习型说明：当前 processing_worker.py 和 cli_processing_runtime.py
+        分别 import 了 _run_worker 和 _save_record（private symbol）。
+        这是 AUDIT-118-03 中最严重的反向依赖 —— core 不仅依赖 web，
+        还依赖 web 的内部实现细节。Slice 1 必须消除。
+        本测试只对 NEW private symbol import 报红，已知 violation 容忍。
+        """
+        core_dir = _SRC / "mindforge"
+        new_violations: list[str] = []
+
+        for py_file in sorted(core_dir.rglob("*.py")):
+            if "__pycache__" in str(py_file):
+                continue
+
+            rel = str(py_file.relative_to(core_dir))
+            known_for_file = _CORE_WEB_KNOWN_PRIVATE_IMPORTS.get(rel, set())
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith("mindforge_web"):
+                        for alias in node.names:
+                            if alias.name.startswith("_") and alias.name not in known_for_file:
+                                new_violations.append(
+                                    f"{rel}: imports private {node.module}.{alias.name}"
+                                )
+
+        assert not new_violations, (
+            "core 模块不得新增 web 层的 private symbol import：\n"
+            + "\n".join(new_violations)
+            + "\n\nPrivate symbol import 说明 core 深度耦合了 web 内部实现。"
+            " 这些函数应提取到 core 层（src/mindforge/processing/）。"
+        )
+
+
+# ── Slice 0: WebFacade public method contract ─────────────────────────
+
+class TestArchitectureWebFacadeContract:
+    """WebFacade 公开方法合同 —— 确保重构不意外删除或修改方法签名。"""
+
+    def test_web_facade_public_methods_exist(self) -> None:
+        """WebFacade 所有公开方法均可通过 getattr 访问。"""
+        from mindforge_web.services.web_facade import WebFacade
+
+        # 这些是 routers/ 直接调用的公开方法
+        required_methods = [
+            # Home / Setup
+            "home_status",
+            "config_status",
+            "setup_editable_config",
+            "validate_setup_config_patch",
+            "update_setup_config_patch",
+            "set_provider_mode",
+            # Sources
+            "sources",
+            "watch_sources",
+            "watch_add",
+            "watch_scan",
+            "watch_delete",
+            "watch_frequency",
+            "import_source",
+            "processing_run",
+            # Drafts
+            "drafts",
+            "draft_detail",
+            "update_draft_body",
+            # Library
+            "library_cards",
+            "library_card_detail",
+            "update_library_card_body",
+            "provenance_trail",
+            # Recall / Wiki
+            "recall",
+            "recall_status",
+            # Home status
+            "health",
+            "knowledge_health_report",
+            "workflow_summary",
+            "safety_summary",
+            "workspace_status",
+            "vault_status",
+            # Dogfood
+            "dogfood_report",
+            # Provider
+            "provider_readiness_detail",
+            # Lifecycle
+            "source_lifecycle",
+            # Lab (delegated)
+            "get_graph_node",
+            "get_graph_explore",
+            "get_graph_edge",
+            "get_sensemaking",
+            "get_discovery_context",
+            "knowledge_communities",
+            "knowledge_topics",
+            # Import/Export
+            "import_card",
+            "preview_folder_import",
+            "import_from_folder",
+            # Quality / Location
+            "compute_card_quality",
+            "compute_card_location",
+            # Reveal
+            "reveal_by_ref",
+        ]
+
+        # 验证方法存在且可调用
+        facade = WebFacade.__dict__
+        missing = [m for m in required_methods if m not in facade]
+        assert not missing, (
+            f"WebFacade 缺少以下公开方法：{missing}\n"
+            "如果方法是故意删除/重命名的，请更新此测试。"
+        )
+
+    def test_web_facade_core_methods_have_consistent_return_types(self) -> None:
+        """WebFacade 核心方法的返回类型注解存在。"""
+        import inspect
+        from mindforge_web.services.web_facade import WebFacade
+
+        core_methods = [
+            "home_status",
+            "config_status",
+            "sources",
+            "drafts",
+            "library_cards",
+            "library_card_detail",
+            "recall",
+            "dogfood_report",
+            "provider_readiness_detail",
+            "source_lifecycle",
+        ]
+
+        no_return_annotation: list[str] = []
+        for method_name in core_methods:
+            method = getattr(WebFacade, method_name, None)
+            if method is None:
+                continue
+            sig = inspect.signature(method)
+            if sig.return_annotation is inspect.Parameter.empty:
+                no_return_annotation.append(method_name)
+
+        assert not no_return_annotation, (
+            f"以下核心方法缺少返回类型注解：{no_return_annotation}"
+        )
+
+
+# ── Slice 0: Processing run contract ───────────────────────────────────
+
+class TestArchitectureProcessingRunContract:
+    """Processing run 函数合同 —— 确保 Slice 1 迁移时不改变接口。"""
+
+    def test_processing_run_functions_exist(self) -> None:
+        """验证 processing_run_service 的关键公开函数存在且签名一致。"""
+        from mindforge_web.services import processing_run_service as prs
+
+        required_functions = [
+            "get_processing_run",
+            "list_processing_runs",
+            "latest_run_for_source",
+            "processing_run_response",
+            "ProcessingRunRecord",
+        ]
+
+        for func_name in required_functions:
+            assert hasattr(prs, func_name), (
+                f"processing_run_service 缺少 {func_name}"
+            )
+
+    def test_processing_run_record_fields(self) -> None:
+        """ProcessingRunRecord 关键字段不被意外修改。"""
+        from mindforge_web.services.processing_run_service import ProcessingRunRecord
+
+        required_fields = [
+            "run_id",
+            "source_ref",
+            "source_path",
+            "status",
+            "started_at",
+        ]
+
+        # ProcessingRunRecord 是 dataclass
+        import dataclasses
+        fields = {f.name for f in dataclasses.fields(ProcessingRunRecord)}
+        missing = [f for f in required_fields if f not in fields]
+        assert not missing, (
+            f"ProcessingRunRecord 缺少关键字段：{missing}"
+        )
+
+
 class TestArchitectureApprovalSafety:
     """Approval 安全语义的架构保护。"""
 
