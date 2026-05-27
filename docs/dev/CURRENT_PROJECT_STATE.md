@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Post-Mint4 Remediation — P3 Design System Foundation 完成)
+更新日期: 2026-05-28 (Post-Mint4 Remediation — P4 Autopilot Simplification Analysis 完成)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | (pending commit) (P3 Design System Foundation) |
+| 当前 HEAD | (pending commit) (P4 Autopilot Simplification Analysis) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -231,8 +231,7 @@ status=resolved (U1: web/src/design/tokens.ts + U2: docs/dev/design-system.md en
 <!-- AUTOPILOT-QUEUE-ITEM-4:
 workstream=Post-Mint4 Remediation: P4 Autopilot Simplification Analysis
 task_type=docs_cleanup
-current_node=implementing
-next_action=write_autopilot_complexity_analysis
+status=resolved (U1: autopilot-simplification-analysis.md — 1015 lines analyzed, ~19-33% reduction opportunities identified)
 required_skill=none
 frameworks_checked=none
 review_node=docs_truth_review
@@ -244,7 +243,7 @@ hard_stop_required=false
 <!-- AUTOPILOT-QUEUE-ITEM-5:
 workstream=Post-Mint4 Remediation: P5 Docs Governance Cost Reduction
 task_type=docs_cleanup
-current_node=pending
+current_node=implementing
 next_action=small_batch_cleanup_stale_docs
 required_skill=none
 frameworks_checked=none
@@ -264,8 +263,8 @@ Post-Mint4 Remediation (当前执行中):
 1. **P1: User Validation Kit** — 5 个验证文档已就绪 ✅ → HARD_STOP_PRODUCT_DECISION (需要真实用户)
 2. **P2: Web UX Remediation** — 3 fixes 完成 ✅ (commit `0c96f5d`)
 3. **P3: Design System Foundation** — tokens.ts + design-system.md ✅
-4. **P4: Autopilot Simplification** — 分析先行，不立即大改 → 执行中
-5. **P5: Docs Governance Cost Reduction** — 小 batch 清理
+4. **P4: Autopilot Simplification** — 分析文档完成 ✅
+5. **P5: Docs Governance Cost Reduction** — 小 batch 清理 → 执行中
 
 ---
 
