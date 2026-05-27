@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Post-Mint4 Remediation — P1 User Validation Kit 就绪)
+更新日期: 2026-05-28 (Post-Mint4 Remediation — P3 Design System Foundation 完成)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `4f2482b` (Post-Mint4 Retrospective + Remediation Plan) |
+| 当前 HEAD | (pending commit) (P3 Design System Foundation) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -203,8 +203,8 @@ hard_stop_note=HARD_STOP_PRODUCT_DECISION: User Validation Kit 就绪，需要 5
 <!-- AUTOPILOT-QUEUE-ITEM-2:
 workstream=Post-Mint4 Remediation: P2 Web UX Remediation
 task_type=ui_ux_polish
-current_node=pending
-next_action=browser_mcp_audit_then_fix_p1_p2_ux_issues
+current_node=done
+next_action=N/A
 required_skill=none
 frameworks_checked=none (direct mf-autopilot, low-risk targeted fixes)
 review_node=browser_mcp_smoke
@@ -212,24 +212,26 @@ failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
+status=resolved (3 fixes: review page routing + OnboardingHint localStorage + sidebar feedback link, commit 0c96f5d)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-3:
 workstream=Post-Mint4 Remediation: P3 Design System Foundation
 task_type=docs_cleanup
-current_node=pending
-next_action=extract_design_tokens_and_write_component_usage_doc
+current_node=done
+next_action=N/A
 required_skill=none
-frameworks_checked=none
+frameworks_checked=none (direct mf-autopilot, lightweight token extraction + doc)
 review_node=docs_truth_review
 failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
+status=resolved (U1: web/src/design/tokens.ts + U2: docs/dev/design-system.md enhanced)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-4:
 workstream=Post-Mint4 Remediation: P4 Autopilot Simplification Analysis
 task_type=docs_cleanup
-current_node=pending
+current_node=implementing
 next_action=write_autopilot_complexity_analysis
 required_skill=none
 frameworks_checked=none
@@ -260,9 +262,9 @@ hard_stop_required=false
 
 Post-Mint4 Remediation (当前执行中):
 1. **P1: User Validation Kit** — 5 个验证文档已就绪 ✅ → HARD_STOP_PRODUCT_DECISION (需要真实用户)
-2. **P2: Web UX Remediation** — browser/MCP audit + P1/P2 UX 修复 → 进行中
-3. **P3: Design System Foundation** — 轻量 token + 文档
-4. **P4: Autopilot Simplification** — 分析先行，不立即大改
+2. **P2: Web UX Remediation** — 3 fixes 完成 ✅ (commit `0c96f5d`)
+3. **P3: Design System Foundation** — tokens.ts + design-system.md ✅
+4. **P4: Autopilot Simplification** — 分析先行，不立即大改 → 执行中
 5. **P5: Docs Governance Cost Reduction** — 小 batch 清理
 
 ---

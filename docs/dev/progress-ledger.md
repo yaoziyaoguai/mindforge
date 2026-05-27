@@ -26,6 +26,42 @@
 
 ---
 
+### 2026-05-28: Post-Mint4 Remediation — P2 Web UX Remediation
+
+- **Commit**: `678e524` → `0c96f5d`
+- **Workstream**: Post-Mint4 Remediation — P2 Web UX Remediation
+- **Task type**: ui_ux_polish
+- **Outcome**: Browser/MCP audit 发现 1 P1 bug + 2 P2 issues 并全部修复。(1) Review page 路由错误：`/review` 路径不拉取 drafts 数据导致显示 Home 内容，在 App.tsx 第 57 行加 `|| path.startsWith("/review")` 修复 (2) OnboardingHint dismiss 未持久化，加 localStorage 持久化 (`mf-hint-dismissed-` 前缀) (3) 无反馈入口，Sidebar footer 加 GitHub Issues 反馈链接 + i18n keys
+- **Diffs**: `web/src/App.tsx` (+1), `web/src/components/OnboardingHint.tsx` (localStorage persistence), `web/src/components/Sidebar.tsx` (feedback link), `web/src/lib/i18n.ts` (nav.feedback zh/en)
+- **Gates**: `npm --prefix web run build` (0), `python -m pytest tests/test_web_product_copy.py -q --tb=short` (0, 100%), `git diff --check` (0)
+- **Review result**: PASS — browser/MCP verified all fixes
+- **Gate result**: PASS (3/3 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot for targeted P1/P2 fixes)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: P3 Design System Foundation
+
+---
+
+### 2026-05-28: Post-Mint4 Remediation — P3 Design System Foundation
+
+- **Commit**: `0c96f5d` → (pending)
+- **Workstream**: Post-Mint4 Remediation — P3 Design System Foundation
+- **Task type**: docs_cleanup
+- **Outcome**: U1: 创建 `web/src/design/tokens.ts` — 集中定义 A/B 两套 token 常量 + 已知缺陷文档 + 使用指南。U2: 增强 `docs/dev/design-system.md` — 整合原有设计原则 + token 参考表 + 14 页面清单 + 23 组件语义 + 状态交互规范 + 命名约定。提供跨页面视觉一致性的统一参考。
+- **Diffs**: `web/src/design/tokens.ts` (new, 135 lines), `docs/dev/design-system.md` (enhanced)
+- **Gates**: `npm --prefix web run build` (0), `git diff --check` (0)
+- **Review result**: PASS — docs truth review, token constants match styles.css + tailwind.config.ts
+- **Gate result**: PASS (2/2 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot, lightweight docs + reference file)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: P4 Autopilot Simplification Analysis
+
+---
+
 ### 2026-05-28: Post-Mint4 Independent Retrospective / Lessons Learned
 
 - **Commit**: `4f2482b` (retrospective standalone commit)
