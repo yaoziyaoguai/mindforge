@@ -10,7 +10,7 @@
 
 ### 2026-05-27: Codex Independent Strategic Red Team Audit
 
-- **Commit**: this audit commit
+- **Commit**: `4ef9ed2`
 - **Workstream**: Independent Strategic Red Team Audit
 - **Task type**: audit_only
 - **Outcome**: 完成一次独立、只读、战略红队审计。结论为 Conditional Go，总分 6.4/10。最强资产仍是 approval-first personal knowledge compiler；主要风险是产品习惯未验证、Web 仍有工程控制台味、治理 truth drift、Export 契约不一致、WebFacade/配置服务仍偏巨石。未修改产品代码、Web 代码、测试代码、`/mf-autopilot`，未切换 active workstream。
@@ -21,7 +21,7 @@
 
 ### 2026-05-27: AUDIT-118 P1 Product Debt Closure
 
-- **Commit**: `8507c82` → (pending)
+- **Commit**: `e6dbe9b`
 - **Workstream**: AUDIT-118 P1 Product Debt Closure
 - **Task type**: ui_ux_polish + docs_cleanup + smoke_evidence
 - **Outcome**: 关闭全部 4 项剩余 AUDIT-118 P1 产品债。AUDIT-118-01: user guides + README 更新 Export 文档，标注 browser-local download；AUDIT-118-02: Dogfood i18n label 加 (Internal) 标记，user guides 重写为内部工具；AUDIT-118-04: Chrome DevTools MCP smoke 验证主路径全部页面正常；AUDIT-118-05: HANDOFF.md 新增 status 字段体系 (active/completed/resolved/historical)，CPS §8 更新读取规则。
@@ -32,7 +32,7 @@
 
 ### 2026-05-27: Breadcrumb / SafetyBar Component Tests
 
-- **Commit**: `140a472` → (pending)
+- **Commit**: `7acb47e`
 - **Workstream**: Quality Platform / Frontend Test Coverage
 - **Task type**: feature_implementation
 - **Outcome**: Breadcrumb (9 tests) + SafetyBar (16 tests) 组件测试。解决了 useLocale() i18n context provider 问题 — 使用 LocaleProvider 包裹被测组件。SafetyBar 的 split text node 问题用正则匹配修复。测试文件 4→6，测试用例 25→50。
@@ -82,7 +82,7 @@
 - **Next**: Documentation Reset Batch 2（archive/delete 规则已明确）
 - **Workstream changed**: yes (from Autopilot Governance to v3.7 Quality Platform)
 
-- **Commit**: `ff3d210` → (pending)
+- **Commit**: `e159e29`
 - **Workstream**: Autopilot Governance
 - **Task type**: autopilot_governance
 - **Outcome**: 修复 /mf-autopilot 在 workstream 完成→新 workstream spec/plan 时误判停止的 bug。§5.3 rule 5 workstream 切换优先级明确化（完成→自动切换）。§5.7 新增跨 workstream spec/plan auto-continue 条目。§5.8 强制 ACTION token 输出（CONTINUE_NEXT_LOOP / HANDOFF_AND_STOP / HARD_STOP_<CODE>）。§5.9 新增 5 个软停禁令表述。CPS §6 新增 machine-readable AUTOPILOT-QUEUE 注释。
@@ -137,7 +137,7 @@
 
 ### 2026-05-27: Web IA/UX Loop 2 — Post-Dogfood User-Facing Debt Fix
 
-- **Commit**: `97d57fb` → (pending)
+- **Commit**: `6145b72`
 - **Workstream**: Web IA/UX Loop 2
 - **Task type**: ui_ux_polish
 - **Outcome**: 修复 3 个 P1 Web IA/UX 问题: (1) Dogfood nav 从 tools 移至 collapsed lab section, (2) DogfoodPage 添加 LAB/INTERNAL 横幅, (3) LocalGraphPreview 硬编码英文替换为 i18n。ExportPage 和 SetupPage 经审计确认无 drift。
@@ -148,7 +148,7 @@
 
 ### 2026-05-27: Product Main Path Real Dogfood — FakeProvider Keyword Extraction Improvement
 
-- **Commit**: `20a3038` → (pending)
+- **Commit**: `97d57fb`
 - **Workstream**: Product Main Path Real Dogfood
 - **Task type**: dogfood
 - **Outcome**: FakeProvider distill keyword extraction 从 title-only 改进为 title + prompt raw_text（最多 12000 chars 真实原文）。English recall hit rate 从 ~40% 提升到 91.7% (11/12)。Full pipeline (scan→process→approve→library→recall→wiki) 全部通过。Chinese recall 0% 因为 source docs 全是英文 — 这是 source material limitation，非 bug。
@@ -159,7 +159,7 @@
 
 ### 2026-05-27: Post-Governance Global Red Team Audit
 
-- **Commit**: `7312245` → this audit commit
+- **Commit**: `20a3038`
 - **Workstream**: Post-Governance Global Red Team Audit
 - **Task type**: audit_only
 - **Outcome**: 完成一次只读全局红队审计；结论为 Conditional Go，总分 6.1/10。主路径和 approval-first 安全语义是最强资产；下一步不建议自由推进 Batch 2，而应优先做 Product Main Path Real Dogfood。
@@ -283,18 +283,21 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Quality Platform / Frontend Test Coverage (2026-05-27)**
+**当前 active workstream: Product Main Path Real Dogfood v2 (2026-05-27)**
 
-- AUDIT-118 P1 Product Debt Closure workstream 已完成 — 全部 4 项 resolved
-- 下一 workstream: 按 CPS §6 AUTOPILOT-QUEUE 继续
+- 由 Codex 独立红队审计 (commit `4ef9ed2`, §10.A) 推荐为 primary next loop
+- 目标: 完整主路径 browser-level dogfood — Source→Draft→Review→Approval→Library→Recall→Wiki→Export
+- 记录 UX 摩擦，验证 acceptance criteria，不调用真实 LLM/API/Obsidian vault
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
-2. **Documentation Reset Batch 2** — archive/delete 规则已在 plan 中明确。
-3. **P3-01 npm build chunk size optimization** — 非阻塞。
+按 Codex 审计推荐顺序:
+
+1. **Product Main Path Real Dogfood v2** — 当前 active workstream。完整 main path browser/API dogfood，记录 UX 摩擦，验证 acceptance criteria。
+2. **Web Product UX Deepening** — 待 dogfood v2 完成后，基于真实摩擦修复 Library IA、Export contract、Setup clarity。
+3. **Targeted Architecture Quality Reset** — 仅在 dogfood/UX 暴露真实架构痛点后执行。
 
 ---
 

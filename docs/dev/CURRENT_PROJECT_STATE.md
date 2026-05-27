@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.7 — AUDIT-118 P1 Product Debt Closure: Export docs/Dogfood nav/HANDOFF semantics/Browser smoke)
+更新日期: 2026-05-27 (v3.8 — Product Main Path Real Dogfood v2 per Codex audit recommendation)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `fb98003` (v3.7 Quality Platform) |
+| 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -175,14 +175,18 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_quality_platform -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Web frontend test coverage expansion — vitest + happy-dom 基础设施已就绪 -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Documentation Reset Batch 2 — archive/delete 规则已明确 -->
-<!-- AUTOPILOT-QUEUE-ITEM-3: P3-01 — npm build chunk size optimization (非阻塞) -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: dogfood_v2 -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: dogfood -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Product Main Path Real Dogfood v2 — full pipeline Source→Draft→Review→Approval→Library→Recall→Wiki→Export, browser-level UX friction recording -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening — Library IA fix, Export contract alignment, Setup clarity, full main-path page smoke (per Codex audit §10.B) -->
+<!-- AUTOPILOT-QUEUE-ITEM-3: Governance truth drift fix — CPS HEAD/ledger/audit index consistency -->
 <!-- AUTOPILOT-QUEUE-END -->
 
-AUDIT-118 全部 P1 项已关闭。按推荐顺序:
+Codex 独立红队审计 (HEAD `4ef9ed2`) 推荐优先顺序:
+
+1. **Product Main Path Real Dogfood v2** — 完整主路径 browser-level dogfood，记录 UX 摩擦
+2. **Web Product UX Deepening** — 基于 dogfood 发现的摩擦进行 IA/UX 修复
+3. Targeted Architecture Quality Reset — 仅在 dogfood/UX 暴露真实痛点后执行
 
 ---
 
