@@ -8,7 +8,16 @@
 
 ## 1. Completed Major Loops
 
-### 2026-05-27: mf-autopilot Cross-Workstream Continuation Fix
+### 2026-05-27: v3.7 Quality Platform
+
+- **Commit**: `e159e29` → (pending)
+- **Workstream**: v3.7 Quality Platform
+- **Task type**: feature_implementation
+- **Outcome**: P2-05 (vitest + happy-dom + @testing-library/react 前端测试基础设施) + P2-06 ([tool.coverage] 配置, pytest --cov 可用, 88% baseline) + web_config_service.py env detection 提取至 web_config_env.py。ErrorState 组件测试示范通过。
+- **Docs/notes**: `docs/plans/2026-05-27-127-v3.7-quality-platform.md`, `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md`
+- **Gates**: `ruff check` (0), `git diff --check` (0), `npm run build` (0), `npm run test` (0, 2 passed), `pytest tests/` (0, ~3030 passed/1 skip), `pytest --cov` (0, 88%), `pytest tests/test_web_product_copy.py` (0)
+- **Next**: Documentation Reset Batch 2（archive/delete 规则已明确）
+- **Workstream changed**: yes (from Autopilot Governance to v3.7 Quality Platform)
 
 - **Commit**: `ff3d210` → (pending)
 - **Workstream**: Autopilot Governance
@@ -211,18 +220,17 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Autopilot Governance (2026-05-27)**
+**当前 active workstream: v3.7 Quality Platform (2026-05-27)**
 
-- mf-autopilot cross-workstream continuation fix 进行中
-- Architecture Quality Reset workstream 已完成 (Slice 0 + 1 + 2)
-- 下一 workstream: v3.7 Quality Platform (P2-05 frontend tests, P2-06 coverage, web_config_service split — spec/plan 编写为 auto-continue 第一步)
+- v3.7 Quality Platform workstream 已完成 (P2-05 + P2-06 resolved, web_config_service.py env extraction done)
+- 下一 workstream: Documentation Reset Batch 2（archive/delete 规则已明确）
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **v3.7 Quality Platform** — P2-05 (frontend tests vitest/happy-dom) + P2-06 (coverage config) + web_config_service.py split。需独立 spec/plan 后执行。
-2. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
+1. **Documentation Reset Batch 2** — archive/delete 规则已在 plan 中明确。下一步: 执行实际归档/删除（docs_cleanup task type）。
+2. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
 
 ---
 

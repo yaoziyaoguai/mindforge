@@ -62,3 +62,12 @@ target-version = "py312"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+source = ["src/mindforge", "src/mindforge_web"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# 不设 fail_under 阈值 — 先建立可观测性，阈值设定是后续 policy decision

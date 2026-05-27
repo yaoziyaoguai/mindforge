@@ -8,7 +8,6 @@ presence 兼容只保留给 advanced diagnostics，不进入 Home/Setup 主判�
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -21,6 +20,12 @@ from mindforge.provider_defaults import DEFAULT_PROVIDER_MAX_RETRIES, DEFAULT_PR
 from mindforge.provider_readiness import build_readiness_report
 from mindforge.secret_store import resolve_project_root_from_config
 from mindforge.watch_registry import list_watch_sources, registry_path_for_vault
+from mindforge_web.services.web_config_env import (
+    DotenvPresence,
+    find_dotenv_file,
+    parse_env_key,
+    read_dotenv_presence,
+)
 from mindforge_web.services.web_config_secret_manager import WebConfigSecretManager, mask_secret
 
 from mindforge_web.schemas import (
@@ -43,10 +48,7 @@ from mindforge_web.schemas import (
     StatusItem,
 )
 
-@dataclass(frozen=True)
-class DotenvPresence:
-    path: Path | None
-    keys: frozenset[str]
+# DotenvPresence 已提取至 web_config_env.py — 从此模块 import
 
 
 class WebConfigService:
@@ -902,37 +904,16 @@ class WebConfigService:
             raise ConfigUpdateError([f"Cannot create vault directory: {root}"]) from exc
 
     def _read_dotenv_presence(self) -> DotenvPresence:
-        path = self._find_dotenv(self.cwd)
-        if path is None:
-            return DotenvPresence(path=None, keys=frozenset())
-        keys: set[str] = set()
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            return DotenvPresence(path=path, keys=frozenset())
-        for line in text.splitlines():
-            parsed = self._parse_env_key(line)
-            if parsed:
-                keys.add(parsed)
-        return DotenvPresence(path=path, keys=frozenset(keys))
+        # 委托给 web_config_env 中的独立函数
+        return read_dotenv_presence(self.cwd)
 
     @staticmethod
     def _find_dotenv(start: Path) -> Path | None:
-        cur = start.resolve()
-        for path in (cur, *cur.parents):
-            candidate = path / ".env"
-            if candidate.is_file():
-                return candidate
-        return None
+        return find_dotenv_file(start)
 
     @staticmethod
     def _parse_env_key(line: str) -> str | None:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            return None
-        key, _sep, _value = stripped.partition("=")
-        key = key.removeprefix("export ").strip()
-        return key if key.isidentifier() else None
+        return parse_env_key(line)
 
 
 class ConfigUpdateError(ValueError):

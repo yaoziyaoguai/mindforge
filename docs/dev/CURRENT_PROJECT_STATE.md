@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (Architecture Quality Reset — Slice 2 完成，presenter 提取 + web_facade.py 瘦身)
+更新日期: 2026-05-27 (v3.7 Quality Platform — P2-05/P2-06 resolved, vitest + coverage configured)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `70a1475` (Slice 1 + Slice 2 完成，Architecture Quality Reset 完结) |
+| 审计基线 HEAD | `(pending)` (v3.7 Quality Platform) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -94,7 +94,9 @@ Source / Import
 | Trash | done | `src/mindforge/trash_service.py` | 安全回收站，支持 Restore |
 | Web UI (14 pages) | done | `web/src/pages/` | React SPA + Tailwind |
 | i18n (zh/en) | done | `web/src/lib/i18n.ts` | 双语文案 |
+| Frontend Tests | done | `web/src/components/__tests__/` | vitest + happy-dom + @testing-library/react |
 | CLI | done | `src/mindforge/cli.py` + 各 `*_cli.py` | 完整 CLI 入口 |
+| Python Coverage | done | `pyproject.toml` [tool.coverage] | pytest --cov 可用, 88% baseline |
 
 ### internal
 
@@ -121,7 +123,6 @@ Source / Import
 | Mail / email storage | 明确不做 |
 | Auto approve | 明确不做 |
 | Real provider auto-call | 默认不调用，需显式 opt-in |
-| Frontend tests (vitest/happy-dom) | P2 debt，target v3.7 |
 
 ### deprecated / superseded
 
@@ -151,8 +152,8 @@ Source / Import
 
 | ID | Priority | Description | Status |
 |----|----------|-------------|--------|
-| P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | open, target v3.7 |
-| P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | open, target v3.7 |
+| P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | resolved (v3.7): vitest + happy-dom + @testing-library/react 基础设施已搭建 |
+| P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | resolved (v3.7): [tool.coverage.run] + [tool.coverage.report] 已配置, --cov 可用 |
 | P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
 | AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | open |
 | AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | open |
@@ -171,16 +172,16 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: plan_spec -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: v3.7 Quality Platform — P2-05 frontend tests + P2-06 coverage config + web_config_service.py split。下一步: 写 spec/plan。 -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Documentation Reset Batch 2 — 仅在 exact archive/delete rules 明确后执行 -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: docs_cleanup -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: docs_cleanup -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Documentation Reset Batch 2 — archive/delete 规则已在 plan 中明确，可执行 -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Web frontend test coverage expansion — 扩展组件/页面测试覆盖（基础设施已就绪） -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 按推荐顺序:
 
-1. **v3.7 Quality Platform** — P2-05 (frontend tests) + P2-06 (coverage config) + web_config_service.py split。下一步: 写 spec/plan（auto-continue allowed）。
-2. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
+1. **Documentation Reset Batch 2** — archive/delete 规则已在 `docs/plans/2026-05-26-097-documentation-archive-plan.md` 中明确。
+2. **Web frontend test coverage expansion** — vitest + happy-dom 基础设施已就绪，可扩展组件/页面测试覆盖。
 
 ---
 

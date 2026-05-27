@@ -2,7 +2,7 @@
 
 基于 v2.0-v3.6 independent delivery audit、v3.6.1 remediation Batch A、v4.2 red team stabilization、v4.2.1 partial remediation closure、Product Main Path Dogfood (2026-05-25)、v4.4 Product Main Path UX Deepening (2026-05-26) 和 v4.7 Architecture Debt Reduction (2026-05-26) 更新。
 
-更新日期: 2026-05-27 (v4.8 architecture quality reset)
+更新日期: 2026-05-27 (v3.7 Quality Platform)
 
 ---
 
@@ -13,8 +13,8 @@
 | P2-02 | P2 | web_facade.py God Service — v4.8 前 2163 行/45 methods，提取后 1487 行 (-31.3%)，lab/internal methods → WebLabService，import/export → WebImportExportService，recall → WebRecallService | v2.x → v3.x | resolved (v4.8) | — |
 | P2-02b | P2 | web_facade.py module-level private helpers (~540 lines) — 纯数据变换函数在 facade 模块底部，测试摩擦大 | v4.8 post-extraction | resolved (v4.8 Slice 2): 提取至 5 个 presenter 子模块 (shared/graph/library/discovery/provenance)，web_facade.py 降至 922 行 | — |
 | P2-03 | P2 | schemas.py God Schema — was 1375 行/62 schema 单文件, v4.8 Slice 1 后 __init__.py 降至 399 行 (-63.4%), ~100 schema 提取至 12 个子模块: common + provider + source + library + recall + graph + sensemaking + trash + quality + import_export + dogfood_lifecycle + review | v2.x → v3.x | resolved (v4.8) | — |
-| P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | v2.x → v3.x | open | v3.7 |
-| P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | v2.x → v3.x | open | v3.7 |
+| P2-05 | P2 | 零前端测试覆盖 (0 test files in web/src/) | v2.x → v3.x | resolved (v3.7): vitest + happy-dom + @testing-library/react 基础设施已搭建，ErrorState 组件测试示范通过 | — |
+| P2-06 | P2 | 无覆盖率配置 — pyproject.toml 无 [tool.coverage] | v2.x → v3.x | resolved (v3.7): [tool.coverage.run] + [tool.coverage.report] 已配置，--cov 可用 (88% baseline) | — |
 | P3-01 | P3 | npm build chunk size >500KB | v2.5 | open (非阻塞) | — |
 | P3-02 | P3 | 1 skipped test (conditional: no runs written) | pre-existing | acknowledged (正常条件跳过) | — |
 | P3-03 | P3 | test_approval/review/process_service_boundaries 三文件间 ~50% AST helper 同构代码（有意不共享 fixture，独立可理解） | v2.x | acknowledged (设计选择) | — |
