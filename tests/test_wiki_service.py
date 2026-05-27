@@ -225,8 +225,8 @@ def test_rebuild_provenance_present(tmp_path: Path) -> None:
 
     result = rebuild_main_wiki(cfg)
     wiki_text = Path(result.wiki_path).read_text(encoding="utf-8")
-    assert "Source card" in wiki_text or "Card path" in wiki_text
-    assert "Original source" in wiki_text
+    assert "源卡片" in wiki_text or "卡片路径" in wiki_text
+    assert "原始来源" in wiki_text
     assert "My Original Source" in wiki_text
 
 
@@ -312,7 +312,7 @@ def test_llm_rebuild_uses_wiki_model_without_processing_routing(tmp_path: Path, 
     assert result.section_count == 1
     wiki_text = Path(result.wiki_path).read_text(encoding="utf-8")
     assert "Approved summary" in wiki_text
-    assert "Related approved cards" in wiki_text
+    assert "关联已确认卡片" in wiki_text
 
 
 def test_llm_rebuild_requires_explicit_model_when_no_default(tmp_path: Path) -> None:

@@ -387,27 +387,27 @@ def _append_card_section(lines: list[str], card: CardSummary) -> None:
     if summary:
         lines.append(f"{summary}\n\n")
     if principles:
-        lines.append(f"**Principles:**\n{principles}\n\n")
+        lines.append(f"**核心原则:**\n{principles}\n\n")
     if actions:
-        lines.append(f"**Action Items:**\n{actions}\n\n")
+        lines.append(f"**行动项:**\n{actions}\n\n")
 
     # Provenance（代码自动追加）
-    lines.append("**Provenance:**\n\n")
-    lines.append(f"- **Source card**: [{title}](../20-Knowledge-Cards/{card.rel_path.rsplit('/', 1)[-1] if '/' in card.rel_path else card.rel_path})\n")
-    lines.append(f"- **Card path**: `{card.rel_path}`\n")
+    lines.append("**来源追溯:**\n\n")
+    lines.append(f"- **源卡片**: [{title}](../20-Knowledge-Cards/{card.rel_path.rsplit('/', 1)[-1] if '/' in card.rel_path else card.rel_path})\n")
+    lines.append(f"- **卡片路径**: `{card.rel_path}`\n")
     # 中文学习型说明：原 source_path 不能直接嵌入 wiki content；
     # 优先用 source_title，fallback 到 source_path 的 basename。
     provenance_label = card.source_title
     if not provenance_label and card.source_path:
         provenance_label = Path(card.source_path).name
     if provenance_label:
-        lines.append(f"- **Original source**: {provenance_label}\n")
+        lines.append(f"- **原始来源**: {provenance_label}\n")
     if card.strategy_id:
-        lines.append(f"- **Strategy**: {card.strategy_id} v{card.strategy_version or '?'}\n")
+        lines.append(f"- **策略**: {card.strategy_id} v{card.strategy_version or '?'}\n")
     if card.tags:
-        lines.append(f"- **Tags**: {', '.join(card.tags)}\n")
+        lines.append(f"- **标签**: {', '.join(card.tags)}\n")
     if card.value_score is not None:
-        lines.append(f"- **Value score**: {card.value_score}\n")
+        lines.append(f"- **价值评分**: {card.value_score}\n")
 
     lines.append("\n<!-- WIKI_SECTION_END -->\n")
     lines.append("---\n\n")
@@ -623,16 +623,16 @@ def llm_rebuild_wiki(
     now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     md_lines: list[str] = []
     md_lines.append("# MindForge Main Wiki\n")
-    md_lines.append(f"> LLM synthesis · Model: {model_id} · Last rebuilt: {now}\n")
-    md_lines.append(f"> Cards included: {len(digests)}\n\n")
+    md_lines.append(f"> LLM 合成 · 模型: {model_id} · 最近重建: {now}\n")
+    md_lines.append(f"> 包含卡片: {len(digests)}\n\n")
 
     overview = output.get("overview") or ""
     if isinstance(overview, str) and overview:
-        md_lines.append("## Overview\n\n")
+        md_lines.append("## 概览\n\n")
         md_lines.append(f"{overview}\n\n")
 
     if valid_sections:
-        md_lines.append("## Knowledge Sections\n\n")
+        md_lines.append("## 知识章节\n\n")
         for sec in valid_sections:
             card_ids = sec.get("card_ids", [])
             md_lines.append(f"<!-- WIKI_SECTION_START card_ids={','.join(card_ids)} -->\n")
@@ -640,32 +640,32 @@ def llm_rebuild_wiki(
                 f"### {normalize_wiki_title(sec.get('title'))}\n\n"
             )
             md_lines.append(f"{sec.get('body', '')}\n\n")
-            md_lines.append("**Related approved cards:**\n\n")
+            md_lines.append("**关联已确认卡片:**\n\n")
             for cid in card_ids:
                 d = digest_index.get(cid)
                 if d:
                     fname = d.card_rel_path.rsplit('/', 1)[-1] if '/' in d.card_rel_path else d.card_rel_path
                     md_lines.append(f"- [{d.title}](../20-Knowledge-Cards/{fname})\n")
                     if d.source_title:
-                        md_lines.append(f"  - Original source: {d.source_title}\n")
+                        md_lines.append(f"  - 原始来源: {d.source_title}\n")
             md_lines.append("\n<!-- WIKI_SECTION_END -->\n")
             md_lines.append("---\n\n")
 
     if uncited:
-        md_lines.append("## Additional Approved Cards\n\n")
+        md_lines.append("## 附加已确认卡片\n\n")
         md_lines.append("以下 approved cards 未被 LLM section 引用，但保留在 Wiki 中作为参考。\n\n")
         for d in uncited:
             fname = d.card_rel_path.rsplit('/', 1)[-1] if '/' in d.card_rel_path else d.card_rel_path
             md_lines.append(f"- [{d.title}](../20-Knowledge-Cards/{fname})\n")
             if d.source_title:
-                md_lines.append(f"  - Original source: {d.source_title}\n")
+                md_lines.append(f"  - 原始来源: {d.source_title}\n")
             if d.summary:
                 md_lines.append(f"  - {d.summary[:200]}\n")
         md_lines.append("")
 
     open_qs = output.get("open_questions") or []
     if isinstance(open_qs, list) and open_qs:
-        md_lines.append("## Open Questions\n\n")
+        md_lines.append("## 待解决问题\n\n")
         for q in open_qs:
             if isinstance(q, dict):
                 md_lines.append(f"- **{q.get('question', '?')}**\n")

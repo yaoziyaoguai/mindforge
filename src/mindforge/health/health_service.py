@@ -90,9 +90,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="review_backlog",
             severity=Severity.WARN,
-            message=f"{pending_drafts} pending drafts awaiting review",
+            message=f"{pending_drafts} 张待审阅草稿积压",
             reason="pending_drafts is above the review backlog threshold",
-            suggested_action="Review pending drafts and approve or reject each card. Consider processing in batches.",
+            suggested_action="逐张审阅待处理草稿，确认或拒绝。建议分批处理。",
         ))
 
     # 1b. Pending drafts count（信息性，便于 M5 报告显式展示）
@@ -100,9 +100,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="pending_drafts",
             severity=Severity.INFO,
-            message=f"{pending_drafts} pending draft(s) awaiting review",
+            message=f"{pending_drafts} 张待审阅草稿",
             reason="ai_draft cards exist and require explicit human decision",
-            suggested_action="Review pending drafts when convenient; do not auto-approve them.",
+            suggested_action="方便时审阅待处理草稿；请勿自动确认。",
         ))
 
     # 2. Missing provenance
@@ -116,9 +116,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="missing_provenance",
             severity=Severity.WARN,
-            message=f"{len(missing_provenance)} approved card(s) missing provenance metadata",
+            message=f"{len(missing_provenance)} 张已确认卡片缺少来源追溯元数据",
             reason="approved cards should retain source_id/source_path/source_type/adapter_name for traceability",
-            suggested_action="Review affected cards and restore provenance from state/runs/source archive if available.",
+            suggested_action="检查受影响的卡片，尝试从状态/运行记录/来源存档中恢复追溯信息。",
             affected_card_ids=tuple(missing_provenance),
         ))
 
@@ -133,9 +133,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="low_quality",
             severity=severity,
-            message=f"{len(low_cards)} approved cards with low quality score",
+            message=f"{len(low_cards)} 张已确认卡片质量评分偏低",
             reason="approved cards have deterministic quality_level=low",
-            suggested_action=f"Review and potentially regenerate: {', '.join(low_cards[:3])}{'...' if len(low_cards) > 3 else ''}. Consider splitting or enriching content.",
+            suggested_action=f"检查并考虑重新生成：{', '.join(low_cards[:3])}{'...' if len(low_cards) > 3 else ''}。可考虑拆分或丰富内容。",
             affected_card_ids=tuple(low_cards),
         ))
 
@@ -161,9 +161,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="orphans",
             severity=severity,
-            message=f"{len(orphan_ids)} orphan cards found — not referenced by Wiki or related cards",
+            message=f"{len(orphan_ids)} 张孤立卡片 — 未被 Wiki 或关联卡片引用",
             reason="approved cards have no wiki reference and no deterministic related cards",
-            suggested_action="Check if these cards belong to a Wiki section. Consider linking them to related cards or wiki sections.",
+            suggested_action="检查这些卡片是否应属于某个 Wiki 章节，考虑建立关联卡片或 Wiki 引用。",
             affected_card_ids=tuple(orphan_ids),
         ))
 
@@ -175,9 +175,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="duplicates",
             severity=Severity.INFO,
-            message=f"{len(dup_pairs)} potential duplicate card pairs found",
+            message=f"{len(dup_pairs)} 对潜在重复卡片",
             reason="card titles have high token overlap",
-            suggested_action=f"Review pairs: {', '.join(f'{a}↔{b}' for a, b in dup_pairs[:3])}. Consider merging if content truly overlaps.",
+            suggested_action=f"检查以下卡片对：{', '.join(f'{a}↔{b}' for a, b in dup_pairs[:3])}。如内容确实重叠，考虑合并。",
             affected_card_ids=tuple(affected),
         ))
 
@@ -186,9 +186,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="wiki_stale",
             severity=Severity.WARN,
-            message=f"{len(wiki_stale_sections)} Wiki sections marked stale",
+            message=f"{len(wiki_stale_sections)} 个 Wiki 章节已过期",
             reason="final Wiki is missing approved cards or sections need rebuild",
-            suggested_action=f"Rebuild wiki to refresh stale sections: {', '.join(wiki_stale_sections[:3])}.",
+            suggested_action=f"重新构建 Wiki 以刷新过期章节：{', '.join(wiki_stale_sections[:3])}。",
             affected_card_ids=(),
         ))
 
@@ -197,9 +197,9 @@ def compute_health_report(
         issues.append(HealthIssue(
             code="source_warnings",
             severity=Severity.INFO,
-            message=f"{len(source_warnings)} source warning(s) recorded",
+            message=f"记录了 {len(source_warnings)} 条来源警告",
             reason="; ".join(source_warnings[:3]),
-            suggested_action="Review skipped/failed source attempts and re-import only after format or dependency issues are fixed.",
+            suggested_action="检查跳过/失败的来源导入记录，在格式或依赖问题修复后再重新导入。",
         ))
 
     # Summary
@@ -208,12 +208,12 @@ def compute_health_report(
     info = sum(1 for i in issues if i.severity == Severity.INFO)
     summary_parts: list[str] = []
     if critical:
-        summary_parts.append(f"{critical} critical")
+        summary_parts.append(f"{critical} 严重")
     if warn:
-        summary_parts.append(f"{warn} warnings")
+        summary_parts.append(f"{warn} 警告")
     if info:
-        summary_parts.append(f"{info} informational")
-    summary = f"Health check: {', '.join(summary_parts)} issue(s)." if summary_parts else "Health check: all clear."
+        summary_parts.append(f"{info} 信息")
+    summary = f"健康检查：{', '.join(summary_parts)}。" if summary_parts else "健康检查：一切正常。"
 
     suggestions = tuple(_maintenance_suggestions(issues))
     return HealthReport(
