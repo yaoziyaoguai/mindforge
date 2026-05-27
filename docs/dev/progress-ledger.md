@@ -8,6 +8,24 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Autopilot Governance Upgrade — Recursive Remediation + Mandatory Skill Gates + Skill Framework Routing
+
+- **Commit**: `e6f6d09` → `<pending>`
+- **Workstream**: Autopilot Governance Upgrade (Round 1 + 2)
+- **Task type**: autopilot_governance
+- **Outcome**: `/mf-autopilot` 从 workflow router + skill router 升级为 recursive remediation loop controller。新增 §11 recursive remediation loop (4-tier precedence)、§12 failure classification table (9 类)、§13 retry/escalation policy、§14 mandatory skill gates (5 类)、§15 skill framework discovery (Compound Engineering/G-stack/Superpowers)、§16 skill routing decision block、§17 review node rules、§18 post-loop self-routing block、§19-§21 schema 升级 (CPS AUTOPILOT-QUEUE、progress-ledger、HANDOFF.md)。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-138-mf-autopilot-recursive-remediation-and-mandatory-skills.md`, `docs/implementation-notes/2026-05-27-139-mf-autopilot-skill-framework-routing.md`
+- **Gates**: `git diff --check` (0), `ruff check .claude/commands/ docs/` (0), `python -m pytest tests/test_web_product_copy.py -q --tb=short` (0, 100%)
+- **Review result**: PASS
+- **Gate result**: PASS
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: G-stack (design-shotgun, design-consultation loaded; Compound Engineering available via ce-work; Superpowers available)
+- **Required skill invoked**: yes (ce-work for implementation; mf-autopilot for governance rules; design-shotgun/design-consultation pre-loaded)
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: AUTOPILOT-QUEUE-ITEM-2 (Web Product UX Deepening P3)
+- **Workstream changed**: yes (Governance ITEM-3 → Autopilot Governance Upgrade)
+
 ### 2026-05-27: Dogfood v3 Light Smoke — 验证 P2 UX 修复 + 治理 ITEM-3 完成
 
 - **Commit**: `9be6e5c` → `f5a1136`

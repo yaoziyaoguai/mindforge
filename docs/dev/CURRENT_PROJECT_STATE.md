@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 当前 HEAD | `f5a1136` (治理 ITEM-3 完成 + AUTOPILOT-QUEUE 重置，Codex audit 三项全部完成) |
+| 当前 HEAD | `e6f6d09` (治理 ITEM-3 完成 + AUTOPILOT-QUEUE 重置，Codex audit 三项全部完成) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -176,11 +176,47 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: web_ux_p3_deepening -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: ui_ux_polish -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Dogfood v3 Light Smoke — DONE (SafetyBar+Library breadcrumb verified, 0 library cards → Export redirect expected) -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening P3 — Setup clarity, Library IA, Wiki empty state, Recall feedback, Export download UX (5 P3 items from Dogfood v2) -->
-<!-- AUTOPILOT-QUEUE-ITEM-3: Stale task cleanup — 清理 200+ stale task entries + next-phase planning review -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: select_next_product_loop -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-ITEM-1:
+workstream=Autopilot Governance Upgrade (Round 2)
+task_type=autopilot_governance
+current_node=gate
+next_action=commit_and_push
+required_skill=none
+frameworks_checked=G-stack
+review_node=governance_self_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-2:
+workstream=Web Product UX Deepening P3
+task_type=ui_ux_polish
+current_node=pending
+next_action=setup_clarity_library_ia_wiki_empty_state_recall_feedback_export_ux
+required_skill=none
+frameworks_checked=none
+review_node=browser_or_mcp
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-3:
+workstream=Stale Task Cleanup
+task_type=docs_cleanup
+current_node=pending
+next_action=cleanup_200_stale_tasks_and_next_phase_review
+required_skill=none
+frameworks_checked=none
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
 <!-- AUTOPILOT-QUEUE-END -->
 
 Codex 独立红队审计 (HEAD `4ef9ed2`) 推荐优先顺序:

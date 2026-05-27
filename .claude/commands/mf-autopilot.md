@@ -640,3 +640,376 @@ Reason: <具体原因，说明为什么不能从 roadmap/spec/plan 推断>
 11. 不要把 API key / secrets 打印到日志、DOM、console、notes
 12. 不要删除用户真实资料
 13. Fast lane main: gate 通过后直接 commit + push
+
+---
+
+## 11. Recursive Remediation Loop
+
+`/mf-autopilot` is **not a linear pipeline**. It is a **recursive workflow controller**.
+
+默认流程不是：
+
+```
+plan → implement → gate → done
+```
+
+而是：
+
+```
+classify task
+  → choose entrypoint
+  → Skill Framework Discovery（§15）
+  → choose required skills（§14 + §15）
+  → execute current node
+  → review output（§17）
+  → classify failure if any（§12）
+  → route backward to the correct earlier node
+  → re-run
+  → gate（§8）
+  → update state
+  → Post-Loop Self-Routing（§18）
+  → continue next loop
+```
+
+如果 review / gate / audit 不通过，**不能简单停，也不能继续往后硬跑**。必须判断失败属于哪个阶段（§12），然后回退到对应阶段重做。
+
+**Remediation precedence（回退优先级）：**
+
+| 优先级 | 回退目标 | 触发条件 |
+|--------|---------|---------|
+| 1 (最浅) | 同阶段 fix | 小范围 bug、lint、单测失败 |
+| 2 | 上一阶段 | plan 偏差、实现方向错 |
+| 3 | spec/plan | 目标不清、scope 膨胀 |
+| 4 (最深) | 产品决策 | 产品方向冲突、价值不清 |
+
+回退时从浅到深尝试。浅层能修就不深层回退。但如果根因在深层，必须跳过硬推。
+
+---
+
+## 12. Failure Classification Table
+
+| # | Failure Class | 触发条件 | 回退目标 | 特殊动作 |
+|---|--------------|---------|---------|---------|
+| 1 | **spec_failure** | 目标不清、acceptance criteria 不清、product decision 不清、用户价值不清、scope 膨胀、non-goals 不清 | spec/plan stage | 产品方向不清 → `/brainstorming` 或 `/office-hours`；仍需用户选择 → `HARD_STOP_PRODUCT_DECISION` |
+| 2 | **plan_failure** | plan 没有 slice、没有 gates、没有 rollback、会造成大重构、没有说明风险、没有明确技能选择 | plan rewrite | architecture/engineering → `/plan-eng-review`；design → `/plan-design-review`；Compound Engineering/G-stack 考虑 |
+| 3 | **design_failure** | UI 方向不清、visual hierarchy 不清、design review 不通过、页面漂亮但不好用、设计不符合产品定位 | design stage | direction unclear → `/design-consultation`；variants needed → `/design-shotgun`；choosing → `/plan-design-review`；`/design-html` only after direction locked；`/design-review` after implementation |
+| 4 | **architecture_failure** | cross-module coupling increases、mechanical file splitting、new God object、new premature abstraction、API contract breaks、lab/internal pollutes main path、explicit approval semantics risk | architecture audit | → `/plan-eng-review` → boundary tests → smaller slice；考虑 Compound Engineering/G-stack；implementation only after plan passes |
+| 5 | **implementation_failure** | tests fail、build fails、lint fails、behavior mismatch、bug persists、new regression introduced | inspect/reproduce | → focused fix → targeted tests → rerun gates；do NOT rewrite unrelated modules |
+| 6 | **gate_failure** | any gate exit non-zero、timeout、no visible exit code、truncated output used as proof、flaky gate without evidence | diagnose gate | → fix root cause → rerun exact gate → update notes；`HARD_STOP` only after retry limit (§13) or unsafe state |
+| 7 | **review_failure** | self-review finds mismatch、design-review fails、plan-eng-review fails、codex/adversarial review finds P0/P1/P2、audit says feature is misleading | earliest mismatched stage | spec if goal wrong、plan if approach wrong、implementation if code wrong、docs if truth drift |
+| 8 | **docs_truth_failure** | docs overclaim、docs contradict code、current state stale、progress-ledger stale、old docs mislead agent | docs_cleanup entrypoint | → code-truth check → update CPS/progress-ledger；do NOT continue feature work until current truth is clear |
+| 9 | **skill_routing_failure** | required skill not invoked、wrong skill used、heavy skill for trivial fix、design without design review、architecture change without plan-eng-review、available framework not checked（§15） | Skill Routing Decision node | → invoke required skill → document result → resume workflow；remediation routing must re-check Compound Engineering/G-stack/Superpowers（§15.5） |
+
+---
+
+## 13. Retry / Escalation Policy
+
+- Each remediation loop may retry up to **2 times** by default.
+- If same P0/P1 failure persists after 2 focused retries → `HARD_STOP_P0_P1_RETRY_EXCEEDED`.
+- P2/P3 may be **deferred** if documented in implementation notes and not blocking current loop.
+- **Never** hide a failed gate by reclassifying it as pass.
+- **Never** continue after failed safety/approval gate.
+- **Never** continue after git unsafe state (`HARD_STOP_GIT_UNSAFE_STATE`).
+- If failure class is `architecture_failure`、`plan_failure`、`implementation_failure` across modules、or `gate_failure` across multiple gates, remediation routing **must re-check Compound Engineering / G-stack / Superpowers before retry**（§15.5）。
+
+---
+
+## 14. Mandatory Skill Gates
+
+Skill routing is **mandatory**, not advisory, for certain task classes.
+
+### 14.1 Product / strategy tasks
+
+**触发信号:** 新产品方向、是否值得做、用户会不会喜欢、竞争力/创新力、PMF 假设、目标用户不清
+
+**必须触发:**
+- `/brainstorming`
+- `/office-hours` if demand/positioning is unclear
+
+未触发 → `skill_routing_failure`，必须回退。
+
+### 14.2 Architecture / engineering tasks
+
+**触发信号:** cross-module refactor、web_facade/schemas/service boundary、new subsystem、major dependency direction、architecture debt、maintainability
+
+**必须触发:**
+- `/plan-eng-review`
+- Compound Engineering / G-stack if available and suitable（§15.2）
+- architecture boundary tests before implementation
+
+无 plan-eng-review 就直接大改 → `skill_routing_failure`（workflow violation）。
+
+### 14.3 Web / design tasks
+
+**触发信号:** 视觉方向、页面 redesign、design system、style exploration、information architecture、用户友好性大改
+
+**必须按阶段触发:**
+- unclear direction → `/design-consultation`
+- variants needed → `/design-shotgun`
+- choosing direction → `/plan-design-review`
+- static high fidelity → `/design-html`
+- implemented UI QA → `/design-review`
+
+实现 UI redesign 后无 design-review → `review_failure`。
+
+### 14.4 Audit / red-team tasks
+
+**触发信号:** independent audit、adversarial review、"are we fooling ourselves?"、safety/approval semantics、global product/architecture honesty
+
+**必须触发:**
+- `/codex:adversarial-review` if available
+- or external Codex independent audit
+- audit result lands in `docs/audits/`
+
+Audit does NOT automatically take over active workstream unless `/mf-autopilot` later reads it and updates AUTOPILOT-QUEUE.
+
+### 14.5 Bug fix / small P1/P2 fix
+
+**触发信号:** clear bug、clear failing test、clear small copy drift、clear P1/P2 fix
+
+可以直接用 `/mf-autopilot`，不要强制 heavy skills。
+
+---
+
+## 15. Skill Framework Discovery
+
+每次 `/mf-autopilot` run 在选择 task entrypoint 后，必须执行 **Skill Framework Discovery**。
+
+### 15.1 Discovery checklist
+
+- 检查当前可用 slash commands / skills / project commands
+- 特别检查:
+  - **Compound Engineering** (`compound-engineering:*` / `/ce-*`)
+  - **G-stack** (`/gstack-*` / `design-*` / `plan-*` / `qa*`)
+  - **Superpowers** (`/brainstorming` / `/office-hours` / `/plan-eng-review` / debugging discipline)
+  - `/design-consultation`、`/design-shotgun`、`/plan-design-review`、`/design-html`、`/design-review`
+  - `/codex:adversarial-review`
+- 如果无法自动列出 skills，必须使用 **known skill inventory fallback**，并在 Skill Routing Decision（§16）里标明 "fallback used"。
+
+### 15.2 Compound Engineering / G-stack / Superpowers mandatory rules
+
+如果 task type 属于以下任一类：
+
+| Task Type | 必须检查的框架 |
+|-----------|---------------|
+| `architecture_refactor` | Compound Engineering、G-stack |
+| `feature_implementation` (complex/cross-module) | Compound Engineering、G-stack |
+| `quality_platform` | Compound Engineering、G-stack |
+| `cross_module_refactor` | Compound Engineering、G-stack |
+| `engineering_workflow_change` | G-stack |
+| `multi-step remediation` | Compound Engineering、G-stack |
+| `broad test/gate improvement` | Compound Engineering、G-stack |
+| `repo-wide code quality work` | Compound Engineering、G-stack |
+| `design_review` / UI work | Design skills chain（§14.3） |
+| `audit_only` (independent) | Codex adversarial review |
+
+**选择规则:**
+- **Compound Engineering**: 优先用于复杂工程实施、跨模块切片、implementation loop、质量门禁组合。
+- **G-stack**: 优先用于 structured engineering stack / workflow / gate / plan-to-execution 类型任务。
+- **Superpowers**: 优先用于需要 brainstorming、planning、debugging discipline、verification-before-completion、structured review 的任务。
+
+如果这些框架技能 **available 且 applicable**，却没有调用 → `skill_routing_failure`。必须回退到 Skill Routing Decision node。
+
+如果不用，必须在 Skill Routing Decision 中明确写：
+- `unavailable` — 技能不可用
+- `not applicable because task is trivial` — 任务简单
+- `unsafe because task requires user decision` — 需要用户决策
+- `lower-risk direct mf-autopilot path is sufficient` — 低风险直通路径足够
+
+### 15.3 Mandatory Skill Gate Examples
+
+| 场景 | 必须检查 | 必须触发 |
+|------|---------|---------|
+| v3.7 Quality Platform | Compound Engineering、G-stack | `/plan-eng-review` first |
+| Global Architecture Quality Reset | Compound Engineering、G-stack | `/plan-eng-review` |
+| Web redesign | Design skill chain | `/design-consultation` → `/plan-design-review` → `/design-review` |
+| Product strategy uncertainty | Superpowers | `/brainstorming` or `/office-hours` |
+| "Are we fooling ourselves?" audit | Codex adversarial review | `/codex:adversarial-review` or external Codex audit |
+| Simple docs cleanup batch | No heavy skill required | — |
+| Simple copy fix / failing test fix | No heavy skill required | — |
+
+### 15.4 Compound Engineering / G-stack / Superpowers selection matrix
+
+| Framework | Best for | Overkill for |
+|-----------|----------|-------------|
+| **Compound Engineering** | multi-step refactor、plan→implement→verify pipeline、cross-module quality gates | single-line fix、pure docs-only、simple lint fix |
+| **G-stack** | structured review chains、design QA、plan-to-execution handoff | quick shell command、read-only audit |
+| **Superpowers** | brainstorming、strategy、debugging discipline | routine commit/push、governance doc update |
+
+### 15.5 Recursive remediation integration
+
+如果 Review/Gate/Audit 失败且 failure class 属于:
+- `architecture_failure`
+- `plan_failure`
+- `implementation_failure` across modules
+- `gate_failure` across multiple gates
+
+则 remediation routing **must re-check Compound Engineering / G-stack / Superpowers before retry**。不可仅原地重试。
+
+---
+
+## 16. Skill Routing Decision Block
+
+每次 `/mf-autopilot` run 必须输出 **Skill Routing Decision**。
+
+**固定格式:**
+
+```
+Skill Routing Decision:
+- Task type: <bug_fix | docs_cleanup | ui_ux_polish | architecture_refactor | feature_implementation | audit_only | dogfood | design_review | autopilot_governance>
+- Risk level: <low | medium | high>
+- Available skill frameworks checked:
+  - Compound Engineering: <available | unavailable | not applicable>
+  - G-stack: <available | unavailable | not applicable>
+  - Superpowers: <available | unavailable | not applicable>
+  - Design skills: <available | unavailable | not applicable>
+  - Codex adversarial review: <available | unavailable | not applicable>
+- Required skill(s): <list | none>
+- Selected skill(s): <list | none>
+- Skills deliberately not used: <list | none>
+- Reason: <why not used if applicable>
+- If required skill not invoked, why not: <explanation | N/A>
+- Next entrypoint: <entrypoint name>
+```
+
+**规则:**
+- 如果 Required skill(s) 非空但 Selected skill(s) 为空 → `skill_routing_failure`，不得继续实现。
+- 除非明确说明 skill unavailable AND fallback path documented。
+
+---
+
+## 17. Review Node Rules
+
+每个 loop 必须有 **review node**，不只是 gates。
+
+| Task Type | Review Node | Failure Handling |
+|-----------|------------|-----------------|
+| `docs_cleanup` | docs truth review | → `docs_truth_failure` → §12 #8 |
+| `bug_fix` | regression review | → `implementation_failure` → §12 #5 |
+| `ui_ux_polish` | browser/MCP or design review | → `design_failure` → §12 #3 |
+| `design_review` | `/design-review` | → `design_failure` → §12 #3 |
+| `architecture_refactor` | `/plan-eng-review` + boundary review | → `architecture_failure` → §12 #4 |
+| `feature_implementation` | spec acceptance review | → `spec_failure` or `implementation_failure` → §12 #1 or #5 |
+| `dogfood` | dogfood evidence review | → `review_failure` → §12 #7 |
+| `audit_only` | evidence sufficiency review | → `review_failure` → §12 #7 |
+| `autopilot_governance` | governance self-review | → `plan_failure` or `docs_truth_failure` → §12 #2 or #8 |
+
+**如果 review node fails:**
+- 必须回退到对应阶段
+- **不得 commit/push as success**
+- 必须在 Post-Loop Self-Routing（§18）中记录 Review result = FAIL/PARTIAL
+
+---
+
+## 18. Post-Loop Self-Routing Block
+
+每个 loop 最终输出前必须执行 **Post-Loop Self-Routing Block**。
+
+**固定格式:**
+
+```
+Post-loop Self-Routing:
+- Completed loop: <loop description>
+- Review result: PASS | FAIL | PARTIAL
+- Gate result: PASS | FAIL | PARTIAL
+- Failure class if any: <spec_failure | plan_failure | design_failure | architecture_failure | implementation_failure | gate_failure | review_failure | docs_truth_failure | skill_routing_failure | none>
+- Remediation target: <which stage to go back to | none>
+- Next loop candidate: <description>
+- Required skill for next loop: <list | none>
+- Auto-continue allowed: yes | no
+- Reason: <why yes/no>
+- ACTION: CONTINUE_NEXT_LOOP | HANDOFF_AND_STOP | HARD_STOP_<CODE>
+```
+
+**规则:**
+- 如果 Review result = FAIL/PARTIAL 且可自动修 → ACTION = `CONTINUE_NEXT_LOOP`，目标为 remediation loop。
+- 如果 Gate result = FAIL/PARTIAL → ACTION 不得是 success stop。
+- 如果 next loop is plan/spec/audit/review/safe slice → must `CONTINUE_NEXT_LOOP` unless `HARD_STOP_*`.
+- Soft stop phrase banned (§5.9)。
+
+---
+
+## 19. CPS AUTOPILOT-QUEUE Schema
+
+CURRENT_PROJECT_STATE.md 的 AUTOPILOT-QUEUE 每条 item 必须使用以下结构：
+
+```html
+<!-- AUTOPILOT-QUEUE-ITEM-N:
+workstream=<active workstream name>
+task_type=<task type from §3>
+current_node=<spec | plan | design | implement | review | gate | dogfood_smoke | docs_truth>
+next_action=<concrete next action description>
+required_skill=<comma-separated skill list | none>
+frameworks_checked=<Compound Engineering | G-stack | Superpowers | none>
+review_node=<review node from §17>
+failure_class=<failure class from §12 | none>
+remediation_target=<stage to go back to | none>
+auto_continue_allowed=<true | false>
+hard_stop_required=<true | false>
+-->
+```
+
+示例：
+
+```html
+<!-- AUTOPILOT-QUEUE-ITEM-1:
+workstream=Product Main Path Real Dogfood v2
+task_type=dogfood
+current_node=dogfood_evidence_review
+next_action=fix_p1_p2_or_continue_web_ux
+required_skill=none
+frameworks_checked=none
+review_node=dogfood_evidence_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
+```
+
+---
+
+## 20. Updated Progress Ledger Schema
+
+progress-ledger 每条记录必须补充以下字段：
+
+```markdown
+- **Review result**: <PASS | FAIL | PARTIAL>
+- **Gate result**: <PASS | FAIL | PARTIAL>
+- **Failure class**: <from §12 | none>
+- **Remediation action**: <what was done | none>
+- **Skill frameworks checked**: <Compound Engineering / G-stack / Superpowers | none>
+- **Required skill invoked**: <yes | no | N/A>
+- **Next ACTION token**: <CONTINUE_NEXT_LOOP | HANDOFF_AND_STOP | HARD_STOP_<CODE>>
+```
+
+---
+
+## 21. Updated HANDOFF.md Schema
+
+如果 context 低必须写 handoff，HANDOFF.md 必须补充：
+
+```markdown
+## Remediation Context
+- Current node: <spec | plan | design | implement | review | gate | docs_truth>
+- Next node: <next node name>
+- Required skill: <list | none>
+- Failure class: <from §12 | none>
+- Remediation target: <stage | none>
+
+## Next /mf-autopilot Instruction
+\`\`\`
+/mf-autopilot
+
+继续 <workstream>。
+当前位置: <current node>。
+下一步: <next node + concrete action>。
+Required skill: <skill name>。
+\`\`\`
+```
+
+---
+
+## 22. Updated Report Template
+
+§10 的输出报告必须包含 Skill Routing Decision（§16）和 Post-Loop Self-Routing（§18）。
