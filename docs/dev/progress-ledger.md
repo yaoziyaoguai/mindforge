@@ -10,7 +10,7 @@
 
 ### 2026-05-27: Autopilot Governance — Auto-Continue Policy Hardening
 
-- **Commit**: `3c829da` → (pending)
+- **Commit**: `3c829da` → `56b3d23`
 - **Workstream**: Autopilot Governance
 - **Task type**: autopilot_governance
 - **Outcome**: 修复 /mf-autopilot auto-continue 治理 bug：新增 §5.7 Auto-Continue Decision Table（12 auto-continue + 10 must-ask 条件）、§5.8 Self-routing after final report（6 步自路由流程）、§5.9 Banned soft-stop phrases（8 个禁止表述）。注册 autopilot_governance task type。
