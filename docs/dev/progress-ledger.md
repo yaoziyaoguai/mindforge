@@ -8,9 +8,20 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Web Frontend Test Coverage Expansion
+
+- **Commit**: `91f5ec7` → (pending)
+- **Workstream**: Frontend Quality
+- **Task type**: feature_implementation
+- **Outcome**: 前端组件测试从 1 文件/2 测试扩展到 4 文件/25 测试。新增 LoadingSkeleton (2 tests, 10 variants)、EmptyState (6 tests)、StatusCard (6 tests) 的测试文件。全部 25 个测试通过。
+- **Docs/notes**: `docs/plans/2026-05-27-129-web-frontend-test-expansion.md`, `docs/implementation-notes/2026-05-27-130-web-frontend-test-expansion.md`
+- **Gates**: `ruff check` (0), `git diff --check` (0), `npm run build` (0), `npm run test` (0, 25 passed/4 files), `pytest tests/test_web_product_copy.py` (0, 84 passed)
+- **Next**: 继续扩展 Breadcrumb/SafetyBar（需 i18n context）或 page-level smoke tests
+- **Workstream changed**: no
+
 ### 2026-05-27: Documentation Reset Batch 2
 
-- **Commit**: `fb98003` → (pending)
+- **Commit**: `fb98003` → `91f5ec7`
 - **Workstream**: Documentation Reset
 - **Task type**: docs_cleanup
 - **Outcome**: DOC-01: 创建 docs/README-en.md 英文版文档入口。DOC-02: ADR-006 frontmatter status 从 active → partial (4/8 NodeType)。DOC-03: docs/design/README.md 新增 historical/reference 状态说明，obsidian-binding-design.md 标记 deferred。

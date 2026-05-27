@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.7 Documentation Reset Batch 2 — DOC-01/02/03 closed, docs/README-en.md 创建)
+更新日期: 2026-05-27 (v3.7 — Web frontend test expansion: 1→4 files, 2→25 tests)
 
 ---
 
@@ -21,6 +21,7 @@
 | 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
 | 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
 | 最新 docs reset notes | `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md` |
+| 最新 test expansion notes | `docs/implementation-notes/2026-05-27-130-web-frontend-test-expansion.md` |
 
 最近关键 commits:
 ```
@@ -173,9 +174,10 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: test_expansion -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Web frontend test coverage expansion — 扩展组件/页面测试覆盖，vitest + happy-dom 基础设施已就绪 -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: audit_only -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: audit_only -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Deferred: Breadcrumb/SafetyBar/page-level 测试（需 i18n context 设置） -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Architecture-boundary 交叉检查 — 验证最新架构变更与 CPS 一致 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 按推荐顺序:
