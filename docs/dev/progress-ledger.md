@@ -64,7 +64,7 @@
 
 ### 2026-05-28: Post-Mint4 Remediation — P4 Autopilot Simplification Analysis
 
-- **Commit**: `2884394` → (pending)
+- **Commit**: `2884394` → `9ea8976`
 - **Workstream**: Post-Mint4 Remediation — P4 Autopilot Simplification Analysis
 - **Task type**: docs_cleanup
 - **Outcome**: 完成 `docs/dev/autopilot-simplification-analysis.md`。分析 1015 行 autopilot 的结构分解、基于 ~30 loop 的触发证据、6 处直接冗余、自指涉风险、简化机会。保守方案可减 ~190 行 (-19%)，激进方案可减 ~335 行 (-33%)。建议 merge 优先于 delete。不实施任何修改。
@@ -82,14 +82,14 @@
 
 ### 2026-05-28: Post-Mint4 Remediation — P5 Docs Governance Cost Reduction (Batch 1)
 
-- **Commit**: `9ea8976` → (pending)
+- **Commit**: `9ea8976` → `1fa8b4d`
 - **Workstream**: Post-Mint4 Remediation — P5 Docs Governance Cost Reduction (Batch 1)
 - **Task type**: docs_cleanup
 - **Outcome**: Batch 1 — 3 Community/Topic 相关 implementation notes 标记为 superseded (by-contraction)。社区/Topic Detection 已降级为 lab，对应 notes 反映的已是过期能力声明。
 - **Diffs**: 3 files in `docs/implementation-notes/` (status markers only)
-- **Gates**: `git diff --check` (pending)
+- **Gates**: `git diff --check` (0)
 - **Review result**: PASS — docs truth review, status markers match CPS §3 lab/internal status
-- **Gate result**: pending
+- **Gate result**: PASS
 - **Failure class**: none
 - **Remediation action**: none
 - **Skill frameworks checked**: none required (docs_cleanup)
