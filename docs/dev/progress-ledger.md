@@ -8,11 +8,28 @@
 
 ## 1. Completed Major Loops
 
-- 2026-05-27: architecture.md 更新 — 补充 `mindforge_web/presenters/` 目录和正确的 web_facade.py 行数 (922, -57.4%) (`(pending)`)
+### 2026-05-27: Breadcrumb / SafetyBar Component Tests
+
+- **Commit**: `140a472` → (pending)
+- **Workstream**: Quality Platform / Frontend Test Coverage
+- **Task type**: feature_implementation
+- **Outcome**: Breadcrumb (9 tests) + SafetyBar (16 tests) 组件测试。解决了 useLocale() i18n context provider 问题 — 使用 LocaleProvider 包裹被测组件。SafetyBar 的 split text node 问题用正则匹配修复。测试文件 4→6，测试用例 25→50。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-131-breadcrumb-safetybar-tests.md`
+- **Gates**: `git diff --check` (0), `npm run build` (0), `npm run test` (0, 50 passed/6 files), `pytest tests/test_web_product_copy.py` (0, 84 passed)
+- **Next**: 剩余低风险测试项已全部覆盖（6/41 组件已测试）。AUDIT-118 产品债（Export docs、Dogfood nav）需产品决策，非测试补强范围。
+- **Workstream changed**: no
+
+### 2026-05-27: Architecture Doc Audit Fix
+
+- **Commit**: `7223203` → `140a472`
+- **Workstream**: Quality Platform
+- **Task type**: audit_only
+- **Outcome**: 修复 architecture.md 两处不一致 — 补充 `mindforge_web/presenters/` 目录、更新 web_facade.py 行数 1487 (-31.3%) → 922 (-57.4%)
+- **Gates**: `git diff --check` (0)
 
 ### 2026-05-27: Web Frontend Test Coverage Expansion
 
-- **Commit**: `91f5ec7` → (pending)
+- **Commit**: `91f5ec7` → `7223203`
 - **Workstream**: Frontend Quality
 - **Task type**: feature_implementation
 - **Outcome**: 前端组件测试从 1 文件/2 测试扩展到 4 文件/25 测试。新增 LoadingSkeleton (2 tests, 10 variants)、EmptyState (6 tests)、StatusCard (6 tests) 的测试文件。全部 25 个测试通过。

@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.7 — Web frontend test expansion: 1→4 files, 2→25 tests)
+更新日期: 2026-05-27 (v3.7 — Web frontend test expansion: 2→6 files, 25→50 tests)
 
 ---
 
@@ -21,7 +21,7 @@
 | 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
 | 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
 | 最新 docs reset notes | `docs/implementation-notes/2026-05-27-128-docs-reset-batch-2.md` |
-| 最新 test expansion notes | `docs/implementation-notes/2026-05-27-130-web-frontend-test-expansion.md` |
+| 最新 test expansion notes | `docs/implementation-notes/2026-05-27-131-breadcrumb-safetybar-tests.md` |
 
 最近关键 commits:
 ```
@@ -96,7 +96,7 @@ Source / Import
 | Trash | done | `src/mindforge/trash_service.py` | 安全回收站，支持 Restore |
 | Web UI (14 pages) | done | `web/src/pages/` | React SPA + Tailwind |
 | i18n (zh/en) | done | `web/src/lib/i18n.ts` | 双语文案 |
-| Frontend Tests | done | `web/src/components/__tests__/` | vitest + happy-dom + @testing-library/react |
+| Frontend Tests | done | `web/src/components/__tests__/` | vitest + happy-dom + @testing-library/react, 6 files/50 tests |
 | CLI | done | `src/mindforge/cli.py` + 各 `*_cli.py` | 完整 CLI 入口 |
 | Python Coverage | done | `pyproject.toml` [tool.coverage] | pytest --cov 可用, 88% baseline |
 
@@ -174,10 +174,11 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: audit_only -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: product_decision -->
 <!-- AUTOPILOT-QUEUE-TASK-TYPE: audit_only -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Deferred: Breadcrumb/SafetyBar/page-level 测试（需 i18n context 设置） -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Architecture-boundary 交叉检查 — 验证最新架构变更与 CPS 一致 -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: AUDIT-118-01 — Export route docs/README 状态漂移修复 -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: AUDIT-118-02 — Dogfood 主导航与 internal 定位冲突 -->
+<!-- AUTOPILOT-QUEUE-ITEM-3: AUDIT-118-04 — 缺少 fresh browser/MCP Web 主路径证据 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 按推荐顺序:
