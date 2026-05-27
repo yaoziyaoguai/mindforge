@@ -6,6 +6,8 @@ from fastapi.responses import StreamingResponse
 from mindforge_web.deps import get_facade
 from mindforge_web.presenters.web_errors import user_error
 from mindforge_web.schemas import (
+    BulkUpdateRequest,
+    BulkUpdateResponse,
     CardBodyUpdateRequest,
     CardBodyUpdateResponse,
     BatchImportCardRequest,
@@ -386,3 +388,18 @@ def delete_collection(
     facade: WebFacade = Depends(get_facade),
 ) -> dict:
     return facade.delete_collection(col_id)
+
+
+# ── Bulk Maintenance ─────────────────────────────────────────────────────
+
+
+@router.post("/library/bulk-update", response_model=BulkUpdateResponse)
+def bulk_update_cards(
+    payload: BulkUpdateRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> BulkUpdateResponse:
+    if not payload.card_refs:
+        raise user_error(400, "card_refs_required", "请选择要操作的卡片。", "至少选择一张卡片。")
+    if not payload.set_tags and not payload.set_track:
+        raise user_error(400, "fields_required", "请指定要修改的字段。", "set_tags 和 set_track 至少指定一个。")
+    return facade.bulk_update_cards(payload)

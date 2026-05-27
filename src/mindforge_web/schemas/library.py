@@ -167,3 +167,17 @@ class CreateCollectionRequest(BaseModel):
 
 class CollectionCardsRequest(BaseModel):
     card_refs: list[str]
+
+
+# ── Bulk Maintenance ────────────────────────────────────────────────────
+
+
+class BulkUpdateRequest(BaseModel):
+    card_refs: list[str]
+    set_tags: list[str] | None = None
+    set_track: str | None = None
+
+
+class BulkUpdateResponse(BaseModel):
+    updated_count: int
+    errors: list[str] = Field(default_factory=list)

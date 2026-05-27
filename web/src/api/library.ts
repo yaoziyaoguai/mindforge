@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
-import type { CardBodyUpdateResponse, CollectionCardsRequest, CollectionResponse, CollectionsListResponse, CreateCollectionRequest, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
+import type { BulkUpdateRequest, BulkUpdateResponse, CardBodyUpdateResponse, CollectionCardsRequest, CollectionResponse, CollectionsListResponse, CreateCollectionRequest, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -77,4 +77,10 @@ export function removeFromCollection(colId: string, payload: CollectionCardsRequ
 
 export function deleteCollection(colId: string) {
   return apiDelete<{ ok: boolean }>(`/api/library/collections/${encodeURIComponent(colId)}`);
+}
+
+// ── Bulk Maintenance ───────────────────────────────────────────────────
+
+export function bulkUpdateCards(payload: BulkUpdateRequest) {
+  return apiPost<BulkUpdateResponse>("/api/library/bulk-update", payload);
 }

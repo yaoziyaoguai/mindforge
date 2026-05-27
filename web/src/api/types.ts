@@ -1066,3 +1066,16 @@ export interface CreateCollectionRequest {
 export interface CollectionCardsRequest {
   card_refs: string[];
 }
+
+// ── Bulk Maintenance ───────────────────────────────────────────────────
+
+export interface BulkUpdateRequest {
+  card_refs: string[];
+  set_tags?: string[] | null;
+  set_track?: string | null;
+}
+
+export interface BulkUpdateResponse {
+  updated_count: number;
+  errors: string[];
+}

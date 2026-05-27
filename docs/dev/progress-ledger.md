@@ -8,6 +8,78 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: U4 Collections Frontend — CollectionPanel + i18n + API integration
+
+- **Commit**: `43c690d` → `e0091d7`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U4 Collections Frontend 完成。新增 `CollectionPanel.tsx`（可折叠侧栏面板 + 创建对话框 + 删除确认 + 卡片添加/移除），11 个 zh/en i18n keys，5 个 collection API 函数，Collection/CreateCollection/CollectionCardsRequest 等 4 个 TypeScript 接口。`apiDelete` 现支持 optional body 参数。
+- **Docs/notes**: (spec 已由之前 loop 创建)
+- **Gates**: `npm --prefix web run build` (0), `python -m pytest tests/test_web_product_copy.py -q` (0, 100%), `ruff check` (0), `git diff --check` (0)
+- **Review result**: PASS — U4 spec acceptance review
+- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for frontend component)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U5 Bulk Maintenance
+- **Workstream changed**: no
+
+### 2026-05-28: U3 Collections Backend — CollectionStore + API endpoints
+
+- **Commit**: `209dbc2` → `43c690d`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U3 Collections Backend 完成。新增 `collection_store.py`（Collection frozen dataclass + CollectionStore CRUD），5 个 Collection Pydantic schemas，5 个 facade 方法，5 个 API endpoints（GET/POST /api/library/collections, POST/DELETE /api/library/collections/{id}/cards, DELETE /api/library/collections/{id}），14 个 test_collection_store 全部通过。
+- **Docs/notes**: (spec 已由之前 loop 创建)
+- **Gates**: `ruff check` (0), `git diff --check` (0), `python -m pytest tests/` (0, 100%), `npm --prefix web run build` (0)
+- **Review result**: PASS — U3 spec acceptance review, 5/5 backend units implemented
+- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for small implementation slice)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U4 Collections Frontend — CollectionPanel component + i18n + LibraryPage integration
+- **Workstream changed**: no
+
+### 2026-05-28: U2 Saved Views Frontend — ViewSwitcher dropdown + save dialog
+
+- **Commit**: `93de101` → `209dbc2`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U2 Saved Views Frontend 完成。新增 `ViewSwitcher.tsx` 组件（dropdown menu + save dialog + delete confirmation），修改 LibraryPage 集成 ViewSwitcher，新增 views i18n keys（zh/en 各 10 个），更新 api types + library.ts 添加 3 个 API 函数。
+- **Docs/notes**: (spec 已由之前 loop 创建)
+- **Gates**: `ruff check` (0), `git diff --check` (0), `python -m pytest tests/` (0, 100%), `npm --prefix web run build` (0)
+- **Review result**: PASS
+- **Gate result**: PASS
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U3 Collections Backend
+- **Workstream changed**: no
+
+### 2026-05-28: U1 Saved Views Backend — ViewStore + API endpoints
+
+- **Commit**: `0c9b846` → `93de101`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U1 Saved Views Backend 完成。新增 `view_store.py`（SavedView frozen dataclass + ViewStore JSON sidecar CRUD），3 个 Pydantic schemas，3 个 facade 方法，3 个 API endpoints，8 个 tests 全部通过。
+- **Docs/notes**: `docs/specs/2026-05-28-direction-f-structured-knowledge-workbench.md`
+- **Gates**: `ruff check` (0), `git diff --check` (0), `python -m pytest tests/` (0, 100%), `npm --prefix web run build` (0)
+- **Review result**: PASS
+- **Gate result**: PASS
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U2 Saved Views Frontend
+- **Workstream changed**: no
+
 ### 2026-05-28: Guided Onboarding MVP — 3-step wizard + per-page hints + sample workspace
 
 - **Commit**: `aef49df` → `<pending>`

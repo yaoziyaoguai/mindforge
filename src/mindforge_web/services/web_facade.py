@@ -40,6 +40,8 @@ from mindforge_web.presenters import (
 )
 
 from mindforge_web.schemas import (
+    BulkUpdateRequest,
+    BulkUpdateResponse,
     CollectionCardsRequest,
     CollectionResponse,
     CollectionsListResponse,
@@ -1060,6 +1062,19 @@ class WebFacade:
         store = CollectionStore(self.cfg.vault.root)
         deleted = store.delete_collection(col_id)
         return {"ok": deleted}
+
+    # ── Bulk Maintenance ──────────────────────────────────────────────
+
+    def bulk_update_cards(self, payload: BulkUpdateRequest) -> BulkUpdateResponse:
+        from mindforge.card_workspace_service import bulk_update_cards
+
+        updated, errors = bulk_update_cards(
+            self.cfg,
+            payload.card_refs,
+            set_tags=payload.set_tags,
+            set_track=payload.set_track,
+        )
+        return BulkUpdateResponse(updated_count=updated, errors=errors)
 
     def create_sample_workspace(self) -> dict:
         """Create demo knowledge cards for Guided Onboarding first-run experience."""

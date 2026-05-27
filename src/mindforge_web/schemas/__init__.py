@@ -60,6 +60,8 @@ from mindforge_web.schemas.source import (  # noqa: E402, F401
 
 
 from mindforge_web.schemas.library import (  # noqa: E402, F401
+    BulkUpdateRequest,
+    BulkUpdateResponse,
     CollectionCardsRequest,
     CollectionResponse,
     CollectionsListResponse,

@@ -109,4 +109,83 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
-__all__ = ["CardBodyUpdateResult", "CardWorkspaceError", "update_card_body"]
+__all__ = ["CardBodyUpdateResult", "CardWorkspaceError", "bulk_update_cards", "update_card_body"]
+
+
+def bulk_update_cards(
+    cfg: MindForgeConfig,
+    card_refs: list[str],
+    *,
+    set_tags: list[str] | None = None,
+    set_track: str | None = None,
+) -> tuple[int, list[str]]:
+    """批量更新卡片的 frontmatter tags / track 字段，保留 body 不变。
+
+    返回 (updated_count, errors)。
+    """
+    from .cards import iter_cards
+
+    if set_tags is None and set_track is None:
+        return 0, ["no fields to update"]
+
+    scan = iter_cards(cfg.vault.root, cfg.vault.cards_dir)
+    cards_by_ref: dict[str, Path] = {}
+    for card in scan.cards:
+        if card.id:
+            cards_by_ref[card.id] = card.path
+        cards_by_ref[card.rel_path] = card.path
+        cards_by_ref[str(card.path)] = card.path
+
+    updated = 0
+    errors: list[str] = []
+
+    for ref in card_refs:
+        card_path = cards_by_ref.get(ref)
+        if card_path is None:
+            errors.append(f"card not found: {ref}")
+            continue
+        try:
+            _update_frontmatter_fields(card_path, set_tags=set_tags, set_track=set_track)
+            updated += 1
+        except Exception as exc:
+            errors.append(f"{ref}: {exc}")
+
+    return updated, errors
+
+
+def _update_frontmatter_fields(
+    card_path: Path,
+    *,
+    set_tags: list[str] | None = None,
+    set_track: str | None = None,
+) -> None:
+    """修改 frontmatter 中的 tags 和/或 track 字段，保留其余字段和 body 不变。"""
+    import yaml
+
+    raw = card_path.read_text(encoding="utf-8")
+    if not raw.startswith("---\n"):
+        raise CardWorkspaceError("card 缺少 frontmatter")
+    rest = raw[4:]
+    end = rest.find("\n---\n")
+    if end == -1:
+        raise CardWorkspaceError("card frontmatter 未闭合")
+
+    fm_text = rest[:end]
+    body = rest[end + 5:]  # skip "\n---\n"
+
+    try:
+        fm = yaml.safe_load(fm_text)
+    except Exception as exc:
+        raise CardWorkspaceError(f"frontmatter YAML 解析失败: {exc}") from exc
+
+    if not isinstance(fm, dict):
+        fm = {}
+
+    if set_tags is not None:
+        fm["tags"] = set_tags
+    if set_track is not None:
+        fm["track"] = set_track
+
+    new_fm = yaml.dump(fm, allow_unicode=True, default_flow_style=False).rstrip("\n")
+    new_body = body if body.endswith("\n") else f"{body}\n"
+    _atomic_write(card_path, f"---\n{new_fm}\n---\n{new_body}")

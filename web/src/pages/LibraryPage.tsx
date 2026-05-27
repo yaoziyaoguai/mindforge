@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, SlidersHorizontal, X } from "lucide-react";
+import { Download, Pencil, SlidersHorizontal, X } from "lucide-react";
 import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
 import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
+import { BulkActions } from "../components/BulkActions";
 import { CardWorkspace } from "../components/CardWorkspace";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -63,6 +64,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [exporting, setExporting] = useState(false);
   const [showExportPreview, setShowExportPreview] = useState(false);
   const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "opml" | "zip">("markdown");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelectedRefs, setBulkSelectedRefs] = useState<Set<string>>(new Set());
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -193,6 +196,39 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     setExportSelection(new Set());
   }
 
+  function enterBulkMode() {
+    setBulkMode(true);
+    setBulkSelectedRefs(new Set());
+    setExportSelection(new Set());
+  }
+
+  function exitBulkMode() {
+    setBulkMode(false);
+    setBulkSelectedRefs(new Set());
+  }
+
+  function toggleBulkSelect(cardRef: string) {
+    setBulkSelectedRefs((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardRef)) next.delete(cardRef);
+      else next.add(cardRef);
+      return next;
+    });
+  }
+
+  function selectAllForBulk() {
+    setBulkSelectedRefs(new Set(displayedCards.map((c) => c.id ?? c.rel_path)));
+  }
+
+  function deselectAllForBulk() {
+    setBulkSelectedRefs(new Set());
+  }
+
+  function handleBulkApplied() {
+    setBulkSelectedRefs(new Set());
+    onRefresh?.();
+  }
+
   function startExport() {
     if (exportSelection.size === 0) return;
     setError(null);
@@ -287,13 +323,41 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
               <X className="h-4 w-4" /> Clear filter ({displayedCards.length}/{data.cards.length})
             </button>
           ) : null}
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink"
-            onClick={exportSelection.size === displayedCards.length ? deselectAllForExport : selectAllForExport}
-          >
-            {exportSelection.size === displayedCards.length ? t("library.deselect_all") : t("library.select_all")}
-          </button>
+          {bulkMode ? (
+            <>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink"
+                onClick={bulkSelectedRefs.size === displayedCards.length ? deselectAllForBulk : selectAllForBulk}
+              >
+                {bulkSelectedRefs.size === displayedCards.length ? t("bulk.deselect_all") : t("bulk.select_all")}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-sm text-ink hover:bg-muted/10"
+                onClick={exitBulkMode}
+              >
+                <X className="h-4 w-4" /> {t("bulk.exit")}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink"
+                onClick={exportSelection.size === displayedCards.length ? deselectAllForExport : selectAllForExport}
+              >
+                {exportSelection.size === displayedCards.length ? t("library.deselect_all") : t("library.select_all")}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-sm text-ink hover:bg-muted/10"
+                onClick={enterBulkMode}
+              >
+                <Pencil className="h-4 w-4" /> {t("bulk.select_mode")}
+              </button>
+            </>
+          )}
           <ImportCardForm onImported={onRefresh ? () => onRefresh() : () => {}} />
           <FolderImportForm onImported={onRefresh ? () => onRefresh() : () => {}} />
           <button
@@ -392,6 +456,13 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       {filterIds && displayedCards.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>
       ) : null}
+
+      {/* Bulk Actions */}
+      <BulkActions
+        selectedRefs={Array.from(bulkSelectedRefs)}
+        onClearSelection={deselectAllForBulk}
+        onApplied={handleBulkApplied}
+      />
 
       {/* Filter Bar — view switcher + track / source_type / quality / status with sort */}
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel p-3">
@@ -518,10 +589,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 <input
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 rounded border-line accent-primary"
-                  checked={exportSelection.has(ref)}
+                  checked={bulkMode ? bulkSelectedRefs.has(ref) : exportSelection.has(ref)}
                   onChange={(e) => {
                     e.stopPropagation();
-                    toggleExportSelect(ref);
+                    if (bulkMode) {
+                      toggleBulkSelect(ref);
+                    } else {
+                      toggleExportSelect(ref);
+                    }
                   }}
                   onClick={(e) => e.stopPropagation()}
                 />

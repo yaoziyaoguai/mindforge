@@ -960,6 +960,20 @@ const copy: Record<Locale, LocaleDict> = {
     "collections.delete_confirm_title": "删除集合？",
     "collections.delete_confirm_desc": "此操作不可撤销。集合中的卡片不会删除，仅移出集合。",
     "collections.card_count": "{count} 张卡片",
+
+    // ---- Bulk Maintenance ----
+    "bulk.select_mode": "多选模式",
+    "bulk.select_count": "已选 {count} 张",
+    "bulk.select_all": "全选",
+    "bulk.deselect_all": "取消全选",
+    "bulk.exit": "退出多选",
+    "bulk.set_tags": "设置标签",
+    "bulk.set_track": "设置 Track",
+    "bulk.tags_placeholder": "标签（逗号分隔）",
+    "bulk.track_placeholder": "Track 名称",
+    "bulk.apply": "应用",
+    "bulk.applied": "已更新 {count} 张卡片",
+    "bulk.no_selection": "请先选择卡片",
   },
 
   en: {
@@ -1905,6 +1919,20 @@ const copy: Record<Locale, LocaleDict> = {
     "collections.delete_confirm_title": "Delete collection?",
     "collections.delete_confirm_desc": "Cards in the collection will not be deleted, only removed from the collection.",
     "collections.card_count": "{count} cards",
+
+    // ---- Bulk Maintenance ----
+    "bulk.select_mode": "Multi-select",
+    "bulk.select_count": "{count} selected",
+    "bulk.select_all": "Select All",
+    "bulk.deselect_all": "Deselect All",
+    "bulk.exit": "Exit multi-select",
+    "bulk.set_tags": "Set Tags",
+    "bulk.set_track": "Set Track",
+    "bulk.tags_placeholder": "Tags (comma separated)",
+    "bulk.track_placeholder": "Track name",
+    "bulk.apply": "Apply",
+    "bulk.applied": "Updated {count} cards",
+    "bulk.no_selection": "Select cards first",
   },
 };
 
