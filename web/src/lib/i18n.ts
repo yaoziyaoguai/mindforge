@@ -497,6 +497,11 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.source_prefix": "来源: {name}",
     "wiki.local_graph_section_cards": "{count} 张卡片",
     "wiki.local_graph_empty": "此章节暂无可见关系。局部图谱预览使用共享来源、标签、Wiki 章节、审阅批次及相近来源位置中的确定性关系。",
+    // ---- LocalGraphPreview 组件 ----
+    "local_graph.title": "局部关系预览",
+    "local_graph.related_count": "{count} 张相关卡片",
+    "local_graph.empty": "暂无确定性关系。此预览使用共享来源、标签、Wiki 章节、审阅批次及相近来源位置中的确定性关系，不是全局图谱页。",
+    "local_graph.section_title": "局部关系图",
     "wiki.toc_toggle": "切换目录",
     "wiki.reader_mode_on": "阅读模式",
     "wiki.reader_mode_off": "退出阅读",
@@ -1378,6 +1383,11 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.source_prefix": "Source: {name}",
     "wiki.local_graph_section_cards": "{count} cards",
     "wiki.local_graph_empty": "This section has no visible relationships yet. Local Graph Preview uses deterministic relationships from shared source, tags, wiki section, review batches, and nearby source location.",
+    // ---- LocalGraphPreview component ----
+    "local_graph.title": "Local Relationship Preview",
+    "local_graph.related_count": "{count} related cards",
+    "local_graph.empty": "No deterministic relationships found yet. This preview uses shared source, tags, wiki section, review batch, and nearby source location; it is not a global Graph page.",
+    "local_graph.section_title": "Local relationships",
     "wiki.toc_toggle": "Toggle table of contents",
     "wiki.reader_mode_on": "Reader Mode",
     "wiki.reader_mode_off": "Exit Reader",

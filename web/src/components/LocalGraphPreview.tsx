@@ -18,9 +18,9 @@ export function LocalGraphPreview({ graph, relatedCards = [], onSelectCard }: Pr
     <section className="border-t border-line p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <GitBranch className="h-4 w-4" /> Local Graph Preview
+          <GitBranch className="h-4 w-4" /> {t("local_graph.title")}
         </h3>
-        <span className="text-xs text-muted">{relatedCards.length} related cards</span>
+        <span className="text-xs text-muted">{t("local_graph.related_count").replace("{count}", String(relatedCards.length))}</span>
       </div>
 
       {relatedCards.length ? (
@@ -56,13 +56,13 @@ export function LocalGraphPreview({ graph, relatedCards = [], onSelectCard }: Pr
         </div>
       ) : (
         <p className="mt-3 rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
-          No deterministic relationships found yet. This preview uses shared source, tags, wiki section, review batch, and nearby source location; it is not a global Graph page.
+          {t("local_graph.empty")}
         </p>
       )}
 
       {nearbyNodes.length ? (
         <div className="mt-5">
-          <h4 className="text-xs font-semibold uppercase text-muted">Local graph</h4>
+          <h4 className="text-xs font-semibold uppercase text-muted">{t("local_graph.section_title")}</h4>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {nearbyNodes.map((node) => (
               <a

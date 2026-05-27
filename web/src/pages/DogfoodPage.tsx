@@ -46,6 +46,16 @@ export function DogfoodPage({ onNavigate }: { onNavigate: (href: string) => void
 
   return (
     <div className="space-y-8">
+      {/* LAB/INTERNAL — Dogfood 是内部验证/工程证据，不是普通用户功能。 */}
+      <div className="rounded-md border-2 border-amber-300 bg-amber-50 p-3 text-sm">
+        <div className="flex items-center gap-2 font-bold text-amber-900">
+          <span>⚠️</span> LAB / INTERNAL — 内部开发验证
+        </div>
+        <p className="mt-1 text-xs text-amber-700">
+          本页面展示的是工程团队的内部使用数据和维护建议，用于验证 MindForge pipeline 运行状态。
+          不是面向普通用户的产品功能，数据仅在本地聚合，不调用外部服务或 LLM。
+        </p>
+      </div>
       <header>
         <h1 className="text-2xl font-semibold text-ink">{t("nav.dogfood")}</h1>
         <p className="mt-1 text-sm text-muted">{t("dogfood.subtitle")}</p>

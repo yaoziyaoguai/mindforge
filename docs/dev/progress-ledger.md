@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Web IA/UX Loop 2 — Post-Dogfood User-Facing Debt Fix
+
+- **Commit**: `97d57fb` → (pending)
+- **Workstream**: Web IA/UX Loop 2
+- **Task type**: ui_ux_polish
+- **Outcome**: 修复 3 个 P1 Web IA/UX 问题: (1) Dogfood nav 从 tools 移至 collapsed lab section, (2) DogfoodPage 添加 LAB/INTERNAL 横幅, (3) LocalGraphPreview 硬编码英文替换为 i18n。ExportPage 和 SetupPage 经审计确认无 drift。
+- **Docs/notes**: `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md`, `docs/implementation-notes/2026-05-27-120-web-ia-ux-loop-2.md`
+- **Gates**: `git diff --check` (0), `npm --prefix web run build` (0), `pytest tests/test_web_product_copy.py -q --tb=short` (0), `ruff check src/ tests/ docs/` (0)
+- **Next**: Architecture Quality Reset (需先写 spec/plan)
+- **Workstream changed**: no (Web IA/UX Loop 2 本 loop 完结)
+
 ### 2026-05-27: Product Main Path Real Dogfood — FakeProvider Keyword Extraction Improvement
 
 - **Commit**: `20a3038` → (pending)

@@ -47,7 +47,6 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
       label: t("nav.group.tools"),
       items: [
         { href: "/health", label: t("nav.health"), icon: Heart },
-        { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },
         { href: "/export", label: t("nav.export"), icon: Download },
         { href: "/trash", label: t("nav.trash"), icon: Trash2 },
       ],
@@ -57,6 +56,7 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
   const labItems = [
     { href: "/graph", label: t("nav.graph"), icon: Network },
     { href: "/sensemaking", label: t("nav.sensemaking"), icon: Brain },
+    { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },
   ];
 
   return (

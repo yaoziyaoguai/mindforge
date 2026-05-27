@@ -143,8 +143,8 @@ def test_local_graph_views_are_visible_list_fallbacks_without_graph_libraries() 
     section_graph = _read("components/wiki/WikiSectionRelationshipPreview.tsx")
     combined = "\n".join([workspace_graph, section_graph])
 
-    assert "Local Graph Preview" in workspace_graph
-    # i18n follow-up 后，文字通过 t() 获取
+    # i18n 后文字通过 t("local_graph.title") 获取，不再硬编码英文
+    assert "local_graph.title" in workspace_graph
     assert "wiki.local_graph_preview" in section_graph
     assert "wiki.local_graph_desc" in section_graph
     assert "/library?card=" in combined
