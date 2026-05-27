@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `(pending — residual refs cleanup)`
+| HEAD | `ac6aa47`
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |

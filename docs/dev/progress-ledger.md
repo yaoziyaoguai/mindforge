@@ -10,7 +10,7 @@
 
 ### 2026-05-27: Docs Cleanup — Batch 1 Residual References Cleaned
 
-- **Commit**: `(pending)`
+- **Commit**: `ac6aa47`
 - **Workstream**: Documentation Reset
 - **Task type**: docs_cleanup
 - **Outcome**: 修复 Batch 1 删除 8 个 stale files 后的 ~15 个跨文档残留引用；14 个历史文档标注 "(removed 2026-05-27)"；3 个 management docs 更新引用状态
