@@ -1,39 +1,62 @@
 # Handoff — 2026-05-27
 
 ## Repo Snapshot
-- HEAD: 70a1475
+- HEAD: 7acb47e
 - Branch: main
-- Working tree: clean (hash correction pending)
+- Working tree: clean
 - vs origin/main: 0 0
 
 ## Active Workstream
-- Workstream: Architecture Quality Reset
-- Status: Slice 1 + Slice 2 完成，workstream 完结
+- Workstream: Quality Platform / Frontend Test Coverage
+- Status: **done** — 所有低风险纯展示组件测试已覆盖
 
 ## Last Completed Loop
-- Task type: architecture_refactor
-- Outcome: Slice 2 — 提取 web_facade.py ~540 行私有 helper 到 5 个 presenter 子模块。web_facade.py 从 1487→922 行，累计从 2163 行减少 57.4%。零行为变更，零循环导入。
-- Commit: 70a1475
+- Task type: feature_implementation (test expansion)
+- Outcome: Breadcrumb (9 tests) + SafetyBar (16 tests) 组件测试。useLocale() i18n context provider 问题已解决。测试文件 4→6，测试 25→50。
+- Commit: 7acb47e
 
-## In-Progress Files
-- All changes staged for commit
+## Completed Test Coverage
+
+| 组件 | 测试数 | 关键挑战 |
+|------|--------|---------|
+| ErrorState | 2 | 无依赖，最简单 |
+| LoadingSkeleton | 2 + 10 variants | 纯 CSS，无依赖 |
+| EmptyState | 6 | NextAction type, href/onClick/command 分支 |
+| StatusCard | 6 | status badge, detail, nextAction, section/button |
+| Breadcrumb | 9 | **useLocale()** — 用 LocaleProvider 包裹解决 |
+| SafetyBar | 16 | **useLocale()** + SafetySummary mock + split text node 正则 |
+
+**renderWithLocale()** 模式已建立：`render(<LocaleProvider>{ui}</LocaleProvider>)`，后续任何使用 useLocale() 的组件测试可直接复用。
+
+## Remaining: AUDIT-118 Product Debts
+
+以下三项需要产品决策，不在 test expansion 范围内：
+
+| ID | Priority | Description |
+|----|----------|-------------|
+| AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 |
+| AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 |
+| AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static |
+
+AUDIT-118-03 (web_facade.py architecture debt) 已 resolved (v4.8+Slice 1+2)。
+AUDIT-118-05 (HANDOFF.md 模板误读风险) 仍 open。
 
 ## Gates Last Run
-- `ruff check src/ tests/`: exit 0
-- `pytest tests/ -q --tb=short`: exit 0 (545 passed, 1 skipped)
 - `git diff --check`: exit 0
 - `npm --prefix web run build`: exit 0
-- `python -m pytest tests/test_web_product_copy.py -q --tb=short`: exit 0
+- `npm --prefix web run test`: exit 0 (50 passed, 6 files)
+- `pytest tests/test_web_product_copy.py -q --tb=short`: exit 0 (84 passed)
 
 ## Next /mf-autopilot Instruction
 ```
 /mf-autopilot
 
-Architecture Quality Reset workstream 已完成。
-下一步: v3.7 Quality Platform — P2-05 (frontend tests vitest/happy-dom) + P2-06 (coverage config) + web_config_service.py split。
-需独立 spec/plan 后进入实现。
+Frontend test coverage workstream 完成（6 file/50 test）。
+剩余只有 AUDIT-118 P1 产品债（Export docs, Dogfood nav, browser smoke）。
+这些需要产品决策，不是低风险测试补强。
+请决定下一 workstream 方向。
 ```
 
 ## Hard Stops / Warnings
-- v3.7 Quality Platform 需用户 approve spec/plan 后才可进入实现 — 新 workstream 启动需 spec 授权
-- AUDIT-118-03 resolved — web_facade.py architecture debt paid
+- Context: sufficient for handoff (not context-forced — workstream-completion handoff)
+- Next workstream: 等待用户产品决策（AUDIT-118 P1 items vs. 其他 roadmap 方向）
