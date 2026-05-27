@@ -8,9 +8,27 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Post-Mint4 Remediation — P1 User Validation Kit
+
+- **Commit**: `4f2482b` → `678e524`
+- **Workstream**: Post-Mint4 Remediation — P1 User Validation Kit
+- **Task type**: docs_cleanup
+- **Outcome**: 创建 5 个 User Validation 文档 + remediation plan。更新 CPS HEAD、AUTOPILOT-QUEUE。HARD_STOP_PRODUCT_DECISION: 需要真实用户执行验证。
+- **Docs/notes**: `docs/plans/2026-05-28-post-mint4-remediation-plan.md`, `docs/product/validation-protocol.md`, `docs/product/test-script.md`, `docs/product/observer-checklist.md`, `docs/product/feedback-form.md`, `docs/product/sample-workspace-validation.md`
+- **Gates**: `git diff --check` (0)
+- **Review result**: PASS
+- **Gate result**: PASS
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: P2 Web UX Remediation
+
+---
+
 ### 2026-05-28: Post-Mint4 Independent Retrospective / Lessons Learned
 
-- **Commit**: `cffc661` → (pending)
+- **Commit**: `4f2482b` (retrospective standalone commit)
 - **Workstream**: audit_only — retrospective
 - **Task type**: audit_only
 - **Outcome**: 完成 Post-Mint4 全项目独立回顾。13 章综合评估文档，涵盖 timeline、capability map、architecture、product direction、user journey、web design、autopilot process、lessons learned、cut/keep/deepen/defer matrix、2-week plan、final verdict。综合评分 6.8/10 (Conditional Go)。核心发现: 产品方向和工程质量可接受，但零真实用户验证是最大风险。推荐立即启动 User Validation，冻结所有 feature development。

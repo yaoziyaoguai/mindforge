@@ -6,17 +6,35 @@ interface OnboardingHintProps {
   pageKey: string;
 }
 
+const STORAGE_KEY_PREFIX = "mf-hint-dismissed-";
+
+function isHintDismissed(pageKey: string): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY_PREFIX + pageKey) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function OnboardingHint({ pageKey }: OnboardingHintProps) {
   const { t } = useLocale();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => isHintDismissed(pageKey));
 
   if (dismissed) return null;
 
   const hintKey = `onboarding.hint.${pageKey}`;
   const hintText = t(hintKey);
 
-  // 无文案提示的页面 —— 静默跳过
   if (hintText === hintKey) return null;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(STORAGE_KEY_PREFIX + pageKey, "1");
+    } catch {
+      // localStorage may be unavailable (private browsing, quota exceeded)
+    }
+  };
 
   return (
     <div
@@ -34,7 +52,7 @@ export function OnboardingHint({ pageKey }: OnboardingHintProps) {
       <span className="flex-1 text-xs leading-relaxed text-ink">{hintText}</span>
       <button
         className="shrink-0 rounded p-0.5 transition hover:bg-black/5"
-        onClick={() => setDismissed(true)}
+        onClick={handleDismiss}
         type="button"
         aria-label={t("onboarding.hint.dismiss")}
       >

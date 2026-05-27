@@ -54,7 +54,7 @@ export default function App() {
       }
       if (path.startsWith("/setup")) next.config = await getConfigStatus();
       if (path.startsWith("/sources")) next.sources = await getSources();
-      if (path.startsWith("/drafts")) next.drafts = await getDrafts();
+      if (path.startsWith("/drafts") || path.startsWith("/review")) next.drafts = await getDrafts();
       if (path.startsWith("/library")) next.library = await getLibraryCards();
       setData(next);
     } catch (err) {

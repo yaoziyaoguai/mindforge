@@ -145,7 +145,7 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
         </div>
       </div>
 
-      <div className="mt-auto border-t border-line pt-3">
+      <div className="mt-auto border-t border-line pt-3 space-y-1">
         <button
           type="button"
           className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-muted hover:bg-white/60 hover:text-ink"
@@ -155,6 +155,15 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
           <Globe className="h-4 w-4" aria-hidden="true" />
           <span>{locale === "zh" ? "English" : "简体中文"}</span>
         </button>
+        <a
+          href="https://github.com/yaoziyaoguai/mindforge/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-muted hover:bg-white/60 hover:text-ink no-underline"
+        >
+          <Heart className="h-4 w-4" aria-hidden="true" />
+          <span>{t("nav.feedback")}</span>
+        </a>
       </div>
     </nav>
   );
