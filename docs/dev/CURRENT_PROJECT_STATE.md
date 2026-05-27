@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | (pending: mf-autopilot skill redesign review improvements) |
+| 当前 HEAD | `660e781` (mf-autopilot skill redesign review — stop conditions merge + claim-to-evidence gate) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
