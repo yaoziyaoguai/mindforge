@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.9 — Web Product UX Deepening Loop 1 完成: Export breadcrumb + SafetyBar model demo status)
+更新日期: 2026-05-27 (v3.9 — Dogfood v3 Light Smoke + 治理 ITEM-3 完成，Codex audit 三项全完成)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 当前 HEAD | `9be6e5c` (Web Product UX Deepening Loop 1 — Export breadcrumb + SafetyBar demo status) |
+| 当前 HEAD | `f5a1136` (治理 ITEM-3 完成 + AUTOPILOT-QUEUE 重置，Codex audit 三项全部完成) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -176,11 +176,11 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: dogfood_v3 -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: dogfood -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Dogfood v3 — 验证 P1 auto-fallback + Web UX P2 修复后的完整主路径 (Source→Draft→Review→Approval→Library→Recall→Wiki→Export) -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening P3 — Setup clarity, Library IA, Wiki empty state, Recall feedback, Export download UX -->
-<!-- AUTOPILOT-QUEUE-ITEM-3: Stale task cleanup — 清理 200+ stale task entries -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: web_ux_p3_deepening -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: ui_ux_polish -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Dogfood v3 Light Smoke — DONE (SafetyBar+Library breadcrumb verified, 0 library cards → Export redirect expected) -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening P3 — Setup clarity, Library IA, Wiki empty state, Recall feedback, Export download UX (5 P3 items from Dogfood v2) -->
+<!-- AUTOPILOT-QUEUE-ITEM-3: Stale task cleanup — 清理 200+ stale task entries + next-phase planning review -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 Codex 独立红队审计 (HEAD `4ef9ed2`) 推荐优先顺序:

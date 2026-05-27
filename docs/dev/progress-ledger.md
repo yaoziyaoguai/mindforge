@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Dogfood v3 Light Smoke — 验证 P2 UX 修复 + 治理 ITEM-3 完成
+
+- **Commit**: `9be6e5c` → `f5a1136`
+- **Workstream**: Dogfood v3 + Governance Truth Drift Fix
+- **Task type**: dogfood + docs_cleanup
+- **Outcome**: Chrome DevTools MCP 浏览器 smoke 验证 SafetyBar "模型配置：本地模拟" (绿色, P2 fix ✅) + Library breadcrumb "首页 > 知识库" (正确中文 ✅)。Export 页面 library 为空时正确重定向至 setup。治理 ITEM-3: HANDOFF.md status → historical, CPS AUTOPILOT-QUEUE 重置, HEAD refs 校正, quality-debt-ledger 日期更新。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-137-web-product-ux-deepening-loop-1.md`
+- **Gates**: `git diff --check` (0), `pytest tests/` (0, 100%), `npm run build` (0), browser MCP smoke (passed)
+- **Next**: AUTOPILOT-QUEUE-ITEM-2 (Web Product UX Deepening P3) 或 next-phase planning review
+- **Workstream changed**: yes (Web UX Deepening → Governance → Dogfood v3)
+
 ### 2026-05-27: Web Product UX Deepening — Loop 1 (P2 Export breadcrumb + SafetyBar demo status)
 
 - **Commit**: `3c214f6` → `9be6e5c`
