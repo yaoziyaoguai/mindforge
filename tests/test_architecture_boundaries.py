@@ -237,24 +237,10 @@ class TestArchitectureNoRAGNoEmbedding:
 # ── Slice 0: Core → Web layer boundary ──────────────────────────────────
 
 # 中文学习型说明：known_core_web_imports 列出了当前已知的 core → web
-# 反向依赖。这些是 AUDIT-118-03 P1 债项，Slice 1 将逐个消除。
+# 反向依赖。这些是 AUDIT-118-03 P1 债项，已由 Slice 1 消除 processing_run_service
+# 相关条目。剩余 2 个为合理（web server 入口 + dogfood 内部工具）。
 # 新代码不得新增反向依赖。
 _CORE_WEB_KNOWN_VIOLATIONS: dict[str, set[str]] = {
-    "processing_worker.py": {
-        "mindforge_web.services.processing_run_service",
-    },
-    "cli_processing_runtime.py": {
-        "mindforge_web.services.processing_run_service",
-    },
-    "runs_cli.py": {
-        "mindforge_web.services.processing_run_service",
-    },
-    "watch_cli.py": {
-        "mindforge_web.services.processing_run_service",
-    },
-    "services/local_status.py": {
-        "mindforge_web.services.processing_run_service",
-    },
     "dogfood/scenario_runner.py": {
         "mindforge_web.services.dogfood_service",
     },
@@ -265,20 +251,18 @@ _CORE_WEB_KNOWN_VIOLATIONS: dict[str, set[str]] = {
 }
 
 
-# 中文学习型说明：当前已知的 core → web private symbol import。
-# 这些是 AUDIT-118-03 P1 中最严重的反向依赖 —— core 依赖 web 内部实现。
-# Slice 1 必须消除这些。新代码不得新增此类依赖。
-_CORE_WEB_KNOWN_PRIVATE_IMPORTS: dict[str, set[str]] = {
-    "cli_processing_runtime.py": {"_save_record"},
-    "processing_worker.py": {"_run_worker"},
-}
+# 中文学习型说明：core → web private symbol import 已在 Slice 1 全部消除。
+# _run_worker 和 _save_record 现在定义在 mindforge.processing.run_store（core 层）。
+# 空 dict 表示：任何新的 private symbol import 都会触发测试失败。
+_CORE_WEB_KNOWN_PRIVATE_IMPORTS: dict[str, set[str]] = {}
 
 
 class TestArchitectureCoreWebLayerBoundary:
     """core (src/mindforge/) 不得反向依赖 web (src/mindforge_web/)。
 
-    AUDIT-118-03 P1: processing_run_service 在 web 层但被 core 模块 import。
-    Slice 1 将把 processing 逻辑提取到 core，消除这些反向依赖。
+    Slice 1 已完成：processing_run_service 处理逻辑已迁移到 mindforge.processing.run_store，
+    core 层不再 import 任何 processing_run 相关 web 模块。
+    剩余 known violation: dogfood_service（P2）和 web_cli（P3，web server 入口）。
     """
 
     def test_core_web_imports_are_known_only(self) -> None:

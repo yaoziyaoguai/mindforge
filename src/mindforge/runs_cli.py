@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from .cli_runtime import console, load_cfg, render_active_vault_resolution_notice
-from mindforge_web.services.processing_run_service import get_processing_run, list_processing_runs
+from mindforge.processing.run_store import get_processing_run, list_processing_runs
 
 runs_app = typer.Typer(
     add_completion=False,

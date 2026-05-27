@@ -15,7 +15,7 @@ from .app_context import load_app_config
 from .cli_runtime import apply_provider_selection
 from .ingestion_service import import_sources, watch_scan_sources
 from .strategy_selection import resolve_strategy_selection
-from mindforge_web.services.processing_run_service import _run_worker
+from mindforge.processing.run_store import _run_worker
 
 app = typer.Typer(add_completion=False)
 

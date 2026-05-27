@@ -21,7 +21,7 @@ from ..checkpoint import Checkpoint, CheckpointError
 from ..config import MindForgeConfig
 from ..lexical_index import default_index_path
 from ..model_setup_readiness import model_setup_readiness
-from mindforge_web.services.processing_run_service import list_processing_runs
+from mindforge.processing.run_store import list_processing_runs
 
 
 @dataclass(frozen=True)

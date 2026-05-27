@@ -290,7 +290,7 @@ def watch_list(
     render_active_vault_resolution_notice(cfg)
     console.print("[bold]Watched Sources[/bold]")
     for source in watch_sources_for_display(cfg):
-        from mindforge_web.services.processing_run_service import latest_run_for_source
+        from mindforge.processing.run_store import latest_run_for_source
 
         latest_run = latest_run_for_source(
             cfg,

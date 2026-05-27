@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from mindforge.config import MindForgeConfig
-from mindforge_web.services.processing_run_service import (
+from mindforge.processing.run_store import (
     ACTIVE_RUN_STATUSES,
     ProcessingRunRecord,
+    _save_record as _save_processing_run_record,
     latest_run_for_source,
     started_response_message,
 )
-from mindforge_web.services.processing_run_service import _save_record as _save_processing_run_record
 
 
 @dataclass(frozen=True)
