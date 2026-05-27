@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (Architecture Quality Reset — plan + Slice 0 boundary tests)
+更新日期: 2026-05-27 (Architecture Quality Reset — Slice 1 完成，core→web 层依赖已修复)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `8eb3fd4` (已包含 Architecture Quality Reset plan + Slice 0 boundary tests) |
+| 审计基线 HEAD | `2cba857` (已包含 Slice 1 — core→web 层依赖已修复) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -156,7 +156,7 @@ Source / Import
 | P3-01 | P3 | npm build chunk size >500KB | open (非阻塞) |
 | AUDIT-118-01 | P1 | Export route 已实现，但 user guides / README Web UI 表仍存在 Export 状态漂移 | open |
 | AUDIT-118-02 | P1 | Dogfood 仍在主导航，和 internal 定位冲突 | open |
-| AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | Slice 0 完成（plan + boundary tests），Slice 1 pending（修复 core→web 反向依赖） |
+| AUDIT-118-03 | P1 | `web_facade.py` 仍是 Web 架构核心债，services 仍有反向 facade helper coupling | Slice 1 完成（core→web 层依赖修复），Slice 2 pending（提取 presenter 模块） |
 | AUDIT-118-04 | P1 | 缺少 fresh browser/MCP Web 主路径证据；当前 smoke 主要是 API/static | open |
 | AUDIT-118-05 | P1 | `docs/dev/HANDOFF.md` 模板与 autopilot 优先读取语义存在误读风险 | open |
 | DOC-01 | P3 | docs/README.md 无英文翻译 | open |

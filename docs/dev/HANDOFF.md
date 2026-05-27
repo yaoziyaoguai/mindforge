@@ -1,37 +1,30 @@
 # Handoff — 2026-05-27
 
 ## Repo Snapshot
-- HEAD: 8eb3fd4
+- HEAD: 2cba857
 - Branch: main
-- Working tree: dirty (progress-ledger.md, CURRENT_PROJECT_STATE.md, implementation notes pending commit)
+- Working tree: dirty (state docs pending commit)
 - vs origin/main: 0 0
 
 ## Active Workstream
 - Workstream: Architecture Quality Reset
-- Status: Slice 0 done, Slice 1 pending plan approval
+- Status: Slice 1 done, Slice 2 pending
 
 ## Last Completed Loop
-- Task type: architecture_refactor (plan/spec + boundary tests)
-- Outcome: 完成 architecture evidence audit + targeted reset plan + 6 个 Slice 0 架构边界测试。全部 gate 通过。
-- Commit: 8eb3fd4
+- Task type: architecture_refactor
+- Outcome: Slice 1 — 将 processing run 逻辑迁移到 core（mindforge.processing.run_store），消除 5 个 core→web import 和 2 个 private symbol import。层依赖方向修复。
+- Commit: 2cba857
 
 ## Next /mf-autopilot Instruction
 ```
 /mf-autopilot
 
-继续 Architecture Quality Reset → Slice 1。
-上次在 tests/test_architecture_boundaries.py 完成了 Slice 0 架构边界测试。
-下一步: Slice 1 — 修复 core→web 反向依赖（将 processing_run_service 处理逻辑迁移到 src/mindforge/processing/）。
+继续 Architecture Quality Reset → Slice 2。
+上次完成了 Slice 1（修复 core→web 反向依赖，commit 2cba857）。
+下一步: Slice 2 — 提取 web_facade.py 私有 helper 到 presenters/ 模块。
 Plan 在 docs/plans/2026-05-27-122-targeted-architecture-quality-reset.md。
-Boundary tests 已就绪保护。
 ```
 
-## Auto-Continue Note
-- Slice 1 属于 "small safe implementation slice（已由当前 plan 授权）" — auto-continue allowed
-- 如果 context 充足，autopilot 应直接进入 Slice 1 实现
-- Slice 0 boundary tests 已就绪，任何新增 core→web import 会被立即检测
-
 ## Hard Stops / Warnings
-- Slice 1 涉及 production code 变更（~6 files），medium risk
-- 不可改产品语义或 API contract
-- 不可破坏 processing pipeline 行为
+- Slice 2 风险低（纯数据变换函数，无 IO，无副作用），auto-continue allowed
+- 2 个 remaining known violations（P2 dogfood_service + P3 web_cli）不阻塞 Slice 2

@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Architecture Quality Reset — Slice 1 (Fix Core→Web Layer Violation)
+
+- **Commit**: `c4f5c25` → `2cba857`
+- **Workstream**: Architecture Quality Reset
+- **Task type**: architecture_refactor
+- **Outcome**: 将 processing run 持久化/查询/worker 逻辑从 web 层迁移到 `src/mindforge/processing/run_store.py`（core 层）。5 个 core 模块的 import 路径更新。2 个 private symbol import（`_run_worker`、`_save_record`）消除。边界测试已知违规条目从 7 减至 2。层依赖方向修复：web → core。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-124-architecture-quality-reset-slice-1.md`
+- **Gates**: `ruff check src/ tests/` (0), `pytest tests/test_architecture_boundaries.py -q --tb=short` (0, 14 passed), `pytest tests/ -q --tb=short` (0, 100%), `pytest tests/test_web_product_copy.py -q --tb=short` (0), `npm --prefix web run build` (0), `git diff --check` (0)
+- **Next**: Slice 2 — 提取 web_facade.py 私有 helper 到 presenters
+- **Workstream changed**: no
+
 ### 2026-05-27: Architecture Quality Reset — Plan + Slice 0 Boundary Tests
 
 - **Commit**: `1b39edb` → `8eb3fd4`
