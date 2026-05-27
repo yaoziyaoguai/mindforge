@@ -290,24 +290,9 @@ Minor bug fix 至少追加一行：
    - 前一个 workstream 未完成 → 不得切换，除非用户明确指令。
 6. **如果 workstream 完成并切换** — 在 progress-ledger §2 标记旧 workstream 为 done，记录新 workstream。新 workstream 的第一步如果是 plan/spec 编写、boundary tests、audit 等在 §5.7 auto-continue 表中的动作，必须直接进入，不得因 "新 workstream" 而停止。
 
-### 5.4 Stop reason must be explicit
+### 5.4 Stop reason must use HARD_STOP_<CODE>
 
-如果 Autopilot 停止，必须输出以下其中一个 stop reason：
-
-- `HARD_STOP_SECRET` — 需要真实 API key / secrets
-- `HARD_STOP_REAL_LLM` — 需要调用真实 LLM / Cubox / Upstage
-- `HARD_STOP_PRIVATE_DATA` — 需要处理真实私人资料
-- `HARD_STOP_OBSIDIAN_WRITE` — 需要写真实 Obsidian vault
-- `HARD_STOP_MAIL_STORAGE` — 需要 mail storage / email / mail
-- `HARD_STOP_RAG_EMBEDDING` — 需要 RAG / embedding / vector DB
-- `HARD_STOP_LARGE_DEPENDENCY` — 需要新增大型框架 / 重依赖
-- `HARD_STOP_APPROVAL_SEMANTICS` — 改变 explicit approval / human_approved 安全语义
-- `HARD_STOP_PRODUCT_DECISION` — 产品判断真正模糊不清，无法从 roadmap/spec/plan 推断
-- `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` — context 低于安全阈值，已写 handoff
-- `HARD_STOP_P0_P1_RETRY_EXCEEDED` — P0/P1 超过 2 轮回退上限
-- `HARD_STOP_GIT_UNSAFE_STATE` — git 状态不安全（非 clean、非 fast-forward）
-
-如果以上无一适用，Autopilot 必须继续。
+停止原因必须使用 §7（Stop Conditions）中定义的 `HARD_STOP_<CODE>` token。如果 §7 中无一适用，Autopilot 必须继续。
 
 ### 5.5 Context policy
 
@@ -493,38 +478,51 @@ Reason: <具体原因，说明为什么不能从 roadmap/spec/plan 推断>
 
 ---
 
-## 7. 全局硬红线（始终生效）
+## 7. Stop Conditions（唯一权威来源）
 
-只有以下情况才停止并询问用户：
+所有 Hard Stop 和 Non-Stop 条件以此节为准。§5.4、§5.7、§5.8 中的停止判断必须引用本节。
 
-1. 需要真实 API key / secrets
-2. 需要读取 `.env` / secrets
-3. 需要调用真实 LLM / Cubox / Upstage（除非用户明确进入真实 dogfood 并在 Web 里自己配置 API key）
-4. 需要处理真实私人资料
-5. 需要写真实 Obsidian vault
-6. 需要 mail storage / email / mail 实现
-7. 需要 RAG / embedding / vector DB
-8. 需要新增大型框架 / 重依赖（除非先写 spec 明确说明必要性）
-9. 需要 force push / tag / release
-10. 需要破坏性数据迁移
-11. 改变 explicit approval / human_approved 核心安全语义
-12. 引入 auto approve
-13. P0/P1 无法在 2 次回退内关闭
-14. 同一问题超过回退上限（2 轮）
-15. 产品判断真正模糊不清，无法从 roadmap/spec/plan 推断
+### 7.1 Hard Stop Conditions（触发时必须停止）
 
-### 不视为停止条件
+| Code | 触发条件 |
+|------|---------|
+| `HARD_STOP_SECRET` | 需要真实 API key / secrets / 读取 `.env` |
+| `HARD_STOP_REAL_LLM` | 需要调用真实 LLM / Cubox / Upstage（除非用户明确进入真实 dogfood） |
+| `HARD_STOP_PRIVATE_DATA` | 需要处理真实私人资料 |
+| `HARD_STOP_OBSIDIAN_WRITE` | 需要写真实 Obsidian vault |
+| `HARD_STOP_MAIL_STORAGE` | 需要 mail storage / email / mail 实现 |
+| `HARD_STOP_RAG_EMBEDDING` | 需要 RAG / embedding / vector DB |
+| `HARD_STOP_LARGE_DEPENDENCY` | 需要新增大型框架 / 重依赖（除非 spec 明确批准） |
+| `HARD_STOP_APPROVAL_SEMANTICS` | 改变 explicit approval / human_approved 安全语义 / 引入 auto approve |
+| `HARD_STOP_PRODUCT_DECISION` | 产品判断真正模糊不清，无法从 roadmap/spec/plan 推断 |
+| `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` | context 低于安全阈值，已写 handoff |
+| `HARD_STOP_P0_P1_RETRY_EXCEEDED` | P0/P1 超过 2 轮回退上限 |
+| `HARD_STOP_GIT_UNSAFE_STATE` | git 状态不安全（非 clean、非 fast-forward） |
+| `HARD_STOP_DESTRUCTIVE` | force push / tag / release / 破坏性数据迁移 / 不可逆操作 |
 
-以下**不**触发停止：
+### 7.2 Non-Stop Conditions（以下明确不触发停止）
 
-- 普通 backend 改动
-- 普通 Web API 改动
-- 普通 schema 新增
+以下所有情况**不是停止条件**，Autopilot 必须继续：
+
+- loop 成功完成
+- commit/push 完成
+- spec/plan/docs 写完
+- gate 通过
+- review 完成
+- 技能阶段完成
+- queue empty（继续 discovery 直到真正无 safe candidate）
+- 单个 candidate blocked/deferred
+- 需要新增 branch point / RuntimeActionType / handler / catalog entry（触发 Architecture Extension Loop）
+- 需要架构设计（触发 Architecture Extension Loop）
+- 完成 3 个 loops（继续 discovery）
+- 所有剩余候选都需要架构扩展（逐个评估，进入 Architecture Extension Loop）
+- 普通 backend 改动 / Web API 改动 / schema 新增
 - Service / strategy / policy / presenter 工作
 - Tests / scripts / docs
-- Roadmap 定义的 v0.3 工作
-- 活跃 spec 要求的前后端集成
 - 本地确定性图谱或关系计算（不使用 embedding/RAG/vector DB）
+- 选择/切换技能
+- 输出 "next recommended loop"
+- workstream 切换后的第一个 spec/plan/audit
 
 ---
 
@@ -875,6 +873,11 @@ Skill Routing Decision:
 **规则:**
 - 如果 Required skill(s) 非空但 Selected skill(s) 为空 → `skill_routing_failure`，不得继续实现。
 - 除非明确说明 skill unavailable AND fallback path documented。
+- **低风险 task 允许简化输出**：`docs_cleanup`、`bug_fix`（单文件小修）、`autopilot_governance`（小范围规则更新）、`audit_only`（只读）可缩写为 3 行：
+  ```
+  Skill Routing: <task_type>, risk=<low>, required=<none|X>, selected=<none|X>. No framework needed — <reason>.
+  ```
+  如果 `required` 非空或风险为 medium/high，必须使用完整 11 行格式。
 
 ---
 
@@ -980,6 +983,7 @@ progress-ledger 每条记录必须补充以下字段：
 - **Remediation action**: <what was done | none>
 - **Skill frameworks checked**: <Compound Engineering / G-stack / Superpowers | none>
 - **Required skill invoked**: <yes | no | N/A>
+- **Evidence binding**: <finding/issue ref + commit hash + gate exit code>（§23）
 - **Next ACTION token**: <CONTINUE_NEXT_LOOP | HANDOFF_AND_STOP | HARD_STOP_<CODE>>
 ```
 
@@ -1013,3 +1017,36 @@ Required skill: <skill name>。
 ## 22. Updated Report Template
 
 §10 的输出报告必须包含 Skill Routing Decision（§16）和 Post-Loop Self-Routing（§18）。
+
+---
+
+## 23. Claim-to-Evidence Gate
+
+每个 RESOLVED/PASS 声称必须绑定具体证据。证据不足时只能标记 `PARTIAL`，不得标记 `RESOLVED`。
+
+### 23.1 判定规则
+
+| 情况 | 标记 |
+|------|------|
+| 所有子问题已修 + gate pass + review 通过 + 有具体 evidence | `RESOLVED` |
+| 修了部分但核心问题未解决 | `PARTIAL` |
+| gate pass 但无业务路径验证 | `PARTIAL` |
+| 无证据仅声称 | 不得标记，先补齐证据 |
+
+### 23.2 Evidence 绑定要求
+
+标记 RESOLVED 前必须绑定：
+1. **原始 finding/issue 引用** — 审计 finding ID 或 bug report 或 task description
+2. **具体修改** — 文件路径 + commit hash
+3. **Gate evidence** — exact command + exit code
+
+缺少任一项 → 只能写 `PARTIAL`。
+
+### 23.3 禁止的全局声称
+
+在 Claim-to-Evidence Gate 通过前，禁止写入：
+- `all P0/P1 resolved`
+- `completed`
+- `production-ready`
+
+如果必须写全局状态，写：`P0/P1: N items PARTIAL, M items RESOLVED`。

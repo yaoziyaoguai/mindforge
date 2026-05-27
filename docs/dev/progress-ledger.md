@@ -8,6 +8,25 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: mf-autopilot Skill Redesign Review + Low-Risk Improvements
+
+- **Commit**: `eccd8db` → `<pending>`
+- **Workstream**: mf-autopilot Skill Governance Upgrade
+- **Task type**: autopilot_governance
+- **Outcome**: 完成 FirstAgent auto-run vs MindForge mf-autopilot 对比 review（`docs/dev/mf-autopilot-skill-redesign-review.md`），实施 5 项低风险改进：(1) §5.4+§7 停止条件合并去重为单一权威来源 (2) 新增 §7.2 集中非停止条件清单 (3) 新增 §23 Claim-to-Evidence Gate — RESOLVED 声称需绑定 evidence (4) §16 Skill Routing Decision 允许低风险 task 简化输出 (5) §20 progress-ledger 模板新增 Evidence binding 字段
+- **Docs/notes**: `docs/dev/mf-autopilot-skill-redesign-review.md`, `docs/implementation-notes/2026-05-28-143-mf-autopilot-skill-redesign-review.md`
+- **Gates**: `git diff --check` (0), `python -m pytest tests/test_web_product_copy.py -q --tb=short` (0, 100%)
+- **Review result**: PASS — governance rules only, no production code changed
+- **Gate result**: PASS (2/2 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (autopilot_governance, low-risk rules update)
+- **Required skill invoked**: N/A
+- **Evidence binding**: mf-autopilot-skill-redesign-review.md §4.1 改进清单 + commit <pending> + gate exit 0
+- **Next ACTION token**: CONTINUE_NEXT_LOOP. Next: mf-autopilot governance — AUTOPILOT-QUEUE format migration or mf-autopilot.md + engineering-workflow.md dedup
+
+---
+
 ### 2026-05-28: Post-Mint4 Remediation — P1 User Validation Kit
 
 - **Commit**: `4f2482b` → `678e524`

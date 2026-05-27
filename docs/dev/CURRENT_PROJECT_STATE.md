@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Post-Mint4 Remediation — 全部 5 个 P 完成)
+更新日期: 2026-05-28 (Post-Mint4 Remediation 完成 → mf-autopilot Skill Redesign Review)
 
 ---
 
@@ -11,15 +11,15 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `1fa8b4d` (Post-Mint4 Remediation — P5 Batch 1 完成) |
+| 当前 HEAD | (pending: mf-autopilot skill redesign review improvements) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
-| 最新 autopilot governance | `docs/implementation-notes/2026-05-27-139-mf-autopilot-skill-framework-routing.md` |
-| 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
+| 最新 autopilot governance | `docs/implementation-notes/2026-05-28-143-mf-autopilot-skill-redesign-review.md` |
+| 最新 mf-autopilot skill review | `docs/dev/mf-autopilot-skill-redesign-review.md` |
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
 | 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
