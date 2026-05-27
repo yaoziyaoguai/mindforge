@@ -6,6 +6,7 @@ import {
   Brain,
   CheckSquare,
   ChevronDown,
+  Download,
   FlaskConical,
   Globe,
   Heart,
@@ -47,6 +48,7 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
       items: [
         { href: "/health", label: t("nav.health"), icon: Heart },
         { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },
+        { href: "/export", label: t("nav.export"), icon: Download },
         { href: "/trash", label: t("nav.trash"), icon: Trash2 },
       ],
     },
