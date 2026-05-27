@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
-import type { CardBodyUpdateResponse, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
+import type { CardBodyUpdateResponse, CollectionCardsRequest, CollectionResponse, CollectionsListResponse, CreateCollectionRequest, FolderImportPreviewResponse, FolderImportResponse, ImportCardResponse, KnowledgeCommunitiesResponse, KnowledgeTopicsResponse, LibraryCardDetailResponse, LibraryCardsResponse, ProvenanceTrailResponse, SavedViewsListResponse, SavedViewResponse, SaveViewRequest, WorkflowSummaryResponse } from "./types";
 
 export function getWorkflowSummary() {
   return apiGet<WorkflowSummaryResponse>("/api/workflow/summary");
@@ -55,4 +55,26 @@ export function saveView(payload: SaveViewRequest) {
 
 export function deleteView(viewId: string) {
   return apiDelete<{ ok: boolean }>(`/api/library/views/${encodeURIComponent(viewId)}`);
+}
+
+// ── Collections ────────────────────────────────────────────────────────
+
+export function getCollections() {
+  return apiGet<CollectionsListResponse>("/api/library/collections");
+}
+
+export function createCollection(payload: CreateCollectionRequest) {
+  return apiPost<CollectionResponse>("/api/library/collections", payload);
+}
+
+export function addToCollection(colId: string, payload: CollectionCardsRequest) {
+  return apiPost<CollectionResponse>(`/api/library/collections/${encodeURIComponent(colId)}/cards`, payload);
+}
+
+export function removeFromCollection(colId: string, payload: CollectionCardsRequest) {
+  return apiDelete<CollectionResponse>(`/api/library/collections/${encodeURIComponent(colId)}/cards`, payload);
+}
+
+export function deleteCollection(colId: string) {
+  return apiDelete<{ ok: boolean }>(`/api/library/collections/${encodeURIComponent(colId)}`);
 }

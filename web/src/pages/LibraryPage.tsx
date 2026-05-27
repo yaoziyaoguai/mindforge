@@ -10,6 +10,7 @@ import { GraphExplorer } from "../components/GraphExplorer";
 import { HealthStatusBar } from "../components/HealthStatusBar";
 import { ImportCardForm } from "../components/ImportCardForm";
 import { FolderImportForm } from "../components/FolderImportForm";
+import { CollectionPanel } from "../components/CollectionPanel";
 import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
 import { StatusCard } from "../components/StatusCard";
 import { ViewSwitcher } from "../components/ViewSwitcher";
@@ -469,6 +470,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
       {/* Graph Explorer */}
       <GraphExplorer onSelectCard={selectCard} />
+
+      {/* Collections */}
+      <CollectionPanel selectedCardRefs={selected ? [selected] : []} />
 
       {/* Knowledge Community Browser */}
       <details className="border border-line rounded-md bg-panel" open={false}>

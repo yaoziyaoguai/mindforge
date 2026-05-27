@@ -24,10 +24,11 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function apiDelete<T>(path: string): Promise<T> {
+export async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "DELETE",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } as Record<string, string> : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) throw new Error(await errorText(response));
   return response.json() as Promise<T>;

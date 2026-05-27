@@ -947,6 +947,19 @@ const copy: Record<Locale, LocaleDict> = {
     "views.delete": "删除",
     "views.delete_confirm_title": "删除视图？",
     "views.delete_confirm_desc": "此操作不可撤销。删除该视图后需重新保存。",
+
+    // ---- Collections ----
+    "collections.title": "卡片集合",
+    "collections.create": "新建集合",
+    "collections.name_placeholder": "集合名称",
+    "collections.desc_placeholder": "描述（可选）",
+    "collections.no_saved": "暂无已创建集合",
+    "collections.add_cards": "添加到集合",
+    "collections.remove": "移除",
+    "collections.delete": "删除集合",
+    "collections.delete_confirm_title": "删除集合？",
+    "collections.delete_confirm_desc": "此操作不可撤销。集合中的卡片不会删除，仅移出集合。",
+    "collections.card_count": "{count} 张卡片",
   },
 
   en: {
@@ -1879,6 +1892,19 @@ const copy: Record<Locale, LocaleDict> = {
     "views.delete": "Delete",
     "views.delete_confirm_title": "Delete view?",
     "views.delete_confirm_desc": "This action cannot be undone. You will need to save the view again.",
+
+    // ---- Collections ----
+    "collections.title": "Collections",
+    "collections.create": "New Collection",
+    "collections.name_placeholder": "Collection name",
+    "collections.desc_placeholder": "Description (optional)",
+    "collections.no_saved": "No collections yet",
+    "collections.add_cards": "Add to Collection",
+    "collections.remove": "Remove",
+    "collections.delete": "Delete Collection",
+    "collections.delete_confirm_title": "Delete collection?",
+    "collections.delete_confirm_desc": "Cards in the collection will not be deleted, only removed from the collection.",
+    "collections.card_count": "{count} cards",
   },
 };
 

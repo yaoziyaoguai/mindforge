@@ -1040,3 +1040,29 @@ export interface SaveViewRequest {
   quality_filter?: string;
   sort_by?: string;
 }
+
+// ── Collections ────────────────────────────────────────────────────────
+
+export interface CollectionResponse {
+  id: string;
+  name: string;
+  description: string;
+  card_refs: string[];
+  rule_tags: string[];
+  created_at: string;
+}
+
+export interface CollectionsListResponse {
+  collections: CollectionResponse[];
+}
+
+export interface CreateCollectionRequest {
+  id: string;
+  name: string;
+  description?: string;
+  rule_tags?: string[];
+}
+
+export interface CollectionCardsRequest {
+  card_refs: string[];
+}
