@@ -170,9 +170,16 @@ Source / Import
 
 ## 6. Current Recommended Next Loops
 
+<!-- AUTOPILOT-QUEUE-START -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: plan_spec -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: v3.7 Quality Platform — P2-05 frontend tests + P2-06 coverage config + web_config_service.py split。下一步: 写 spec/plan。 -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Documentation Reset Batch 2 — 仅在 exact archive/delete rules 明确后执行 -->
+<!-- AUTOPILOT-QUEUE-END -->
+
 按推荐顺序:
 
-1. **v3.7 Quality Platform** — P2-05 (frontend tests) + P2-06 (coverage config) + web_config_service.py split。需独立 spec/plan 后执行。
+1. **v3.7 Quality Platform** — P2-05 (frontend tests) + P2-06 (coverage config) + web_config_service.py split。下一步: 写 spec/plan（auto-continue allowed）。
 2. **Documentation Reset Batch 2** — 仅在 exact archive/delete rules 明确后执行
 
 ---

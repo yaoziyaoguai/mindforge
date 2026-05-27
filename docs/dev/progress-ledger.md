@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: mf-autopilot Cross-Workstream Continuation Fix
+
+- **Commit**: `ff3d210` → (pending)
+- **Workstream**: Autopilot Governance
+- **Task type**: autopilot_governance
+- **Outcome**: 修复 /mf-autopilot 在 workstream 完成→新 workstream spec/plan 时误判停止的 bug。§5.3 rule 5 workstream 切换优先级明确化（完成→自动切换）。§5.7 新增跨 workstream spec/plan auto-continue 条目。§5.8 强制 ACTION token 输出（CONTINUE_NEXT_LOOP / HANDOFF_AND_STOP / HARD_STOP_<CODE>）。§5.9 新增 5 个软停禁令表述。CPS §6 新增 machine-readable AUTOPILOT-QUEUE 注释。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-126-mf-autopilot-cross-workstream-fix.md`
+- **Gates**: (pending run)
+- **Next**: v3.7 Quality Platform spec/plan 编写（现在 auto-continue allowed）
+- **Workstream changed**: yes (from Architecture Quality Reset to Autopilot Governance)
+
 ### 2026-05-27: Architecture Quality Reset — Slice 2 (Extract web_facade.py Private Helpers to Presenters)
 
 - **Commit**: `9c598a4` → `70a1475`
@@ -200,10 +211,11 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Architecture Quality Reset (2026-05-27)**
+**当前 active workstream: Autopilot Governance (2026-05-27)**
 
-- Architecture Quality Reset workstream 已完成 (Slice 0 boundary tests + Slice 1 layer fix + Slice 2 presenter extraction)
-- 下一 workstream: v3.7 Quality Platform (P2-05 frontend tests, P2-06 coverage, web_config_service split — 需独立 spec/plan)
+- mf-autopilot cross-workstream continuation fix 进行中
+- Architecture Quality Reset workstream 已完成 (Slice 0 + 1 + 2)
+- 下一 workstream: v3.7 Quality Platform (P2-05 frontend tests, P2-06 coverage, web_config_service split — spec/plan 编写为 auto-continue 第一步)
 
 ---
 

@@ -284,8 +284,11 @@ Minor bug fix 至少追加一行：
 4. **如果用户明确切换方向**（例如 "现在不要做 docs cleanup，做 autopilot 升级"）— 必须更新:
    - `CURRENT_PROJECT_STATE.md` §6（推荐 next loops 排序）
    - `progress-ledger.md` §2（active workstream）
-5. **commit/push 不是切换 workstream 的触发条件** — 切换 workstream 需要用户明确指令或前一个 workstream 全部完成（所有 batch 都 done + 无 remaining debt）。
-6. **如果 workstream 完成并切换** — 在 progress-ledger §2 标记旧 workstream 为 done，记录新 workstream。
+5. **commit/push 不是切换 workstream 的触发条件。** Workstream 切换优先级：
+   - **前一个 workstream 全部完成（所有 batch done + 无 remaining debt）→ 自动切换，不需要等用户确认。** 从 `CURRENT_PROJECT_STATE.md` §6 的推荐 next loop 中选取第一个作为新 workstream。
+   - 用户明确指令切换方向 → 覆盖自动切换，以用户指令为准。
+   - 前一个 workstream 未完成 → 不得切换，除非用户明确指令。
+6. **如果 workstream 完成并切换** — 在 progress-ledger §2 标记旧 workstream 为 done，记录新 workstream。新 workstream 的第一步如果是 plan/spec 编写、boundary tests、audit 等在 §5.7 auto-continue 表中的动作，必须直接进入，不得因 "新 workstream" 而停止。
 
 ### 5.4 Stop reason must be explicit
 
@@ -393,6 +396,7 @@ Minor bug fix 至少追加一行：
 | architecture boundary tests | 只写测试，不动实现 |
 | low-risk schema/service cleanup（已由 plan 覆盖） | plan 已批准的清理 |
 | 更新 CURRENT_PROJECT_STATE / progress-ledger / HANDOFF | 治理文档维护 |
+| start next workstream spec/plan（前一个 workstream 已完成） | 当前 workstream 完结后，CPS §6 推荐的下一 workstream 的 spec/plan/boundary-tests/audit 编写 |
 
 **Must ask user / HARD_STOP_PRODUCT_DECISION（必须停止询问）:**
 
@@ -426,13 +430,14 @@ Minor bug fix 至少追加一行：
 3. **classify next loop task type** — 判断下一 loop 的 task type（`bug_fix` / `docs_cleanup` / `ui_ux_polish` / `architecture_refactor` / `feature_implementation` / `audit_only` / `dogfood` / `design_review` / `autopilot_governance`）
 4. **check hard-stop table** — 对照 §5.7 的 Auto-Continue Decision Table
 5. **check context policy** — 对照 §5.5 和 §5.7 的 low-context override
-6. **decide:**
-   - 如果 auto-continue allowed → **立即进入下一步，不得输出"是否继续"类询问**
-   - 如果 not allowed → 更新 `CURRENT_PROJECT_STATE.md`、更新 `progress-ledger.md`、按需写 `HANDOFF.md`、停止并输出明确的 `HARD_STOP_*` reason
+6. **decide and COMMIT — 必须输出标准化 ACTION token，不得只描述不执行:**
+   - 如果 auto-continue allowed → 输出 `ACTION: CONTINUE_NEXT_LOOP. Next: <具体下一步描述>`，然后**立即进入下一步执行**，不得在 final report 后停止
+   - 如果 not allowed → 输出 `ACTION: HARD_STOP_<CODE>. Reason: <具体原因>`，然后更新所有 state docs、按需写 HANDOFF.md、停止
+   - 如果 context < 15% 但当前 loop 已完成 → 输出 `ACTION: HANDOFF_AND_STOP. Reason: context low, handoff written`，然后写 HANDOFF.md、commit/push、停止
 
-**以下行动不得询问用户，必须直接执行：**
+**以下行动不得询问用户，必须直接执行（不论是否跨 workstream）：**
 
-- 写 plan/spec → 这是 plan/spec only，不是大拆实现，直接进入
+- 写 plan/spec → 这是 plan/spec only，不是大拆实现，直接进入（包括新 workstream 的第一步 spec/plan）
 - review output and choose next loop → 这是 `/mf-autopilot` 的职责，直接执行
 - 更新 CURRENT_PROJECT_STATE / progress-ledger → 每轮必须做的治理动作，直接执行
 - 跑 gates 和 commit/push → loop 收口动作，直接执行
@@ -449,13 +454,20 @@ Minor bug fix 至少追加一行：
 - "需要我继续吗？"
 - "要不要我…"
 - "准备好了就告诉我"
+- "不是 auto-continue 范围"（如果实际下一步在 §5.7 auto-continue 表中）
+- "需独立 spec/plan 后执行"（spec/plan 编写本身就是 auto-continue 动作）
+- "这是新 workstream"（新 workstream 的 spec/plan/boundary-tests/audit 仍是 auto-continue）
+- "新 workstream，不是 auto-continue 范围"（同上 — 组合形式也在禁止之列）
+- "需独立 spec/plan 后进入实现"（同上 — plan/spec 编写就是下一步）
+- "下一步是 X" 后面没有紧跟 `ACTION: CONTINUE_NEXT_LOOP` 并实际继续执行
 
 如果报告写了"下一步是 X"且 X 在 auto-continue 范围内，**必须立即执行 X**，不得在报告后停下。
 
-只有在伴随明确 `HARD_STOP_*` reason 时，才允许停止。有效停止格式：
+只有在伴随明确 `ACTION: HARD_STOP_<CODE>` 或 `ACTION: HANDOFF_AND_STOP` 时，才允许停止。有效停止格式：
 
 ```
-HARD_STOP_PRODUCT_DECISION: <具体原因，说明为什么不能从 roadmap/spec/plan 推断>
+ACTION: HARD_STOP_PRODUCT_DECISION
+Reason: <具体原因，说明为什么不能从 roadmap/spec/plan 推断>
 ```
 
 ---
