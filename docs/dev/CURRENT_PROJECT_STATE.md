@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Directions A+C+F 全部完成，等待 user validation)
+更新日期: 2026-05-28 (Post-Mint4 Remediation — P1 User Validation Kit 就绪)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `cffc661` (Direction C reconciliation + A+C+F 全部完成) |
+| 当前 HEAD | `4f2482b` (Post-Mint4 Retrospective + Remediation Plan) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -23,6 +23,9 @@
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
 | 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
+| 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
+| 最新 Remediation Plan | `docs/plans/2026-05-28-post-mint4-remediation-plan.md` |
+| 最新 User Validation Protocol | `docs/product/validation-protocol.md` |
 | 最新产品创新审计 | `docs/product/2026-05-28-001-mindforge-product-innovation-review.md` |
 
 最近关键 commits:
@@ -180,70 +183,67 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_direction_c_recall_search_quality_lab -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: continue_post_mint4_remediation_p2_web_ux -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: remediation -->
 <!-- AUTOPILOT-QUEUE-ITEM-1:
-workstream=Product Main Path P1 Pipeline Blocker Fix
-task_type=bug_fix
+workstream=Post-Mint4 Remediation: P1 User Validation Kit
+task_type=docs_cleanup
 current_node=done
 next_action=N/A
 required_skill=none
-frameworks_checked=product_strategy_audit_2026-05-28
+frameworks_checked=none (low-risk docs creation)
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+status=resolved (5 validation docs created: protocol + test-script + observer-checklist + feedback-form + sample-workspace-validation, 2026-05-28)
+hard_stop_note=HARD_STOP_PRODUCT_DECISION: User Validation Kit 就绪，需要 5 名真实非技术用户执行验证
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-2:
+workstream=Post-Mint4 Remediation: P2 Web UX Remediation
+task_type=ui_ux_polish
+current_node=pending
+next_action=browser_mcp_audit_then_fix_p1_p2_ux_issues
+required_skill=none
+frameworks_checked=none (direct mf-autopilot, low-risk targeted fixes)
 review_node=browser_mcp_smoke
 failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
-status=resolved (commit 87453f0, verified gates all pass 2026-05-28)
--->
-<!-- AUTOPILOT-QUEUE-ITEM-2:
-workstream=Guided Onboarding MVP
-task_type=feature_implementation
-current_node=done
-next_action=N/A
-required_skill=none
-frameworks_checked=product_strategy_audit_2026-05-28
-review_node=spec_acceptance_review
-failure_class=none
-remediation_target=none
-auto_continue_allowed=true
-hard_stop_required=false
-status=resolved (v0.7 Guided Onboarding MVP — wizard + hints + sample workspace, all gates pass 2026-05-28)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-3:
-workstream=Direction F: Structured Knowledge Workbench
-task_type=feature_implementation
-current_node=done
-next_action=N/A
-required_skill=none
-frameworks_checked=none (direct mf-autopilot, 8 small implementation slices)
-review_node=spec_acceptance_review
-failure_class=none
-remediation_target=none
-auto_continue_allowed=true
-hard_stop_required=false
-status=resolved (U1-U8 all complete: Saved Views + Collections + Bulk Maintenance + Manual Card Linking + Tests + i18n, 2026-05-28)
--->
-<!-- AUTOPILOT-QUEUE-ITEM-4:
-workstream=Direction C: Recall/Search Quality Lab
-task_type=feature_implementation
-current_node=done
-next_action=N/A
-required_skill=none
-frameworks_checked=none (direct mf-autopilot, deterministic recall quality)
-review_node=spec_acceptance_review
-failure_class=none
-remediation_target=none
-auto_continue_allowed=true
-hard_stop_required=false
-status=resolved (U1-U5 all complete: benchmark + explain + tuning + quality gate + Web explain, recall quality gate 100%, 2026-05-26)
-commits=de077df→4332e66→78fc4c7→2d9a271
--->
-<!-- AUTOPILOT-QUEUE-ITEM-5:
-workstream=Next: Governance Truth Sync + State Consolidation
+workstream=Post-Mint4 Remediation: P3 Design System Foundation
 task_type=docs_cleanup
 current_node=pending
-next_action=update_all_stale_docs_to_reflect_A_C_F_completion_and_prepare_for_user_validation
+next_action=extract_design_tokens_and_write_component_usage_doc
+required_skill=none
+frameworks_checked=none
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-4:
+workstream=Post-Mint4 Remediation: P4 Autopilot Simplification Analysis
+task_type=docs_cleanup
+current_node=pending
+next_action=write_autopilot_complexity_analysis
+required_skill=none
+frameworks_checked=none
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-5:
+workstream=Post-Mint4 Remediation: P5 Docs Governance Cost Reduction
+task_type=docs_cleanup
+current_node=pending
+next_action=small_batch_cleanup_stale_docs
 required_skill=none
 frameworks_checked=none
 review_node=docs_truth_review
@@ -254,13 +254,16 @@ hard_stop_required=false
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
-产品创新审计 (HEAD `aef49df`) 推荐优先顺序:
+产品创新审计 (HEAD `aef49df`) 推荐优先顺序 (已完成):
+- Direction A/C/F 已全部完成
+- User Validation 已列为 P0
 
-1. **Direction A: Product Main Path Deepening** (主 bet, 7.1/10) — Guided Onboarding MVP 已完成 ✅
-2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — U1-U8 全部完成 ✅
-3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — U1-U5 全部完成 ✅ (benchmark + explain + tuning + quality gate + Web explain)
-4. **User Validation** — 需要 5 名非技术用户跑首次循环测试 (HARD_STOP: requires real users)
-5. Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张 — 冻结
+Post-Mint4 Remediation (当前执行中):
+1. **P1: User Validation Kit** — 5 个验证文档已就绪 ✅ → HARD_STOP_PRODUCT_DECISION (需要真实用户)
+2. **P2: Web UX Remediation** — browser/MCP audit + P1/P2 UX 修复 → 进行中
+3. **P3: Design System Foundation** — 轻量 token + 文档
+4. **P4: Autopilot Simplification** — 分析先行，不立即大改
+5. **P5: Docs Governance Cost Reduction** — 小 batch 清理
 
 ---
 
