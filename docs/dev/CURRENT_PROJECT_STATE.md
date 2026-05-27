@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27 (v3.9 — Dogfood v3 Light Smoke + 治理 ITEM-3 完成，Codex audit 三项全完成)
+更新日期: 2026-05-28 (v4.0 — 产品创新审计完成，方向重组，AUTOPILOT-QUEUE 重排)
 
 ---
 
@@ -24,6 +24,7 @@
 | 最新 dogfood v2 notes | `docs/implementation-notes/2026-05-27-135-product-main-path-real-dogfood-v2.md` |
 | 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
 | 最新 Web UX Deepening notes | `docs/implementation-notes/2026-05-27-137-web-product-ux-deepening-loop-1.md` |
+| 最新产品创新审计 | `docs/product/2026-05-28-001-mindforge-product-innovation-review.md` |
 
 最近关键 commits:
 ```
@@ -167,6 +168,7 @@ Source / Import
 | DOC-01 | P3 | 无英文 docs/README.md 翻译 | resolved (v3.7): docs/README-en.md 已创建 |
 | DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | resolved (v3.7): design/README.md + obsidian-binding-design.md 状态标注 |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
+| PROD-01 | P1 | demo/fake 模式下管道仍要求显式模型配置，用户无法完成首次主路径循环 | open — 已列入 AUTOPILOT-QUEUE-ITEM-1 |
 
 质量债台账完整记录: [`docs/dev/quality-debt-ledger.md`](quality-debt-ledger.md)
 文档债台账完整记录: [`docs/dev/documentation-debt-ledger.md`](documentation-debt-ledger.md)
@@ -176,46 +178,48 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: select_next_product_loop -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: fix_p1_pipeline_blocker -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: bug_fix -->
 <!-- AUTOPILOT-QUEUE-ITEM-1:
-workstream=Autopilot Governance Upgrade (Round 2)
-task_type=autopilot_governance
-current_node=gate
-next_action=commit_and_push
+workstream=Product Main Path P1 Pipeline Blocker Fix
+task_type=bug_fix
+current_node=pending
+next_action=auto_configure_fake_provider_when_no_real_model_in_demo_mode
 required_skill=none
-frameworks_checked=G-stack
-review_node=governance_self_review
-failure_class=none
-remediation_target=none
+frameworks_checked=product_strategy_audit_2026-05-28
+review_node=browser_mcp_smoke
+failure_class=pipeline_blocker
+remediation_target=zero_config_demo_experience
 auto_continue_allowed=true
 hard_stop_required=false
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-2:
-workstream=Web Product UX Deepening P3
-task_type=ui_ux_polish
+workstream=Guided Onboarding Design
+task_type=feature_implementation
 current_node=pending
-next_action=setup_clarity_library_ia_wiki_empty_state_recall_feedback_export_ux
-required_skill=none
-frameworks_checked=none
-review_node=browser_or_mcp
+next_action=design_sample_workspace_and_step_by_step_onboarding
+required_skill=/brainstorming
+frameworks_checked=product_strategy_audit_2026-05-28
+review_node=user_validation
 failure_class=none
 remediation_target=none
-auto_continue_allowed=true
-hard_stop_required=false
+auto_continue_allowed=false
+hard_stop_required=true
+hard_stop_reason=requires_user_validation_before_proceeding
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-3:
-workstream=Stale Task Cleanup
-task_type=docs_cleanup
+workstream=User Validation — Core Hypothesis Test
+task_type=dogfood
 current_node=pending
-next_action=cleanup_200_stale_tasks_and_next_phase_review
+next_action=recruit_5_non_technical_users_and_run_first_cycle_test
 required_skill=none
-frameworks_checked=none
-review_node=docs_truth_review
+frameworks_checked=product_strategy_audit_2026-05-28
+review_node=go_no_go_decision
 failure_class=none
 remediation_target=none
-auto_continue_allowed=true
-hard_stop_required=false
+auto_continue_allowed=false
+hard_stop_required=true
+hard_stop_reason=requires_go_no_go_product_decision
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
