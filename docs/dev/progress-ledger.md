@@ -8,6 +8,26 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-26: Direction C Recall/Search Quality Lab — U1-U5 全部完成
+
+- **Commit**: `ce9b3b9` → `2d9a271`
+- **Workstream**: Direction C: Recall/Search Quality Lab
+- **Task type**: feature_implementation
+- **Outcome**: Direction C 全部 5 单元完成。U1 Golden Recall Benchmark (12 cards + 14 golden queries + 4 negative queries, 27 tests)，U2 Query Explain (QueryExplain dataclass + explain_zero_hits + explain_hits)，U3 BM25 Tuning Infrastructure (Bm25Config frozen dataclass + Bm25RetrievalEngine 参数支持)，U4 Recall Quality Gate Script (`scripts/recall_quality_gate.py`，100% recall 21/21 expected hits)，U5 Web RecallPage Explain Panel (BM25 边界说明 + 命中字段/匹配词展示)。全部纯 deterministic，零 embedding/RAG/vector DB。
+- **Docs/notes**: `docs/implementation-notes/2026-05-26-105-recall-search-quality-lab.md`
+- **Gates**: all recall tests pass (44 tests), `scripts/recall_quality_gate.py` exit 0 (100% recall), `npm --prefix web run build` exit 0
+- **Review result**: PASS — all 5 units match plan spec
+- **Gate result**: PASS
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for deterministic recall quality)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: WORKSTREAM_COMPLETE
+- **Next**: Direction C 完结，progress-ledger 补录（此前未记录）
+- **Workstream changed**: yes (Direction C complete)
+
+---
+
 ### 2026-05-28: U7 Tests + U8 i18n — Direction F 测试覆盖 + 国际化验证
 
 - **Commit**: `56d4c0d` → `1e5dda9`
@@ -525,21 +545,21 @@
 
 ## 2. Active Workstream
 
-**Direction F: Structured Knowledge Workstream — 全部 8 单元完成 (2026-05-28)**
+**全部活跃 workstream 完成 (2026-05-28)**
 
-U1-U8 全部完成并 commit: Saved Views (Backend + Frontend) → Collections (Backend + Frontend) → Bulk Maintenance → Manual Card Linking → Tests (24 new tests) + i18n (verified complete).
+Directions A (Product Main Path Deepening)、C (Recall/Search Quality Lab)、F (Structured Knowledge Workbench) 全部完成。
 
-**当前无 active workstream。** 下一个推荐 workstream: Direction C: Recall/Search Quality Lab.
+**当前无 active workstream。** 下一步需 User Validation (HARD_STOP: 需要 5 名非技术用户)。在此之前可进行 governance truth sync / stale docs cleanup / comprehensive gate check。
 
 ---
 
 ## 3. Next Recommended Loop
 
-按产品创新审计 + 完成度推荐:
+按完成度和优先级推荐:
 
-1. **Direction C: Recall/Search Quality Lab** — 推荐 next workstream。建立检索质量测量体系，plan + spec 已编写。评分 7.1/10。
-2. **Direction A: Product Main Path Deepening** — P1 pipeline blocker + Guided Onboarding MVP 已完成。后续需真实用户验证 (HARD_STOP: 需要 5 名非技术用户)。
-3. **Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张** — 冻结。
+1. **User Validation** — 最高优先级但 HARD_STOP (需要 5 名非技术用户验证核心假设)
+2. **Governance Truth Sync** — 更新所有 stale 文档以反映 A+C+F 完成状态
+3. **Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张** — 冻结
 
 ---
 

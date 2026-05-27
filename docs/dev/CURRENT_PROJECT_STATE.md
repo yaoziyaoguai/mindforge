@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (Direction F: Structured Knowledge Workbench 全部 8 单元完成)
+更新日期: 2026-05-28 (Directions A+C+F 全部完成，等待 user validation)
 
 ---
 
@@ -94,6 +94,11 @@ Source / Import
 | Collections | done | `src/mindforge/collection_store.py`, `web/src/components/CollectionPanel.tsx` | 卡片集合 CRUD，API + frontend |
 | Bulk Maintenance | done | `src/mindforge/card_workspace_service.py`, `web/src/components/BulkActions.tsx` | YAML frontmatter 批量修改 tags/track |
 | Manual Card Linking | done | `src/mindforge/card_workspace_service.py`, `web/src/components/CardWorkspace.tsx` | 双向 frontmatter manual_links 写入 |
+| Recall Benchmark | done | `tests/fixtures/recall_benchmark.py` | 12 cards + 14 golden queries + 4 negative queries |
+| Query Explain | done | `src/mindforge/recall_service.py` (QueryExplain + explain_zero_hits + explain_hits) | BM25 命中/未命中原因分析 |
+| BM25 Tuning | done | `src/mindforge/retrieval/bm25_engine.py` (Bm25Config) | 可配置字段权重/k1/b |
+| Recall Quality Gate | done | `scripts/recall_quality_gate.py` | exit 0 当 recall ≥ 80%，当前 100% |
+| Web Recall Explain | done | `web/src/pages/RecallPage.tsx` | explain 折叠面板 + i18n |
 | CLI | done | `src/mindforge/cli.py` + 各 `*_cli.py` | 完整 CLI 入口 |
 | Python Coverage | done | `pyproject.toml` [tool.coverage] | pytest --cov 可用, 88% baseline |
 
@@ -219,26 +224,40 @@ status=resolved (U1-U8 all complete: Saved Views + Collections + Bulk Maintenanc
 <!-- AUTOPILOT-QUEUE-ITEM-4:
 workstream=Direction C: Recall/Search Quality Lab
 task_type=feature_implementation
-current_node=pending
-next_action=read_spec_and_begin_implementation
+current_node=done
+next_action=N/A
 required_skill=none
-frameworks_checked=product_strategy_audit_2026-05-28
+frameworks_checked=none (direct mf-autopilot, deterministic recall quality)
 review_node=spec_acceptance_review
 failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
-plan_path=docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md
-spec_path=docs/specs/2026-05-26-104-recall-search-quality-lab-spec.md
+status=resolved (U1-U5 all complete: benchmark + explain + tuning + quality gate + Web explain, recall quality gate 100%, 2026-05-26)
+commits=de077df→4332e66→78fc4c7→2d9a271
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-5:
+workstream=Next: Governance Truth Sync + State Consolidation
+task_type=docs_cleanup
+current_node=pending
+next_action=update_all_stale_docs_to_reflect_A_C_F_completion_and_prepare_for_user_validation
+required_skill=none
+frameworks_checked=none
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 产品创新审计 (HEAD `aef49df`) 推荐优先顺序:
 
-1. **Direction A: Product Main Path Deepening** (主 bet, 7.6/10) — Guided Onboarding MVP 已完成 ✅
-2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — U1-U8 全部完成 ✅ (Saved Views + Collections + Bulk Maintenance + Manual Card Linking + Tests + i18n)
-3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — 建立检索质量测量体系，plan 已编写 (`docs/plans/2026-05-26-097-recall-search-quality-lab.md`)
-4. Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张 — 冻结
+1. **Direction A: Product Main Path Deepening** (主 bet, 7.1/10) — Guided Onboarding MVP 已完成 ✅
+2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — U1-U8 全部完成 ✅
+3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — U1-U5 全部完成 ✅ (benchmark + explain + tuning + quality gate + Web explain)
+4. **User Validation** — 需要 5 名非技术用户跑首次循环测试 (HARD_STOP: requires real users)
+5. Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张 — 冻结
 
 ---
 
