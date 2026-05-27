@@ -1,19 +1,19 @@
 # Handoff — 2026-05-27
 
 ## Repo Snapshot
-- HEAD: (pending — autopilot governance fix)
+- HEAD: 7844bf0
 - Branch: main
-- Working tree: dirty (autopilot governance changes in progress)
+- Working tree: clean
 - vs origin/main: 0 0
 
 ## Active Workstream
 - Workstream: Autopilot Governance
-- Status: in-progress (finalizing auto-continue policy hardening)
+- Status: done
 
 ## Last Completed Loop
 - Task type: autopilot_governance
 - Outcome: Added auto-continue decision table, self-routing rules, and soft-stop bans to mf-autopilot.md
-- Commit: (pending)
+- Commit: 7844bf0
 
 ## Next /mf-autopilot Instruction
 ```
