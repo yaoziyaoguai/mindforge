@@ -8,6 +8,24 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: U7 Tests + U8 i18n — Direction F 测试覆盖 + 国际化验证
+
+- **Commit**: `56d4c0d` → `1e5dda9`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U7 测试完成。新增 `tests/test_card_workspace_service.py`（8 个 backend 测试：bulk_update_tags/track/unknown_card/no_fields + link_cards_creates/dedup/self_link_rejected/unknown_card_rejected），`web/src/components/__tests__/BulkActions.test.tsx`（8 个测试），`ViewSwitcher.test.tsx`（4 个测试），`CollectionPanel.test.tsx`（4 个测试）。frontend 测试总计 11 个文件 79 个测试全部通过。U8 i18n 已验证所有 ~40 keys zh/en 完整。修复 ViewSwitcher.test.tsx 未使用的 userEvent import 导致的 tsc build 失败。
+- **Docs/notes**: none (spec 已由之前 loop 创建)
+- **Gates**: `ruff check src/ tests/` (0, All checks passed), `npm --prefix web run build` (0, built in 3.65s), `python -m pytest tests/test_web_product_copy.py tests/test_card_workspace_service.py -q` (0, 100%), `git diff --check` (0)
+- **Review result**: PASS — U7 spec acceptance review, 24 new tests across backend + frontend
+- **Gate result**: PASS (4/4 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for test implementation)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP (Direction F complete, switch to next workstream)
+- **Next**: Direction F 全部 8 单元完成，workstream 完结，切换至 CPS §6 推荐 next workstream
+- **Workstream changed**: yes (Direction F complete)
+
 ### 2026-05-28: U6 Manual Card Linking — link_cards backend + frontmatter writing + CardWorkspace link UI
 
 - **Commit**: `5544a92` → `56d4c0d`
@@ -507,21 +525,21 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Product Main Path Real Dogfood v2 (2026-05-27)**
+**Direction F: Structured Knowledge Workstream — 全部 8 单元完成 (2026-05-28)**
 
-- 由 Codex 独立红队审计 (commit `4ef9ed2`, §10.A) 推荐为 primary next loop
-- 目标: 完整主路径 browser-level dogfood — Source→Draft→Review→Approval→Library→Recall→Wiki→Export
-- 记录 UX 摩擦，验证 acceptance criteria，不调用真实 LLM/API/Obsidian vault
+U1-U8 全部完成并 commit: Saved Views (Backend + Frontend) → Collections (Backend + Frontend) → Bulk Maintenance → Manual Card Linking → Tests (24 new tests) + i18n (verified complete).
+
+**当前无 active workstream。** 下一个推荐 workstream: Direction C: Recall/Search Quality Lab.
 
 ---
 
 ## 3. Next Recommended Loop
 
-按 Codex 审计推荐顺序:
+按产品创新审计 + 完成度推荐:
 
-1. **Product Main Path Real Dogfood v2** — 当前 active workstream。完整 main path browser/API dogfood，记录 UX 摩擦，验证 acceptance criteria。
-2. **Web Product UX Deepening** — 待 dogfood v2 完成后，基于真实摩擦修复 Library IA、Export contract、Setup clarity。
-3. **Targeted Architecture Quality Reset** — 仅在 dogfood/UX 暴露真实架构痛点后执行。
+1. **Direction C: Recall/Search Quality Lab** — 推荐 next workstream。建立检索质量测量体系，plan + spec 已编写。评分 7.1/10。
+2. **Direction A: Product Main Path Deepening** — P1 pipeline blocker + Guided Onboarding MVP 已完成。后续需真实用户验证 (HARD_STOP: 需要 5 名非技术用户)。
+3. **Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张** — 冻结。
 
 ---
 
