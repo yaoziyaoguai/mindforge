@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Docs Cleanup — Batch 1 Residual References Cleaned
+
+- **Commit**: `(pending)`
+- **Workstream**: Documentation Reset
+- **Task type**: docs_cleanup
+- **Outcome**: 修复 Batch 1 删除 8 个 stale files 后的 ~15 个跨文档残留引用；14 个历史文档标注 "(removed 2026-05-27)"；3 个 management docs 更新引用状态
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-117-docs-cleanup-residual-references.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0), `pytest tests/test_web_product_copy.py -q` (0)
+- **Next**: 评估 Batch 2 (Archive Candidates) 是否已明确
+- **Workstream changed**: no
+
 ### 2026-05-27: Docs Cleanup Batch 1 — 8 stale files removed
 
 - **Commit**: `fcb96c7`
@@ -114,15 +125,15 @@
 
 **当前 active workstream: Documentation Reset (2026-05-27)**
 
-- Batch 1 已完成: 8 个 stale 文件删除 + 引用更新
-- Batch 2: 待处理残留引用（历史 RFC/SDD/spec/implementation-notes 中的 stale references）
+- Batch 1 已完成: 8 个 stale 文件删除 + 残留引用修复（14 个历史文档已标注）
+- Batch 2 (Archive Candidates): 待决定 — 需要明确的 delete/archive 规则
 - 不涉及产品功能、UI、backend
 
 ---
 
 ## 3. Next Recommended Loop
 
-1. **继续 documentation reset** — 创建 documentation-reset-plan.md + 执行第一批 stale doc cleanup
+1. **评估 documentation Batch 2** — 如果 delete/archive 规则明确则可执行；否则结束本 workstream
 2. 回到 product work — 参见 `CURRENT_PROJECT_STATE.md` §6
 
 ---

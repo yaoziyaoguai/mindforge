@@ -1,7 +1,7 @@
 # M6 Local Graph Preview — Implementation Notes
 
 **Date:** 2026-05-24
-**Spec:** `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md` §10
+**Spec:** ~~`docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md`~~ (removed 2026-05-27) §10
 **Status:** implemented (squash-merged into main via PR #7, commit `9e813d2`)
 
 ## 合并说明

@@ -3,7 +3,7 @@
 > **Status**: Accepted（Deferred to v0.3+）
 > **Author**: Source Module Independent Audit
 > **Date**: 2026-05-15
-> **References**: RFC_0001 §5.9, SDD §11 M5, V0_2_ROADMAP §4 M5
+> **References**: RFC_0001 §5.9, SDD §11 M5, ~~V0_2_ROADMAP~~ §4 M5 (removed 2026-05-27 — docs cleanup batch 1)
 
 ---
 

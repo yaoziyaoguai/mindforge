@@ -3,7 +3,7 @@
 > **Status**: Draft — Accepted for v0.2 implementation
 > **Date**: 2026-05-15
 > **Depends on**: [RFC_0002_WIKI_PRESENTATION_V2.md](../rfc/RFC_0002_WIKI_PRESENTATION_V2.md), [SDD_WIKI_PRESENTATION_V2.md](SDD_WIKI_PRESENTATION_V2.md)
-> **Related**: [V0_2_ROADMAP.md](../roadmap/V0_2_ROADMAP.md)
+> **Related**: ~~V0_2_ROADMAP.md~~ (removed 2026-05-27)
 
 ---
 
@@ -491,7 +491,7 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 ### 13.4 Documentation Acceptance
 
 - [ ] RFC_0002 §4 Non-goals 记录 editable Wiki 不在 v0.2 范围
-- [ ] V0_2_ROADMAP 记录 Wiki Web UX polish milestone
+- [ ] V0_2_ROADMAP 记录 Wiki Web UX polish milestone *(note: V0_2_ROADMAP.md removed 2026-05-27)*
 - [ ] 本文档准确描述 v0.2 Web 展示设计
 
 ---
@@ -516,5 +516,5 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 
 - [RFC_0002_WIKI_PRESENTATION_V2.md](../rfc/RFC_0002_WIKI_PRESENTATION_V2.md) — Wiki ViewModel + rendering boundary
 - [SDD_WIKI_PRESENTATION_V2.md](SDD_WIKI_PRESENTATION_V2.md) — Wiki structure + safety + tests
-- [V0_2_ROADMAP.md](../roadmap/V0_2_ROADMAP.md) — v0.2 feature roadmap
-- [V0_2_DEVELOPMENT_RULES.md](../V0_2_DEVELOPMENT_RULES.md) — development rules + hard boundaries
+- ~~V0_2_ROADMAP.md~~ — removed 2026-05-27 (docs cleanup batch 1)
+- ~~V0_2_DEVELOPMENT_RULES.md~~ — removed 2026-05-27 (docs cleanup batch 1)

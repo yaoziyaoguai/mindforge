@@ -658,7 +658,7 @@ Milestone C 的执行顺序必须是：
 ## Sources & References
 
 - Audit: 《MindForge Web UX & Design System Review》(2026-05-22, in-session)
-- Dogfood plan: `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md`
+- Dogfood plan: `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` (removed 2026-05-27 — docs cleanup batch 1)
 - Dogfood UI fix: `f5e071b fix: address dogfood review UI findings`
 - Design tokens: `web/tailwind.config.ts`
 - Global styles: `web/src/styles.css`

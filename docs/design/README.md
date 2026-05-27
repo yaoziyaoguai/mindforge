@@ -17,8 +17,7 @@ docs/design/
 │   ├── SDD_SOURCE_ADAPTER_V2.md
 │   ├── SDD_WIKI_PRESENTATION_V2.md
 │   └── SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md
-├── roadmap/           # Roadmap
-│   └── V0_2_ROADMAP.md
+├── roadmap/           # Roadmap (V0_2_ROADMAP.md removed 2026-05-27 — docs cleanup batch 1)
 └── adr/               # Architecture Decision Records (预留)
 ```
 
@@ -42,7 +41,7 @@ docs/design/
 
 ## Roadmap
 
-- [V0.2 Roadmap](roadmap/V0_2_ROADMAP.md) — v0.2 迭代计划
+- ~~V0.2 Roadmap~~ — 已删除（docs cleanup batch 1, 2026-05-27）。当前路线参见 `docs/dev/CURRENT_PROJECT_STATE.md` §6
 
 ---
 

@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `fcb96c7`
+| HEAD | `(pending — residual refs cleanup)`
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -151,7 +151,7 @@ Source / Import
 
 按推荐顺序:
 
-1. **Documentation cleanup batch 2** — 继续清理历史文档引用（batch 1 已完成 8 文件删除）
+1. **Documentation cleanup batch 2 (Archive Candidates)** — batch 1 文件删除 + 残留引用修复均已完成；下一步决定是否进入 archive candidates 或结束本 workstream
 2. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
 4. **Recall/Search Quality Lab** — 基于已有 plan `docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md`
 5. **Real dogfood** — 真实 LLM opt-in 验证 (`docs/real-llm-dogfood.md`)

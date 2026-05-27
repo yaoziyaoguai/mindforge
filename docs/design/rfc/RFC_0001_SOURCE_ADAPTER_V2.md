@@ -3,7 +3,7 @@
 > **Status**: Draft
 > **Date**: 2026-05-14
 > **Author**: MindForge Team
-> **Related**: [V0_2_ROADMAP.md](../roadmap/V0_2_ROADMAP.md), [SDD_SOURCE_ADAPTER_V2.md](../sdd/SDD_SOURCE_ADAPTER_V2.md)
+> **Related**: ~~V0_2_ROADMAP.md~~ (removed 2026-05-27), [SDD_SOURCE_ADAPTER_V2.md](../sdd/SDD_SOURCE_ADAPTER_V2.md)
 
 ---
 

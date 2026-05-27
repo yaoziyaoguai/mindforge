@@ -1,7 +1,7 @@
 # M3 Related Cards — Implementation Notes
 
 **Date:** 2026-05-24
-**Spec:** `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md` §7
+**Spec:** ~~`docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md`~~ (removed 2026-05-27) §7
 **Status:** implemented (squash-merged into main via PR #7, commit `9e813d2`)
 
 ## 合并说明

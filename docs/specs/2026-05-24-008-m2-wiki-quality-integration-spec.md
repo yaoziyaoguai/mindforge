@@ -3,7 +3,7 @@ title: MindForge v0.3 M2 — Wiki Quality Integration Spec
 type: feat
 status: spec
 date: 2026-05-24
-roadmap: V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP
+roadmap: V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP (removed 2026-05-27)
 ---
 
 # M2: Wiki Quality Integration

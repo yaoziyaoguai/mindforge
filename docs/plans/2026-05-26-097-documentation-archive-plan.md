@@ -72,8 +72,8 @@ docs/
 
 这些文件描述的是已完全被取代的产品方向：
 
-- `docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md` — 早期 dogfood 准备计划
-- `docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md` — 早期真实 LLM dogfood 计划
+- ~~`docs/plans/2026-05-21-001-feat-dogfood-readiness-plan.md`~~ — 已删除（docs cleanup batch 1, 2026-05-27）
+- ~~`docs/plans/2026-05-22-001-feat-real-llm-dogfood-plan.md`~~ — 已删除（docs cleanup batch 1, 2026-05-27）
 - `docs/plans/2026-05-22-002-feat-web-ux-improvement-plan.md` — v0.x Web UX 改进计划
 - `docs/plans/2026-05-24-003-feat-web-polish-planning-review.md` — v0.x Web 打磨
 - `docs/plans/2026-05-24-004-v0_3-wrapup-v0_4-planning-review.md` — v0.3→v0.4 过渡
@@ -97,11 +97,11 @@ docs/
 
 ### Priority 4: 早期设计文档
 
-- `docs/design/roadmap/V0_2_ROADMAP.md`
-- `docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md`
-- `docs/design/sdd/` 下 4 个 SDD 文档
+- ~~`docs/design/roadmap/V0_2_ROADMAP.md`~~ — 已删除（docs cleanup batch 1, 2026-05-27）
+- ~~`docs/design/roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md`~~ — 已删除（docs cleanup batch 1, 2026-05-27）
+- `docs/design/sdd/` 下剩余 SDD 文档（SDD_KNOWLEDGE_QUALITY 已删除）
 - `docs/design/rfc/` 下 4 个 RFC 文档
-- `docs/design/tdd/TDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md`
+- ~~`docs/design/tdd/TDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md`~~ — 已删除（docs cleanup batch 1, 2026-05-27）
 
 ---
 

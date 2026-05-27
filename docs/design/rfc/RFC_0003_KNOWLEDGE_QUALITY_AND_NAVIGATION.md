@@ -3,7 +3,7 @@
 > **Status**: Draft
 > **Date**: 2026-05-17
 > **Author**: MindForge Team
-> **Related**: [V0_3_ROADMAP.md](../roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md), [SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md](../sdd/SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md)
+> **Related**: ~~V0_3_ROADMAP.md~~ (removed 2026-05-27), ~~SDD_KNOWLEDGE_QUALITY_AND_NAVIGATION.md~~ (removed 2026-05-27)
 
 ---
 
@@ -230,7 +230,7 @@ MindForge v0.2 的知识库是一个"黑盒生成器"：用户扔 source 进去�
 
 ## 11. References
 
-- [V0.3 Roadmap](../roadmap/V0_3_KNOWLEDGE_QUALITY_AND_NAVIGATION_ROADMAP.md)
-- [V0.2 Development Rules](../../internal/V0_2_DEVELOPMENT_RULES.md)
+- ~~V0.3 Roadmap~~ — removed 2026-05-27 (docs cleanup batch 1)
+- ~~V0.2 Development Rules~~ — removed 2026-05-27 (docs cleanup batch 1)
 - [SDD Wiki Web Presentation Addendum](../sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md)
 - [Product Contracts](../../internal/product-contracts.md)
