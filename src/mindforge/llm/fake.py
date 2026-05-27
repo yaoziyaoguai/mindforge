@@ -26,40 +26,52 @@ def _digest(prompt: str, length: int = 6) -> str:
     return hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:length]
 
 
-def _extract_keywords(title: str, max_keywords: int = 8) -> list[str]:
-    """从 title 中提取有意义的关键词作为 fake tags/summary 的素材。
+# 停用词集合 — 对 ASCII 关键词和 CJK bigram 都做过滤
+_STOP_WORDS = {
+    "the", "and", "for", "with", "this", "that", "from", "are", "was",
+    "not", "you", "all", "can", "has", "had", "its", "use",
+}
+# CJK bigram 停用词 — 高频但无语义的 2-gram，不应作为检索关键词
+_CJK_STOP_BIGRAMS = {
+    "这是", "一个", "可以", "我们", "他们", "不是", "什么", "怎么",
+    "如何", "这个", "那个", "其中", "所有", "每个", "任何", "其他",
+    "对于", "关于", "以及", "或者", "但是", "因为", "所以", "因此",
+    "如果", "虽然", "而且", "然后", "之后", "之前", "已经", "还有",
+    "没有", "是否", "需要", "应该", "可能", "能够", "不能", "不会",
+    "进行", "使用", "通过", "根据", "作为", "主要", "一些", "一种",
+    "不同", "一样", "包括", "这些", "那些", "问题", "情况", "方式",
+    "部分", "内容", "结果", "过程", "其中", "非常", "比较",
+}
 
-    中文学习型说明：fake provider 的 distill 输出被 BM25 索引用于召回。
-    如果所有 body 字段都是 ``[fake]`` 占位符，BM25 只靠 title 匹配，
-    recall hit rate 会很低。这个函数从 title 中提取真实关键词注入到
-    tags 和 summary bullets 中，让 fake dogfood 的 recall 更接近真实场景。
 
-    规则（确定性、零网络、零 LLM）：
+def _extract_keywords_from_text(
+    text: str, max_keywords: int = 8, *, source_label: str = ""
+) -> list[str]:
+    """从任意文本中提取关键词（确定性、零网络、零 LLM）。
+
+    中文学习型说明：这是 ``_extract_keywords(title)`` 的通用版本，
+    对 title 和 raw_text 都适用。提取规则完全一致：
     - ASCII 单词（>=3 字符，非停用词）→ lowercase keywords
-    - CJK 连续片段 → 按 2-gram 切分作为关键词
+    - CJK 连续片段 → 按 2-gram 切分，过滤无语义高频 bigram
     - 去重，限制数量
     """
-    if not title:
-        return ["fake"]
+    if not text:
+        return []
 
     keywords: list[str] = []
     # ASCII words >= 3 chars, filtered for common stop words
-    ascii_words = re.findall(r"[A-Za-z]{3,}", title)
-    STOP = {
-        "the", "and", "for", "with", "this", "that", "from", "are", "was",
-        "not", "you", "all", "can", "has", "had", "its", "use",
-    }
+    ascii_words = re.findall(r"[A-Za-z]{3,}", text)
     for w in ascii_words:
         low = w.lower()
-        if low not in STOP:
+        if low not in _STOP_WORDS:
             keywords.append(low)
 
-    # CJK bigrams as keywords
-    cjk_chars = re.findall(r"[一-鿿぀-ゟ゠-ヿ가-힯]+", title)
+    # CJK bigrams as keywords, filtered for non-semantic high-frequency bigrams
+    cjk_chars = re.findall(r"[一-鿿぀-ゟ゠-ヿ가-힯]+", text)
     for segment in cjk_chars:
         for i in range(0, len(segment) - 1, 2):
             bigram = segment[i:i + 2]
-            if len(bigram) == 2:
+            if len(bigram) == 2 and bigram not in _CJK_STOP_BIGRAMS:
                 keywords.append(bigram)
 
     # Deduplicate preserving order
@@ -70,10 +82,30 @@ def _extract_keywords(title: str, max_keywords: int = 8) -> list[str]:
             seen.add(kw.lower())
             deduped.append(kw)
 
-    if not deduped:
+    return deduped[:max_keywords]
+
+
+def _extract_keywords(title: str, max_keywords: int = 8) -> list[str]:
+    """从 title 中提取有意义的关键词作为 fake tags/summary 的素材。
+
+    中文学习型说明：fake provider 的 distill 输出被 BM25 索引用于召回。
+    如果所有 body 字段都是 ``[fake]`` 占位符，BM25 只靠 title 匹配，
+    recall hit rate 会很低。这个函数从 title 和 prompt 中的 raw_text
+    提取真实关键词注入到 tags 和 summary bullets 中，让 fake dogfood
+    的 recall 更接近真实场景。
+
+    规则（确定性、零网络、零 LLM）：
+    - ASCII 单词（>=3 字符，非停用词）→ lowercase keywords
+    - CJK 连续片段 → 按 2-gram 切分作为关键词，过滤无语义高频 bigram
+    - 去重，限制数量
+    """
+    if not title:
         return ["fake"]
 
-    return deduped[:max_keywords]
+    result = _extract_keywords_from_text(title, max_keywords, source_label="title")
+    if not result:
+        return ["fake"]
+    return result
 
 
 def _extract_var(prompt: str, name: str) -> str | None:
@@ -131,7 +163,25 @@ class FakeProvider(LLMProvider):
             }
         elif stage == "distill":
             slug = re.sub(r"[^a-z0-9-]+", "-", title.lower()).strip("-") or f"fake-{digest}"
-            keywords = _extract_keywords(title)
+            # 从 title 提取关键词（优先级更高，排在前面）
+            title_keywords = _extract_keywords(title)
+            # 从 prompt 全文提取关键词 — prompt 中包含 raw_text（真实原文
+            # 最多 12000 字符），这比 title 提供更丰富的检索素材。
+            # 中文说明：fake provider 的 distill output 会被 BM25 索引，
+            # 如果只有 title 关键词，recall hit rate 极低（~33%）。
+            # prompt 中已包含完整原文 raw_text，从这里提取关键词
+            # 不需要 LLM、不需要网络、不需要 secrets。
+            prompt_keywords = _extract_keywords_from_text(
+                request.prompt, max_keywords=20, source_label="prompt"
+            )
+            # 合并：title 关键词优先 + prompt 中不在 title 里的补充关键词
+            title_lower = {k.lower() for k in title_keywords}
+            combined = list(title_keywords)
+            for kw in prompt_keywords:
+                if kw.lower() not in title_lower:
+                    combined.append(kw)
+                    title_lower.add(kw.lower())
+            keywords = combined[:15] if len(combined) >= 15 else combined
             payload = {
                 "title": title[:80],
                 "slug": slug[:60],

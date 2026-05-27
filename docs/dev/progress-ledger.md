@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Product Main Path Real Dogfood — FakeProvider Keyword Extraction Improvement
+
+- **Commit**: `20a3038` → (pending)
+- **Workstream**: Product Main Path Real Dogfood
+- **Task type**: dogfood
+- **Outcome**: FakeProvider distill keyword extraction 从 title-only 改进为 title + prompt raw_text（最多 12000 chars 真实原文）。English recall hit rate 从 ~40% 提升到 91.7% (11/12)。Full pipeline (scan→process→approve→library→recall→wiki) 全部通过。Chinese recall 0% 因为 source docs 全是英文 — 这是 source material limitation，非 bug。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-119-fake-provider-keyword-extraction-improvement.md`
+- **Gates**: `git diff --check` (0), `ruff check src/ tests/ docs/` (0), `pytest tests/test_web_product_copy.py -q` (0), `pytest tests/ -q` (0), `npm --prefix web run build` (0)
+- **Next**: 审计推荐的下一个 loop 是 Web IA/UX Loop 2 或 Architecture Quality Reset；Batch 2 仍暂停（archive/delete rules 不详）
+- **Workstream changed**: no (Product Main Path Real Dogfood 本 loop 完结)
+
 ### 2026-05-27: Post-Governance Global Red Team Audit
 
 - **Commit**: `7312245` → this audit commit

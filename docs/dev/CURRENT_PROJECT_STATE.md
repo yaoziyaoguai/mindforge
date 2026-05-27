@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-27
+更新日期: 2026-05-27 (Product Main Path Real Dogfood completed)
 
 ---
 
@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| 审计基线 HEAD | `7312245` |
+| 审计基线 HEAD | `20a3038` (已包含 post-governance audit) |
 | 分支 | `main` |
 | 审计前工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
@@ -162,11 +162,11 @@ Source / Import
 
 按推荐顺序:
 
-1. **Product Main Path Real Dogfood** — 使用安全、隔离、可复现的数据跑通 Source/Import → ai_draft → Review → explicit approval → human_approved → Library → Recall/Wiki → Export；默认 fake/local，不默认调用真实 LLM
-2. **Web IA/UX Loop 2** — 修复 Dogfood 主导航暴露、Export 文档/文案漂移、LocalGraphPreview/Dogfood/Graph 内部术语、Setup cognitive load，并补 fresh browser evidence
-3. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`，但应由 dogfood 证据排序
+1. **Web IA/UX Loop 2** — 修复 Dogfood 主导航暴露、Export 文档/文案漂移、LocalGraphPreview/Dogfood/Graph 内部术语、Setup cognitive load，并补 fresh browser evidence（审计 P1-01, P1-02）
+2. **Targeted Architecture Quality Reset** — 继续收敛 `web_facade.py`、facade helper 反向依赖、schema `__init__.py`、`web_config_service.py`（审计 P1-03）
+3. **Product Main Path Real Dogfood (completed 2026-05-27)** — FakeProvider keyword extraction 改进完成，English recall 91.7% ✅
 4. **Documentation Reset Batch 2** — 暂停自由推进；只有在 exact archive/delete rules 明确后才能执行
-5. **Recall/Search Quality Lab** — 基于真实 dogfood 暴露的召回失败再进入调参
+5. **Recall/Search Quality Lab** — 基于 dogfood 暴露的 recall 特征再进入调参
 
 ---
 
