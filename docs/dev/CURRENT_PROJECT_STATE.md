@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `56d4c0d` (U6 Manual Card Linking)，U7/U8 tests + i18n 即将 commit |
+| 当前 HEAD | `cffc661` (Direction C reconciliation + A+C+F 全部完成) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -26,16 +26,18 @@
 
 最近关键 commits:
 ```
+cffc661 docs: reconcile Direction C completion — ledger + CPS truth sync
+03bf177 docs: fix Direction C plan path in CPS AUTOPILOT-QUEUE
+e0fe90a docs: update progress-ledger for U7/U8 — Direction F workstream complete
+1e5dda9 test: U7 Tests + U8 i18n — Direction F 测试覆盖 + 国际化验证
+56d4c0d feat: U6 Manual Card Linking — link_cards backend + frontmatter writing + CardWorkspace link UI
+5544a92 feat: U5 Bulk Maintenance — YAML frontmatter batch update + BulkActions component
+43c690d feat: U3 Collections Backend — CollectionStore + API endpoints
+2d9a271 feat: U5 Web RecallPage explain panel — BM25 边界说明 + 命中字段/匹配词展示
+78fc4c7 feat: U3+U4 BM25 tuning config + recall quality gate script
+4332e66 feat: U2 query explain — explain_zero_hits + explain_hits + QueryExplain dataclass
+de077df feat: U1 golden recall benchmark — 12 cards + 14 golden queries + 4 negative queries
 aef49df chore: update progress-ledger commit hash for product innovation review
-94328a3 docs: review MindForge product innovation opportunities
-f263287 chore: add recursive remediation, mandatory skill gates, and skill framework routing to mf-autopilot
-e6f6d09 chore: update progress-ledger and CPS for Dogfood v3 light smoke + ITEM-3 governance completion
-f5a1136 chore: finalize governance truth drift fix — ITEM-3 complete, set AUTOPILOT-QUEUE for Dogfood v3
-9be6e5c fix: Web Product UX Deepening Loop 1 — Export breadcrumb + SafetyBar demo status
-87453f0 fix: auto-fallback to fake provider when no real models configured
-256f5be feat: Product Main Path Real Dogfood v2 — browser UX walkthrough + governance truth sync
-4ef9ed2 docs: add Codex independent strategic red team audit
-e6dbe9b fix: close AUDIT-118 P1 product debt — Export docs, Dogfood nav, HANDOFF semantics, browser smoke
 ```
 
 ---
