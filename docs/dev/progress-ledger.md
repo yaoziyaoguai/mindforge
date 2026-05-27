@@ -26,6 +26,24 @@
 - **Next**: AUTOPILOT-QUEUE-ITEM-1 (fix P1 pipeline blocker — demo 模式零配置)
 - **Workstream changed**: yes (Product Main Path Real Dogfood v2 → Product Strategy Audit)
 
+### 2026-05-28: P1 Pipeline Blocker Fix Verified + Governance Truth Sync + AUTOPILOT-QUEUE Advanced
+
+- **Commit**: `aef49df` → `<pending>`
+- **Workstream**: Product Main Path P1 Pipeline Blocker Fix (verification) + Governance Truth Sync
+- **Task type**: bug_fix (verification) + docs_cleanup (truth sync)
+- **Outcome**: P1 auto-fallback 修复 (`87453f0`) 已验证 — 全量 gate 通过 (pytest 100%, npm build 0, ruff 0)，11 个 auto-fallback 测试全部通过。CPS truth sync: PROD-01 → resolved，HEAD → `aef49df`，AUTOPILOT-QUEUE ITEM-1 → done，ITEM-2 (Guided Onboarding) 成为 next active。推荐优先顺序更新为产品创新审计三级 bet 体系。
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md`
+- **Gates**: `git diff --check` (0), `ruff check src/ tests/` (0), `python -m pytest tests/` (0, 100%), `npm --prefix web run build` (0)
+- **Review result**: PASS
+- **Gate result**: PASS
+- **Failure class**: none (was docs_truth_failure — resolved via truth sync)
+- **Remediation action**: governance truth sync — updated CPS HEAD, PROD-01 status, AUTOPILOT-QUEUE, 推荐顺序
+- **Skill frameworks checked**: none required (§14.5: bug_fix + docs_cleanup is direct mf-autopilot path)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: HARD_STOP_PRODUCT_DECISION (ITEM-2 requires /brainstorming + user validation, hard_stop_required=true)
+- **Next**: AUTOPILOT-QUEUE-ITEM-2 (Guided Onboarding Design — 需 /brainstorming)
+- **Workstream changed**: yes (AUTOPILOT-QUEUE advanced from ITEM-1 → ITEM-2)
+
 ### 2026-05-27: Autopilot Governance Upgrade — Recursive Remediation + Mandatory Skill Gates + Skill Framework Routing
 
 - **Commit**: `e6f6d09` → `<pending>`

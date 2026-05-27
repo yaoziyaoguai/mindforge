@@ -2,7 +2,7 @@
 
 **这是 MindForge 项目所有 agent 的第一入口。** 每次 `/mf-autopilot` 运行必须先读取本文档。
 
-更新日期: 2026-05-28 (v4.0 — 产品创新审计完成，方向重组，AUTOPILOT-QUEUE 重排)
+更新日期: 2026-05-28 (v4.1 — P1 pipeline blocker 修复已验证 + AUTOPILOT-QUEUE 推进至 Guided Onboarding)
 
 ---
 
@@ -10,43 +10,31 @@
 
 | 字段 | 值 |
 |------|-----|
-| 日期 | 2026-05-27 |
-| 当前 HEAD | `e6f6d09` (治理 ITEM-3 完成 + AUTOPILOT-QUEUE 重置，Codex audit 三项全部完成) |
+| 日期 | 2026-05-28 |
+| 当前 HEAD | `aef49df` (P1 修复验证完成 + governance truth sync，AUTOPILOT-QUEUE 推进至 Guided Onboarding) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 | 最新全局审计 | `docs/audits/2026-05-27-118-post-governance-global-red-team-audit.md` |
 | 最新 Web IA/UX 审计 | `docs/audits/2026-05-27-120-web-ia-ux-loop-2-audit.md` |
-| 最新 autopilot governance | `docs/implementation-notes/2026-05-27-121-mf-autopilot-auto-continue-policy.md` |
-| 最新 architecture reset notes | `docs/implementation-notes/2026-05-27-123-architecture-quality-reset-plan-slice-0.md` |
-| 最新 v3.7 Quality Platform notes | `docs/implementation-notes/2026-05-27-127-v3.7-quality-platform.md` |
-| 最新 dogfood v2 notes | `docs/implementation-notes/2026-05-27-135-product-main-path-real-dogfood-v2.md` |
+| 最新 autopilot governance | `docs/implementation-notes/2026-05-27-139-mf-autopilot-skill-framework-routing.md` |
 | 最新 P1 修复 notes | `docs/implementation-notes/2026-05-27-136-p1-pipeline-blocker-auto-fallback-fake.md` |
-| 最新 Web UX Deepening notes | `docs/implementation-notes/2026-05-27-137-web-product-ux-deepening-loop-1.md` |
+| 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新产品创新审计 | `docs/product/2026-05-28-001-mindforge-product-innovation-review.md` |
 
 最近关键 commits:
 ```
-8eb3fd4 test: add Slice 0 architecture boundary tests for targeted quality reset
-1b39edb chore: finalize HANDOFF.md with accurate repo snapshot
-56b3d23 chore: harden mf-autopilot auto-continue policy
-3c829da chore: update implementation notes with final commit hash
-6145b72 fix: reduce post-dogfood web IA debt
-97d57fb feat: improve FakeProvider keyword extraction — title + raw_text
-7312245 docs: update commit hash in state/ledger after residual refs cleanup
-ac6aa47 docs: clean residual references after docs batch 1
-49c138c docs: update commit hash references post batch 1
-fcb96c7 docs: remove stale documentation batch 1
-64d7a52 chore: harden mf-autopilot loop governance
-0248755 docs: add canonical project state, progress ledger, and task-type-aware autopilot
-6f5db2c docs: add export page MVP implementation notes
-fb87ce0 feat: add safe export page MVP with preview, download, and safety notice
-9eb4108 docs: specify export page product direction + backend copy sanitization notes
-7bb4a76 fix: sanitize backend generated web copy — health/wiki labels → Chinese
-a1556f9 docs: Web IA simplification implementation notes
-f0427e7 fix: Web IA simplification — hide internal labels, format timestamps, replace BM25 jargon
-54110d4 fix: map internal enum labels to user-friendly display values
+aef49df chore: update progress-ledger commit hash for product innovation review
+94328a3 docs: review MindForge product innovation opportunities
+f263287 chore: add recursive remediation, mandatory skill gates, and skill framework routing to mf-autopilot
+e6f6d09 chore: update progress-ledger and CPS for Dogfood v3 light smoke + ITEM-3 governance completion
+f5a1136 chore: finalize governance truth drift fix — ITEM-3 complete, set AUTOPILOT-QUEUE for Dogfood v3
+9be6e5c fix: Web Product UX Deepening Loop 1 — Export breadcrumb + SafetyBar demo status
+87453f0 fix: auto-fallback to fake provider when no real models configured
+256f5be feat: Product Main Path Real Dogfood v2 — browser UX walkthrough + governance truth sync
+4ef9ed2 docs: add Codex independent strategic red team audit
+e6dbe9b fix: close AUDIT-118 P1 product debt — Export docs, Dogfood nav, HANDOFF semantics, browser smoke
 ```
 
 ---
@@ -168,7 +156,7 @@ Source / Import
 | DOC-01 | P3 | 无英文 docs/README.md 翻译 | resolved (v3.7): docs/README-en.md 已创建 |
 | DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | resolved (v3.7): design/README.md + obsidian-binding-design.md 状态标注 |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
-| PROD-01 | P1 | demo/fake 模式下管道仍要求显式模型配置，用户无法完成首次主路径循环 | open — 已列入 AUTOPILOT-QUEUE-ITEM-1 |
+| PROD-01 | P1 | demo/fake 模式下管道仍要求显式模型配置，用户无法完成首次主路径循环 | resolved (`87453f0`): CLI `apply_provider_selection()` + Web `_ensure_processing_model_configured()` 两处 auto-fallback 注入，11 个测试验证 |
 
 质量债台账完整记录: [`docs/dev/quality-debt-ledger.md`](quality-debt-ledger.md)
 文档债台账完整记录: [`docs/dev/documentation-debt-ledger.md`](documentation-debt-ledger.md)
@@ -178,20 +166,21 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: fix_p1_pipeline_blocker -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: bug_fix -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: guided_onboarding_design -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: feature_implementation -->
 <!-- AUTOPILOT-QUEUE-ITEM-1:
 workstream=Product Main Path P1 Pipeline Blocker Fix
 task_type=bug_fix
-current_node=pending
-next_action=auto_configure_fake_provider_when_no_real_model_in_demo_mode
+current_node=done
+next_action=N/A
 required_skill=none
 frameworks_checked=product_strategy_audit_2026-05-28
 review_node=browser_mcp_smoke
-failure_class=pipeline_blocker
-remediation_target=zero_config_demo_experience
+failure_class=none
+remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
+status=resolved (commit 87453f0, verified gates all pass 2026-05-28)
 -->
 <!-- AUTOPILOT-QUEUE-ITEM-2:
 workstream=Guided Onboarding Design
@@ -219,15 +208,16 @@ failure_class=none
 remediation_target=none
 auto_continue_allowed=false
 hard_stop_required=true
-hard_stop_reason=requires_go_no_go_product_decision
+hard_stop_reason=requires_5_real_non_technical_users
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 
-Codex 独立红队审计 (HEAD `4ef9ed2`) 推荐优先顺序:
+产品创新审计 (HEAD `aef49df`) 推荐优先顺序:
 
-1. **Product Main Path Real Dogfood v2** — 完整主路径 browser-level dogfood，记录 UX 摩擦
-2. **Web Product UX Deepening** — 基于 dogfood 发现的摩擦进行 IA/UX 修复
-3. Targeted Architecture Quality Reset — 仅在 dogfood/UX 暴露真实痛点后执行
+1. **Direction A: Product Main Path Deepening** (主 bet, 7.6/10) — P1 pipeline blocker 已 resolved，下一步 Guided Onboarding Design (需 /brainstorming)
+2. **Direction F: Structured Knowledge Workbench** (次 bet, 6.9/10) — Library 成为真正知识工作区
+3. **Direction C: Recall/Search Quality Lab** (第三 bet, 7.1/10) — 建立检索质量测量体系
+4. Direction D (Real LLM)、Direction E (Collaboration)、Graph/Sensemaking 扩张 — 冻结
 
 ---
 
