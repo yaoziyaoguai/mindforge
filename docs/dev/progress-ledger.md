@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Web Product UX Deepening — Loop 1 (P2 Export breadcrumb + SafetyBar demo status)
+
+- **Commit**: `3c214f6` → (pending)
+- **Workstream**: Web Product UX Deepening
+- **Task type**: ui_ux_polish
+- **Outcome**: 修复 2 项 Dogfood v2 发现的 P2 UX 摩擦 — Export breadcrumb "export" → "导出知识" (Breadcrumb.tsx + routeLabels)，SafetyBar 模型状态 "待检查" → "本地模拟" (model_setup_readiness.py demo mode + SafetyBar.tsx "demo" handling + i18n keys)。同时修复 ruff F541 (test_watch_schedule_baseline.py)。
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-137-web-product-ux-deepening-loop-1.md`
+- **Gates**: `git diff --check` (0), `npm run build` (0), `npx vitest run` (0, 50 passed/6 files), `pytest tests/` (0, 100%), `pytest tests/test_web_product_copy.py` (0, 100%), `ruff check` (0)
+- **Next**: 继续 AUTOPILOT-QUEUE ITEM-1 (Web Product UX Deepening) 剩馀 P3 项，或 ADVANCE to ITEM-2 (Targeted Architecture Quality Reset)
+- **Workstream changed**: no
+
 ### 2026-05-27: P1 管道阻塞修复 — demo/fake 模式自动回退
 
 - **Commit**: `256f5be` → `87453f0`

@@ -18,8 +18,8 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
           {safety.local_only ? t("safety.local_only") : t("safety.host_warning")}
         </span>
         <span className="text-muted">Vault: {truncateMiddle(safety.vault_path, 58)}</span>
-        <span className={safety.provider_state === "ready" ? "text-safe" : "text-warn"}>
-          {t("safety.model_setup")}{safety.provider_state === "ready" ? t("safety.model_ready") : t("safety.model_check")}
+        <span className={safety.provider_state === "ready" ? "text-safe" : safety.provider_state === "demo" ? "text-safe" : "text-warn"}>
+          {t("safety.model_setup")}{safety.provider_state === "ready" ? t("safety.model_ready") : safety.provider_state === "demo" ? t("safety.model_demo") : t("safety.model_check")}
         </span>
         <span className="inline-flex items-center gap-1 text-warn">
           <Lock className="h-4 w-4" aria-hidden="true" />

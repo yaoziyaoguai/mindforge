@@ -38,7 +38,10 @@ def model_setup_readiness(cfg: MindForgeConfig) -> ModelSetupReadiness:
     """
 
     if not cfg.llm.models:
-        return ModelSetupReadiness("needs_setup", "needs setup", 0, ())
+        # 中文学习型说明：P1 修复后，无模型配置时自动回退至 fake provider。
+        # 处理管道可以正常运行，不需要用户配置真实模型。
+        # 这里返回 "demo" 状态，告知 UI/CLI "本地模拟模式已就绪" 而非 "需要配置"。
+        return ModelSetupReadiness("demo", "安全模式：本地模拟", 0, ())
     model_ids = _required_model_ids(cfg)
     if not model_ids:
         return ModelSetupReadiness("needs_setup", "needs setup", len(cfg.llm.models), ())

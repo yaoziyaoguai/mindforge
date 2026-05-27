@@ -603,7 +603,7 @@ def test_unchanged_unprocessed_file_retried_after_model_fix(
     _wait_for_watch_add_run(cfg, added_no_model.output)
     # v0.7 P1 fix: 无模型自动回退 fake → 第一次 run 即可成功生成 draft
     assert len(_cards(vault)) > 0, (
-        f"auto-fallback 应生成 ai_draft，但 20-Knowledge-Cards 为空。\n"
+        "auto-fallback 应生成 ai_draft，但 20-Knowledge-Cards 为空。\n"
     )
     reg_after_first = _registry(vault)
     assert reg_after_first.sources[0].last_processed_at is not None

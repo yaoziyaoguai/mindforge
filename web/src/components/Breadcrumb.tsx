@@ -16,6 +16,7 @@ const routeLabels: Record<string, string> = {
   "/dogfood": "nav.dogfood",
   "/graph": "nav.graph",
   "/sensemaking": "nav.sensemaking",
+  "/export": "nav.export",
 };
 
 export function Breadcrumb({ path }: { path: string }) {
