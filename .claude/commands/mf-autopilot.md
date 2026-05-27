@@ -76,6 +76,19 @@ git log --oneline -20
 - 只能 `git pull --ff-only origin main`
 - 不能 merge commit，不能 rebase，不能 `git reset --hard`
 
+### 1.1 Stale Window / Old Commit Reconciliation
+
+用户或系统可能在终端中提到另一个窗口的 commit（例如旧分叉窗口的 `7f28d54 upstream 0 1 push failed`）。这些信息**不得直接当作当前主线事实**。
+
+必须遵守以下规则：
+
+1. **以当前 repo 证据为唯一真理来源。** 旧窗口/旧会话的 commit hash 必须用 `git log --all`、`git branch -a`、实际文件系统（`rg`/`ls`）重新验证。
+2. **不得 cherry-pick 不可见 commit。** 如果 `git log --all` 中找不到该 hash，当作不存在处理。
+3. **不得修改 remote / proxy / global git config。** 只使用当前 repo 已配置的 remote。
+4. **如果旧 commit 内容缺失但仍有价值**，必须基于当前 repo evidence 重新创建，而不是依赖旧窗口的记忆。
+5. **如果当前主线已覆盖旧内容**（通过正常 git history 追溯确认），记录为 `superseded/absorbed`，不重复创建。
+6. **如果用户提供旧窗口的文件路径或内容**，验证后可以采纳为参考，但实现仍必须基于 `HEAD` 的 code truth。
+
 ---
 
 ## 2. 读取工程宪法和状态
@@ -84,14 +97,15 @@ git log --oneline -20
 
 1. **`docs/dev/CURRENT_PROJECT_STATE.md`** — 项目当前状态（第一入口）
 2. **`docs/dev/progress-ledger.md`** — 进度跟踪
-3. **`docs/dev/engineering-workflow.md`** — 工程工作流规范
-4. `docs/design/roadmap/` 下最新 roadmap 文件（如需）
-5. `docs/plans/` 下最新 active plan 文件（如需）
-6. `docs/specs/` 下最近最新的 spec 文件（如需）
-7. `docs/implementation-notes/` 下最新的 notes / handoff 文件（如需）
-8. `docs/dev/copy-policy.md`（如需）
+3. **`docs/dev/HANDOFF.md`** — 如果存在，读取上一次的 handoff 上下文
+4. **`docs/dev/engineering-workflow.md`** — 工程工作流规范
+5. `docs/design/roadmap/` 下最新 roadmap 文件（如需）
+6. `docs/plans/` 下最新 active plan 文件（如需）
+7. `docs/specs/` 下最近最新的 spec 文件（如需）
+8. `docs/implementation-notes/` 下最新的 notes / handoff 文件（如需）
+9. `docs/dev/copy-policy.md`（如需）
 
-前 3 个文件是所有 task type 的必读项。剩余文件按 task type 按需读取。
+前 3-4 个文件是所有 task type 的必读项。剩余文件按 task type 按需读取。
 
 ---
 
@@ -226,19 +240,48 @@ spec / plan
 3. 判断是否存在 hard-stop
 4. 如无 hard-stop，继续下一轮
 
-### 5.2 Progress update rule
+### 5.2 Progress update template
 
-每个 loop 结束必须更新：
+每个 loop 结束必须更新 progress-ledger.md，使用以下固定模板：
 
-| 文件 | 何时更新 |
-|------|---------|
-| `docs/dev/progress-ledger.md` | **always** — 每次 loop 结束 |
-| `docs/dev/CURRENT_PROJECT_STATE.md` | 当项目状态发生变化时（新功能完成、HEAD 变动、能力变更、债务变化） |
-| `docs/implementation-notes/` | 当 code/docs 有实质改动时 |
+```markdown
+### YYYY-MM-DD: <简短标题>
 
-即使是 minor bug fix loop，也至少在 progress-ledger.md 追加一行。
+- **Commit**: `<hash>` 或 `<start-hash>` → `<end-hash>`
+- **Workstream**: <active workstream name>
+- **Task type**: <bug_fix | docs_cleanup | ui_ux_polish | architecture_refactor | feature_implementation | audit_only | dogfood | design_review>
+- **Outcome**: <1-2 句话描述结果>
+- **Docs/notes**: <新建的 docs/implementation-notes 路径>
+- **Gates**: <gate 命令 + exit codes>
+- **Next**: <推荐的 next loop>
+- **Workstream changed**: yes / no
+```
 
-### 5.3 Stop reason must be explicit
+Minor bug fix 至少追加一行：
+```markdown
+- YYYY-MM-DD: <描述> (`<hash>`)
+```
+
+同时检查 `CURRENT_PROJECT_STATE.md`：
+- HEAD 是否已更新
+- §3 (capabilities) 是否有变化
+- §5 (open debts) 是否有变化
+- §6 (next loops) 是否需要调整
+
+### 5.3 Active Workstream / Loop Queue Rules
+
+**每次 `/mf-autopilot` 运行必须识别当前 active workstream：**
+
+1. **读取 `CURRENT_PROJECT_STATE.md` §6** 和 **`progress-ledger.md` §2**，交叉验证 active workstream。
+2. **如果两处不一致** — 以 `CURRENT_PROJECT_STATE.md` 为准，并立即更新 `progress-ledger.md` §2 使其一致。
+3. **默认只能有一个 active workstream。** 如果有多个候选，按 priority 选择第一个，其余保持 pending。不得同时展开多个 active workstream。
+4. **如果用户明确切换方向**（例如 "现在不要做 docs cleanup，做 autopilot 升级"）— 必须更新:
+   - `CURRENT_PROJECT_STATE.md` §6（推荐 next loops 排序）
+   - `progress-ledger.md` §2（active workstream）
+5. **commit/push 不是切换 workstream 的触发条件** — 切换 workstream 需要用户明确指令或前一个 workstream 全部完成（所有 batch 都 done + 无 remaining debt）。
+6. **如果 workstream 完成并切换** — 在 progress-ledger §2 标记旧 workstream 为 done，记录新 workstream。
+
+### 5.4 Stop reason must be explicit
 
 如果 Autopilot 停止，必须输出以下其中一个 stop reason：
 
@@ -257,18 +300,72 @@ spec / plan
 
 如果以上无一适用，Autopilot 必须继续。
 
-### 5.4 Context policy
+### 5.5 Context policy
 
 根据 context 剩余比例决定行为：
 
 | Context | 行为 |
 |---------|------|
 | ≥ 15% | 正常执行，可开始新实现单元 |
-| < 15% | 不开始大型新实现单元（除非小且边界清晰） |
-| < 10% | 只完成当前单元、跑 gate、写 notes/handoff、commit/push |
+| < 15% | **不得开启新 loop。** 不开始大型新实现单元（除非小且边界清晰）。完成当前 loop 后写 handoff。 |
+| < 10% | 只完成当前变更、跑 minimal gates、commit/push。不得开启新工作。 |
 | < 5% | 立即写 handoff、跑最小 gate、commit/push、停止并输出 `HARD_STOP_CONTEXT_LOW_HANDOFF_WRITTEN` |
 
 不要仅因为 milestone 完成就停止。不要因为 context 低就停在口头报告——必须写 handoff 文档落地。
+
+### 5.6 Low-Context Handoff Protocol
+
+当 context 不可持续时（< 15%），handoff **必须落文档**，不只是终端报告。
+
+**Handoff 文件位置:** `docs/dev/HANDOFF.md`（固定位置，后续 session 的第一读取目标之一）。
+
+**HANDOFF.md 必须包含:**
+
+```markdown
+# Handoff — <date>
+
+## Repo Snapshot
+- HEAD: <hash>
+- Branch: main
+- Working tree: clean / dirty
+- vs origin/main: <left> <right>
+
+## Active Workstream
+- Workstream: <name>
+- Status: <in-progress / blocked / done>
+
+## Last Completed Loop
+- Task type: <type>
+- Outcome: <1 sentence>
+- Commit: <hash>
+
+## In-Progress Files
+- <file1> (staged / unstaged / pending)
+- <file2>
+
+## Gates Last Run
+- <command>: exit <N>
+
+## Next /mf-autopilot Instruction
+\`\`\`
+/mf-autopilot
+
+继续 <workstream>。
+上次在 <exact file> 完成了 <exact thing>。
+下一步: <concrete next action>。
+\`\`\`
+
+## Hard Stops / Warnings
+- <any active hard-stop conditions>
+- <context remaining estimate>
+```
+
+**Handoff 写入规则:**
+1. context < 15%: 完成当前 loop 后写 HANDOFF.md，commit/push。
+2. context < 10%: 完成当前变更后立即写 HANDOFF.md，不开始新的代码改动。
+3. context < 5%: 放弃当前变更（stash if needed），立即写 HANDOFF.md，commit/push。
+4. 新 session 启动时，`/mf-autopilot` 的 §2 必读文件列表包含 `docs/dev/HANDOFF.md`（如果存在）。
+5. 如果 HANDOFF.md 存在且新 loop 成功启动，新 loop 的 commit 应删除 HANDOFF.md（或标记为 resolved）。
 
 ---
 

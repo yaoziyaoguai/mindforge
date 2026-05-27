@@ -8,6 +8,17 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-27: Docs Reset & Governance — Loop 1 (canonical state + progress ledger)
+
+- **Commit**: `0248755`
+- **Workstream**: Documentation Reset & Project Governance
+- **Task type**: docs_cleanup
+- **Outcome**: 创建 CURRENT_PROJECT_STATE.md, progress-ledger.md, documentation-reset-plan.md；升级 mf-autopilot 为 task-type-aware；更新 docs/README.md
+- **Docs/notes**: `docs/implementation-notes/2026-05-27-114-docs-reset-governance-loop-1.md`
+- **Gates**: `git diff --check` (0), `ruff check docs/ .claude/commands/` (0), `pytest tests/test_web_product_copy.py -q` (0)
+- **Next**: mf-autopilot reliability upgrade (active workstream / stale window / progress template / handoff)
+- **Workstream changed**: no (continuing governance work)
+
 ### 2026-05-27: Export Page MVP
 
 - **Commit**: `fb87ce0` → `6f5db2c`
@@ -79,10 +90,11 @@
 
 ## 2. Active Workstream
 
-**当前 active workstream: Documentation Reset & Project Governance (2026-05-27)**
+**当前 active workstream: mf-autopilot Reliability Upgrade (2026-05-27)**
 
-- Loop 1 (done): canonical state + progress ledger + autopilot upgrade
-- Loop 2 (next): docs cleanup batch 1 — 删除 8 个 stale files (per `docs/dev/documentation-reset-plan.md`)
+- 本轮不是产品功能、UI polish、架构重构
+- 本轮是 `/mf-autopilot` 治理规则补强: active workstream rules, stale window rules, progress template, handoff protocol
+- 正在执行: 4 类优化 → gates → commit/push
 
 ---
 
@@ -95,10 +107,24 @@
 
 ## 4. How to Update This Ledger
 
-每个 `/mf-autopilot` loop 结束:
-1. 如果是 major loop (新功能/修复/重构): 在 §1 顶部添加记录 (date, commit, goal, outcome, docs, remaining debt)
-2. 如果是 minor fix: 在对应 major loop 下追加一行
-3. 更新 §2 Active Workstream (如有变化)
-4. 更新 §3 Next Recommended Loop
+每个 `/mf-autopilot` loop 结束，按以下模板在 §1 顶部添加记录:
+
+```markdown
+### YYYY-MM-DD: <简短标题>
+
+- **Commit**: `<hash>` 或 `<start-hash>` → `<end-hash>`
+- **Workstream**: <active workstream name>
+- **Task type**: <bug_fix | docs_cleanup | ui_ux_polish | architecture_refactor | feature_implementation | audit_only | dogfood | design_review>
+- **Outcome**: <1-2 句话描述结果>
+- **Docs/notes**: <新建的 docs/implementation-notes 路径>
+- **Gates**: <gate 命令 + exit codes>
+- **Next**: <推荐的 next loop>
+- **Workstream changed**: yes / no
+```
+
+Minor bug fix 至少追加一行:
+```markdown
+- YYYY-MM-DD: <描述> (`<hash>`)
+```
 
 **commit/push 不是间隔点** — 一个 major loop 可能包含多个 commit，合写在一条记录里。

@@ -11,13 +11,14 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-27 |
-| HEAD | `6f5db2c` |
+| HEAD | `0248755` |
 | 分支 | `main` |
 | 工作树 | clean |
 | vs origin/main | `0 0` (对齐) |
 
 最近关键 commits:
 ```
+0248755 docs: add canonical project state, progress ledger, and task-type-aware autopilot
 6f5db2c docs: add export page MVP implementation notes
 fb87ce0 feat: add safe export page MVP with preview, download, and safety notice
 9eb4108 docs: specify export page product direction + backend copy sanitization notes
@@ -150,8 +151,8 @@ Source / Import
 
 按推荐顺序:
 
-1. **Documentation cleanup batch** — 本轮 docs reset 的继续，清理 stale/superseded 文档
-2. **Web IA remaining P2 cleanup** — 如果还有 pending Web IA debt
+1. **mf-autopilot reliability upgrade** — [当前] 补齐 active workstream / stale window / progress template / handoff 治理规则
+2. **Documentation cleanup batch** — 清理 stale/superseded 文档（per `docs/dev/documentation-reset-plan.md`）
 3. **v3.7 Quality Platform** — P2-05 (前端测试) + P2-06 (覆盖率配置)
 4. **Recall/Search Quality Lab** — 基于已有 plan `docs/plans/2026-05-26-104-recall-search-quality-lab-plan.md`
 5. **Real dogfood** — 真实 LLM opt-in 验证 (`docs/real-llm-dogfood.md`)
@@ -178,3 +179,19 @@ Source / Import
 - 更新 implementation notes (if code/docs changed significantly)
 
 **Auto-continue:** spec/doc/gate/commit/push 都不是停止点。只有 HARD_STOP_* 条件触发停止。
+
+---
+
+## 8. Handoff Protocol
+
+当 context 不足（< 15%）时，必须在 `docs/dev/HANDOFF.md` 写入 handoff 文档。
+
+**HANDOFF.md 读取规则:**
+- 新 session 启动时，`/mf-autopilot` §2 必读文件包含 `docs/dev/HANDOFF.md`（如果存在）
+- 如果 HANDOFF.md 存在，其内容优先于 current next loops 建议
+- 如果 HANDOFF.md 中的 active workstream 与 progress-ledger.md 不一致，以 HANDOFF.md 为准（它是最新的 session 出口状态）
+
+**HANDOFF.md 生命周期:**
+- context < 15% 时写入
+- 新 session 成功启动新 loop 后，该 loop 的 commit 应删除或标记 resolved
+- 如果 HANDOFF.md 持续存在超过 2 个 loop 而未被处理，说明进度断裂，需要人工介入
