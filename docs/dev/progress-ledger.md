@@ -8,6 +8,24 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: U5 Bulk Maintenance — YAML frontmatter batch update + BulkActions + LibraryPage integration
+
+- **Commit**: `e0091d7` → `5544a92`
+- **Workstream**: Direction F: Structured Knowledge Workbench
+- **Task type**: feature_implementation
+- **Outcome**: U5 Bulk Maintenance 完成。新增 `bulk_update_cards()` 和 `_update_frontmatter_fields()` 后端服务（YAML frontmatter 原地修改保留 body），2 个 BulkUpdate Pydantic schemas，facade + API endpoint (`POST /api/library/bulk-update`)，BulkActions 前端组件（tag/track 批量输入 + Enter 提交），12 个 zh/en bulk i18n keys，LibraryPage 双模式 checkbox（export / bulk edit 切换），清理 card_workspace_service.py 中 2 个未使用 import。
+- **Docs/notes**: (spec 已由之前 loop 创建)
+- **Gates**: `ruff check src/ tests/` (0), `npm --prefix web run build` (0), `python -m pytest tests/test_web_product_copy.py -q` (0, 100%), `python -m pytest tests/test_collection_store.py tests/test_view_store.py -q` (0, 22/22), `git diff --check` (0)
+- **Review result**: PASS — U5 spec acceptance review, backend + frontend + integration
+- **Gate result**: PASS (5/5 gates, all exit 0)
+- **Failure class**: none
+- **Remediation action**: none
+- **Skill frameworks checked**: none required (direct mf-autopilot path for small implementation slice)
+- **Required skill invoked**: N/A
+- **Next ACTION token**: CONTINUE_NEXT_LOOP
+- **Next**: U6 Manual Card Linking
+- **Workstream changed**: no
+
 ### 2026-05-28: U4 Collections Frontend — CollectionPanel + i18n + API integration
 
 - **Commit**: `43c690d` → `e0091d7`
