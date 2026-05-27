@@ -24,6 +24,9 @@ from mindforge_web.schemas import (
     LibraryCardsResponse,
     LibraryStatsResponse,
     ProvenanceTrailResponse,
+    SavedViewResponse,
+    SavedViewsListResponse,
+    SaveViewRequest,
     WorkflowSummaryResponse,
 )
 from mindforge_web.services.web_facade import WebFacade
@@ -307,3 +310,27 @@ def create_sample_workspace(
     生成 6 张 MindForge 概念 demo 卡片。已存在则返回已有状态。
     """
     return facade.create_sample_workspace()
+
+
+# ── Saved Views ────────────────────────────────────────────────────────
+
+
+@router.get("/library/views", response_model=SavedViewsListResponse)
+def list_views(facade: WebFacade = Depends(get_facade)) -> SavedViewsListResponse:
+    return facade.list_views()
+
+
+@router.post("/library/views", response_model=SavedViewResponse)
+def save_view(
+    payload: SaveViewRequest,
+    facade: WebFacade = Depends(get_facade),
+) -> SavedViewResponse:
+    return facade.save_view(payload)
+
+
+@router.delete("/library/views/{view_id}")
+def delete_view(
+    view_id: str,
+    facade: WebFacade = Depends(get_facade),
+) -> dict:
+    return facade.delete_view(view_id)

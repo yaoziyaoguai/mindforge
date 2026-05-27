@@ -79,6 +79,9 @@ from mindforge_web.schemas import (
     WatchSourcesResponse,
     WorkspaceStatus,
     WorkflowSummaryResponse,
+    SavedViewResponse,
+    SavedViewsListResponse,
+    SaveViewRequest,
 )
 from mindforge_web.services.web_config_service import ConfigUpdateError, WebConfigService
 from mindforge_web.services.processing_run_service import get_processing_run, processing_run_response
@@ -920,6 +923,60 @@ class WebFacade:
             total_approved=approved,
             total_drafts=drafts,
         )
+
+    # ── Saved Views ─────────────────────────────────────────────────
+
+    def list_views(self) -> SavedViewsListResponse:
+        from mindforge.services.view_store import ViewStore
+
+        store = ViewStore(self.cfg.vault.root)
+        views = store.list_views()
+        return SavedViewsListResponse(
+            views=[
+                SavedViewResponse(
+                    id=v.id,
+                    name=v.name,
+                    status_filter=v.status_filter,
+                    track_filter=v.track_filter,
+                    source_type_filter=v.source_type_filter,
+                    quality_filter=v.quality_filter,
+                    sort_by=v.sort_by,
+                    created_at=v.created_at,
+                )
+                for v in views
+            ]
+        )
+
+    def save_view(self, payload: SaveViewRequest) -> SavedViewResponse:
+        from mindforge.services.view_store import SavedView, ViewStore
+
+        store = ViewStore(self.cfg.vault.root)
+        saved = store.save_view(SavedView(
+            id=payload.id,
+            name=payload.name,
+            status_filter=payload.status_filter,
+            track_filter=payload.track_filter,
+            source_type_filter=payload.source_type_filter,
+            quality_filter=payload.quality_filter,
+            sort_by=payload.sort_by,
+        ))
+        return SavedViewResponse(
+            id=saved.id,
+            name=saved.name,
+            status_filter=saved.status_filter,
+            track_filter=saved.track_filter,
+            source_type_filter=saved.source_type_filter,
+            quality_filter=saved.quality_filter,
+            sort_by=saved.sort_by,
+            created_at=saved.created_at,
+        )
+
+    def delete_view(self, view_id: str) -> dict:
+        from mindforge.services.view_store import ViewStore
+
+        store = ViewStore(self.cfg.vault.root)
+        deleted = store.delete_view(view_id)
+        return {"ok": deleted}
 
     def create_sample_workspace(self) -> dict:
         """Create demo knowledge cards for Guided Onboarding first-run experience."""

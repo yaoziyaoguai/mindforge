@@ -112,3 +112,31 @@ class LibraryCardDetailResponse(BaseModel):
     body: str | None = None
     local_graph: LocalGraphResponse | None = None
     related_cards: list[RelatedCardResponse] = Field(default_factory=list)
+
+
+# ── Saved Views ────────────────────────────────────────────────────────
+
+
+class SavedViewResponse(BaseModel):
+    id: str
+    name: str
+    status_filter: str = "all"
+    track_filter: str = "all"
+    source_type_filter: str = "all"
+    quality_filter: str = "all"
+    sort_by: str = "newest"
+    created_at: str = ""
+
+
+class SavedViewsListResponse(BaseModel):
+    views: list[SavedViewResponse]
+
+
+class SaveViewRequest(BaseModel):
+    id: str
+    name: str
+    status_filter: str = "all"
+    track_filter: str = "all"
+    source_type_filter: str = "all"
+    quality_filter: str = "all"
+    sort_by: str = "newest"
