@@ -1,6 +1,6 @@
 # Handoff — 2026-05-27
 
-> **status: resolved** — workstream completed, AUDIT-118 closure in progress.
+> **status: historical** — all referenced workstreams completed (AUDIT-118 closed, Dogfood v2 done, Web UX Deepening done). CPS is authoritative.
 > This file is a low-context bridge, NOT the primary entry point.
 > `docs/dev/CURRENT_PROJECT_STATE.md` is always the authoritative source.
 >

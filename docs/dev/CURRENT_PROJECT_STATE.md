@@ -176,11 +176,11 @@ Source / Import
 ## 6. Current Recommended Next Loops
 
 <!-- AUTOPILOT-QUEUE-START -->
-<!-- AUTOPILOT-QUEUE-NEXT-ACTION: governance_truth_drift_fix -->
-<!-- AUTOPILOT-QUEUE-TASK-TYPE: docs_cleanup -->
-<!-- AUTOPILOT-QUEUE-ITEM-1: Web Product UX Deepening — DONE (Loop 1: 2 P2 fixes, P3s deferred) -->
-<!-- AUTOPILOT-QUEUE-ITEM-2: Targeted Architecture Quality Reset — DONE (Slice 0/1/2 completed in prior sessions) -->
-<!-- AUTOPILOT-QUEUE-ITEM-3: Governance truth drift fix — CPS HEAD/ledger consistency, stale task cleanup, quality-debt-ledger truth -->
+<!-- AUTOPILOT-QUEUE-NEXT-ACTION: dogfood_v3 -->
+<!-- AUTOPILOT-QUEUE-TASK-TYPE: dogfood -->
+<!-- AUTOPILOT-QUEUE-ITEM-1: Dogfood v3 — 验证 P1 auto-fallback + Web UX P2 修复后的完整主路径 (Source→Draft→Review→Approval→Library→Recall→Wiki→Export) -->
+<!-- AUTOPILOT-QUEUE-ITEM-2: Web Product UX Deepening P3 — Setup clarity, Library IA, Wiki empty state, Recall feedback, Export download UX -->
+<!-- AUTOPILOT-QUEUE-ITEM-3: Stale task cleanup — 清理 200+ stale task entries -->
 <!-- AUTOPILOT-QUEUE-END -->
 
 Codex 独立红队审计 (HEAD `4ef9ed2`) 推荐优先顺序:
