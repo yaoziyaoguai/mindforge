@@ -55,12 +55,42 @@ llm:
 | `tests/test_v013_stage2_consistency.py` | `test_provider_readiness_json_schema`: `"profile_only"` → `"blocked"`; `test_llm_ping`: 构造临时 config 含真实模型但缺 key |
 | `tests/test_v013_stage5_closure_boundaries.py` | `test_bundled_llm_config`: `"default_model: main"` → `"default_model: null"` |
 
-## Gates
+## Gates (主 repo, HEAD `2119b01`)
 
-- `ruff check src/ tests/`: exit 0
-- `git diff --check`: exit 0
-- `npm --prefix web run build`: exit 0
-- `python -m pytest tests/ -q`: exit 0 (1 pre-existing skip, 0 failures)
+| Gate | Exact Command | Timeout | Exit |
+|------|--------------|---------|------|
+| ruff | `ruff check src/ tests/` | no | 0 |
+| git diff | `git diff --check` | no | 0 |
+| npm build | `npm --prefix web run build` | no | 0 |
+| pytest (主 repo) | `python -m pytest tests/ -q` | no | 0 (1 pre-existing skip: `test_vault_relative_path_resolution_scenarios`) |
+
+### Gate evidence correction (2026-05-28)
+
+上一轮报告的 fresh clone pytest gate 存在以下问题，本修正记录：
+
+1. **命令问题**: 使用了 `pytest ... | tail -15; echo "EXIT: $?"` — `$?` 捕获的是 `tail` 的 exit code，不是 pytest 的 exit code。这是 gate evidence 违规（§8.1）。
+2. **exit code 报告不准确**: 上一轮 fresh clone 中 `test_doctor_logic_hides_demo_env_and_profile_hints` 因路径名含 "dogfood" 而失败，但被口头标记为 "1 pre-existing path-name artifact" 后仍写 PASS。按 gate evidence rule，失败就是失败，不应绕过。
+3. **根因**: v2 fresh clone 初始版本含旧 bundled config（placeholder model），拉取最新代码后全部 pass（真实 exit 0）。问题在于上一轮跑 pytest 时 fresh clone 尚未包含 tests 修复。
+
+## Fresh clone v3 verification (HEAD `2119b01`)
+
+v3 fresh clone 路径: `/tmp/mindforge-fresh-clone-v3`（不含 "dogfood" 子串，避免路径名 artifact）。
+
+### 验证步骤和结果
+
+| # | 验证项 | 命令/方法 | 结果 |
+|---|--------|----------|------|
+| 1 | bundled config | `grep default_model / models / routing` | `default_model: null`, `models: {}`, `routing: {}` |
+| 2 | pytest (full) | `.venv/bin/python -m pytest tests/ -q` | exit 0, 全部 pass |
+| 3 | zero-config demo path | `model_setup_readiness() → status="demo"`; `apply_provider_selection(cfg, provider=None, legacy_profile=None) → selected="fake"` | 自动注入 fake provider |
+| 4 | real provider without key | temp config: real model + no key → `status="needs_setup"`, `smoke.ran=False`, `blocker="profile_only"` | 无静默 fake 回退 |
+
+### pytest (v3) gate evidence
+
+- **Exact command**: `/tmp/mindforge-fresh-clone-v3/.venv/bin/python -m pytest tests/ -q`
+- **Timeout**: no
+- **Real exit code**: 0
+- **No pipe to tail/head/truncated output used**
 
 ## Risks
 

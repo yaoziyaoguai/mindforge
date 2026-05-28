@@ -8,6 +8,20 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Gate Truth Cleanup — Correct Gate Evidence + Fresh Clone v3 Re-Verification
+
+- **Commit**: `2119b01` → (pending)
+- **Workstream**: Fresh Clone P0/P1 Blocker Fixes (gate truth cleanup)
+- **Task type**: audit_only (gate evidence correction)
+- **Outcome**: 修正上一轮 gate evidence 的三个问题：(1) tail pipe 掩盖 pytest exit code — 已用无 pipe 命令重新验证；(2) v2 路径名 artifact 误标为 pre-existing — v3 用不含 "dogfood" 的路径重建验证；(3) ACTION token 不一致 — 本报告用正确 token。v3 fresh clone 全部验证通过。
+- **Review result**: PASS — gate evidence now follows §8.1 rules
+- **Gate result**: PASS — v3 pytest exit 0 (no pipe), git diff --check 0
+- **Failure class**: gate_failure (evidence, not code)
+- **Remediation action**: corrected gate evidence in implementation note; fresh clone v3 full re-verification
+- **Required skill invoked**: none (audit/correction, no heavy skill needed)
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-141-bundled-config-empty-models-demo-path.md` (updated with corrected gate evidence + v3 verification)
+- **Next ACTION**: WORKSTREAM_COMPLETE
+
 ### 2026-05-28: Bundled Config Empty Models — Zero-Config Demo Path
 
 - **Commit**: `aa9bc2f` → `39e9890`
