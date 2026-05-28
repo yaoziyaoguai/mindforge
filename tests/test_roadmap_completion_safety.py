@@ -229,7 +229,7 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
         / "configs"
         / "mindforge.yaml"
     ).read_text(encoding="utf-8")
-    assert "default_model: main" in cfg
+    assert "default_model: null" in cfg
     assert "models:" in cfg
     assert "routing:" in cfg
     assert "local secret store" in cfg

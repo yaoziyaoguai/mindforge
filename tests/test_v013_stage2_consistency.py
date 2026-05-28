@@ -80,8 +80,8 @@ def test_provider_readiness_json_schema(clean_env):
         "real_output_is_review_only",
     ):
         assert invariants[k] is True, f"invariant {k} flipped"
-    # real dogfood default config 缺 key 时必须清楚显示 profile_only，不 fallback fake。
-    assert report["opt_in"]["opt_in_state"] == "profile_only"
+    # 空模型默认 config → blocked（安全 demo 状态）；不再含 placeholder model。
+    assert report["opt_in"]["opt_in_state"] == "blocked"
 
 
 def test_provider_cli_surface_removed_from_typer_registry():
@@ -91,17 +91,41 @@ def test_provider_cli_surface_removed_from_typer_registry():
     assert "No such command" in result.output
 
 
-def test_llm_ping_and_provider_readiness_agree_on_real_profile_missing_env(clean_env):
-    """真实模型默认配置缺 key 时，readiness 与 smoke guard 语义一致。
+def test_llm_ping_and_provider_readiness_agree_on_real_profile_missing_env(clean_env, tmp_path):
+    """真实模型配置缺 key 时，readiness 与 smoke guard 语义一致。
 
     这里不调用真实 provider，只验证 presence-only 诊断与 smoke guard
     都不会 fake 成功。
     """
 
-    from mindforge.assets_runtime import bundled_asset_path_for_process
     from mindforge.app_context import load_app_config
 
-    cfg = load_app_config(bundled_asset_path_for_process("configs", "mindforge.yaml"))
+    # 构造含真实模型但缺 API key 的临时 config，不再依赖 bundled config（bundled
+    # config 已改为空模型以启用零配置 demo/fake 路径）。
+    yaml_path = tmp_path / "mindforge.yaml"
+    yaml_path.write_text("""
+version: 0.1
+vault:
+  root: "/tmp"
+  inbox_root: "00-Inbox"
+  cards_dir: "20-Knowledge-Cards"
+  archive_dir: "90-Archive/Skipped"
+state:
+  workdir: ".mindforge"
+llm:
+  default_model: main
+  models:
+    main:
+      type: openai_compatible
+      base_url: "https://test.example.com/v1"
+      model: "test-model"
+      timeout_seconds: 120
+      max_retries: 2
+  routing:
+    triage: main
+    distill: main
+""".strip())
+    cfg = load_app_config(yaml_path)
     smoke = run_synthetic_real_smoke(cfg.llm, allow_real=True)
     assert smoke["ran"] is False
     assert "profile_only" in smoke["blocker"]

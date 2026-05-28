@@ -166,24 +166,16 @@ triage:
 # 支持：anthropic、anthropic_compatible、openai、openai_compatible。
 # API key 通过 Web Setup 保存到 local secret store (.mindforge/secrets.json, gitignored)。
 # 不要将 API key 写进此 YAML。
+#
+# 首次安装（无用户 config）：本文件作为运行时默认值提供。
+# 默认无模型配置 = demo/fake provider 安全路径。
+# 用户需通过 Web Setup 或 CLI config 显式配置真实模型。
+# placeholder model 已被移除，不再阻止零配置 demo 体验。
 # -----------------------------------------------------------------------------
 llm:
-  default_model: main
-
-  models:
-    main:
-      type: openai_compatible
-      base_url: "https://your-router.example.com/v1"
-      model: "your-model-name"
-      timeout_seconds: 120
-      max_retries: 2
-
-  routing:
-    triage: main
-    distill: main
-    link_suggestion: main
-    review_questions: main
-    action_extraction: main
+  default_model: null
+  models: {}
+  routing: {}
 
 # -----------------------------------------------------------------------------
 # Prompts：每个 stage 当前使用哪个版本

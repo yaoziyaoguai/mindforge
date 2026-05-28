@@ -135,7 +135,7 @@ def test_bundled_llm_config_uses_model_routing_not_profiles():
         / "configs"
         / "mindforge.yaml"
     ).read_text(encoding="utf-8")
-    assert "default_model: main" in yaml_text
+    assert "default_model: null" in yaml_text
     assert "routing:" in yaml_text
     assert "active_profile:" not in yaml_text
     assert "profiles:" not in yaml_text

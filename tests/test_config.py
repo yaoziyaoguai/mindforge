@@ -57,21 +57,14 @@ def test_real_mindforge_yaml_loads() -> None:
     assert expected_sources.issubset(set(cfg.sources.enabled))
     active = {e.source_type for e in cfg.sources.active_entries()}
     assert expected_sources.issubset(active)
-    # llm：package defaults 也必须使用用户可见的新 models/default_model/routing。
+    # llm：bundled defaults 必须是空模型配置，让 fresh clone 默认走 demo/fake 路径。
+    # 中文学习型说明：placeholder model 已被移除；default_model=null + models={} +
+    # routing={} 是合法空模型状态。model_setup_readiness 应返回 "demo"，
+    # apply_provider_selection 自动回退 fake provider 实现零配置体验。
     assert cfg.llm.active_profile == "__model_routing__"
-    assert cfg.llm.default_model == "main"
-    assert cfg.llm.routing == {stage: "main" for stage in REQUIRED_STAGES}
-    for stage in REQUIRED_STAGES:
-        m = cfg.llm.resolve_stage(stage)
-        assert m.alias in cfg.llm.models
-        assert m.type == "openai_compatible"
-    # 真实路径模型一律不允许把 secret 写进 yaml
-    main = cfg.llm.models["main"]
-    assert main.type == "openai_compatible"
-    # API key 不进 YAML；通过 Web Setup 保存到 local secret store
-    assert main.api_key_env is None
-    assert main.model == "your-model-name"
-    assert main.base_url == "https://your-router.example.com/v1"  # endpoint 不是 secret
+    assert cfg.llm.default_model is None
+    assert cfg.llm.models == {}
+    assert cfg.llm.routing == {}
     # prompts
     assert cfg.prompts.for_stage("triage") == "v1"
     assert cfg.prompts.for_stage("link_suggestion") == "v1"
