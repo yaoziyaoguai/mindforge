@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `8d1accc` (gate truth cleanup + v3 fresh clone verification — Fresh Clone P0/P1 workstream complete) |
+| 当前 HEAD | `8c62c33` (fix: P0 DOGFOOD-001 — self.secrets → self.config_service.secrets) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -21,7 +21,8 @@
 | 最新 autopilot governance | `docs/implementation-notes/2026-05-28-143-mf-autopilot-skill-redesign-review.md` |
 | 最新 mf-autopilot skill review | `docs/dev/mf-autopilot-skill-redesign-review.md` |
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
-| 最新 P0/P1 修复 notes | `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md` |
+| 最新 Dogfood P0/P1 Remediation | `docs/implementation-notes/2026-05-28-140-dogfood-p0-p1-remediation.md` |
+最新 P0/P1 修复 notes | `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md` |
 | 最新 bundled config 修复 | `docs/implementation-notes/2026-05-28-141-bundled-config-empty-models-demo-path.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
@@ -31,6 +32,7 @@
 
 最近关键 commits:
 ```
+8c62c33 fix: P0 DOGFOOD-001 — replace self.secrets with self.config_service.secrets in provider_readiness_detail
 8d1accc docs: correct gate evidence + add v3 fresh clone verification
 2119b01 docs: update progress ledger for bundled config empty models fix
 39e9890 fix: remove placeholder model from bundled config — default to empty models for zero-config demo path
@@ -276,6 +278,20 @@ remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
 status=resolved (CPS HEAD updated, stale queue items resolved, HANDOFF.md synced, progress-ledger updated)
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-8:
+workstream=Dogfood P0/P1 Remediation — self.secrets fix + OpenAPI endpoint verification
+task_type=bug_fix
+current_node=done
+next_action=N/A
+required_skill=ce-debug (P0 investigation)
+frameworks_checked=none (targeted one-line fix with regression test)
+review_node=gate_review
+failure_class=none (P0 fixed, P1 confirmed false positive, P2 documented as product note)
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+status=resolved (P0: self.secrets → self.config_service.secrets; P1: false positive — all 5 endpoints have registered routes; P2: triage threshold intentional — documented as product note; regression test added; fresh clone v2 verified; all gates pass; commit 8c62c33)
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 

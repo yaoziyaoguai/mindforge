@@ -1,9 +1,9 @@
 # Handoff — 2026-05-28
 
-> **status: completed** — all active workstreams finished (Fresh Clone P0/P1 done, Guided Onboarding MVP done, Post-Mint4 Remediation done). CPS §6 has next recommendations.
+> **status: resolved** — superseded by `8c62c33` (Dogfood P0/P1 Remediation). Latest state in CPS §1.
 
 ## Repo Snapshot
-- HEAD: 8d1accc
+- HEAD: 8c62c33
 - Branch: main
 - Working tree: clean
 - vs origin/main: 0 0
