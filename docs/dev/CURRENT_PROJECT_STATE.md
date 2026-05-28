@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `pending` (P0/P1 fresh clone blocker fixes — auto-fallback refine + sample-workspace Path fix) |
+| 当前 HEAD | `8d1accc` (gate truth cleanup + v3 fresh clone verification — Fresh Clone P0/P1 workstream complete) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -22,6 +22,7 @@
 | 最新 mf-autopilot skill review | `docs/dev/mf-autopilot-skill-redesign-review.md` |
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
 | 最新 P0/P1 修复 notes | `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md` |
+| 最新 bundled config 修复 | `docs/implementation-notes/2026-05-28-141-bundled-config-empty-models-demo-path.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
 | 最新 Remediation Plan | `docs/plans/2026-05-28-post-mint4-remediation-plan.md` |
@@ -30,18 +31,14 @@
 
 最近关键 commits:
 ```
-cffc661 docs: reconcile Direction C completion — ledger + CPS truth sync
-03bf177 docs: fix Direction C plan path in CPS AUTOPILOT-QUEUE
-e0fe90a docs: update progress-ledger for U7/U8 — Direction F workstream complete
-1e5dda9 test: U7 Tests + U8 i18n — Direction F 测试覆盖 + 国际化验证
-56d4c0d feat: U6 Manual Card Linking — link_cards backend + frontmatter writing + CardWorkspace link UI
-5544a92 feat: U5 Bulk Maintenance — YAML frontmatter batch update + BulkActions component
-43c690d feat: U3 Collections Backend — CollectionStore + API endpoints
-2d9a271 feat: U5 Web RecallPage explain panel — BM25 边界说明 + 命中字段/匹配词展示
-78fc4c7 feat: U3+U4 BM25 tuning config + recall quality gate script
-4332e66 feat: U2 query explain — explain_zero_hits + explain_hits + QueryExplain dataclass
-de077df feat: U1 golden recall benchmark — 12 cards + 14 golden queries + 4 negative queries
-aef49df chore: update progress-ledger commit hash for product innovation review
+8d1accc docs: correct gate evidence + add v3 fresh clone verification
+2119b01 docs: update progress ledger for bundled config empty models fix
+39e9890 fix: remove placeholder model from bundled config — default to empty models for zero-config demo path
+aa9bc2f docs: finalize P0/P1 fresh clone blocker fixes — update commit hashes and add re-dogfood evidence
+bbaed30 fix: P0/P1 fresh clone blocker fixes — narrow fake fallback to demo-only + sample-workspace cards_path fix
+2f7e787 docs: update CPS HEAD to 660e781 after mf-autopilot skill review commit
+660e781 chore: mf-autopilot skill redesign review — merge stop conditions, add claim-to-evidence gate, simplify skill routing output
+eccd8db docs: finalize Post-Mint4 Remediation — update HEAD and ledger hashes
 ```
 
 ---
@@ -255,8 +252,8 @@ hard_stop_required=false
 <!-- AUTOPILOT-QUEUE-ITEM-6:
 workstream=Fresh Clone Dogfood — P0/P1 Blocker Fixes
 task_type=bug_fix
-current_node=in_progress
-next_action=commit_push_fresh_clone_re-dogfood
+current_node=done
+next_action=N/A
 required_skill=none
 frameworks_checked=none (direct mf-autopilot, targeted fixes with tests)
 review_node=gate_review
@@ -264,7 +261,21 @@ failure_class=none
 remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
-status=in_progress (P0/P1 fixes applied + tests + gates passing, pending commit/push)
+status=resolved (P0: fake fallback demo-only; P1: cards_path Path fix; gate evidence corrected; v3 fresh clone verified — exit 0 all gates)
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-7:
+workstream=Governance Truth Sync
+task_type=docs_cleanup
+current_node=done
+next_action=N/A
+required_skill=none
+frameworks_checked=none (direct mf-autopilot, low-risk docs update)
+review_node=docs_truth_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=false
+status=resolved (CPS HEAD updated, stale queue items resolved, HANDOFF.md synced, progress-ledger updated)
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 

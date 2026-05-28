@@ -1,21 +1,9 @@
-# Handoff — 2026-05-27
+# Handoff — 2026-05-28
 
-> **status: historical** — all referenced workstreams completed (AUDIT-118 closed, Dogfood v2 done, Web UX Deepening done). CPS is authoritative.
-> This file is a low-context bridge, NOT the primary entry point.
-> `docs/dev/CURRENT_PROJECT_STATE.md` is always the authoritative source.
->
-> **How to read this file:**
-> - `status: active` — context was forced low mid-workstream. Agent MUST resume from
->   "Next /mf-autopilot Instruction" section.
-> - `status: completed` — workstream finished. Agent should read CPS §6 for next loops.
-> - `status: resolved` — handoff content superseded by newer commits. Reference only.
-> - `status: historical` — template or archive reference, never active.
->
-> **Agent rule:** If this file exists but status is NOT `active`, ignore the
-> "Next /mf-autopilot Instruction" and use CPS §6 as the canonical next-step source.
+> **status: completed** — all active workstreams finished (Fresh Clone P0/P1 done, Guided Onboarding MVP done, Post-Mint4 Remediation done). CPS §6 has next recommendations.
 
 ## Repo Snapshot
-- HEAD: 8507c82
+- HEAD: 8d1accc
 - Branch: main
 - Working tree: clean
 - vs origin/main: 0 0
