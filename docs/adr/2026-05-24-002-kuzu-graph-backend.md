@@ -132,4 +132,4 @@ Kuzu（[kuzudb.com](https://kuzudb.com)）是 embeddable property graph database
 - Kuzu: https://kuzudb.com
 - v0.6 GraphPort: `src/mindforge/relations/graph_port.py`
 - v0.6 DeterministicGraphBuilder: `src/mindforge/relations/graph_builder.py`
-- v0.7-v1.0 Roadmap: `docs/specs/2026-05-24-026-v0_7-v1_0-multi-stage-roadmap.md` §3
+- v0.7-v1.0 Roadmap (historical, see ADRs for current state)

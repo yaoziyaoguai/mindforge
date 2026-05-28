@@ -108,4 +108,4 @@ MindForge 当前使用纯 Python BM25 实现（`lexical_index.py`）作为全文
 
 - SQLite FTS5 文档: https://www.sqlite.org/fts5.html
 - Python sqlite3 模块: https://docs.python.org/3/library/sqlite3.html
-- v0.8 SPEC: `docs/specs/2026-05-24-026-v0_7-v1_0-multi-stage-roadmap.md` §2
+- v0.8 SPEC (historical, see ADRs for current state)

@@ -24,7 +24,7 @@
 
 真实 LLM opt-in 端到端验证（需要 API key，需显式 opt-in）：
 
-**推荐路径：Web-first**。新用户通过 Web Setup 页面配置 provider，在 Web UI 中完成 import → process → review → approve → recall 全链路验证。详见 `docs/real-llm-dogfood.md`。
+**推荐路径：Web-first**。新用户通过 Web Setup 页面配置 provider，在 Web UI 中完成 import → process → review → approve → recall 全链路验证。
 
 **Advanced path：CLI/YAML batch runner**。`scripts/real_llm_dogfood.sh` 是批量 E2E / CI-like / 开发者验证脚本，不是新用户首选入口：
 

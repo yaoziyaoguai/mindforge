@@ -233,4 +233,4 @@ MindForge v0.2 的知识库是一个"黑盒生成器"：用户扔 source 进去�
 - ~~V0.3 Roadmap~~ — removed 2026-05-27 (docs cleanup batch 1)
 - ~~V0.2 Development Rules~~ — removed 2026-05-27 (docs cleanup batch 1)
 - [SDD Wiki Web Presentation Addendum](../sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md)
-- [Product Contracts](../../internal/product-contracts.md)
+- Product Contracts (see README.md safety section for current safety boundaries)

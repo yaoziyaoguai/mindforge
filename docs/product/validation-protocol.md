@@ -19,7 +19,7 @@ GitHub fresh clone
   → real provider (qwen3.6-plus) 主路径 dogfood 通过
 ```
 
-此路径已在 Dogfood v2 (2026-05-28) 中完整验证：Import → AI Draft (真实 LLM) → Explicit Approve → Library → Recall → Wiki → Export 全部 PASS。详见 `docs/implementation-notes/2026-05-28-144-real-provider-dogfood-v2-main-path.md`。
+此路径已在 Dogfood v2 (2026-05-28) 中完整验证：Import → AI Draft (真实 LLM) → Explicit Approve → Library → Recall → Wiki → Export 全部 PASS。
 
 ### 尚未验证
 

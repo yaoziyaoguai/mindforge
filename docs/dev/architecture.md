@@ -43,10 +43,9 @@ mindforge/
 │   ├── zh-CN/                  # 中文用户文档
 │   ├── en/                     # 英文用户文档
 │   ├── dev/                    # 开发者文档
-│   ├── design/                 # 设计文档（RFC、SDD、Roadmap）
-│   ├── plans/                  # 阶段规划文档
-│   ├── implementation-notes/   # 实现笔记
-│   └── internal/               # 内部规则和账本
+│   ├── design/                 # 设计文档（RFC、SDD）
+│   ├── product/                # 产品验证文档
+│   └── adr/                    # 架构决策记录
 └── examples/                   # 示例和 fixture
 ```
 

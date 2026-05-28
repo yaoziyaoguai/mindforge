@@ -305,7 +305,7 @@ Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 tr
 
 ## 安全契约
 
-核心安全边界的完整声明见 [Product Contracts](docs/internal/product-contracts.md)。摘要：
+核心安全边界摘要：
 
 - AI 草稿绝不自动提升为正式知识。每条审批都要求显式确认。
 - 真实模型调用必须 opt-in：配置模型 + API key + 显式触发处理。

@@ -41,7 +41,7 @@ docs/design/
 
 ## Roadmap
 
-- ~~V0.2 Roadmap~~ — 已删除（docs cleanup batch 1, 2026-05-27）。当前路线参见 `docs/dev/CURRENT_PROJECT_STATE.md` §6
+- ~~V0.2 Roadmap~~ — 已删除（docs cleanup, 2026-05-28）
 
 ---
 
@@ -58,6 +58,6 @@ docs/design/
 
 > **Historical/Reference Status**: 本目录下的 RFC（4 个）和 SDD（3 个）均为 2026-05-14 至 2026-05-17 期间的设计阶段产物（Draft 状态），不代表当前实现。实现可能已显著偏离设计文档的描述。这些文件作为设计讨论的历史证据保留，不应被理解为当前 canonical docs。
 >
-> **活跃文档**: 2026-05-26 的设计方向文档（102/104/105）和 target architecture map（100）是较新的设计决策，但其状态以 `CURRENT_PROJECT_STATE.md` 为准。
+> **活跃文档**: 2026-05-26 的设计方向文档（102/104/105）和 target architecture map（100）是较新的设计决策。
 >
-> **Obsidian Binding**: `obsidian-binding-design.md` 描述的功能（Obsidian vault 写入）是 MindForge 明确非目标（参见 `CURRENT_PROJECT_STATE.md` §4）。该文档保留作为早期设计讨论的历史证据。
+> **Obsidian Binding**: `obsidian-binding-design.md` 描述的功能（Obsidian vault 写入）是 MindForge 明确非目标。该文档保留作为早期设计讨论的历史证据。

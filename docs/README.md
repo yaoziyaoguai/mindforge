@@ -1,141 +1,111 @@
-# MindForge Documentation
+# MindForge 文档
 
-这是 MindForge 的文档入口页面，帮助读者快速定位正确的文档。 | [English version](README-en.md)
-
----
-
-## Start Here — 推荐阅读顺序
-
-| # | 文档 | 说明 |
-|---|------|------|
-| 1 | [`README.md`](../README.md) | 项目入口：能力、限制、安全边界、Lab/Internal 功能 |
-| 2 | [`docs/dev/CURRENT_PROJECT_STATE.md`](dev/CURRENT_PROJECT_STATE.md) | **项目当前状态（agent 第一入口）** |
-| 3 | [`docs/dev/progress-ledger.md`](dev/progress-ledger.md) | 进度台账 — 已完成 loops、当前 active workstream |
-| 4 | [`docs/en/user-guide.md`](en/user-guide.md) | 英文用户指南 |
-| 5 | [`docs/zh-CN/user-guide.md`](zh-CN/user-guide.md) | 中文用户指南 |
-| 6 | [`docs/dev/architecture.md`](dev/architecture.md) | 代码架构概览 |
-| 7 | [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + gate baseline |
-| 8 | [`docs/audits/2026-05-25-092-current-capability-map.md`](audits/2026-05-25-092-current-capability-map.md) | 当前能力地图 |
+这是 MindForge 的文档入口，帮助用户和开发者快速定位需要的文档。 | [English version](README-en.md)
 
 ---
 
-## Current Canonical Docs
+## 用户文档
 
-### 用户文档
-
-| 文档 | 语言 | 说明 |
-|------|------|------|
-| [`docs/zh-CN/user-guide.md`](zh-CN/user-guide.md) | 中文 | 完整功能说明 |
-| [`docs/zh-CN/getting-started.md`](zh-CN/getting-started.md) | 中文 | 安装与初始化指南 |
-| [`docs/zh-CN/model-setup.md`](zh-CN/model-setup.md) | 中文 | LLM provider 配置详解 |
-| [`docs/zh-CN/sources.md`](zh-CN/sources.md) | 中文 | 知识源管理 |
-| [`docs/zh-CN/review-and-approval.md`](zh-CN/review-and-approval.md) | 中文 | 审阅与审批流程 |
-| [`docs/zh-CN/library-recall-wiki.md`](zh-CN/library-recall-wiki.md) | 中文 | 知识浏览、检索、Wiki、Health 与 Graph |
-| [`docs/zh-CN/web-wiki.md`](zh-CN/web-wiki.md) | 中文 | Web Wiki 页面 |
-| [`docs/zh-CN/configuration.md`](zh-CN/configuration.md) | 中文 | 完整配置参考 |
-| [`docs/zh-CN/troubleshooting.md`](zh-CN/troubleshooting.md) | 中文 | 常见问题诊断 |
-| [`docs/zh-CN/faq.md`](zh-CN/faq.md) | 中文 | 常见问题解答 |
-| [`docs/en/user-guide.md`](en/user-guide.md) | 英文 | 英文用户指南 |
-| [`docs/en/getting-started.md`](en/getting-started.md) | 英文 | Getting started guide |
-| [`docs/en/model-setup.md`](en/model-setup.md) | 英文 | Model setup guide |
-| [`docs/en/sources.md`](en/sources.md) | 英文 | Sources guide |
-| [`docs/en/troubleshooting.md`](en/troubleshooting.md) | 英文 | Troubleshooting guide |
-
-### 开发者文档
+### 中文
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/dev/CURRENT_PROJECT_STATE.md`](dev/CURRENT_PROJECT_STATE.md) | **项目当前状态 — 所有 agent 第一入口** |
-| [`docs/dev/progress-ledger.md`](dev/progress-ledger.md) | 进度台账 — 已完成 loops + 活跃 workstream |
-| [`docs/dev/architecture.md`](dev/architecture.md) | 代码架构概览（已修正不存在的文件引用） |
-| [`docs/dev/engineering-workflow.md`](dev/engineering-workflow.md) | 工程工作流规范 |
-| [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 + 可重现 gate baseline |
-| [`docs/dev/copy-policy.md`](dev/copy-policy.md) | UI copy 规范 |
-| [`docs/dev/documentation-inventory.md`](dev/documentation-inventory.md) | 完整文档清单 + 分类 |
-| [`docs/dev/documentation-debt-ledger.md`](dev/documentation-debt-ledger.md) | 文档债台账 + superseded 追踪 |
-| [`docs/dev/design-system.md`](dev/design-system.md) | 设计系统参考 |
-| [`docs/dev/testing.md`](dev/testing.md) | 测试规范 |
-| [`docs/dev/release-process.md`](dev/release-process.md) | 发布流程 |
-| [`docs/dev/contributing.md`](dev/contributing.md) | 贡献指南 |
-| [`docs/dev/workspace-data-layout.md`](dev/workspace-data-layout.md) | Workspace 数据布局 |
+| [快速入门](zh-CN/getting-started.md) | 安装、初始化与首次使用指南 |
+| [用户指南](zh-CN/user-guide.md) | 完整功能说明 |
+| [模型配置](zh-CN/model-setup.md) | LLM provider 配置详解 |
+| [Source 管理](zh-CN/sources.md) | 添加和管理知识来源 |
+| [审阅与审批](zh-CN/review-and-approval.md) | AI 草稿审阅与审批流程 |
+| [Library / Recall / Wiki](zh-CN/library-recall-wiki.md) | 知识浏览、检索、Wiki、Health 与 Graph |
+| [Web Wiki](zh-CN/web-wiki.md) | Web Wiki 页面使用指南 |
+| [配置参考](zh-CN/configuration.md) | 完整配置参考 |
+| [Troubleshooting](zh-CN/troubleshooting.md) | 常见问题诊断 |
+| [FAQ](zh-CN/faq.md) | 常见问题解答 |
 
-### 当前能力与限制文档
+### English
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/audits/2026-05-25-092-current-capability-map.md`](audits/2026-05-25-092-current-capability-map.md) | 2026-05-25 能力地图 |
-| [`docs/research/2026-05-25-093-industry-benchmark-and-gap-analysis.md`](research/2026-05-25-093-industry-benchmark-and-gap-analysis.md) | 行业对标与差距分析 |
-| [`docs/dev/quality-debt-ledger.md`](dev/quality-debt-ledger.md) | 质量债台账 |
-| [`docs/dev/quality-baseline-2026-05-25.md`](dev/quality-baseline-2026-05-25.md) | 2026-05-25 质量基线 |
-
-### 当前路线图与规划文档
-
-| 文档 | 说明 |
-|------|------|
-| [`docs/plans/2026-05-25-094-next-deepening-roadmap.md`](plans/2026-05-25-094-next-deepening-roadmap.md) | **当前活跃路线图** — v4.4 UX Deepening / v4.5 Recall Lab / v4.6 Docs Simplification |
-| [`docs/plans/2026-05-25-087-post-stabilization-direction.md`](plans/2026-05-25-087-post-stabilization-direction.md) | v4.2 后产品方向 |
-| [`docs/plans/2026-05-25-089-product-main-path-dogfood-plan.md`](plans/2026-05-25-089-product-main-path-dogfood-plan.md) | Product Main Path Dogfood 计划 |
-| [`docs/plans/2026-05-26-097-documentation-archive-plan.md`](plans/2026-05-26-097-documentation-archive-plan.md) | 文档归档计划（draft，未执行） |
-| [`docs/dogfood-runbook.md`](dogfood-runbook.md) | Dogfood 执行手册 |
-
-### 审计文档
-
-| 文档 | 说明 |
-|------|------|
-| [`docs/audits/2026-05-25-092-current-capability-map.md`](audits/2026-05-25-092-current-capability-map.md) | 当前能力地图 |
-| [`docs/audits/2026-05-25-v2.0-v3.6-independent-audit.md`](audits/2026-05-25-v2.0-v3.6-independent-audit.md) | v2.0-v3.6 独立交付审计 |
-| [`docs/audits/2026-05-25-v4_2-post-remediation-red-team-re-audit.md`](audits/2026-05-25-v4_2-post-remediation-red-team-re-audit.md) | v4.2 红队复审 |
-
-### 实现笔记（最新）
-
-| 文档 | 说明 |
-|------|------|
-| [`docs/implementation-notes/2026-05-26-098-v4_7-architecture-debt-reduction.md`](implementation-notes/2026-05-26-098-v4_7-architecture-debt-reduction.md) | v4.7 Architecture Debt Reduction — schemas.py 拆分 |
-| [`docs/implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md`](implementation-notes/2026-05-26-096-v4_6-documentation-system-simplification.md) | v4.6 Documentation Simplification |
-| [`docs/implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md`](implementation-notes/2026-05-26-095-v4_4-product-main-path-ux-deepening.md) | v4.4 UX Deepening |
-| [`docs/implementation-notes/2026-05-25-091-product-main-path-hardening.md`](implementation-notes/2026-05-25-091-product-main-path-hardening.md) | Product Main Path Hardening |
-| [`docs/implementation-notes/2026-05-25-090-product-main-path-dogfood-execution.md`](implementation-notes/2026-05-25-090-product-main-path-dogfood-execution.md) | Product Main Path Dogfood Execution |
-| [`docs/implementation-notes/2026-05-25-088-v4_2_1-partial-remediation-closure.md`](implementation-notes/2026-05-25-088-v4_2_1-partial-remediation-closure.md) | v4.2.1 Partial Remediation |
+| [Getting Started](en/getting-started.md) | Installation and first-run guide |
+| [User Guide](en/user-guide.md) | Complete feature guide |
+| [Model Setup](en/model-setup.md) | LLM provider configuration |
+| [Sources](en/sources.md) | Managing knowledge sources |
+| [Troubleshooting](en/troubleshooting.md) | Common issues and solutions |
 
 ---
 
-## Historical / Superseded Docs
+## 开发者文档
 
-以下文档目录中的早期文件属于历史计划或实现记录，不代表当前产品承诺：
-
-- **`docs/plans/`** — 较早期 plans（非最新 active roadmap）是历史计划。
-- **`docs/specs/`** — 历史规格文件，不代表当前生产能力。实现可能已经偏离。
-- **`docs/implementation-notes/`** — 2026-05-24 及之前的笔记是执行记录，不代表当前 canonical docs。
-- **`docs/adr/`** — 部分 ADR 仍有效，但 Graph/Sensemaking 相关 ADR 已被 v4.2 truth reset 修正。
-- **`docs/design/`** — 设计参考文档，不代表当前实现状态。
-
-已被明确标记为 superseded 的文档，参见 [`docs/dev/docs-reset-index.md`](dev/docs-reset-index.md#superseded-graphsensemaking-docs)。
+| 文档 | 说明 |
+|------|------|
+| [架构概览](dev/architecture.md) | 代码架构说明 |
+| [架构地图](dev/architecture-map.md) | 模块与子系统地图 |
+| [贡献指南](dev/contributing.md) | 如何为 MindForge 贡献代码 |
+| [测试规范](dev/testing.md) | 测试框架与规范 |
+| [Workspace 数据布局](dev/workspace-data-layout.md) | Workspace 目录与数据组织 |
+| [发布流程](dev/release-process.md) | 版本发布流程 |
+| [Copy 规范](dev/copy-policy.md) | UI 文案规范 |
+| [设计系统](dev/design-system.md) | 设计系统参考 |
 
 ---
 
-## Lab / Internal Feature Notice
+## 架构决策记录 (ADR)
+
+| 文档 | 说明 |
+|------|------|
+| [ADR-001: Retrieval Backend](adr/2026-05-24-001-retrieval-backend.md) | 检索后端选型 |
+| [ADR-002: Kuzu Graph Backend](adr/2026-05-24-002-kuzu-graph-backend.md) | 图数据库后端选型 |
+| [ADR-003: Retrieval Quality Baseline](adr/2026-05-25-003-retrieval-quality-baseline.md) | 检索质量基线 |
+| [ADR-004: Graph Query Capability Gap](adr/2026-05-25-004-graph-query-capability-gap-analysis.md) | 图查询能力差距分析 |
+| [ADR-005: Extension Plugin Boundary](adr/2026-05-25-005-extension-plugin-boundary.md) | 扩展插件边界 |
+| [ADR-006: Graph Ontology v1](adr/2026-05-25-006-graph-ontology-v1.md) | 图本体 v1 |
+| [ADR-007: Graph Backend Decision](adr/2026-05-25-007-graph-backend-decision.md) | 图后端决策 |
+
+---
+
+## 设计文档
+
+| 文档 | 说明 |
+|------|------|
+| [Target Architecture Map](design/2026-05-26-100-target-architecture-map.md) | 目标架构地图 |
+| [Web Design Direction](design/2026-05-26-102-mindforge-web-design-direction.md) | Web 设计方向 |
+| [Web Design Shotgun Comparison](design/2026-05-26-104-web-design-shotgun-comparison.md) | Web 设计方案比较 |
+| [Final Web Design Decision](design/2026-05-26-105-final-web-design-decision.md) | Web 最终设计决策 |
+| [Obsidian Binding Design](design/obsidian-binding-design.md) | Obsidian 绑定设计 |
+| [Real Provider Opt-in Safety](design/real-provider-opt-in-safety.md) | 真实模型 opt-in 安全设计 |
+| [RFC: Source Adapter V2](design/rfc/RFC_0001_SOURCE_ADAPTER_V2.md) | Source 适配器 RFC |
+| [RFC: Wiki Presentation V2](design/rfc/RFC_0002_WIKI_PRESENTATION_V2.md) | Wiki 展示 RFC |
+| [RFC: Knowledge Quality & Navigation](design/rfc/RFC_0003_KNOWLEDGE_QUALITY_AND_NAVIGATION.md) | 知识质量与导航 RFC |
+| [v2.0-v2.5 Changelog](design/v2.0-v2.5-changelog.md) | v2.0-v2.5 变更日志 |
+
+---
+
+## 用户验证
+
+| 文档 | 说明 |
+|------|------|
+| [Validation Protocol](product/validation-protocol.md) | 用户验证协议 |
+| [Test Script](product/test-script.md) | 测试脚本 |
+| [Observer Checklist](product/observer-checklist.md) | 观察者检查表 |
+| [Feedback Form](product/feedback-form.md) | 反馈表单 |
+| [Sample Workspace Validation](product/sample-workspace-validation.md) | Sample Workspace 验证 |
+
+---
+
+## Lab / Internal 功能说明
 
 以下功能属于 lab/internal/experimental，**不是** MindForge 主产品路径，不在主导航暴露，不承诺 API 稳定性：
 
-| 功能 | 状态 | 主入口 | 说明 |
-|------|------|--------|------|
-| **Graph View** | internal | Library → Graph Explorer (4 NodeType) | 独立 `/graph` 页面保留路由但不在主导航 |
-| **Sensemaking** | lab | 无主导航入口 | 实验性分析（bridge detection 等基于简单 heuristics） |
-| **Entity Resolution** | lab | 无主导航入口 | ConceptCandidate 确定性检测，不支持自动升级 |
-| **GraphRepository** | internal | 仅测试使用 | GraphPort 之上的 Repository Pattern 封装 |
-| **Extension Plugin** | lab | 无主导航入口 | ExtensionManifest/ExportAdapter 架构预留 |
-| **Dogfood 场景** | internal | `/dogfood` | 开发者/维护者工具 |
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Graph Page（独立全页） | internal | 保留 `/graph` 路由但不在主导航；Library 页面 GraphExplorer 是主入口 |
+| Sensemaking Workspace | lab | 实验性分析（基于简单 heuristics），已从主导航隐藏 |
+| Entity Resolution | lab | ConceptCandidate 确定性检测，不支持自动升级 |
+| GraphRepository | internal | GraphPort 之上的 Repository Pattern 封装，当前仅测试使用 |
+| Extension Plugin | lab | ExtensionManifest/ExportAdapter 是架构预留，无生产价值闭环 |
+| Dogfood 场景 | internal | 开发者/维护者工具，非用户主路径 |
 
-当前主产品路径是：
+当前主产品路径：
 ```
-Source / Import → ai_draft → Review → explicit approval → human_approved → Library → Recall (BM25) / Wiki (LLM synthesis) → Export
+Source / Import → ai_draft → Review → explicit approval
+    → human_approved → Library → Recall (BM25) / Wiki (LLM synthesis) → Export
 ```
-
----
-
-## 文档策略
-
-- **不移动文件**：避免链接大面积断裂。
-- **不删除历史证据**：audits / implementation notes / ADR 作为项目演化证据保留。
-- **不改写历史**：旧文档可标记 superseded/lab/internal，不修改原始内容到失真。
-- **索引先行**：通过本文档和 [`docs/dev/docs-reset-index.md`](dev/docs-reset-index.md) 帮助读者导航。

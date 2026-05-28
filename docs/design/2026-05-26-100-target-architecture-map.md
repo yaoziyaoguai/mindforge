@@ -1,7 +1,6 @@
 # v4.8 Target Architecture Map
 
 **日期**: 2026-05-26
-**基于**: docs/audits/2026-05-26-099-global-architecture-quality-audit.md
 **状态**: target reference — 指导 v4.8 重构方向
 
 ---

@@ -5,7 +5,7 @@
 > （`DeterministicGraphBuilder` 仅支持 card / source / tag / wiki_section）。
 > Graph API 对这 4 种类型返回 422。ADR-007 的 In-Memory Graph Backend 决策本身仍然
 > 有效，但 workload 验证范围的描述以 v4.2 实现状态为准。
-> 详见 `docs/implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md`。
+> 以 v4.2 实现状态为准。
 
 ## 日期
 2026-05-25
@@ -140,4 +140,4 @@ class GraphRepository:
 - `src/mindforge/relations/graph_port.py` — GraphPort ABC
 - `src/mindforge/relations/graph_repository.py` — GraphRepository
 - `src/mindforge/relations/graph_builder.py` — DeterministicGraphBuilder
-- v3.7-v4.1 Roadmap: `docs/plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md`
+- v3.7-v4.1 Roadmap (historical, see ADRs for current state)

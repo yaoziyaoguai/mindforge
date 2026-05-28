@@ -1,7 +1,7 @@
 ---
 title: "v1.5 I3: Obsidian Binding Design Doc"
 type: design-doc
-status: deferred — Obsidian vault write is a hard non-goal (see CURRENT_PROJECT_STATE.md §4); preserved as historical design discussion evidence
+status: deferred — Obsidian vault write is a hard non-goal; preserved as historical design discussion evidence
 date: 2026-05-25
 parent: v1.5 Safe Integration & Import/Export Expansion
 priority: P2

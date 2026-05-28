@@ -9,7 +9,7 @@ status: partial — ontology definition valid, but only 4/8 NodeType (card/sourc
 > (`DeterministicGraphBuilder`) 仅实现其中 4 种 NodeType：card / source / tag / wiki_section。
 > 其余 4 种 NodeType 的 API 端点返回 422。本文档的 ontology 定义仍然有效，但实现状态
 > 以 v4.2 为准。
-> 详见 `docs/implementation-notes/2026-05-25-086-v4_2-red-team-stabilization.md`。
+> 以 v4.2 实现状态为准。
 
 # ADR-006: Graph Ontology v1 — Node/Edge/Entity Semantics for v3.7
 
@@ -171,5 +171,4 @@ Entity 可属于多个 Topic/Community
 ## Related
 - ADR-002: Kuzu Graph Backend (spike-only)
 - ADR-004: Graph Query Capability Gap Analysis
-- `docs/plans/2026-05-25-080-v3_7_to_v4_1-graph-view-ontology-roadmap.md`
 - `src/mindforge/relations/graph_models.py` — 被本 ADR 直接修改
