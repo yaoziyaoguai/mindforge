@@ -840,7 +840,7 @@ class WebFacade:
             model = self.cfg.llm.models.get(alias_id)
             env_key_present = bool(a.get("api_key_present"))
             secret_key_present = bool(
-                model and self.secrets.api_key_source(
+                model and self.config_service.secrets.api_key_source(
                     alias_id, model.type, model.api_key_env,
                 ) in ("local_secret", "env")
             )

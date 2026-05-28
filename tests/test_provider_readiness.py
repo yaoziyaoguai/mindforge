@@ -141,3 +141,77 @@ class TestProviderReadinessApiEndpoint:
         assert data["invariants"]["secret_value_not_returned"] is True
         assert data["aliases"] == []
         assert len(data["blockers"]) > 0
+
+    def test_provider_readiness_with_models_no_secret_leak(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
+        """配置了 model + api_key_env 时返回 200，不暴露 secret value（P0 DOGFOOD-001 回归测试）。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        vault = tmp_path / "vault"
+        cards_dir = vault / "20-Knowledge-Cards"
+        cards_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setenv("DOGFOOD_TEST_KEY", "sk-test-placeholder-not-real")
+
+        config: dict = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {
+                "workdir": str(tmp_path / ".mindforge"),
+                "state_file": "state.json",
+                "runs_dir": "runs",
+                "index_file": "index.jsonl",
+                "backup_state": True,
+            },
+            "sources": {
+                "enabled": ["plain_markdown"],
+                "registry": {
+                    "plain_markdown": {
+                        "adapter": "PlainMarkdownAdapter",
+                        "inbox_subdir": ".",
+                        "file_glob": "*.md",
+                        "enabled": True,
+                    }
+                },
+            },
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {
+                    "main": {
+                        "type": "openai_compatible",
+                        "base_url": "https://test.example.com/v1",
+                        "model": "test-model",
+                        "api_key_env": "DOGFOOD_TEST_KEY",
+                    }
+                },
+                "routing": {
+                    "triage": "main",
+                    "distill": "main",
+                },
+            },
+        }
+        config_path = tmp_path / "mindforge.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        app = create_app(config_path=config_path, host="127.0.0.1")
+        with TestClient(app) as client:
+            resp = client.get("/api/provider/readiness")
+            assert resp.status_code == 200, f"P0 regression: expected 200, got {resp.status_code}. Body: {resp.text}"
+            data = resp.json()
+
+            # 不暴露 secret value
+            assert data["invariants"]["secret_value_not_returned"] is True
+
+            # api_key_present 为 bool，不返回 raw key
+            for alias in data["aliases"]:
+                assert isinstance(alias["api_key_present"], bool)
+                assert "api_key_env" in alias
+                raw_placeholder = "sk-test-placeholder-not-real"
+                assert raw_placeholder not in str(alias)
+                assert raw_placeholder not in str(data)
+
+            # 不应包含任何 raw secret 标记
+            response_text = resp.text
+            assert "sk-test-placeholder-not-real" not in response_text

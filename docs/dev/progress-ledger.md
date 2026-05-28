@@ -8,6 +8,21 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Dogfood P0/P1 Remediation — self.secrets fix + OpenAPI endpoint verification
+
+- **Commit**: `d0d2532` → (pending)
+- **Workstream**: Fresh Clone + Real Provider Dogfood v1 Remediation
+- **Task type**: bug_fix
+- **Outcome**: P0 fixed (self.secrets → self.config_service.secrets, one-line), P1 verified as false positive (all 5 endpoints exist in schema+routes), P2 documented as product note (triage threshold intentional). Test added for P0 regression.
+- **Review result**: PASS — all 5 routes verified via `create_app().openapi()`
+- **Gate result**: ruff 0, pytest 0 (3638 passed/1 skipped), npm build 0, git diff --check 0
+- **Failure class**: none
+- **Remediation action**: none
+- **Required skill invoked**: ce-debug (P0 investigation)
+- **Skill frameworks checked**: none required for trivial bug fix
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-140-dogfood-p0-p1-remediation.md`
+- **Next ACTION**: CONTINUE_NEXT_LOOP — fresh clone v2 re-verification
+
 ### 2026-05-28: Governance Truth Sync — Post-Workstream Stale Doc Cleanup
 
 - **Commit**: `8d1accc` → (pending)
