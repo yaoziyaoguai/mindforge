@@ -8,6 +8,20 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Bundled Config Empty Models — Zero-Config Demo Path
+
+- **Commit**: `aa9bc2f` → `39e9890`
+- **Workstream**: Fresh Clone Dogfood — P0/P1 Blocker Fixes
+- **Task type**: bug_fix (product decision)
+- **Outcome**: 移除 bundled config 的 placeholder model，默认空模型走 demo/fake path。修复 4 个依赖旧 placeholder model 的旧测试。
+- **Review result**: PASS — product decision validated by codebase evidence
+- **Gate result**: PASS — ruff 0, pytest 0 (1 pre-existing skip), npm build 0, git diff --check 0
+- **Failure class**: none
+- **Remediation action**: none
+- **Required skill invoked**: none (simple config change, no heavy skill needed)
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-141-bundled-config-empty-models-demo-path.md`
+- **Next ACTION**: CONTINUE_NEXT_LOOP (fresh clone re-dogfood)
+
 ### 2026-05-28: Fresh Clone P0/P1 Blocker Fixes
 
 - **Commit**: `eccd8db` → `bbaed30`
