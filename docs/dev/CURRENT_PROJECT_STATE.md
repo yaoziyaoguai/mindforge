@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `8c62c33` (fix: P0 DOGFOOD-001 — self.secrets → self.config_service.secrets) |
+| 当前 HEAD | `81f7751` (docs: sync governance truth after dogfood P0/P1 remediation) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -22,6 +22,7 @@
 | 最新 mf-autopilot skill review | `docs/dev/mf-autopilot-skill-redesign-review.md` |
 | 最新 Guided Onboarding | `docs/implementation-notes/2026-05-27-142-guided-onboarding-mvp.md` |
 | 最新 Dogfood P0/P1 Remediation | `docs/implementation-notes/2026-05-28-140-dogfood-p0-p1-remediation.md` |
+最新 Real Provider Dogfood v2 | `docs/implementation-notes/2026-05-28-144-real-provider-dogfood-v2-main-path.md` |
 最新 P0/P1 修复 notes | `docs/implementation-notes/2026-05-28-140-fresh-clone-p0-p1-blocker-fixes.md` |
 | 最新 bundled config 修复 | `docs/implementation-notes/2026-05-28-141-bundled-config-empty-models-demo-path.md` |
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
@@ -32,6 +33,7 @@
 
 最近关键 commits:
 ```
+81f7751 docs: sync governance truth after dogfood P0/P1 remediation
 8c62c33 fix: P0 DOGFOOD-001 — replace self.secrets with self.config_service.secrets in provider_readiness_detail
 8d1accc docs: correct gate evidence + add v3 fresh clone verification
 2119b01 docs: update progress ledger for bundled config empty models fix
@@ -292,6 +294,21 @@ remediation_target=none
 auto_continue_allowed=true
 hard_stop_required=false
 status=resolved (P0: self.secrets → self.config_service.secrets; P1: false positive — all 5 endpoints have registered routes; P2: triage threshold intentional — documented as product note; regression test added; fresh clone v2 verified; all gates pass; commit 8c62c33)
+-->
+<!-- AUTOPILOT-QUEUE-ITEM-9:
+workstream=Real Provider Dogfood v2 — Main Path Verification
+task_type=dogfood
+current_node=done
+next_action=N/A
+required_skill=none (direct API-driven dogfood pipeline)
+frameworks_checked=none (API-driven verification, no heavy skill needed)
+review_node=dogfood_evidence_review
+failure_class=none
+remediation_target=none
+auto_continue_allowed=true
+hard_stop_required=true
+hard_stop_note=HARD_STOP_PRODUCT_DECISION — all workstreams complete, real provider dogfood v2 main path verified with qwen3.6-plus. Pipeline: Import → AI Draft (real LLM) → Explicit Approve → Library → Recall → Wiki → Export all PASS. No blockers. Next: User Validation with 5 real non-technical users.
+status=resolved (all main path stages pass with real provider; no P0/P1 issues found; safety invariants all pass; commit 81f7751 docs only — dogfood v2 is server-side verification, no code changes needed)
 -->
 <!-- AUTOPILOT-QUEUE-END -->
 

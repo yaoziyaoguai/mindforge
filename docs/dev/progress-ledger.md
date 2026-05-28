@@ -8,6 +8,21 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: Real Provider Dogfood v2 — Main Path Verification with qwen3.6-plus
+
+- **Commit**: `81f7751` (docs only — dogfood v2 is server-side verification)
+- **Workstream**: Real Provider Dogfood v2 — Main Path Verification
+- **Task type**: dogfood
+- **Outcome**: 完整主路径通过真实 provider (qwen3.6-plus) 验证。Import → AI Draft (real LLM, value_score=8) → Explicit Approve → Library (7 cards) → Recall (BM25 top hit 10.88) → Wiki (7 sections) → Export (ZIP 200 OK) 全部 PASS。无 P0/P1 issue。
+- **Review result**: PASS — dogfood evidence review, all stages verified
+- **Gate result**: N/A (server-side verification, no code changes)
+- **Failure class**: none
+- **Remediation action**: none
+- **Required skill invoked**: none (direct API-driven pipeline)
+- **Skill frameworks checked**: none required
+- **Docs/notes**: `docs/implementation-notes/2026-05-28-144-real-provider-dogfood-v2-main-path.md`
+- **Next ACTION**: HARD_STOP_PRODUCT_DECISION (all workstreams complete, real provider main path verified, needs User Validation with 5 real non-technical users)
+
 ### 2026-05-28: Dogfood P0/P1 Remediation — self.secrets fix + OpenAPI endpoint verification
 
 - **Commit**: `d0d2532` → `8c62c33`
