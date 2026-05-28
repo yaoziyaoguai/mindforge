@@ -4,44 +4,16 @@ MindForge 设计文档索引。
 
 ---
 
-## 目录结构
+## 当前设计文档
 
-```
-docs/design/
-├── README.md          # 本文件
-├── rfc/               # Request for Comments
-│   ├── RFC_0001_SOURCE_ADAPTER_V2.md
-│   ├── RFC_0002_WIKI_PRESENTATION_V2.md
-│   └── RFC_0003_LEGACY_DOC_EVALUATION.md
-├── sdd/               # Software Design Documents
-│   ├── SDD_SOURCE_ADAPTER_V2.md
-│   ├── SDD_WIKI_PRESENTATION_V2.md
-│   └── SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md
-├── roadmap/           # Roadmap (V0_2_ROADMAP.md removed 2026-05-27 — docs cleanup batch 1)
-└── adr/               # Architecture Decision Records (预留)
-```
-
----
-
-## RFC
-
-| 编号 | 标题 | 说明 |
-|------|------|------|
-| RFC 0001 | Source Adapter V2 | 多源格式归一化方案 |
-| RFC 0002 | Wiki Presentation V2 | Wiki 展示层设计 |
-| RFC 0003 | Legacy Doc Evaluation | 旧文档评估与清理 |
-
-## SDD
-
-| 编号 | 标题 | 说明 |
-|------|------|------|
-| SDD Source Adapter V2 | Source Adapter 详细设计 | Adapter 接口与注册 |
-| SDD Wiki Presentation V2 | Wiki 展示详细设计 | 数据模型和视图 |
-| SDD Wiki Web Addendum | Wiki Web 展示补充 | 前端组件和 API 契约 |
-
-## Roadmap
-
-- ~~V0.2 Roadmap~~ — 已删除（docs cleanup, 2026-05-28）
+| 文档 | 说明 |
+|------|------|
+| [Target Architecture Map](2026-05-26-100-target-architecture-map.md) | 目标架构地图 |
+| [Web Design Direction](2026-05-26-102-mindforge-web-design-direction.md) | Web 设计方向 |
+| [Final Web Design Decision](2026-05-26-105-final-web-design-decision.md) | Web 最终设计决策 |
+| [Obsidian Binding Design](obsidian-binding-design.md) | Obsidian 集成设计（已标注为 deferred） |
+| [Real Provider Opt-in Safety](real-provider-opt-in-safety.md) | 真实模型 opt-in 安全设计 |
+| [SDD Wiki Web Addendum](sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) | Wiki Web 展示 UX/文案规范 |
 
 ---
 
@@ -49,15 +21,10 @@ docs/design/
 
 - **RFC**：方案讨论和决策记录。回答"为什么这样设计"。
 - **SDD**：详细设计，面向实现。回答"具体怎么做"。
-- **Roadmap**：迭代规划和时间线。回答"什么时候做"。
-- **ADR**：架构决策记录。回答"为什么选 A 不选 B"。
+- **ADR**：架构决策记录。回答"为什么选 A 不选 B"。ADR 位于 `docs/adr/`。
 
 ---
 
-## 当前状态说明 (v4.6+, updated v3.7)
+## 历史文档
 
-> **Historical/Reference Status**: 本目录下的 RFC（4 个）和 SDD（3 个）均为 2026-05-14 至 2026-05-17 期间的设计阶段产物（Draft 状态），不代表当前实现。实现可能已显著偏离设计文档的描述。这些文件作为设计讨论的历史证据保留，不应被理解为当前 canonical docs。
->
-> **活跃文档**: 2026-05-26 的设计方向文档（102/104/105）和 target architecture map（100）是较新的设计决策。
->
-> **Obsidian Binding**: `obsidian-binding-design.md` 描述的功能（Obsidian vault 写入）是 MindForge 明确非目标。该文档保留作为早期设计讨论的历史证据。
+已完成的 RFC/SDD 实施文档（RFC 0001 Source Adapter V2、RFC 0002 Wiki Presentation V2、RFC 0003 Knowledge Quality & Navigation、RFC 0003 Legacy Doc Evaluation、SDD Source Adapter V2、SDD Wiki Presentation V2）和 Web 设计方案比较文档已移至 [../archive/](../archive/)。这些文档**不代表**当前产品能力或承诺，仅作为设计讨论的历史记录保留。

@@ -37,14 +37,12 @@
 
 | 文档 | 说明 |
 |------|------|
-| [架构概览](dev/architecture.md) | 代码架构说明 |
-| [架构地图](dev/architecture-map.md) | 模块与子系统地图 |
+| [架构概览](dev/architecture.md) | 系统架构、分层规则与模块清单 |
 | [贡献指南](dev/contributing.md) | 如何为 MindForge 贡献代码 |
 | [测试规范](dev/testing.md) | 测试框架与规范 |
+| [设计系统](dev/design-system.md) | 设计系统参考与 UI 文案规范 |
 | [Workspace 数据布局](dev/workspace-data-layout.md) | Workspace 目录与数据组织 |
 | [发布流程](dev/release-process.md) | 版本发布流程 |
-| [Copy 规范](dev/copy-policy.md) | UI 文案规范 |
-| [设计系统](dev/design-system.md) | 设计系统参考 |
 
 ---
 
@@ -52,13 +50,11 @@
 
 | 文档 | 说明 |
 |------|------|
-| [ADR-001: Retrieval Backend](adr/2026-05-24-001-retrieval-backend.md) | 检索后端选型 |
-| [ADR-002: Kuzu Graph Backend](adr/2026-05-24-002-kuzu-graph-backend.md) | 图数据库后端选型 |
+| [ADR-001: Retrieval Backend](adr/2026-05-24-001-retrieval-backend.md) | 检索后端选型（BM25 vs FTS5） |
 | [ADR-003: Retrieval Quality Baseline](adr/2026-05-25-003-retrieval-quality-baseline.md) | 检索质量基线 |
-| [ADR-004: Graph Query Capability Gap](adr/2026-05-25-004-graph-query-capability-gap-analysis.md) | 图查询能力差距分析 |
-| [ADR-005: Extension Plugin Boundary](adr/2026-05-25-005-extension-plugin-boundary.md) | 扩展插件边界 |
-| [ADR-006: Graph Ontology v1](adr/2026-05-25-006-graph-ontology-v1.md) | 图本体 v1 |
-| [ADR-007: Graph Backend Decision](adr/2026-05-25-007-graph-backend-decision.md) | 图后端决策 |
+| [ADR-005: Extension Plugin Boundary](adr/2026-05-25-005-extension-plugin-boundary.md) | 扩展插件安全边界 |
+
+Graph 相关 ADR（ADR-002/004/006/007）已移至 [archive](archive/)，当前 Graph 实现仅为 Library 内嵌的确定性局部图（card/source/tag/wiki_section 四种 NodeType），不作为独立产品功能承诺。
 
 ---
 
@@ -68,14 +64,12 @@
 |------|------|
 | [Target Architecture Map](design/2026-05-26-100-target-architecture-map.md) | 目标架构地图 |
 | [Web Design Direction](design/2026-05-26-102-mindforge-web-design-direction.md) | Web 设计方向 |
-| [Web Design Shotgun Comparison](design/2026-05-26-104-web-design-shotgun-comparison.md) | Web 设计方案比较 |
 | [Final Web Design Decision](design/2026-05-26-105-final-web-design-decision.md) | Web 最终设计决策 |
-| [Obsidian Binding Design](design/obsidian-binding-design.md) | Obsidian 绑定设计 |
+| [Obsidian Binding Design](design/obsidian-binding-design.md) | Obsidian 集成设计（已标注为 deferred） |
 | [Real Provider Opt-in Safety](design/real-provider-opt-in-safety.md) | 真实模型 opt-in 安全设计 |
-| [RFC: Source Adapter V2](design/rfc/RFC_0001_SOURCE_ADAPTER_V2.md) | Source 适配器 RFC |
-| [RFC: Wiki Presentation V2](design/rfc/RFC_0002_WIKI_PRESENTATION_V2.md) | Wiki 展示 RFC |
-| [RFC: Knowledge Quality & Navigation](design/rfc/RFC_0003_KNOWLEDGE_QUALITY_AND_NAVIGATION.md) | 知识质量与导航 RFC |
-| [v2.0-v2.5 Changelog](design/v2.0-v2.5-changelog.md) | v2.0-v2.5 变更日志 |
+| [SDD Wiki Web Addendum](design/sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) | Wiki Web 展示 UX/文案规范 |
+
+已完成的 RFC/SDD 实施文档（RFC 0001/0002/0003、SDD Source Adapter V2 / Wiki Presentation V2）和 Web 设计方案比较文档已移至 [archive](archive/)。
 
 ---
 
@@ -83,29 +77,38 @@
 
 | 文档 | 说明 |
 |------|------|
-| [Validation Protocol](product/validation-protocol.md) | 用户验证协议 |
-| [Test Script](product/test-script.md) | 测试脚本 |
-| [Observer Checklist](product/observer-checklist.md) | 观察者检查表 |
-| [Feedback Form](product/feedback-form.md) | 反馈表单 |
-| [Sample Workspace Validation](product/sample-workspace-validation.md) | Sample Workspace 验证 |
+| [Validation Protocol](product/validation-protocol.md) | 用户验证协议（含测试脚本、观察者检查表、反馈表单、Workspace 验证清单） |
+
+---
+
+## 其他
+
+| 文档 | 说明 |
+|------|------|
+| [Release Notes](RELEASE_NOTES.md) | v0.1 首版发布说明 |
 
 ---
 
 ## Lab / Internal 功能说明
 
-以下功能属于 lab/internal/experimental，**不是** MindForge 主产品路径，不在主导航暴露，不承诺 API 稳定性：
+以下功能属于 lab/internal/experimental，**不是** MindForge 主产品路径：
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | Graph Page（独立全页） | internal | 保留 `/graph` 路由但不在主导航；Library 页面 GraphExplorer 是主入口 |
 | Sensemaking Workspace | lab | 实验性分析（基于简单 heuristics），已从主导航隐藏 |
 | Entity Resolution | lab | ConceptCandidate 确定性检测，不支持自动升级 |
-| GraphRepository | internal | GraphPort 之上的 Repository Pattern 封装，当前仅测试使用 |
-| Extension Plugin | lab | ExtensionManifest/ExportAdapter 是架构预留，无生产价值闭环 |
-| Dogfood 场景 | internal | 开发者/维护者工具，非用户主路径 |
+| Extension Plugin | lab | 架构预留，无生产价值闭环 |
+| Dogfood 场景 | internal | 开发者/维护者工具 |
 
 当前主产品路径：
 ```
 Source / Import → ai_draft → Review → explicit approval
     → human_approved → Library → Recall (BM25) / Wiki (LLM synthesis) → Export
 ```
+
+---
+
+## 历史文档
+
+[archive/](archive/) 包含历史设计文档和已归档 ADR。这些文档**不代表**当前产品能力或承诺，仅作为设计讨论的历史记录保留。

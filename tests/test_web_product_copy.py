@@ -755,10 +755,10 @@ def test_homepage_uses_localized_dashboard() -> None:
 
 
 def test_copy_policy_document_exists() -> None:
-    """copy-policy.md 必须存在，包含核心规则说明。"""
-    policy = (ROOT / "docs" / "dev" / "copy-policy.md")
+    """copy-policy content now lives in design-system.md §10. Verify it exists."""
+    policy = (ROOT / "docs" / "dev" / "design-system.md")
 
-    assert policy.exists(), "docs/dev/copy-policy.md missing"
+    assert policy.exists(), "docs/dev/design-system.md missing"
     content = policy.read_text(encoding="utf-8")
 
     assert "UI copy 必须本地化" in content or "must be localized" in content

@@ -18,7 +18,7 @@
 ./scripts/dogfood_smoke.sh
 ```
 
-覆盖 markdown import → process → ai_draft 验证 → approve → recall 全链路。详见 `docs/dogfood.md`。
+覆盖 markdown import → process → ai_draft 验证 → approve → recall 全链路。
 
 ## Real LLM Dogfood
 

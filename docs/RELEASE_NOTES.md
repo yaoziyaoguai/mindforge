@@ -1,6 +1,6 @@
 # MindForge First Release Notes
 
-This note describes the first public-facing local MVP scope. It is not a next-version RFC or SDD.
+> **Scope**: v0.1 local MVP. This note describes the first public-facing local MVP scope. It is not a next-version RFC or SDD, and does not represent current v4.x capabilities.
 
 ## Included
 

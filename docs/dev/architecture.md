@@ -228,3 +228,42 @@ CLI 和 Web 使用相同的 service 层，保证行为一致。CLI 的 `*_cli.py
 | Provider 日志 | 白名单字段，不含 key/prompt/completion |
 | 前端安全 | API 只返回 masked key |
 | 本地优先 | 不联网，不上传 telemetry |
+
+---
+
+## Layer Rules
+
+| Layer | 可 import | 不可 import |
+|-------|----------|------------|
+| Data | stdlib, yaml | 任何 MindForge 模块（除同层） |
+| Adapter | Data, Policy, stdlib | Service, CLI, Web |
+| Policy | Data, stdlib | Service, Adapter, CLI, Web |
+| Service | Data, Policy, Adapter | CLI, Web |
+| CLI | Service, Data, Policy | Web |
+| Web API | Service, Data, Policy（通过 WebFacade） | CLI |
+| Web Frontend | Web API (via HTTP) | Core Python modules |
+
+正确依赖方向：
+
+```
+Web Frontend → Web API → Service → Data
+                  ↓
+               Policy (injected)
+```
+
+已知边界违规（不修复）：
+
+| 违规 | 描述 | 严重度 |
+|------|------|--------|
+| CLI → Web | `cli_processing_runtime.py`, `processing_worker.py`, `runs_cli.py` import mindforge_web | P2 |
+| Router 内联业务逻辑 | `routers/wiki.py`, `routers/library.py:export_cards` | P3 |
+
+---
+
+## Port / Boundary 抽象
+
+| Port | 位置 | 默认实现 | 替代方案 |
+|------|------|---------|---------|
+| GraphPort | `relations/graph_port.py` | `DeterministicGraphBuilder` | Kuzu (archived ADR) |
+| RetrievalPort | `retrieval/` | BM25 (`lexical_index.py`) | SQLite FTS5 (archived ADR) |
+| ProviderPort | `llm/base.py` + `llm/factory.py` | `FakeProvider` | OpenAI/Anthropic (opt-in) |

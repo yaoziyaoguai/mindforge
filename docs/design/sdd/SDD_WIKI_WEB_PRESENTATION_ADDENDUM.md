@@ -2,7 +2,7 @@
 
 > **Status**: Draft — Accepted for v0.2 implementation
 > **Date**: 2026-05-15
-> **Depends on**: [RFC_0002_WIKI_PRESENTATION_V2.md](../rfc/RFC_0002_WIKI_PRESENTATION_V2.md), [SDD_WIKI_PRESENTATION_V2.md](SDD_WIKI_PRESENTATION_V2.md)
+> **Depends on**: [RFC_0002_WIKI_PRESENTATION_V2.md](../../archive/design/rfc/RFC_0002_WIKI_PRESENTATION_V2.md) (archived), [SDD_WIKI_PRESENTATION_V2.md](../../archive/design/sdd/SDD_WIKI_PRESENTATION_V2.md) (archived)
 > **Related**: ~~V0_2_ROADMAP.md~~ (removed 2026-05-27)
 
 ---
@@ -514,7 +514,7 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 
 ## 15. References
 
-- [RFC_0002_WIKI_PRESENTATION_V2.md](../rfc/RFC_0002_WIKI_PRESENTATION_V2.md) — Wiki ViewModel + rendering boundary
-- [SDD_WIKI_PRESENTATION_V2.md](SDD_WIKI_PRESENTATION_V2.md) — Wiki structure + safety + tests
+- [RFC_0002_WIKI_PRESENTATION_V2.md](../../archive/design/rfc/RFC_0002_WIKI_PRESENTATION_V2.md) (archived) — Wiki ViewModel + rendering boundary
+- [SDD_WIKI_PRESENTATION_V2.md](../../archive/design/sdd/SDD_WIKI_PRESENTATION_V2.md) (archived) — Wiki structure + safety + tests
 - ~~V0_2_ROADMAP.md~~ — removed 2026-05-27 (docs cleanup batch 1)
 - ~~V0_2_DEVELOPMENT_RULES.md~~ — removed 2026-05-27 (docs cleanup batch 1)
