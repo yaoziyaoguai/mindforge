@@ -11,7 +11,7 @@
 | 字段 | 值 |
 |------|-----|
 | 日期 | 2026-05-28 |
-| 当前 HEAD | `81f7751` (docs: sync governance truth after dogfood P0/P1 remediation) |
+| 当前 HEAD | `98cab46` (docs: add real provider dogfood v2 main path verification report) |
 | Codex 审计基线 HEAD | `4ef9ed2` (Codex Independent Strategic Red Team Audit) |
 | 分支 | `main` |
 | 工作树 | clean |
@@ -28,7 +28,8 @@
 | 最新 governance truth sync | `docs/implementation-notes/2026-05-28-140-p1-fix-verified-queue-advanced-to-guided-onboarding.md` |
 | 最新 Post-Mint4 回顾 | `docs/retrospectives/2026-05-28-post-mint4-retrospective.md` |
 | 最新 Remediation Plan | `docs/plans/2026-05-28-post-mint4-remediation-plan.md` |
-| 最新 User Validation Protocol | `docs/product/validation-protocol.md` |
+| 最新 User Validation Protocol | `docs/product/validation-protocol.md` (v1.1 — scope clarified) |
+最新 Validation Scope Clarification | `docs/implementation-notes/2026-05-28-144-real-provider-dogfood-v2-main-path.md` §0 |
 | 最新产品创新审计 | `docs/product/2026-05-28-001-mindforge-product-innovation-review.md` |
 
 最近关键 commits:
@@ -175,6 +176,7 @@ Source / Import
 | DOC-03 | P3 | docs/design/ 下较多设计文档未与当前实现对齐 | resolved (v3.7): design/README.md + obsidian-binding-design.md 状态标注 |
 | DOC-04 | P3 | 无文件级归档机制（docs/archive/ 目录） | deferred |
 | PROD-01 | P1 | demo/fake 模式下管道仍要求显式模型配置，用户无法完成首次主路径循环 | resolved (`87453f0`): CLI `apply_provider_selection()` + Web `_ensure_processing_model_configured()` 两处 auto-fallback 注入，11 个测试验证 |
+| PACK-01 | P2 | 非技术用户无法自安装 — 当前需 GitHub clone + npm/pip 多步操作 | deferred: 作为单独 packaging workstream，不混入本轮产品价值验证。validation-protocol v1.1 明确 facilitator 预先启动 Web |
 
 质量债台账完整记录: [`docs/dev/quality-debt-ledger.md`](quality-debt-ledger.md)
 文档债台账完整记录: [`docs/dev/documentation-debt-ledger.md`](documentation-debt-ledger.md)

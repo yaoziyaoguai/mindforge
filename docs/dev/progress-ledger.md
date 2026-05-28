@@ -8,6 +8,21 @@
 
 ## 1. Completed Major Loops
 
+### 2026-05-28: User Validation Readiness Clarification — scope boundary + packaging deferred
+
+- **Commit**: `98cab46` → (pending)
+- **Workstream**: User Validation Readiness Clarification (docs_cleanup)
+- **Task type**: docs_cleanup
+- **Outcome**: 明确本轮 validation 范围边界：(1) 记录已验证启动方式 (GitHub clone → install → facilitator pre-start → user browser-only)，(2) 记录未验证 packaged install/one-command/自安装，(3) validation-protocol v1.1 — facilitator 预先启动 Web, 用户只通过浏览器，(4) packaging 延后为独立 workstream。
+- **Review result**: PASS — docs truth review, scope boundary clear
+- **Gate result**: git diff --check 0
+- **Failure class**: none
+- **Remediation action**: none
+- **Required skill invoked**: none (docs-only clarification)
+- **Skill frameworks checked**: none required
+- **Docs/notes**: `docs/product/validation-protocol.md` (v1.1), `docs/dev/CURRENT_PROJECT_STATE.md` (PACK-01 debt added)
+- **Next ACTION**: WORKSTREAM_COMPLETE
+
 ### 2026-05-28: Real Provider Dogfood v2 — Main Path Verification with qwen3.6-plus
 
 - **Commit**: `81f7751` (docs only — dogfood v2 is server-side verification)
