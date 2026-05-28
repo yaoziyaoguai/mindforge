@@ -2,7 +2,7 @@
 
 **日期**: 2026-05-26
 **状态**: locked
-**输入**: Design Shotgun comparison (docs/archive/design/2026-05-26-104-web-design-shotgun-comparison.md) (archived)
+**输入**: Design Shotgun comparison (historical, no longer in repo)
 **前置**: Design direction (docs/design/2026-05-26-102-mindforge-web-design-direction.md)
 
 ---

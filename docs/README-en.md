@@ -54,8 +54,6 @@ This is the documentation entry point for MindForge, helping users and developer
 | [ADR-003: Retrieval Quality Baseline](adr/2026-05-25-003-retrieval-quality-baseline.md) | Retrieval quality baseline |
 | [ADR-005: Extension Plugin Boundary](adr/2026-05-25-005-extension-plugin-boundary.md) | Extension plugin safety boundary |
 
-Graph-related ADRs (ADR-002/004/006/007) have been moved to [archive](archive/). Current graph implementation is a deterministic local graph embedded in Library (card/source/tag/wiki_section node types only), not an independent product feature.
-
 ---
 
 ## Design Documents
@@ -68,8 +66,6 @@ Graph-related ADRs (ADR-002/004/006/007) have been moved to [archive](archive/).
 | [Obsidian Binding Design](design/obsidian-binding-design.md) | Obsidian integration design (annotated as deferred) |
 | [Real Provider Opt-in Safety](design/real-provider-opt-in-safety.md) | Real model opt-in safety design |
 | [SDD Wiki Web Addendum](design/sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) | Wiki Web presentation UX/copy specification |
-
-Completed RFC/SDD implementation documents and design comparison docs have been moved to [archive](archive/).
 
 ---
 
@@ -106,9 +102,3 @@ Current main product path:
 Source / Import → ai_draft → Review → explicit approval
     → human_approved → Library → Recall (BM25) / Wiki (LLM synthesis) → Export
 ```
-
----
-
-## Historical Documents
-
-[archive/](archive/) contains historical design documents and archived ADRs. These **do not** represent current product capabilities or commitments, and are kept only as historical records of design discussions.

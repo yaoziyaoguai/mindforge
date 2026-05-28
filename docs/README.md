@@ -54,8 +54,6 @@
 | [ADR-003: Retrieval Quality Baseline](adr/2026-05-25-003-retrieval-quality-baseline.md) | 检索质量基线 |
 | [ADR-005: Extension Plugin Boundary](adr/2026-05-25-005-extension-plugin-boundary.md) | 扩展插件安全边界 |
 
-Graph 相关 ADR（ADR-002/004/006/007）已移至 [archive](archive/)，当前 Graph 实现仅为 Library 内嵌的确定性局部图（card/source/tag/wiki_section 四种 NodeType），不作为独立产品功能承诺。
-
 ---
 
 ## 设计文档
@@ -68,8 +66,6 @@ Graph 相关 ADR（ADR-002/004/006/007）已移至 [archive](archive/)，当前 
 | [Obsidian Binding Design](design/obsidian-binding-design.md) | Obsidian 集成设计（已标注为 deferred） |
 | [Real Provider Opt-in Safety](design/real-provider-opt-in-safety.md) | 真实模型 opt-in 安全设计 |
 | [SDD Wiki Web Addendum](design/sdd/SDD_WIKI_WEB_PRESENTATION_ADDENDUM.md) | Wiki Web 展示 UX/文案规范 |
-
-已完成的 RFC/SDD 实施文档（RFC 0001/0002/0003、SDD Source Adapter V2 / Wiki Presentation V2）和 Web 设计方案比较文档已移至 [archive](archive/)。
 
 ---
 
@@ -106,9 +102,3 @@ Graph 相关 ADR（ADR-002/004/006/007）已移至 [archive](archive/)，当前 
 Source / Import → ai_draft → Review → explicit approval
     → human_approved → Library → Recall (BM25) / Wiki (LLM synthesis) → Export
 ```
-
----
-
-## 历史文档
-
-[archive/](archive/) 包含历史设计文档和已归档 ADR。这些文档**不代表**当前产品能力或承诺，仅作为设计讨论的历史记录保留。
