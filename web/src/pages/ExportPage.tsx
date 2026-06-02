@@ -116,12 +116,6 @@ export function ExportPage() {
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Export options
-  const [includeMetadata, setIncludeMetadata] = useState(true);
-  const [includeToc, setIncludeToc] = useState(false);
-  const [includeTags, setIncludeTags] = useState(true);
-  const [includeFrontmatter, setIncludeFrontmatter] = useState(true);
-
   useEffect(() => {
     setError(null);
     getLibraryCards()
@@ -365,60 +359,28 @@ export function ExportPage() {
         )}
       </section>
 
-      {/* Export Options */}
-      <section className="rounded-lg border border-line bg-white/60 p-5">
-        <h2 className="mb-3 text-sm font-semibold text-ink">{t("export.options_label")}</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
-            <input
-              type="checkbox"
-              checked={includeMetadata}
-              onChange={(e) => setIncludeMetadata(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
-            />
-            <div>
-              <div className="text-xs font-medium text-ink">{t("export.opt_include_metadata")}</div>
-              <div className="text-[11px] text-muted">{t("export.opt_include_metadata_desc")}</div>
+      {/* Export Options — 后端暂不支持，标记 Coming Soon */}
+      <details className="rounded-lg border border-line bg-white/60 p-5">
+        <summary className="cursor-pointer text-sm font-medium text-muted hover:text-ink">
+          {t("export.options_label")}
+          <span className="ml-2 inline-flex items-center rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted">
+            {t("export.format_coming_soon")}
+          </span>
+        </summary>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 opacity-50">
+          {([
+            ["export.opt_include_metadata", "export.opt_include_metadata_desc"],
+            ["export.opt_include_toc", "export.opt_include_toc_desc"],
+            ["export.opt_include_tags", "export.opt_include_tags_desc"],
+            ["export.opt_include_frontmatter", "export.opt_include_frontmatter_desc"],
+          ] as const).map(([label, desc]) => (
+            <div key={label} className="flex flex-col gap-0.5 rounded-md border border-line/50 bg-muted/10 p-3">
+              <div className="text-xs font-medium text-muted">{t(label)}</div>
+              <div className="text-[11px] text-muted/60">{t(desc)}</div>
             </div>
-          </label>
-          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
-            <input
-              type="checkbox"
-              checked={includeToc}
-              onChange={(e) => setIncludeToc(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
-            />
-            <div>
-              <div className="text-xs font-medium text-ink">{t("export.opt_include_toc")}</div>
-              <div className="text-[11px] text-muted">{t("export.opt_include_toc_desc")}</div>
-            </div>
-          </label>
-          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
-            <input
-              type="checkbox"
-              checked={includeTags}
-              onChange={(e) => setIncludeTags(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
-            />
-            <div>
-              <div className="text-xs font-medium text-ink">{t("export.opt_include_tags")}</div>
-              <div className="text-[11px] text-muted">{t("export.opt_include_tags_desc")}</div>
-            </div>
-          </label>
-          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
-            <input
-              type="checkbox"
-              checked={includeFrontmatter}
-              onChange={(e) => setIncludeFrontmatter(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
-            />
-            <div>
-              <div className="text-xs font-medium text-ink">{t("export.opt_include_frontmatter")}</div>
-              <div className="text-[11px] text-muted">{t("export.opt_include_frontmatter_desc")}</div>
-            </div>
-          </label>
+          ))}
         </div>
-      </section>
+      </details>
 
       {/* Preview */}
       <section className="rounded-lg border border-line bg-white/60 p-5">
