@@ -18,6 +18,24 @@ This log prevents the reference-image redesign from implying backend capabilitie
 | Setup / Model Configuration | API key display | yes | input is write-only; configured keys are shown only as presence/masked state from editable config | None for Batch 1 | P0 | yes | Preserves secret boundary; no plaintext API key is shown. |
 | Setup / Model Configuration | Configure complete -> go to Sources/Drafts | yes for navigation, partial for contextual recommendation | guide text points to Sources after save/validate; no automatic redirect | Optional next-action endpoint could suggest Sources vs Drafts from current state | P3 | yes | Guidance is copy and navigation only; no fake completion state. |
 
+## Batch 2: Sources, Drafts, Review
+
+| page/type | UI expectation from reference | current backend/API support | current UI behavior | needed backend work | priority | safe to show in UI now? | reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sources / Adapter Catalog | Cubox, Web Clipper, RSS Feed adapter cards with Browse/Connect buttons | no | Cubox/WebClipper/RSS shown as "Coming Soon" — not clickable or fake-connectable | Implement CuboxAdapter, WebClipperAdapter, RSSAdapter with source registry and ingestion pipeline | P2 | yes | Unimplemented adapters clearly marked "Coming Soon"; no fake data or fake connect flows. |
+| Sources / Adapter Catalog | Local Files adapter with source count | yes | "Active" badge shown; source count reflects actual `watched_sources` length | None | P0 | yes | Only implemented adapter shows real count from `/api/sources`. |
+| Sources / Import Methods | Watched Import, One-shot CLI, Paste/Folder descriptions | partial | Explainer cards shown; Watched links to existing sources page; CLI/Paste are informational | None for display; paste/folder import already exists in LibraryPage | P1 | yes | Cards explain existing import paths; no fake capabilities. |
+| Sources / Watched Sources | Source cards with status, path, metrics, actions | yes | Real data from `/api/sources`; expandable details with metrics; process/copy/frequency actions | None | P0 | yes | All shown data comes from existing API; actions use real backend endpoints. |
+| Sources / Empty State | Empty watched sources with CTA to add | yes | Empty state shown when `watched_sources` is empty; CTA to `/setup` | None | P0 | yes | Correctly handles empty data. |
+| Drafts / Table List | AI Draft table with title, status, source, score | yes | Real data from `/api/drafts`; only `ai_draft` status items shown; status badge always "AI Draft" | None | P0 | yes | Filters to `ai_draft` status only; does not show `human_approved` in drafts table. |
+| Drafts / Empty State | Empty drafts with CTA to add sources | yes | EmptyState component with link to `/sources` | None | P0 | yes | Correctly handles empty data. |
+| Drafts / Preview Panel | Draft body preview + actions (Send to Review, View Detail, Move to Trash) | partial | Body preview shown; Move to Trash uses real `moveDraftToTrash` API; Send to Review is placeholder (no backend for direct submit) | Add explicit "submit for review" endpoint if product wants drafts to be flagged for human review without approval | P2 | yes | Send to Review button is present but disabled (no backend support yet); Trash uses real API. |
+| Review / Left List | Draft list with search, status badges, source info, value score | yes | Real data from `/api/drafts`; filtered to `ai_draft` only; search filters client-side | None | P0 | yes | All data from existing API; search is client-side filtering. |
+| Review / Right Panel | Draft body preview + approval panel (checkbox, Approve with 2-step confirm, Reject) | yes | Body preview from `getDraftDetail`; Approve uses real `approveDraft` API with 2-step confirmation; Reject uses real `rejectDraft` API | None | P0 | yes | Approve/Reject use real backend; 2-step confirm prevents accidental approval; no auto approve. |
+| Review / Stats Row | AI Drafts count, Approved count | yes | Counts derived from real `/api/drafts` data | None | P0 | yes | Real counts from API response. |
+| Review / Empty State | No drafts pending with guidance | yes | Empty state shown when no `ai_draft` items exist | None | P0 | yes | Correctly handles empty data. |
+| Review / Safety Note | "No batch approval, no auto approval" messaging | yes | Static safety note in approval panel | None | P0 | yes | Text is purely UI messaging; no functional claim. |
+
 ## Backend -> Frontend Matrix: Batch 1
 
 | backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
@@ -29,6 +47,23 @@ This log prevents the reference-image redesign from implying backend capabilitie
 | Setup validation | `web/src/api/config.ts`, `/api/config/validate` | Setup guide Validate Config and existing Validate button | yes | n/a | Add clearer validation result panel | P1 |
 | Lab/internal graph/sensemaking/dogfood routes | existing app routes/pages | collapsed Lab only | no main-path exposure | Product boundary says Graph/Sensemaking/Entity/Community are lab/internal, not primary workflow | Separate lab redesign if requested | P3 |
 
+## Backend -> Frontend Matrix: Batch 2
+
+| backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
+| --- | --- | --- | --- | --- | --- | --- |
+| Draft list with ai_draft/human_approved filtering | `web/src/api/drafts.ts`, `/api/drafts` | DraftsPage table + ReviewPage list | yes | n/a | Server-side pagination for large draft sets | P1 |
+| Draft detail with body and frontmatter | `web/src/api/drafts.ts`, `/api/drafts/:id` | DraftsPage preview + ReviewPage preview | yes | n/a | Full body view in ReviewPage detail panel | P1 |
+| Draft approval (approve/reject) | `web/src/api/approval.ts`, `/api/drafts/:id/approve`, `/api/drafts/:id/reject` | ReviewPage approval panel | yes | n/a | Add reject reason field to UI | P1 |
+| Draft body save/edit | `web/src/api/drafts.ts`, PATCH `/api/drafts/:id` | DraftsPage CardWorkspace (existing) | yes | n/a | Inline body editor in ReviewPage | P2 |
+| Draft move to trash | `web/src/api/trash.ts`, `/api/drafts/:id/trash` | DraftsPage trash button | yes | n/a | Trash action in ReviewPage too | P2 |
+| Watched sources list with metrics | `web/src/api/sources.ts`, `/api/sources` | SourcesPage watched sources section | yes | n/a | Source-level drill-down pages | P2 |
+| Source scan/process | `web/src/api/sources.ts`, `/api/sources/:id/scan` | SourcesPage "Process now" button | yes | n/a | Background scan progress indicator | P2 |
+| Source frequency update | `web/src/api/sources.ts`, `/api/sources/:id/frequency` | SourcesPage frequency selector | yes | n/a | None | P0 |
+| Source delete/stop watching | `web/src/api/sources.ts`, `/api/sources/:id` | SourcesPage "Stop watching" button | yes | n/a | None | P0 |
+| Cubox adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend CuboxAdapter not implemented | Implement Cubox ingestion pipeline | P2 |
+| Web Clipper adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend WebClipperAdapter not implemented | Implement web clipper integration | P2 |
+| RSS Feed adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend RSSAdapter not implemented | Implement RSS feed ingestion | P2 |
+
 ## Assets
 
-No external assets were added in Batch 1.
+No external assets were added in Batch 1 or Batch 2.

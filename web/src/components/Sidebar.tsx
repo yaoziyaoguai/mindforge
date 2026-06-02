@@ -41,6 +41,7 @@ export function Sidebar({
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/sources", label: t("nav.sources"), icon: Inbox },
     { href: "/drafts", label: t("nav.drafts"), icon: CheckSquare },
+    { href: "/review", label: t("nav.review"), icon: BarChart3 },
     { href: "/library", label: t("nav.library"), icon: Library },
     { href: "/recall", label: t("nav.recall"), icon: Search },
     { href: "/wiki", label: t("nav.wiki"), icon: BookMarked },

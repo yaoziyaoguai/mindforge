@@ -13,6 +13,7 @@ import { HomePage } from "./pages/HomePage";
 import { SetupPage } from "./pages/SetupPage";
 import { SourcesPage } from "./pages/SourcesPage";
 import { DraftsPage } from "./pages/DraftsPage";
+import { ReviewPage } from "./pages/ReviewPage";
 import { RecallPage } from "./pages/RecallPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { HealthPage } from "./pages/HealthPage";
@@ -54,7 +55,8 @@ export default function App() {
       }
       if (path.startsWith("/setup")) next.config = await getConfigStatus();
       if (path.startsWith("/sources")) next.sources = await getSources();
-      if (path.startsWith("/drafts") || path.startsWith("/review")) next.drafts = await getDrafts();
+      if (path.startsWith("/drafts")) next.drafts = await getDrafts();
+      if (path.startsWith("/review")) next.drafts = await getDrafts();
       if (path.startsWith("/library")) next.library = await getLibraryCards();
       setData(next);
     } catch (err) {
@@ -75,7 +77,8 @@ export default function App() {
   let content = error ? <ErrorState message={error} /> : null;
   if (!content && path.startsWith("/setup") && data.config) content = <SetupPage data={data.config} onRefresh={load} />;
   if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} onRefresh={load} providerState={data.home?.safety.provider_state} />;
-  if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} providerState={data.home?.safety.provider_state} />;
+  if (!content && path.startsWith("/review") && data.drafts) content = <ReviewPage data={data.drafts} onRefresh={load} providerState={data.home?.safety.provider_state} />;
+  if (!content && path.startsWith("/drafts") && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} providerState={data.home?.safety.provider_state} />;
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
   if (!content && (path.startsWith("/recall") || path.startsWith("/search"))) content = <RecallPage onNavigate={navigate} />;
   if (!content && path.startsWith("/health")) content = <HealthPage onNavigate={navigate} />;
@@ -87,7 +90,7 @@ export default function App() {
   if (!content && path.startsWith("/export")) content = <ExportPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) {
-    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/drafts") || path.startsWith("/review") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : path.startsWith("/export") ? "default" : path.startsWith("/graph") ? "default" : "default";
+    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/review") ? "drafts" : path.startsWith("/drafts") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : path.startsWith("/export") ? "default" : path.startsWith("/graph") ? "default" : "default";
     content = <LoadingSkeleton variant={variant as "default" | "wiki" | "library" | "drafts" | "search" | "sources" | "health" | "trash" | "setup" | "dogfood"} />;
   }
 
