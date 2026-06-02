@@ -135,11 +135,18 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
                 <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card)}</span>
               )}
               {"quality_score" in card && card.quality_score != null ? (
-                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                  card.quality_level === "high" ? "bg-green-50 text-green-700" :
-                  card.quality_level === "medium" ? "bg-amber-50 text-amber-700" :
-                  "bg-red-50 text-red-700"
-                }`} title={`${t("card.quality_score")}: ${card.quality_score}`}>
+                <span
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{
+                    background: card.quality_level === "high" ? "rgba(45,125,95,0.1)" :
+                      card.quality_level === "medium" ? "rgba(204,122,0,0.1)" :
+                      "rgba(192,64,64,0.1)",
+                    color: card.quality_level === "high" ? "var(--mf-approved)" :
+                      card.quality_level === "medium" ? "var(--mf-warning)" :
+                      "var(--mf-error)",
+                  }}
+                  title={`${t("card.quality_score")}: ${card.quality_score}`}
+                >
                   {qualityLevelLabel(card.quality_level ?? "", t)} {card.quality_score}
                 </span>
               ) : null}
@@ -159,7 +166,8 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
             </button>
             {onMoveToTrash ? (
               <button
-                className="inline-flex items-center gap-2 rounded-md border border-danger px-3 py-2 text-sm font-medium text-danger hover:bg-red-50"
+                className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:opacity-80"
+                style={{ borderColor: "var(--mf-error)", color: "var(--mf-error)" }}
                 onClick={() => {
                   if (window.confirm(mode === "draft" ? t("card.confirm_trash_draft") : t("card.confirm_trash_library"))) {
                     onMoveToTrash();
@@ -173,7 +181,14 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
           </div>
         </div>
         {mode === "draft" ? (
-          <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-warn">
+          <p
+            className="mt-4 rounded-md border px-3 py-2 text-sm"
+            style={{
+              borderColor: "rgba(204,122,0,0.2)",
+              background: "rgba(204,122,0,0.06)",
+              color: "var(--mf-warning)",
+            }}
+          >
             {t("card.draft_warning")}
           </p>
         ) : null}

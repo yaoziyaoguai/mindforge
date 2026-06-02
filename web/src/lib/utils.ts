@@ -8,10 +8,10 @@ export function cx(...classes: Array<string | false | null | undefined>): string
 }
 
 export function statusTone(status: string): string {
-  if (status === "ok") return "text-safe bg-green-50 border-green-200";
-  if (status === "warn") return "text-warn bg-amber-50 border-amber-200";
-  if (status === "error") return "text-danger bg-red-50 border-red-200";
-  return "text-muted bg-stone-50 border-line";
+  if (status === "ok") return "text-safe bg-safe/10 border-safe/20";
+  if (status === "warn") return "text-warn bg-warn/10 border-warn/20";
+  if (status === "error") return "text-danger bg-danger/10 border-danger/20";
+  return "text-muted bg-muted/10 border-line";
 }
 
 /** 状态图标映射 —— 色盲用户可通过图标形状区分状态，不依赖颜色。

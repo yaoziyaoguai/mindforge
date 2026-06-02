@@ -65,19 +65,7 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
         <p>{t("drafts.subtitle")}</p>
       </header>
 
-      {/* v4.4 A2: Why Review Matters — calm callout per Variant A */}
-      <div
-        className="rounded-md border p-3 text-xs leading-relaxed"
-        style={{
-          borderColor: "var(--mf-border)",
-          background: "var(--mf-surface-alt)",
-          color: "var(--mf-text-secondary)",
-        }}
-      >
-        {t("drafts.why_review")}
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr_280px]">
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr_260px]">
         <DraftList drafts={data.drafts} selected={selected} onSelect={setSelected} />
         <div>
           {error ? <ErrorState message={error} /> : detail ? (
@@ -88,10 +76,18 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
               onSaved={refreshSelected}
               onMoveToTrash={handleMoveToTrash}
             />
-          ) : null}
+          ) : (
+            <div className="flex items-center justify-center h-64 text-sm" style={{ color: "var(--mf-text-tertiary)" }}>
+              {t("drafts.empty_title")}
+            </div>
+          )}
         </div>
         {detail ? <ApprovalPanel detail={detail} onApproved={onRefresh} /> : null}
       </div>
+
+      {message && (
+        <p className="text-sm" style={{ color: "var(--mf-text-secondary)" }}>{message}</p>
+      )}
     </div>
   );
 }

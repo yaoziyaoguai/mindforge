@@ -247,30 +247,33 @@ export function WikiPage() {
         <div className="border rounded-lg p-4 bg-surface text-sm">
           <h3 className="font-semibold mb-2">{t("wiki.quality_title")}</h3>
           <div className="flex flex-wrap gap-3">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 text-blue-700">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{ background: "rgba(45,125,95,0.08)", color: "var(--mf-approved)" }}>
               {t("wiki.quality_coverage")}: {quality.coverage.used}/{quality.coverage.total} ({Math.round(quality.coverage.rate * 100)}%)
             </span>
             {quality.faithfulness && (
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${
-                quality.faithfulness.average >= 0.7 ? "bg-green-50 text-green-700" :
-                quality.faithfulness.average >= 0.4 ? "bg-amber-50 text-amber-700" :
-                "bg-red-50 text-red-700"
-              }`}>
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{
+                background: quality.faithfulness.average >= 0.7 ? "rgba(45,125,95,0.08)" :
+                  quality.faithfulness.average >= 0.4 ? "rgba(204,122,0,0.08)" :
+                  "rgba(192,64,64,0.08)",
+                color: quality.faithfulness.average >= 0.7 ? "var(--mf-approved)" :
+                  quality.faithfulness.average >= 0.4 ? "var(--mf-warning)" :
+                  "var(--mf-error)",
+              }}>
                 {t("wiki.quality_faithfulness")}: {Math.round(quality.faithfulness.average * 100)}%
               </span>
             )}
             {quality.unused_cards && quality.unused_cards.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 text-amber-700">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{ background: "rgba(204,122,0,0.08)", color: "var(--mf-warning)" }}>
                 {t("wiki.quality_unused")}: {quality.unused_cards.length}
               </span>
             )}
             {quality.stale_sections && quality.stale_sections.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 text-amber-700">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{ background: "rgba(204,122,0,0.08)", color: "var(--mf-warning)" }}>
                 {t("wiki.quality_stale")}: {quality.stale_sections.length}
               </span>
             )}
             {quality.knowledge_gaps && quality.knowledge_gaps.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-700">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded" style={{ background: "rgba(192,64,64,0.08)", color: "var(--mf-error)" }}>
                 {t("wiki.quality_gaps")}: {quality.knowledge_gaps.length}
               </span>
             )}

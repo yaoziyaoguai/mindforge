@@ -19,15 +19,6 @@ import type { SavedViewResponse } from "../api/types";
 import { friendlyStatus, friendlyTrack } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
-const sourceTypeAccent: Record<string, string> = {
-  plain_markdown: "border-t-slate-400",
-  txt: "border-t-gray-400",
-  html: "border-t-orange-400",
-  pdf: "border-t-red-400",
-  docx: "border-t-blue-400",
-  cubox_markdown: "border-t-purple-400",
-};
-
 const sourceTypeLabels: Record<string, string> = {
   plain_markdown: "Markdown",
   txt: "Text",
@@ -465,7 +456,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       />
 
       {/* Filter Bar — view switcher + track / source_type / quality / status with sort */}
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border p-3" style={{ borderColor: "var(--mf-border)", background: "var(--mf-surface)" }}>
         <ViewSwitcher
           statusFilter={statusFilter}
           trackFilter={trackFilter}
@@ -558,18 +549,16 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         {displayedCards.map((card) => {
           const ref = card.id ?? card.rel_path;
           const isSelected = selected === ref;
-          const accent = sourceTypeAccent[card.source_type ?? ""] ?? "border-t-neutral-300";
+          const isApproved = card.status === "human_approved";
           return (
             <button
-              className={`w-full p-5 text-left transition ${
-                isSelected ? "ring-2" : ""
-              }`}
+              className="w-full p-5 text-left transition border border-l-[3px]"
               style={{
                 background: "var(--mf-surface)",
-                boxShadow: isSelected ? "var(--mf-shadow-card), 0 0 0 2px var(--mf-accent)" : "var(--mf-shadow-card)",
+                boxShadow: isSelected ? "var(--mf-shadow-card), 0 0 0 2px var(--mf-accent)" : "var(--mf-shadow-flat)",
                 borderRadius: "var(--mf-radius-lg)",
-                border: "1px solid var(--mf-border)",
-                borderTop: `4px solid ${card.source_type === "pdf" ? "var(--mf-error)" : card.source_type === "html" ? "var(--mf-warning)" : card.source_type === "docx" ? "#3b82f6" : "var(--mf-text-tertiary)"}`,
+                borderColor: isSelected ? "var(--mf-accent)" : "var(--mf-border)",
+                borderLeftColor: isApproved ? "var(--mf-approved)" : "var(--mf-draft)",
               }}
               key={card.rel_path}
               onClick={() => selectCard(ref)}
@@ -588,7 +577,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 </h3>
                 <input
                   type="checkbox"
-                  className="mt-0.5 h-4 w-4 rounded border-line accent-primary"
+                  className="mt-0.5 h-4 w-4 rounded"
+                  style={{ accentColor: "var(--mf-accent)" }}
                   checked={bulkMode ? bulkSelectedRefs.has(ref) : exportSelection.has(ref)}
                   onChange={(e) => {
                     e.stopPropagation();
@@ -602,17 +592,28 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 />
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${card.status === "human_approved" ? "bg-safe/10 text-safe" : "bg-warn/10 text-warn"}`}>
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{
+                    background: isApproved ? "rgba(45,125,95,0.1)" : "rgba(204,122,0,0.1)",
+                    color: isApproved ? "var(--mf-approved)" : "var(--mf-warning)",
+                  }}
+                >
                   {friendlyStatus(card.status, locale)}
                 </span>
                 {card.source_type ? (
-                  <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">{sourceTypeBadge(card.source_type)}</span>
+                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "var(--mf-text-tertiary)" }}>
+                    {sourceTypeBadge(card.source_type)}
+                  </span>
                 ) : null}
-                {card.track ? <span className="text-muted">{friendlyTrack(card.track, locale)}</span> : null}
+                {card.track ? <span style={{ color: "var(--mf-text-tertiary)" }}>{friendlyTrack(card.track, locale)}</span> : null}
               </div>
-              <p className="mt-2 text-xs text-muted line-clamp-1">{card.source_title ?? card.source_path_view?.display_path}</p>
+              <p className="mt-2 text-xs line-clamp-1" style={{ color: "var(--mf-text-tertiary)" }}>
+                {card.source_title ?? card.source_path_view?.display_path}
+              </p>
               {card.updated_at ? (
-                <p className="mt-2 text-[11px] text-muted">{t("library.updated_at").replace("{date}", formatDate(card.updated_at, locale))}</p>
+                <p className="mt-2 text-[11px]" style={{ color: "var(--mf-text-tertiary)" }}>
+                  {formatDate(card.updated_at, locale)}
+                </p>
               ) : null}
             </button>
           );

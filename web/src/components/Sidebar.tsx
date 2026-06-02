@@ -56,20 +56,24 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
 
   return (
     <nav
-      className="flex w-64 shrink-0 flex-col border-r border-line bg-[#efebe3] px-3 py-4"
+      className="flex w-60 shrink-0 flex-col border-r border-line px-3 py-5"
+      style={{ background: "var(--mf-surface-alt)" }}
       aria-label="Main navigation"
     >
-      <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold text-ink">
-        <BookOpen className="h-5 w-5" aria-hidden="true" />
+      <div
+        className="mb-8 px-2 text-lg font-medium text-ink tracking-tight"
+        style={{ fontFamily: "var(--mf-font-serif)" }}
+      >
         MindForge
       </div>
-      <div className="flex-1 space-y-2">
+
+      <div className="flex-1 space-y-5">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <p className="mb-1.5 px-2 text-[11px] font-medium text-muted/70">
               {group.label}
             </p>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active =
                   path === item.href || (item.href !== "/" && path.startsWith(item.href));
@@ -80,13 +84,13 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
                     type="button"
                     onClick={() => onNavigate(item.href)}
                     className={cx(
-                      "flex w-full items-center gap-2 rounded-r-md border-l-2 px-3 py-2 text-left text-sm",
+                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
                       active
-                        ? "border-[var(--mf-accent)] bg-[var(--mf-accent)]/8 text-[var(--mf-accent)] font-medium"
-                        : "border-transparent text-muted hover:bg-white/60 hover:text-ink",
+                        ? "bg-white/80 text-ink font-medium shadow-sm"
+                        : "text-muted hover:bg-white/50 hover:text-ink",
                     )}
                   >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {item.label}
                   </button>
                 );
@@ -95,26 +99,22 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
           </div>
         ))}
 
-        {/* Lab Section — collapsed by default per design direction */}
+        {/* Lab Section */}
         <div>
           <button
             type="button"
             onClick={() => setLabOpen(!labOpen)}
-            className="flex w-full items-center gap-1 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted hover:text-ink"
+            className="flex w-full items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-muted/60 hover:text-muted"
             aria-expanded={labOpen}
           >
             <ChevronDown
-              className={cx(
-                "h-3 w-3 transition-transform",
-                labOpen ? "rotate-0" : "-rotate-90",
-              )}
+              className={cx("h-3 w-3 transition-transform", labOpen ? "rotate-0" : "-rotate-90")}
               aria-hidden="true"
             />
-            <FlaskConical className="h-3 w-3" aria-hidden="true" />
             {t("nav.group.lab")}
           </button>
           {labOpen && (
-            <div className="mt-1 space-y-1">
+            <div className="mt-0.5 space-y-0.5">
               {labItems.map((item) => {
                 const active = path === item.href || path.startsWith(item.href);
                 const Icon = item.icon;
@@ -124,13 +124,13 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
                     type="button"
                     onClick={() => onNavigate(item.href)}
                     className={cx(
-                      "flex w-full items-center gap-2 rounded-r-md border-l-2 px-3 py-2 text-left text-sm",
+                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
                       active
-                        ? "border-[var(--mf-lab)] bg-[var(--mf-lab)]/8 text-[var(--mf-lab)] font-medium"
-                        : "border-transparent text-muted hover:bg-white/60 hover:text-ink",
+                        ? "bg-white/80 text-ink font-medium shadow-sm"
+                        : "text-muted/70 hover:bg-white/50 hover:text-ink",
                     )}
                   >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {item.label}
                   </button>
                 );
@@ -140,23 +140,23 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
         </div>
       </div>
 
-      <div className="mt-auto border-t border-line pt-3 space-y-1">
+      <div className="mt-auto space-y-0.5 border-t border-line/60 pt-3">
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-muted hover:bg-white/60 hover:text-ink"
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted hover:bg-white/50 hover:text-ink"
           onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
           title={locale === "zh" ? "Switch to English" : "切换到中文"}
         >
-          <Globe className="h-4 w-4" aria-hidden="true" />
+          <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>{locale === "zh" ? "English" : "简体中文"}</span>
         </button>
         <a
           href="https://github.com/yaoziyaoguai/mindforge/issues"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-muted hover:bg-white/60 hover:text-ink no-underline"
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-xs text-muted/70 hover:bg-white/50 hover:text-ink no-underline"
         >
-          <Heart className="h-4 w-4" aria-hidden="true" />
+          <Heart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>{t("nav.feedback")}</span>
         </a>
       </div>
