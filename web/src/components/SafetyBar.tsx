@@ -12,12 +12,14 @@ import { BoundaryBadge } from "./BoundaryBadge";
  * 不靠颜色轰炸。
  */
 
-export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
+export function SafetyBar({ safety, onNavigate }: { safety?: SafetySummary | null; onNavigate?: (href: string) => void }) {
   const { t } = useLocale();
 
   if (!safety) {
     return <div className="border-b border-line bg-stone-50/50 px-4 py-2 text-xs text-muted">{t("safety.loading")}</div>;
   }
+
+  const providerReady = safety.provider_state === "ready";
 
   return (
     <section
@@ -30,14 +32,28 @@ export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
           <span className="text-stone-500">Vault: {truncateMiddle(safety.vault_path, 36)}</span>
         </span>
 
-        <span className="inline-flex items-center gap-1.5">
-          <span>{t("safety.model_setup")}</span>
-          {safety.provider_state === "ready" ? (
+        {providerReady ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span>{t("safety.model_setup")}</span>
             <BoundaryBadge type="live" />
-          ) : (
-            <BoundaryBadge type="sandbox" />
-          )}
-        </span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <span>{t("safety.model_setup")}</span>
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate("/setup")}
+                className="hover:opacity-80 transition-opacity"
+                title={t("safety.configure_model")}
+              >
+                <BoundaryBadge type="sandbox" />
+              </button>
+            ) : (
+              <BoundaryBadge type="sandbox" />
+            )}
+          </span>
+        )}
 
         <span className="inline-flex items-center gap-1">
           <span>{t("safety.needs_review")}{safety.pending_drafts_count}</span>

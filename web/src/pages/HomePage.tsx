@@ -4,6 +4,7 @@ import type { HomeStatusResponse, LifecycleResponse, WorkflowSummaryResponse } f
 import type { HealthReportResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
 import { QuickStartWizard } from "../components/QuickStartWizard";
+import { ProviderStatusBanner } from "../components/ProviderStatusBanner";
 
 interface WikiStatus {
   section_count?: number;
@@ -109,6 +110,12 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
           </button>
         )}
       </section>
+
+      {/* Provider status: always visible, lets user know demo/real mode at a glance */}
+      <ProviderStatusBanner
+        providerState={data.safety.provider_state}
+        onNavigate={onNavigate}
+      />
 
       {/* Lifecycle: calm horizontal flow */}
       {totalCards > 0 && (

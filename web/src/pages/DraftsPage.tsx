@@ -9,7 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { useLocale } from "../lib/i18n";
 
-export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefresh: () => void }) {
+export function DraftsPage({ data, onRefresh, providerState }: { data: DraftsResponse; onRefresh: () => void; providerState?: string }) {
   const [selected, setSelected] = useState<string | undefined>(data.drafts[0]?.id ?? data.drafts[0]?.rel_path);
   const [detail, setDetail] = useState<DraftDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +62,15 @@ export function DraftsPage({ data, onRefresh }: { data: DraftsResponse; onRefres
     <div className="space-y-6">
       <header className="page-header">
         <h1>{t("drafts.title")}</h1>
-        <p>{t("drafts.subtitle")}</p>
+        <p>
+          {t("drafts.subtitle")}
+          {/* provider 模式提示 — AI 草稿可能是 fake 输出 */}
+          {providerState !== "ready" && (
+            <span className="ml-2" style={{ color: "var(--mf-text-tertiary)", fontSize: "var(--mf-text-caption)" }}>
+              · {t("drafts.demo_mode_hint")}
+            </span>
+          )}
+        </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr_260px]">

@@ -347,27 +347,21 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail={t("setup.api_key_status_detail")} locale={locale} />
       </div>
 
-      {/* Provider Boundary Clarity Callout */}
-      <section className="rounded-md border border-stone-200/70 bg-stone-50/50 px-4 py-3">
-        <p className="text-xs text-muted leading-relaxed">
-          <BoundaryBadge type="provider" />
-          <span className="ml-1.5">{t("setup.boundary_desc")}</span>
-        </p>
-      </section>
-
-      {/* 中文学习型说明：provider 安全边界横幅，根据 provider_mode 展示不同状态。 */}
+      {/* 中文学习型说明：provider 安全边界横幅提升到首屏上半部。
+           用户在 StatusCard 后第一眼就能看到当前模式和激活入口。 */}
       {data.provider.provider_mode === "real" ? (
-        <section className="rounded-md border border-amber-200/60 bg-amber-50/50 px-4 py-3">
+        <section className="rounded-md border px-4 py-3" style={{ borderColor: "rgba(45,125,95,0.2)", background: "rgba(45,125,95,0.04)" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <h2 className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--mf-approved)" }}>
                 <BoundaryBadge type="live" />
                 {t("setup.mode_real_title")}
               </h2>
-              <p className="mt-1 text-xs text-amber-700">{t("setup.mode_real_desc")}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--mf-text-secondary)" }}>{t("setup.mode_real_desc")}</p>
             </div>
             <button
-              className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:opacity-80 disabled:opacity-50 transition-opacity"
+              style={{ borderColor: "var(--mf-warning)", color: "var(--mf-warning)" }}
               onClick={deactivateRealMode}
               disabled={activationBusy}
               type="button"
@@ -377,17 +371,18 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </div>
         </section>
       ) : (
-        <section className="rounded-md border border-stone-200/60 bg-stone-50/50 px-4 py-3">
+        <section className="rounded-md border px-4 py-3" style={{ borderColor: "rgba(204,122,0,0.15)", background: "rgba(204,122,0,0.04)" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+              <h2 className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--mf-text-primary)" }}>
                 <BoundaryBadge type="sandbox" />
                 {t("setup.mode_fake_title")}
               </h2>
-              <p className="mt-1 text-xs text-stone-600">{t("setup.mode_fake_desc")}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--mf-text-secondary)" }}>{t("setup.mode_fake_desc")}</p>
             </div>
             <button
-              className="rounded-md bg-stone-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              style={{ background: "var(--mf-accent)" }}
               onClick={() => setActivationDialogOpen(true)}
               disabled={!hasConfiguredModels}
               type="button"
@@ -397,6 +392,14 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </div>
         </section>
       )}
+
+      {/* Provider Boundary Clarity Callout — 降级到 activation banner 下方 */}
+      <section className="rounded-md border border-stone-200/70 bg-stone-50/50 px-4 py-3">
+        <p className="text-xs text-muted leading-relaxed">
+          <BoundaryBadge type="provider" />
+          <span className="ml-1.5">{t("setup.boundary_desc")}</span>
+        </p>
+      </section>
 
       {form && editable ? (
         <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
@@ -446,7 +449,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 <button
                   key={s}
                   className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isCurrent ? "bg-primary text-white" : isPast ? "bg-green-50 text-safe border border-green-200" : "bg-white text-muted border border-line"
+                    isCurrent ? "bg-primary text-white" : "bg-stone-100 text-muted border border-line"
                   }`}
                   onClick={() => setStep(s)}
                   type="button"
@@ -469,7 +472,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           {/* 步骤 1：连接模型 */}
           {step === "models" && (<>
           {/* 中文学习型说明：onboarding 解释文案 —— 每个 step 回答用户"为什么需要这一步"。 */}
-          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3">
+          <details className="rounded-md border border-stone-200/60 bg-stone-50/50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_model")}</summary>
             <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_model_answer")}</p>
           </details>
@@ -682,7 +685,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                     : "missing";
                   const currentlyEditing = editing && !editing.isNew && editing.modelId === modelId;
                   return (
-                    <article key={modelId} className={`rounded-md border p-3 ${currentlyEditing ? "border-primary bg-blue-50" : "border-line"}`}>
+                    <article key={modelId} className={`rounded-md border p-3 ${currentlyEditing ? "border-stone-300 bg-stone-50" : "border-line"}`}>
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="font-semibold text-ink">{modelId}</div>
@@ -817,7 +820,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           {/* 步骤 2：选择知识源 */}
           {step === "sources" && (<>
           {/* 中文学习型说明：onboarding 解释 —— 帮助用户理解 source/workflow/processing 关系。 */}
-          <details className="rounded-md border border-blue-100 bg-blue-50/50 p-3">
+          <details className="rounded-md border border-stone-200/60 bg-stone-50/50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-primary">{t("setup.onboarding_why_sources")}</summary>
             <p className="mt-1 text-xs text-muted">{t("setup.onboarding_why_sources_answer")}</p>
           </details>

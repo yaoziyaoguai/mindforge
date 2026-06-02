@@ -74,8 +74,8 @@ export default function App() {
 
   let content = error ? <ErrorState message={error} /> : null;
   if (!content && path.startsWith("/setup") && data.config) content = <SetupPage data={data.config} onRefresh={load} />;
-  if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} onRefresh={load} />;
-  if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} />;
+  if (!content && path.startsWith("/sources") && data.sources) content = <SourcesPage data={data.sources} onNavigate={navigate} onRefresh={load} providerState={data.home?.safety.provider_state} />;
+  if (!content && (path.startsWith("/drafts") || path.startsWith("/review")) && data.drafts) content = <DraftsPage data={data.drafts} onRefresh={load} providerState={data.home?.safety.provider_state} />;
   if (!content && path.startsWith("/library") && data.library) content = <LibraryPage data={data.library} onRefresh={load} />;
   if (!content && (path.startsWith("/recall") || path.startsWith("/search"))) content = <RecallPage onNavigate={navigate} />;
   if (!content && path.startsWith("/health")) content = <HealthPage onNavigate={navigate} />;

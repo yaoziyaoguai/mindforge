@@ -16,9 +16,9 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-screen" style={{ background: "var(--mf-bg)" }}>
-      <Sidebar path={path} onNavigate={onNavigate} />
+      <Sidebar path={path} onNavigate={onNavigate} providerState={safety?.provider_state} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <SafetyBar safety={safety} />
+        <SafetyBar safety={safety} onNavigate={onNavigate} />
         <main className="mx-auto w-full max-w-5xl flex-1 px-8 py-8">
           {children}
         </main>

@@ -98,6 +98,9 @@ const copy: Record<Locale, LocaleDict> = {
     "home.onboarding.step4_title": "构建知识库",
     "home.onboarding.step4_desc": "已确认的卡片进入知识库，可通过关键词搜索和 Wiki 浏览。支持导出 Markdown。",
     "home.onboarding.step4_action": "浏览知识库",
+    "home.provider_live_label": "真实模型已激活 — 使用远程 LLM 处理知识",
+    "home.provider_sandbox_label": "安全演示模式 — 使用本地模拟模型，无外部调用",
+    "home.provider_configure_cta": "配置真实模型",
     "home.onboarding.safety_note": "MindForge 是本地优先工具。默认不调用真实 LLM、不处理真实私人资料、不写真实 Obsidian vault。API Key 仅存储在本地。",
     "home.onboarding.get_started": "开始使用",
 
@@ -272,6 +275,7 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.empty_label": "添加资料",
     "drafts.empty_desc": "添加知识源并运行处理流程后，AI 生成的草稿会出现在这里等待你审阅确认。你也可以直接查看已确认的知识库。",
     "drafts.why_review": "为什么需要审阅？AI 生成的卡片是草稿，不是最终知识。审阅确认后，卡片才会进入知识库、可被关键词搜索并纳入 Wiki。确认操作始终需要你显式手动执行，不会自动发生。",
+    "drafts.demo_mode_hint": "当前使用本地模拟模型生成草稿",
 
     // ---- LibraryPage ----
     "library.title": "知识库",
@@ -463,6 +467,7 @@ const copy: Record<Locale, LocaleDict> = {
     "sources.no_safe_path": "没有可复制的安全路径。",
     "sources.copied_source_path": "已复制来源路径。",
     "sources.copied_safe_path": "仅复制了安全显示路径。",
+    "sources.demo_mode_hint": "当前使用模拟模型输出",
     "sources.copy_path_failed": "复制路径失败",
     "sources.source_path_unavailable": "来源路径不可用",
     "sources.metric_new": "新增",
@@ -619,6 +624,7 @@ const copy: Record<Locale, LocaleDict> = {
     "safety.read_only": "只读模式",
     "safety.needs_review": "待审阅：",
     "safety.safe_local_read": "安全本地读取",
+    "safety.configure_model": "点击配置真实模型",
     "safety.loading": "正在加载安全状态...",
 
     // ---- Setup detail strings ----
@@ -1076,6 +1082,9 @@ const copy: Record<Locale, LocaleDict> = {
     "home.onboarding.step4_title": "Build Your Knowledge Base",
     "home.onboarding.step4_desc": "Approved cards enter your library and become searchable via keyword search and browsable via Wiki. Markdown export is supported.",
     "home.onboarding.step4_action": "Browse Library",
+    "home.provider_live_label": "Real model active — using remote LLM for knowledge processing",
+    "home.provider_sandbox_label": "Safe demo mode — using local simulated model, no external calls",
+    "home.provider_configure_cta": "Configure real model",
     "home.onboarding.safety_note": "MindForge is a local-first tool. By default, it does not call real LLMs, process real private data, or write to real Obsidian vaults. API keys are stored locally only.",
     "home.onboarding.get_started": "Get Started",
 
@@ -1247,6 +1256,7 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.subtitle": "Review AI-generated knowledge drafts and save them as knowledge cards after verifying accuracy.",
     "drafts.empty_title": "No AI Drafts Pending",
     "drafts.empty_label": "Add Materials",
+    "drafts.demo_mode_hint": "Drafts generated with local simulated model",
     "drafts.empty_desc": "After adding knowledge sources and running the processing flow, AI-generated drafts will appear here for your review. You can also browse the approved library directly.",
     "drafts.why_review": "Why review? AI-generated cards are drafts, not final knowledge. After you review and approve them, they enter the library, become searchable via keyword search, and are included in the Wiki. Approval is always explicit and manual — it never happens automatically.",
 
@@ -1438,6 +1448,7 @@ const copy: Record<Locale, LocaleDict> = {
     "sources.try_process_again": "Try Process now again after fixing the issue.",
     "sources.no_draft_generated": "No draft was generated. Sources shows the reason.",
     "sources.no_safe_path": "No safe source path to copy.",
+    "sources.demo_mode_hint": "Using simulated model output",
     "sources.copied_source_path": "Copied source path.",
     "sources.copied_safe_path": "Copied safe display path only.",
     "sources.copy_path_failed": "Copy path failed",
@@ -1596,6 +1607,7 @@ const copy: Record<Locale, LocaleDict> = {
     "safety.read_only": "Read-only",
     "safety.needs_review": "Needs review: ",
     "safety.safe_local_read": "Safe local read",
+    "safety.configure_model": "Click to configure real model",
     "safety.loading": "Loading safety state...",
 
     // ---- Setup detail strings ----

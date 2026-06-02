@@ -21,10 +21,12 @@ export function SourcesPage({
   data,
   onNavigate,
   onRefresh,
+  providerState,
 }: {
   data: SourcesResponse;
   onNavigate: (href: string) => void;
   onRefresh?: () => Promise<void>;
+  providerState?: string;
 }) {
   const [rowFrequencies, setRowFrequencies] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string | null>(null);
@@ -113,6 +115,12 @@ export function SourcesPage({
         <p className="text-xs text-muted leading-relaxed">
           <BoundaryBadge type="source" />
           <span className="ml-1.5">{t("sources.boundary_desc")}</span>
+          {/* provider 模式提示 — 让用户知道当前是否在使用真实模型 */}
+          {providerState !== "ready" && (
+            <span className="ml-2" style={{ color: "var(--mf-text-tertiary)" }}>
+              · {t("sources.demo_mode_hint")}
+            </span>
+          )}
         </p>
       </section>
 

@@ -21,7 +21,7 @@ import {
 import { cx } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 
-export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href: string) => void }) {
+export function Sidebar({ path, onNavigate, providerState }: { path: string; onNavigate: (href: string) => void; providerState?: string }) {
   const { locale, setLocale, t } = useLocale();
   const [labOpen, setLabOpen] = useState(false);
 
@@ -91,7 +91,19 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
                     )}
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {/* provider 状态指示灯 — 仅在 setup 条目上显示 */}
+                    {item.href === "/setup" && (
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{
+                          background: providerState === "ready"
+                            ? "var(--mf-approved)"
+                            : "var(--mf-warning)",
+                        }}
+                        title={providerState === "ready" ? "Live" : "Sandbox"}
+                      />
+                    )}
                   </button>
                 );
               })}
