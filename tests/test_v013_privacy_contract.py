@@ -1,71 +1,37 @@
-"""Privacy contract / future gate documentation assertions.
+"""Product boundary and safety tests.
 
-历史 privacy/gate/proposal 文档已经合并进 canonical docs；这里钉住关键
-token，防止语义反转。
+中文学习型说明：
+在 public docs reset 之后，大量 agent-internal 的过程记录（如 ROADMAP_COMPLETION_LEDGER
+和 v0.13/v0.14 特定阶段的 check 文档）被移除，以保持仓库面向公众的清晰度。
+因此，我们不能继续依赖那些已删除的内部文档来进行断言。
+
+但是，产品的核心安全边界（如 ai_draft vs human_approved, fake provider 默认,
+显式 opt-in, 不直接写真实 Obsidian vault）绝不能丢失。
+本测试被重写，现在的目标是验证 `docs/developer/product-boundaries.md` 这个
+稳定的、面向公众的边界契约，确保这些安全底线持续被保护。
 """
-
-from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
+def test_product_boundaries_exist_and_enforce_safety():
+    """验证产品边界文档存在且包含关键的安全约束。"""
+    doc = Path("docs/developer/product-boundaries.md")
+    assert doc.exists(), "必须提供稳定的产品边界文档"
 
-README = Path("docs/internal/product-contracts.md")
+    text = doc.read_text(encoding="utf-8").lower()
 
-
-def test_privacy_contract_exists():
-    assert README.exists()
-
-
-@pytest.mark.parametrize(
-    "token",
-    [
-        "fixtures for CI",
-        "real provider opt-in",
+    # 核心安全边界必须存在
+    required_boundaries = [
+        "ai_draft",
         "human_approved",
-        "local secret store",
-        "secret",
-        "Obsidian",
-        "Real ≠ Approved",
-        "Human Decision Gate Map",
-    ],
-)
-def test_privacy_contract_token(token: str):
-    assert token in README.read_text(encoding="utf-8"), f"missing: {token}"
+        "explicit approval required",
+        "fake provider default",
+        "real llm opt-in",
+        "source adapter vs provider",
+        "no real obsidian write",
+        "no rag",
+        "lab / internal features"
+    ]
 
-
-def test_proposal_exists_and_marked_unauthorized():
-    text = README.read_text(encoding="utf-8")
-    assert "review-only" in text
-    assert "not `human_approved`" in text
-    # 关键约束: 提案不得隐含允许 human_approved 自动产生
-    assert "human_approved" in text
-
-
-def test_proposal_lists_artifact_kinds():
-    text = README.read_text(encoding="utf-8")
-    for kind in [
-        "preview packets",
-        "readiness checks",
-        "real smoke",
-    ]:
-        assert kind in text, f"missing artifact kind: {kind}"
-
-
-def test_deferred_gates_exists():
-    assert README.exists()
-
-
-@pytest.mark.parametrize(
-    "token",
-    [
-        "sample folder",
-        "no-persist",
-        "dry-run",
-        "human_approved",
-        "diff preview",
-        "backup",
-    ],
-)
-def test_deferred_gates_token(token: str):
-    assert token in README.read_text(encoding="utf-8"), f"missing: {token}"
+    for b in required_boundaries:
+        assert b.lower() in text, f"边界文档缺失关键约束: {b}"

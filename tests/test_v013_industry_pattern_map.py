@@ -1,46 +1,37 @@
-"""v0.13 Stage 1 — product-positioning invariants now live in canonical docs.
+"""Product boundary and safety tests.
 
-学习型说明：旧的阶段性 industry map 已被清理为历史噪音。
-这里不再钉住某个临时调研文件，而是保护仍然有价值的产品边界：MindForge
-借鉴本地知识工具与 source capture 工具，但不滑向 SaaS、RAG 或自动写 vault。
+中文学习型说明：
+在 public docs reset 之后，大量 agent-internal 的过程记录（如 ROADMAP_COMPLETION_LEDGER
+和 v0.13/v0.14 特定阶段的 check 文档）被移除，以保持仓库面向公众的清晰度。
+因此，我们不能继续依赖那些已删除的内部文档来进行断言。
+
+但是，产品的核心安全边界（如 ai_draft vs human_approved, fake provider 默认,
+显式 opt-in, 不直接写真实 Obsidian vault）绝不能丢失。
+本测试被重写，现在的目标是验证 `docs/developer/product-boundaries.md` 这个
+稳定的、面向公众的边界契约，确保这些安全底线持续被保护。
 """
-
-from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
+def test_product_boundaries_exist_and_enforce_safety():
+    """验证产品边界文档存在且包含关键的安全约束。"""
+    doc = Path("docs/developer/product-boundaries.md")
+    assert doc.exists(), "必须提供稳定的产品边界文档"
 
-DOCS = (
-    Path("README.zh-CN.md"),
-    Path("docs/internal/product-contracts.md"),
-)
+    text = doc.read_text(encoding="utf-8").lower()
 
-REQUIRED_TOKENS = [
-    "local-first",
-    "single-user",
-    "SourceAdapter",
-    "Obsidian",
-    "BM25",
-    "not RAG",
-    "not embedding",
-    "explicit approval",
-    "human_approved",
-    "Test doubles",
-    "real provider opt-in",
-    "local secret store",
-]
+    # 核心安全边界必须存在
+    required_boundaries = [
+        "ai_draft",
+        "human_approved",
+        "explicit approval required",
+        "fake provider default",
+        "real llm opt-in",
+        "source adapter vs provider",
+        "no real obsidian write",
+        "no rag",
+        "lab / internal features"
+    ]
 
-
-def _canonical_text() -> str:
-    return "\n".join(path.read_text(encoding="utf-8") for path in DOCS)
-
-
-@pytest.mark.parametrize("path", DOCS)
-def test_positioning_lives_in_canonical_docs(path: Path) -> None:
-    assert path.exists(), f"{path} missing"
-
-
-@pytest.mark.parametrize("token", REQUIRED_TOKENS)
-def test_product_positioning_tokens_are_preserved(token: str) -> None:
-    assert token in _canonical_text(), f"token {token!r} missing from canonical docs"
+    for b in required_boundaries:
+        assert b.lower() in text, f"边界文档缺失关键约束: {b}"

@@ -238,21 +238,3 @@ def test_shipped_config_defaults_to_real_dogfood_profile_without_secret():
     assert "profiles:" not in cfg
     assert "fake_fast" not in cfg
     assert "sk-" not in cfg
-
-
-def test_completion_ledger_doc_exists_with_required_buckets():
-    """ROADMAP_COMPLETION_LEDGER.md 必须存在并列出全部 5 个 status
-    bucket。"""
-    p = Path(__file__).resolve().parents[1] / "docs" / "internal/ROADMAP_COMPLETION_LEDGER.md"
-    assert p.exists(), "missing ROADMAP_COMPLETION_LEDGER.md"
-    text = p.read_text(encoding="utf-8")
-    for bucket in (
-        "`pushed`",
-        "`local-complete`",
-        "`future-gated`",
-        "`release-gated`",
-        "`forbidden`",
-    ):
-        assert bucket in text, f"completion ledger missing bucket: {bucket}"
-    for gate in ("External account ingestion", "Real Obsidian", "RAG / embedding", "Public release"):
-        assert gate in text

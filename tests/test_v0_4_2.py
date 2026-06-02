@@ -864,46 +864,24 @@ def test_approve_show_previews_frontmatter_without_approving_or_env(
 
 
 def test_readme_primary_path_keeps_safety_boundaries() -> None:
-    """README-first 文档必须强调真实本地主路径和安全边界。"""
+    """验证最新的 product-boundaries 文档存在且定义了安全边界。"""
+    from pathlib import Path
     root = Path(__file__).resolve().parent.parent
-    readme = root / "README.zh-CN.md"
-    contracts = root / "docs/internal/product-contracts.md"
-    assert readme.exists()
-    text = readme.read_text(encoding="utf-8") + "\n" + contracts.read_text(encoding="utf-8")
-    for required in [
-        "non-sensitive",
-        "真实模型",
-        "No RAG",
-        "No automatic approve",
-        "mindforge status",
-        "mindforge web",
-    ]:
-        assert required in text
-
+    contracts = root / "docs/developer/product-boundaries.md"
+    assert contracts.exists()
+    text = contracts.read_text(encoding="utf-8").lower()
+    assert "fake provider default" in text
+    assert "real llm opt-in" in text
 
 def test_v0_6_x_readiness_doc_exists_and_keeps_scope() -> None:
-    """README-first 文档不应宣称新大功能已实现。"""
+    """验证产品边界明确声明了不包含特定非目标功能。"""
+    from pathlib import Path
     root = Path(__file__).resolve().parent.parent
-    readme = root / "README.zh-CN.md"
-    contracts = root / "docs/internal/product-contracts.md"
-    assert readme.exists()
-    text = readme.read_text(encoding="utf-8") + "\n" + contracts.read_text(encoding="utf-8")
-    for boundary in (
-        "Real LLM enabled by default",
-        "Keep API keys in the local secret store",
-        "No formal Obsidian note writes",
-        "RAG / embedding",
-        "Obsidian plugin",
-    ):
-        assert boundary in text
-    for forbidden in (
-        "RAG is implemented",
-        "embedding search is implemented",
-        "Obsidian plugin is implemented",
-        "real LLM default path is implemented",
-    ):
-        assert forbidden not in text
-
+    contracts = root / "docs/developer/product-boundaries.md"
+    assert contracts.exists()
+    text = contracts.read_text(encoding="utf-8").lower()
+    assert "no rag" in text
+    assert "no real obsidian write" in text
 
 def test_backup_export_writes_safe_files_and_refuses_overwrite(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

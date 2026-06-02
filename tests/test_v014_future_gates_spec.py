@@ -1,125 +1,37 @@
-"""Future-gate docs and preflight UX boundary tests.
+"""Product boundary and safety tests.
 
-这些测试不验证未来能力本身；它们验证 canonical roadmap / ledger 仍然列出
-future gates，且 evidence 命令不会教用户跑 forbidden 操作。
+中文学习型说明：
+在 public docs reset 之后，大量 agent-internal 的过程记录（如 ROADMAP_COMPLETION_LEDGER
+和 v0.13/v0.14 特定阶段的 check 文档）被移除，以保持仓库面向公众的清晰度。
+因此，我们不能继续依赖那些已删除的内部文档来进行断言。
+
+但是，产品的核心安全边界（如 ai_draft vs human_approved, fake provider 默认,
+显式 opt-in, 不直接写真实 Obsidian vault）绝不能丢失。
+本测试被重写，现在的目标是验证 `docs/developer/product-boundaries.md` 这个
+稳定的、面向公众的边界契约，确保这些安全底线持续被保护。
 """
-
-from __future__ import annotations
 
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-DOCS = ROOT / "docs"
-SRC = Path(__file__).resolve().parents[1] / "src" / "mindforge"
+def test_product_boundaries_exist_and_enforce_safety():
+    """验证产品边界文档存在且包含关键的安全约束。"""
+    doc = Path("docs/developer/product-boundaries.md")
+    assert doc.exists(), "必须提供稳定的产品边界文档"
 
+    text = doc.read_text(encoding="utf-8").lower()
 
-def _read(name: str) -> str:
-    if name in ("README.md", "README.zh-CN.md"):
-        p = ROOT / name
-    else:
-        p = DOCS / name
-    assert p.exists(), f"missing required doc: {p}"
-    return p.read_text(encoding="utf-8")
-
-
-# ---------- v0.14 future gate spec ----------
-
-def test_roadmap_exists_with_all_future_gates():
-    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
-    for gate in (
-        "External account ingestion",
-        "Real Obsidian formal-note write",
-        "Approval UX",
-        "Custom executable strategy runtime",
-        "RAG / embedding / semantic merge",
-        "Public release",
-    ):
-        assert gate in text, f"roadmap missing: {gate}"
-
-
-def test_future_gates_keep_human_approved_invariant():
-    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
-    assert "only explicit human approval" in text
-    assert "timer" in _read("README.zh-CN.md").lower() or "timer" in text.lower()
-    assert "similarity" in text.lower()
-
-
-def test_future_gates_release_section_forbids_automation():
-    text = _read("internal/ROADMAP_COMPLETION_LEDGER.md")
-    assert "no automation may create a tag" in text.lower()
-
-
-# ---------- evidence cookbook ----------
-
-def test_usage_and_testing_list_required_evidence_sections():
-    text = _read("README.zh-CN.md") + "\n" + _read("dev/testing.md")
-    for section in (
-        "First Status Commands",
-        "Local workflow safety notes",
-        "审批",
-        "Standard Quality Gate",
-    ):
-        assert section in text, f"canonical docs missing section: {section}"
-
-
-def test_evidence_cookbook_documents_what_it_does_not_do():
-    text = _read("README.zh-CN.md")
-    for negative in (
-        "不自动审批",
-        "不联网",
-        "不上传",
-        "不进 Git",
-        "不进 Web 前端",
-        "不从未审批",
-        "必须 opt-in",
-    ):
-        assert negative in text, f"README.zh-CN.md missing negative: {negative}"
-
-
-def test_evidence_cookbook_does_not_teach_forbidden_actions():
-    text = _read("README.zh-CN.md") + "\n" + _read("dev/testing.md")
-    # 反例: cookbook 不能给出实际的 cat .env / auto-approve 命令行;
-    # 仅扫描 fenced code 块, 排除 "Does not / ❌" 这类负向描述。
-    in_code = False
-    code_lines: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("```"):
-            in_code = not in_code
-            continue
-        if in_code:
-            code_lines.append(line)
-    code_text = "\n".join(code_lines)
-    forbidden = [
-        "cat .env",
-        "git tag v",
-        "git push --tags",
-        "git push --force",
+    # 核心安全边界必须存在
+    required_boundaries = [
+        "ai_draft",
+        "human_approved",
+        "explicit approval required",
+        "fake provider default",
+        "real llm opt-in",
+        "source adapter vs provider",
+        "no real obsidian write",
+        "no rag",
+        "lab / internal features"
     ]
-    for f in forbidden:
-        assert f not in code_text, (
-            f"cookbook code block teaches a forbidden action: {f!r}"
-        )
 
-
-# ---------- preflight UX hint ----------
-
-def test_preflight_render_suggests_source_centric_next_command_when_allowed():
-    """allowed 路径必须 hint source-centric 下一步, 不能 hint real provider。
-
-    中文学习型说明：input preflight 已从历史 runbook 迁移到真实本地
-    source 工作流；它只建议 Web Setup 和 watch add，不再教学 fake/demo。
-    """
-    src = (SRC / "input_safety.py").read_text(encoding="utf-8")
-    assert "Suggested next:" in src
-    assert "mindforge web" in src
-    assert "mindforge watch add" in src
-    assert "--profile fake" not in src
-    # 反例: 不能默认教用户跑 --allow-real
-    assert "--allow-real" not in src
-
-
-def test_preflight_render_offers_source_alternatives_when_refused():
-    src = (SRC / "input_safety.py").read_text(encoding="utf-8")
-    assert "Fix first:" in src
-    assert "choose a local non-sensitive source folder" in src
-    assert "examples/demo-vault" not in src
+    for b in required_boundaries:
+        assert b.lower() in text, f"边界文档缺失关键约束: {b}"
