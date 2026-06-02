@@ -12,7 +12,7 @@ import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workf
  *
  * 中文学习型说明：
  * 此页面承载 Provider (LLM) 的 Opt-in 逻辑。
- * 1. 明确区分“本地工作区”与“外部 Provider”。
+ * 1. 明确区分"本地工作区"与"外部 Provider"。
  * 2. 强化 Sandbox vs Live 概念，防止非预期的网络调用。
  * 3. 保护 API Key：仅作为 Write-only 存在，前端不回显。
  */
@@ -348,19 +348,16 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       </div>
 
       {/* Provider Boundary Clarity Callout */}
-      <section className="rounded-md border border-purple-200 bg-purple-50/30 p-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-purple-900">
+      <section className="rounded-md border border-stone-200/70 bg-stone-50/50 px-4 py-3">
+        <p className="text-xs text-muted leading-relaxed">
           <BoundaryBadge type="provider" />
-          {t("setup.boundary_title")}
-        </h2>
-        <p className="mt-1 text-xs text-purple-800/80 leading-relaxed">
-          {t("setup.boundary_desc")}
+          <span className="ml-1.5">{t("setup.boundary_desc")}</span>
         </p>
       </section>
 
       {/* 中文学习型说明：provider 安全边界横幅，根据 provider_mode 展示不同状态。 */}
       {data.provider.provider_mode === "real" ? (
-        <section className="rounded-md border border-amber-300 bg-amber-50 p-4 shadow-sm">
+        <section className="rounded-md border border-amber-200/60 bg-amber-50/50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
@@ -380,7 +377,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </div>
         </section>
       ) : (
-        <section className="rounded-md border border-stone-200 bg-stone-50 p-4 shadow-sm">
+        <section className="rounded-md border border-stone-200/60 bg-stone-50/50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-900">

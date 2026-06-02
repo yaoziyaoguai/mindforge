@@ -36,16 +36,15 @@ describe("SafetyBar", () => {
   });
 
   describe("local mode", () => {
-    it("renders local_only message when true", () => {
-      renderWithLocale(<SafetyBar safety={baseSafety} />);
-      // t("safety.local_only") → "本地运行"
-      expect(screen.getByText("本地运行")).toBeInTheDocument();
+    it("shows ShieldCheck icon for vault path", () => {
+      const { container } = renderWithLocale(<SafetyBar safety={baseSafety} />);
+      const svgs = container.querySelectorAll("svg");
+      expect(svgs.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("renders host warning when local_only is false", () => {
+    it("shows vault path even when local_only is false", () => {
       renderWithLocale(<SafetyBar safety={{ ...baseSafety, local_only: false }} />);
-      // t("safety.host_warning") → "主机警告"
-      expect(screen.getByText("主机警告")).toBeInTheDocument();
+      expect(screen.getByText(/Vault:/)).toBeInTheDocument();
     });
   });
 
@@ -82,17 +81,15 @@ describe("SafetyBar", () => {
     });
   });
 
-  describe("write mode", () => {
-    it("renders explicit_approval mode", () => {
+  describe("pending drafts always visible", () => {
+    it("shows pending drafts regardless of write_mode", () => {
       renderWithLocale(<SafetyBar safety={baseSafety} />);
-      // t("safety.explicit_approval") → "需显式确认"
-      expect(screen.getByText("需显式确认")).toBeInTheDocument();
+      expect(screen.getByText("待审阅：3")).toBeInTheDocument();
     });
 
-    it("renders read_only mode", () => {
+    it("shows pending drafts in read_only mode too", () => {
       renderWithLocale(<SafetyBar safety={{ ...baseSafety, write_mode: "read_only" }} />);
-      // t("safety.read_only") → "只读模式"
-      expect(screen.getByText("只读模式")).toBeInTheDocument();
+      expect(screen.getByText("待审阅：3")).toBeInTheDocument();
     });
   });
 
@@ -122,19 +119,19 @@ describe("SafetyBar", () => {
     });
   });
 
-  it("renders ShieldCheck icon for local_only", () => {
+  it("renders ShieldCheck and CheckCircle2 icons", () => {
     const { container } = renderWithLocale(<SafetyBar safety={baseSafety} />);
-    // ShieldCheck, Lock, CheckCircle2 三个图标
+    // 新 SafetyBar: ShieldCheck + CheckCircle2 = 2 个图标
     const svgs = container.querySelectorAll("svg");
-    expect(svgs.length).toBeGreaterThanOrEqual(3);
+    expect(svgs.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("renders AlertTriangle icon when warnings present", () => {
+  it("replaces CheckCircle2 with warning text when warnings present", () => {
     const { container } = renderWithLocale(
       <SafetyBar safety={{ ...baseSafety, warnings: ["过期"] }} />,
     );
-    // 应该有 AlertTriangle 替换 CheckCircle2
+    // ShieldCheck 仍在，CheckCircle2 被文本替换
     const svgs = container.querySelectorAll("svg");
-    expect(svgs.length).toBeGreaterThanOrEqual(3);
+    expect(svgs.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -12,8 +12,8 @@ import { ArrowDown, FolderOpen, Terminal, Clipboard } from "lucide-react";
  *
  * 中文学习型说明：
  * 此页面承载 Source Ingestion (资料摄入) 的逻辑。
- * 1. 明确 Source Adapter 角色：它是“只读”资料源。
- * 2. 强化“导入不等于确认”边界：导入后资料仅进入 ai_draft，需手动审批。
+ * 1. 明确 Source Adapter 角色：它是"只读"资料源。
+ * 2. 强化"导入不等于确认"边界：导入后资料仅进入 ai_draft，需手动审批。
  * 3. 区分 Source (资料) 与 Provider (加工能力)。
  */
 
@@ -109,13 +109,10 @@ export function SourcesPage({
       </header>
 
       {/* Source Ingestion Boundary Clarity */}
-      <section className="rounded-md border border-blue-200 bg-blue-50/30 p-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+      <section className="rounded-md border border-stone-200/70 bg-stone-50/50 px-4 py-3">
+        <p className="text-xs text-muted leading-relaxed">
           <BoundaryBadge type="source" />
-          {t("sources.boundary_title")}
-        </h2>
-        <p className="mt-1 text-xs text-blue-800/80 leading-relaxed">
-          {t("sources.boundary_desc")}
+          <span className="ml-1.5">{t("sources.boundary_desc")}</span>
         </p>
       </section>
 

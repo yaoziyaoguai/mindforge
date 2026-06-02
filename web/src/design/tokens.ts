@@ -94,7 +94,8 @@ export const cssSpacing = {
 // ─── 已知问题 ────────────────────────────────────────────────────
 //
 // 1. 双系统值不对齐 (e.g. A套 accent=#2368d1 蓝, B套 accent=#2d7d5f 绿)
-//    不同页面视觉不一致。需要统一但属于中等规模重构，不在当前 scope。
+//    不同页面视觉不一致。需要统一但属于中等规模重构。
+//    Slice 2.5 (2026-06-02): 新组件优先用 B套 CSS 变量；Tailwind A套仅用于布局。
 //
 // 2. CSS 变量引用缺失:
 //    - var(--mf-warn) 在 ExportPage 使用，但定义的是 --mf-warning
@@ -104,8 +105,7 @@ export const cssSpacing = {
 // 3. SensemakingPage 使用独立第三套 inline CSS 变量 (--bg-secondary 等)，
 //    与其他页面不共享 token 体系。
 //
-// 4. 部分组件直接使用 Tailwind 原色 (red-500/amber-500/emerald-500 等)，
-//    未走 token 体系。
+// 4. BoundaryBadge / Callout 色彩已统一 (Slice 2.5): 不再使用 5 种独立颜色。
 
 // ─── 使用指南 ────────────────────────────────────────────────────
 //

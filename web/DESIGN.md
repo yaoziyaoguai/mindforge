@@ -72,6 +72,39 @@ The UI MUST rigidly reflect the compiler pipeline:
 - ❌ **Auto-Approval**: All changes must be explicitly approved by a human.
 - ❌ **Blurry Boundaries**: Never hide whether a provider is real or fake.
 
+## 12. Visual Remediation Rules (Slice 2.5 — 2026-06-02)
+
+These rules capture the visual corrections applied to move the UI from "engineering dashboard" toward "calm knowledge desk."
+
+### 12.1 BoundaryBadge Rules
+- **Single neutral chip style** for all boundary types except `live` (which uses a muted warm tone).
+- Never more than 2 badge color variants visible at once.
+- Never use `text-[10px] font-bold uppercase` — badges are metadata, not stickers.
+- Badge should blend into the reading flow, not interrupt it.
+
+### 12.2 Boundary Callout Rules
+- Use **one unified callout style** (`border-stone-200/70 bg-stone-50/50`) across all pages.
+- Never use page-specific callout colors (purple/blue/green variants).
+- Callout text must be **one short sentence** — not a paragraph of rules.
+- Callout is a contextual note, not a rule announcement banner.
+
+### 12.3 SafetyBar Rules
+- SafetyBar is a **status indicator**, not a system alert bar.
+- Reduce icon density — shield icon for local-only status + subtle checkmark for "all clear" is sufficient.
+- Never use `AlertTriangle` for routine status display; reserve for genuine warnings only.
+- Never use heavy `border-r` separators between segments — whitespace separation is sufficient.
+- Background: `bg-stone-50/50`, text: `text-xs text-muted`.
+
+### 12.4 Color Token Discipline
+- **Primary accent**: Use a single accent color (`--mf-accent`, currently green `#2d7d5f`) consistently.
+- Do NOT introduce new badge/semantic colors beyond the defined token set.
+- The Tailwind `primary: #2368d1` (blue) conflicts with CSS `accent: #2d7d5f` (green) — prefer CSS tokens for semantic meaning, Tailwind utilities for layout only.
+
+### 12.5 Density & Breathing Room
+- Page sections must have visual breathing room — avoid nesting `border + p-4` inside `border + p-4`.
+- Callout sections use `px-4 py-3` (not `p-4`) to reduce vertical weight.
+- Text in informational sections uses `text-xs` (not `text-sm`) to reduce visual shouting.
+
 ## 12. Accessibility & Readability
 - Ensure WCAG AA contrast ratios.
 - All interactive elements must have clear focus states.

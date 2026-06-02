@@ -11,9 +11,9 @@ import { cx } from "../lib/utils";
  * ExportPage - 知识导出
  *
  * 中文学习型说明：
- * 此页面承载知识“流出”系统的逻辑。
+ * 此页面承载知识"流出"系统的逻辑。
  * 1. 明确 Staging 角色：导出仅为生成副本，不操作用户生产环境。
- * 2. 强化“只导出已审批”约束：不消费 ai_draft。
+ * 2. 强化"只导出已审批"约束：不消费 ai_draft。
  * 3. 保护主工作区安全：明确不直接写入真实 Obsidian 库。
  */
 
@@ -22,13 +22,10 @@ type ExportFormat = "markdown" | "zip";
 function StagingBoundaryCallout() {
   const { t } = useLocale();
   return (
-    <section className="rounded-md border border-green-200 bg-green-50/30 p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-green-900">
+    <section className="rounded-md border border-stone-200/70 bg-stone-50/50 px-4 py-3">
+      <p className="text-xs text-muted leading-relaxed">
         <BoundaryBadge type="staging" />
-        {t("export.staging_title")}
-      </h2>
-      <p className="mt-1 text-xs text-green-800/80 leading-relaxed">
-        {t("export.staging_desc")}
+        <span className="ml-1.5">{t("export.staging_desc")}</span>
       </p>
     </section>
   );

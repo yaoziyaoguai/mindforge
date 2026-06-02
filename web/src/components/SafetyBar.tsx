@@ -1,57 +1,53 @@
-import { AlertTriangle, CheckCircle2, Lock, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { truncateMiddle } from "../lib/utils";
 import { useLocale } from "../lib/i18n";
 import type { SafetySummary } from "../api/types";
 import { BoundaryBadge } from "./BoundaryBadge";
 
 /**
- * SafetyBar - 全局安全状态条
+ * SafetyBar — 全局安全状态条（calm status bar, not system alert）
  *
- * 中文学习型说明：
- * 此组件是 MindForge 安全语义的核心载体。
- * 1. 强制展示 Vault 路径，体现 Local-first。
- * 2. 使用 BoundaryBadge 明确 Sandbox/Live 状态，保护 Provider 边界。
- * 3. 明确 Explicit Approval 要求，防止自动写入。
+ * 视觉方向：低调的状态指示器，像编辑器底部的 mode line，
+ * 不像监控面板的告警条。安全语义通过安静的文字 + shield icon 传达，
+ * 不靠颜色轰炸。
  */
 
 export function SafetyBar({ safety }: { safety?: SafetySummary | null }) {
   const { t } = useLocale();
 
   if (!safety) {
-    return <div className="border-b border-line bg-panel px-4 py-3 text-sm text-muted">{t("safety.loading")}</div>;
+    return <div className="border-b border-line bg-stone-50/50 px-4 py-2 text-xs text-muted">{t("safety.loading")}</div>;
   }
-  const hasWarning = safety.warnings.length > 0;
-  return (
-    <section className="border-b border-line bg-panel px-4 py-3" aria-label="Safety Bar">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="inline-flex items-center gap-1 text-safe">
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          {safety.local_only ? t("safety.local_only") : t("safety.host_warning")}
-        </span>
-        <span className="text-muted border-r border-line pr-3 mr-1">Vault: {truncateMiddle(safety.vault_path, 40)}</span>
 
-        <div className="flex items-center gap-2 border-r border-line pr-3 mr-1">
-          <span className="text-muted">{t("safety.model_setup")}</span>
+  return (
+    <section
+      className="border-b border-line bg-stone-50/50 px-4 py-2"
+      aria-label="Safety Bar"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <ShieldCheck className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
+          <span className="text-stone-500">Vault: {truncateMiddle(safety.vault_path, 36)}</span>
+        </span>
+
+        <span className="inline-flex items-center gap-1.5">
+          <span>{t("safety.model_setup")}</span>
           {safety.provider_state === "ready" ? (
             <BoundaryBadge type="live" />
           ) : (
             <BoundaryBadge type="sandbox" />
           )}
-        </div>
-
-        <span className="inline-flex items-center gap-1 text-warn border-r border-line pr-3 mr-1">
-          <Lock className="h-4 w-4" aria-hidden="true" />
-          {safety.write_mode === "explicit_approval_required" ? t("safety.explicit_approval") : t("safety.read_only")}
         </span>
-        <span className="text-muted">{t("safety.needs_review")}{safety.pending_drafts_count}</span>
-        {hasWarning ? (
-          <span className="inline-flex items-center gap-1 text-warn">
-            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            {safety.warnings[0]}
-          </span>
+
+        <span className="inline-flex items-center gap-1">
+          <span>{t("safety.needs_review")}{safety.pending_drafts_count}</span>
+        </span>
+
+        {safety.warnings.length > 0 ? (
+          <span className="text-warn">{safety.warnings[0]}</span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-safe">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          <span className="inline-flex items-center gap-1 text-stone-400">
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
             {t("safety.safe_local_read")}
           </span>
         )}
