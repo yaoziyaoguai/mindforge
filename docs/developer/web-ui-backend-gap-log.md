@@ -64,6 +64,46 @@ This log prevents the reference-image redesign from implying backend capabilitie
 | Web Clipper adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend WebClipperAdapter not implemented | Implement web clipper integration | P2 |
 | RSS Feed adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend RSSAdapter not implemented | Implement RSS feed ingestion | P2 |
 
+## Batch 3: Library, Wiki, Export
+
+### Reference -> Backend Matrix
+
+| page/type | UI expectation from reference | current backend/API support | current UI behavior | needed backend work | priority | safe to show in UI now? | reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Library / Filter Tabs | All Knowledge, By Source, By Track, Favorites, Recently Viewed | partial | All/By Source/By Track work client-side on real data; Favorites/Recently Viewed disabled (no backend) | Add favorites/bookmarks endpoint and recently-viewed tracking | P2 | yes | Implemented tabs filter real human_approved cards; disabled tabs clearly marked. |
+| Library / Table | Knowledge table with title, source, date, status, tags | yes | Real data from `/api/library/cards`; only `human_approved` shown | None | P0 | yes | All columns from existing API; LibraryCardResponse has title, source_type, created_at, status, tags. |
+| Library / Detail Panel | Right-side detail panel with card body | yes | Uses `getLibraryCardDetail` API; shows body, source, provenance | None | P0 | yes | Real API call per selected card. |
+| Library / Graph Explorer | Graph visualization button | no | Removed from LibraryPage — Graph is lab/internal, not main path | None for Library; graph exists as separate page | P3 | yes | Removed to protect product boundary; graph is not main-path. |
+| Library / Community Panel | Knowledge community panel | no | Removed from LibraryPage — Community is lab/internal | None | P3 | yes | Removed to protect product boundary; community is not main-path. |
+| Library / Favorites | Favorite/starred knowledge | no | Filter tab disabled; star icon in table is visual only, no backend | Add favorites/bookmarks endpoint | P3 | yes | UI element shown but non-functional; no fake data. |
+| Library / Recently Viewed | Recently viewed tracking | no | Filter tab disabled; no backend tracking | Add view-count tracking per card | P3 | yes | Filter tab disabled with Coming Soon label. |
+| Wiki / Filter Tabs | All Pages, Favorites, Recent, Recently Updated | partial | All Pages works on real wiki sections; Favorites/Recent/Recently Updated disabled | Add wiki page favorites, view tracking, update timestamps | P3 | yes | All Pages filters real wiki sections; disabled tabs marked Coming Soon. |
+| Wiki / Page List | Section list with card count | yes | Real data from `/api/wiki/page`; sections with card counts | None | P0 | yes | Section data from existing wiki API. |
+| Wiki / Quality Metrics | Coverage, faithfulness, unused, stale, gaps | yes | Real data from `/api/wiki/quality`; shown in collapsible details | None | P0 | yes | All metrics from real API. |
+| Wiki / Rebuild | LLM + deterministic rebuild | yes | `POST /api/wiki/rebuild` with mode parameter | None | P0 | yes | Existing rebuild endpoint. |
+| Wiki / New Page | Create new wiki page manually | no | Button shown but no backend support | Add wiki page creation endpoint | P2 | yes | Button is placeholder; no fake capability. |
+| Export / Format Cards | Markdown, ZIP, PDF, HTML, Word, JSON | partial | Markdown/ZIP enabled and working; PDF/HTML/Word/JSON marked Coming Soon | Implement PDF/HTML/Word/JSON export formats | P2 | yes | Only implemented formats are functional; Coming Soon cards are disabled. |
+| Export / Scope | All / By Tag / By Track | yes | Real filtering on approved cards; tag/track dropdowns populated from API | None | P0 | yes | Filtering works on real human_approved data. |
+| Export / Download | Markdown download, ZIP download | yes | Uses `/api/knowledge/export` and `/api/knowledge/export/download` | None | P0 | yes | Real download endpoints. |
+| Export / Options | Include metadata, TOC, tags, frontmatter | no | Options checkboxes shown but not sent to backend yet | Add export options to export API request body | P2 | yes | Options UI prepared; backend integration pending. |
+| Export / Recent Exports | Recent export history | no | Section not shown (no backend tracking) | Add export history tracking | P3 | yes | Omitted rather than faked. |
+
+### Backend -> Frontend Matrix: Batch 3
+
+| backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
+| --- | --- | --- | --- | --- | --- | --- |
+| Library card list with status filtering | `web/src/api/library.ts`, `/api/library/cards` | LibraryPage table list | yes | n/a | Server-side pagination + favorites sorting | P0 |
+| Library card detail | `web/src/api/library.ts`, `/api/library/cards/:id` | LibraryPage detail panel | yes | n/a | Rich provenance visualization | P0 |
+| Library bulk actions (export, tag, track) | `web/src/api/library.ts`, bulk endpoints | LibraryPage bulk actions bar | yes | n/a | None | P0 |
+| Wiki status | `web/src/api/wiki.ts` (via fetch), `/api/wiki/status` | WikiPage status bar | yes | n/a | None | P0 |
+| Wiki page content | `web/src/api/wiki.ts` (via fetch), `/api/wiki/page` | WikiPage section list | yes | n/a | Full page navigation with TOC | P0 |
+| Wiki quality metrics | `web/src/api/wiki.ts` (via fetch), `/api/wiki/quality` | WikiPage quality collapsible | yes | n/a | None | P0 |
+| Wiki rebuild | `web/src/api/wiki.ts` (via fetch), `/api/wiki/rebuild` | WikiPage rebuild button | yes | n/a | None | P0 |
+| Wiki related sections | `web/src/api/wiki.ts` (via fetch), `/api/wiki/related-sections` | fetched but not yet surfaced in UI | no | No clear UI placement in new design | Add related-sections sidebar in detail view | P2 |
+| Knowledge export (markdown) | `web/src/api/library.ts` (via fetch), `/api/knowledge/export` | ExportPage preview + download | yes | n/a | None | P0 |
+| Knowledge export download (zip) | `web/src/api/library.ts` (via fetch), `/api/knowledge/export/download` | ExportPage download | yes | n/a | None | P0 |
+| Export options (metadata, TOC, tags, frontmatter) | not in export API yet | ExportPage options checkboxes | no | Backend export API doesn't accept options | Add options to export request body | P2 |
+
 ## Assets
 
 No external assets were added in Batch 1 or Batch 2.

@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Eye, FileText, Package, ShieldCheck } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Package,
+  ShieldCheck,
+  FileJson,
+  FileType,
+  FileCode,
+  Lock,
+} from "lucide-react";
 import { getLibraryCards } from "../api/library";
 import type { LibraryCardResponse, LibraryCardsResponse } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
@@ -8,17 +18,80 @@ import { useLocale } from "../lib/i18n";
 import { cx } from "../lib/utils";
 
 /**
- * ExportPage - 知识导出
+ * ExportPage — 知识导出
  *
  * 中文学习型说明：
  * 此页面承载知识"流出"系统的逻辑。
  * 1. 明确 Staging 角色：导出仅为生成副本，不操作用户生产环境。
  * 2. 强化"只导出已审批"约束：不消费 ai_draft。
  * 3. 保护主工作区安全：明确不直接写入真实 Obsidian 库。
+ *
+ * 参考图 image6 风格：format cards grid + Coming Soon 标记。
+ * 只有 Markdown 和 ZIP 是已实现的后端能力。
+ * PDF / HTML / Word / JSON 标记为 Coming Soon，不可点击，不伪造能力。
  */
 
 type ExportFormat = "markdown" | "zip";
 
+interface FormatCard {
+  key: string;
+  label: string;
+  desc: string;
+  icon: typeof FileText;
+  enabled: boolean;
+  comingSoon?: boolean;
+}
+
+const formatCards: FormatCard[] = [
+  {
+    key: "markdown",
+    label: "export.format_markdown",
+    desc: "export.format_markdown_desc",
+    icon: FileText,
+    enabled: true,
+  },
+  {
+    key: "zip",
+    label: "export.format_zip",
+    desc: "export.format_zip_desc",
+    icon: Package,
+    enabled: true,
+  },
+  {
+    key: "pdf",
+    label: "export.format_pdf",
+    desc: "export.format_pdf_desc",
+    icon: FileType,
+    enabled: false,
+    comingSoon: true,
+  },
+  {
+    key: "html",
+    label: "export.format_html",
+    desc: "export.format_html_desc",
+    icon: FileCode,
+    enabled: false,
+    comingSoon: true,
+  },
+  {
+    key: "word",
+    label: "export.format_word",
+    desc: "export.format_word_desc",
+    icon: FileText,
+    enabled: false,
+    comingSoon: true,
+  },
+  {
+    key: "json",
+    label: "export.format_json",
+    desc: "export.format_json_desc",
+    icon: FileJson,
+    enabled: false,
+    comingSoon: true,
+  },
+];
+
+/** Staging boundary callout — 保护导出安全边界 */
 function StagingBoundaryCallout() {
   const { t } = useLocale();
   return (
@@ -43,6 +116,12 @@ export function ExportPage() {
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Export options
+  const [includeMetadata, setIncludeMetadata] = useState(true);
+  const [includeToc, setIncludeToc] = useState(false);
+  const [includeTags, setIncludeTags] = useState(true);
+  const [includeFrontmatter, setIncludeFrontmatter] = useState(true);
+
   useEffect(() => {
     setError(null);
     getLibraryCards()
@@ -60,13 +139,10 @@ export function ExportPage() {
   const allTags: string[] = useMemo(
     () => {
       const tagSet = new Set<string>();
-      // tags come from API as string but the type might not include it
       for (const c of approvedCards) {
-        // LibraryCardResponse doesn't have a 'tags' field directly visible,
-        // but the API returns it. Cast through unknown.
         const raw = c as unknown as Record<string, unknown>;
         if (Array.isArray(raw.tags)) {
-          for (const t of raw.tags as string[]) tagSet.add(t);
+          for (const tag of raw.tags as string[]) tagSet.add(tag);
         }
       }
       return [...tagSet].sort();
@@ -170,6 +246,8 @@ export function ExportPage() {
     }
   }, [cardRefs, format]);
 
+  // -- error: can't load cards ---------------------------------------------
+
   if (error && !data) {
     return (
       <div className="space-y-6">
@@ -184,6 +262,8 @@ export function ExportPage() {
       </div>
     );
   }
+
+  // -- no approved cards to export -----------------------------------------
 
   if (data && approvedCards.length === 0) {
     return (
@@ -202,9 +282,18 @@ export function ExportPage() {
           }}
           locale={locale}
         />
+
+        {/* Format cards grid — 展示所有格式，未实现的 disabled */}
+        <FormatCardsGrid
+          selectedFormat={format}
+          onSelectFormat={() => {}}
+          disabled
+        />
       </div>
     );
   }
+
+  // -- main export page ----------------------------------------------------
 
   return (
     <div className="space-y-6">
@@ -214,6 +303,17 @@ export function ExportPage() {
       </header>
 
       <StagingBoundaryCallout />
+
+      {/* Format Cards Grid */}
+      <FormatCardsGrid
+        selectedFormat={format}
+        onSelectFormat={(key) => {
+          if (key === "markdown" || key === "zip") {
+            setFormat(key as ExportFormat);
+          }
+        }}
+        disabled={false}
+      />
 
       {/* Scope Selection */}
       <section className="rounded-lg border border-line bg-white/60 p-5">
@@ -265,32 +365,58 @@ export function ExportPage() {
         )}
       </section>
 
-      {/* Format Selection */}
+      {/* Export Options */}
       <section className="rounded-lg border border-line bg-white/60 p-5">
-        <h2 className="mb-3 text-sm font-semibold text-ink">{t("export.format_label")}</h2>
-        <div className="flex flex-wrap gap-3">
-          {([
-            ["markdown", t("export.format_markdown"), t("export.format_markdown_desc"), FileText],
-            ["zip", t("export.format_zip"), t("export.format_zip_desc"), Package],
-          ] as const).map(([key, label, desc, Icon]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFormat(key)}
-              className={cx(
-                "flex items-start gap-3 rounded-lg border p-4 text-left transition-colors",
-                format === key
-                  ? "border-[var(--mf-accent)] bg-[var(--mf-accent)]/5"
-                  : "border-line hover:border-[var(--mf-accent)]/40",
-              )}
-            >
-              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
-              <div>
-                <div className="text-sm font-medium text-ink">{label}</div>
-                <div className="text-xs text-muted">{desc}</div>
-              </div>
-            </button>
-          ))}
+        <h2 className="mb-3 text-sm font-semibold text-ink">{t("export.options_label")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={includeMetadata}
+              onChange={(e) => setIncludeMetadata(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
+            />
+            <div>
+              <div className="text-xs font-medium text-ink">{t("export.opt_include_metadata")}</div>
+              <div className="text-[11px] text-muted">{t("export.opt_include_metadata_desc")}</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={includeToc}
+              onChange={(e) => setIncludeToc(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
+            />
+            <div>
+              <div className="text-xs font-medium text-ink">{t("export.opt_include_toc")}</div>
+              <div className="text-[11px] text-muted">{t("export.opt_include_toc_desc")}</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={includeTags}
+              onChange={(e) => setIncludeTags(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
+            />
+            <div>
+              <div className="text-xs font-medium text-ink">{t("export.opt_include_tags")}</div>
+              <div className="text-[11px] text-muted">{t("export.opt_include_tags_desc")}</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2 rounded-md border border-line bg-white/50 p-3 cursor-pointer hover:border-[var(--mf-accent)]/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={includeFrontmatter}
+              onChange={(e) => setIncludeFrontmatter(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-line text-[var(--mf-accent)] focus:ring-[var(--mf-accent)]"
+            />
+            <div>
+              <div className="text-xs font-medium text-ink">{t("export.opt_include_frontmatter")}</div>
+              <div className="text-[11px] text-muted">{t("export.opt_include_frontmatter_desc")}</div>
+            </div>
+          </label>
         </div>
       </section>
 
@@ -309,11 +435,16 @@ export function ExportPage() {
               {t("export.card_list_title")} ({cardRefs.length})
             </summary>
             <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto rounded border border-line bg-muted/20 p-3 text-sm">
-              {filteredCards.map((c) => (
+              {filteredCards.slice(0, 20).map((c) => (
                 <li key={c.id ?? c.rel_path} className="text-ink">
                   {c.title ?? c.rel_path}
                 </li>
               ))}
+              {filteredCards.length > 20 && (
+                <li className="text-muted text-xs">
+                  ... +{filteredCards.length - 20} {locale === "zh" ? "更多" : "more"}
+                </li>
+              )}
             </ul>
           </details>
         )}
@@ -394,5 +525,74 @@ export function ExportPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Format Cards Grid — 展示导出格式，已实现的可用，未实现的 Coming Soon */
+function FormatCardsGrid({
+  selectedFormat,
+  onSelectFormat,
+  disabled,
+}: {
+  selectedFormat: string;
+  onSelectFormat: (key: string) => void;
+  disabled: boolean;
+}) {
+  const { t } = useLocale();
+
+  return (
+    <section className="rounded-lg border border-line bg-white/60 p-5">
+      <h2 className="mb-1 text-sm font-semibold text-ink">{t("export.format_label")}</h2>
+      <p className="mb-4 text-xs text-muted">
+        {disabled
+          ? ""
+          : t("export.format_coming_soon") + " " + (t("export.format_json") || "") + " ..."}
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {formatCards.map((card) => {
+          const isSelected = selectedFormat === card.key;
+          const Icon = card.icon;
+
+          if (!card.enabled) {
+            // Coming Soon — disabled card
+            return (
+              <div
+                key={card.key}
+                className="flex flex-col items-start gap-2 rounded-lg border border-line/50 bg-muted/10 p-4 opacity-60 cursor-not-allowed"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className="h-5 w-5 text-muted" aria-hidden="true" />
+                  <span className="text-sm font-medium text-muted">{t(card.label)}</span>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted">
+                  {t("export.format_coming_soon")}
+                </span>
+                <Lock className="h-3 w-3 text-muted/40" />
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => onSelectFormat(card.key)}
+              className={cx(
+                "flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors",
+                isSelected && !disabled
+                  ? "border-[var(--mf-accent)] bg-[var(--mf-accent)]/5"
+                  : "border-line hover:border-[var(--mf-accent)]/40",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Icon className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+                <span className="text-sm font-medium text-ink">{t(card.label)}</span>
+              </div>
+              <span className="text-xs text-muted">{t(card.desc)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

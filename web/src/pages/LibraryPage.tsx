@@ -1,5 +1,16 @@
+/**
+ * LibraryPage — 知识库 / Knowledge Base
+ *
+ * 中文学习型说明：
+ * 此页面仅展示 human_approved 知识，不混入 ai_draft。
+ * 参考图 image5 风格：table 列表 + 右侧详情面板，filter tabs。
+ * Graph Explorer 和 Community Panel 是 lab/internal 功能，
+ * 不在主路径上展示，避免让用户误以为图谱/社区是核心产品能力。
+ * 保护产品边界：Library = 已确认知识，不是草稿暂存区。
+ */
+
 import { useEffect, useMemo, useState } from "react";
-import { Download, Pencil, SlidersHorizontal, X } from "lucide-react";
+import { Download, Pencil, Search, SlidersHorizontal, Star, X } from "lucide-react";
 import { getLibraryCardDetail, saveLibraryCardBody } from "../api/library";
 import { moveLibraryCardToTrash } from "../api/trash";
 import type { LibraryCardDetailResponse, LibraryCardsResponse } from "../api/types";
@@ -7,13 +18,8 @@ import { BulkActions } from "../components/BulkActions";
 import { CardWorkspace } from "../components/CardWorkspace";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { GraphExplorer } from "../components/GraphExplorer";
-import { HealthStatusBar } from "../components/HealthStatusBar";
 import { ImportCardForm } from "../components/ImportCardForm";
 import { FolderImportForm } from "../components/FolderImportForm";
-import { CollectionPanel } from "../components/CollectionPanel";
-import { KnowledgeCommunityPanel } from "../components/KnowledgeCommunityPanel";
-import { StatusCard } from "../components/StatusCard";
 import { ViewSwitcher } from "../components/ViewSwitcher";
 import type { SavedViewResponse } from "../api/types";
 import { friendlyStatus, friendlyTrack } from "../lib/utils";
@@ -39,10 +45,16 @@ function formatDate(dateStr: string | null | undefined, locale: string): string 
   });
 }
 
-function sourceTypeBadge(sourceType: string | null | undefined): string {
-  if (!sourceType) return "";
-  return sourceTypeLabels[sourceType] ?? sourceType;
-}
+/** Filter tab 类型 — 保护 Library 只表达 human_approved 知识 */
+type FilterTab = "all" | "by_source" | "by_track" | "favorites" | "recent";
+
+const filterTabs: { key: FilterTab; label: string; disabled?: boolean }[] = [
+  { key: "all", label: "library.filter_all_knowledge" },
+  { key: "by_source", label: "library.filter_by_source" },
+  { key: "by_track", label: "library.filter_by_track" },
+  { key: "favorites", label: "library.filter_favorites", disabled: true },
+  { key: "recent", label: "library.filter_recent", disabled: true },
+];
 
 export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; onRefresh?: () => void }) {
   const searchParams = new URLSearchParams(window.location.search);
@@ -57,6 +69,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "opml" | "zip">("markdown");
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSelectedRefs, setBulkSelectedRefs] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -68,23 +81,42 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       })
     : data.cards;
 
-  // Filter state — client-side library organization
+  // Only show human_approved cards — protect the "Library = approved" boundary
+  const approvedCards = useMemo(
+    () => cardsFromUrl.filter((c) => c.status === "human_approved"),
+    [cardsFromUrl],
+  );
+
+  // Filter tabs
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [trackFilter, setTrackFilter] = useState<string>("all");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<string>("all");
   const [qualityFilter, setQualityFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  const uniqueTracks = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.track).filter(Boolean))].sort(), [cardsFromUrl]);
-  const uniqueSourceTypes = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.source_type).filter(Boolean))].sort(), [cardsFromUrl]);
-  const uniqueQualities = useMemo(() => [...new Set(cardsFromUrl.map((c) => c.quality_level).filter(Boolean))].sort(), [cardsFromUrl]);
+  const uniqueTracks = useMemo(() => [...new Set(approvedCards.map((c) => c.track).filter(Boolean))].sort(), [approvedCards]);
+  const uniqueSourceTypes = useMemo(() => [...new Set(approvedCards.map((c) => c.source_type).filter(Boolean))].sort(), [approvedCards]);
+  const uniqueQualities = useMemo(() => [...new Set(approvedCards.map((c) => c.quality_level).filter(Boolean))].sort(), [approvedCards]);
 
   const displayedCards = useMemo(() => {
-    let filtered = cardsFromUrl;
+    let filtered = approvedCards;
+    if (activeTab === "favorites" || activeTab === "recent") {
+      // No backend support — fallback to all
+      return approvedCards;
+    }
     if (statusFilter !== "all") filtered = filtered.filter((c) => c.status === statusFilter);
     if (trackFilter !== "all") filtered = filtered.filter((c) => c.track === trackFilter);
     if (sourceTypeFilter !== "all") filtered = filtered.filter((c) => c.source_type === sourceTypeFilter);
     if (qualityFilter !== "all") filtered = filtered.filter((c) => c.quality_level === qualityFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((c) =>
+        (c.title ?? "").toLowerCase().includes(q) ||
+        (c.source_title ?? "").toLowerCase().includes(q) ||
+        (c.track ?? "").toLowerCase().includes(q),
+      );
+    }
 
     const sorted = [...filtered];
     switch (sortBy) {
@@ -103,7 +135,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         break;
     }
     return sorted;
-  }, [cardsFromUrl, statusFilter, trackFilter, sourceTypeFilter, qualityFilter, sortBy]);
+  }, [approvedCards, activeTab, statusFilter, trackFilter, sourceTypeFilter, qualityFilter, searchQuery, sortBy]);
 
   const activeFilterCount = [statusFilter, trackFilter, sourceTypeFilter, qualityFilter].filter((v) => v !== "all").length;
 
@@ -112,6 +144,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     setTrackFilter("all");
     setSourceTypeFilter("all");
     setQualityFilter("all");
+    setSearchQuery("");
   }
 
   function applyView(view: SavedViewResponse) {
@@ -232,7 +265,6 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
     const fmt = exportFormat;
     try {
       if (fmt === "zip") {
-        // v2.4 U6: zip 格式使用 streaming download endpoint
         const resp = await fetch("/api/knowledge/export/download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -253,11 +285,11 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           body: JSON.stringify({ card_ids: Array.from(exportSelection), format: fmt }),
         });
         if (!resp.ok) throw new Error("Export failed");
-        const data = await resp.json();
-        const content = fmt === "json" ? data.json : fmt === "opml" ? data.opml : data.markdown;
+        const result = await resp.json();
+        const content = fmt === "json" ? (result as Record<string, unknown>).json : fmt === "opml" ? (result as Record<string, unknown>).opml : (result as Record<string, unknown>).markdown;
         const mimeType = fmt === "json" ? "application/json" : fmt === "opml" ? "text/xml" : "text/markdown";
         const ext = fmt === "json" ? ".json" : fmt === "opml" ? ".opml" : ".md";
-        const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+        const blob = new Blob([String(content ?? "")], { type: `${mimeType};charset=utf-8` });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -299,7 +331,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
 
   return (
     <div className="space-y-6">
-      <header className="page-header flex flex-wrap items-center justify-between gap-3">
+      {/* Header */}
+      <header className="page-header flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1>{t("library.title")}</h1>
           <p>{t("library.subtitle")}</p>
@@ -353,8 +386,8 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           <FolderImportForm onImported={onRefresh ? () => onRefresh() : () => {}} />
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--mf-accent)" }}
+            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg, var(--mf-accent), #6f5cff)", boxShadow: "0 6px 16px rgba(91, 70, 246, 0.2)" }}
             disabled={exportSelection.size === 0 || exporting}
             onClick={startExport}
           >
@@ -364,67 +397,49 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         </div>
       </header>
 
-      {/* Export Preview (v1.4 W7: Safe Export Review) */}
+      {/* Export Preview */}
       {showExportPreview ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-ink">{t("library.export_preview_title")}</h3>
-              <p className="mt-1 text-xs text-muted">
-                {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", exportFormat === "zip" ? "ZIP" : exportFormat === "json" ? "JSON" : exportFormat === "opml" ? "OPML" : "Markdown")}
-              </p>
-              {/* Format selector */}
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="text-[11px] text-muted">{t("library.export_format")}:</span>
-                {(["markdown", "json", "opml", "zip"] as const).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition ${
-                      exportFormat === f
-                        ? "bg-primary text-white"
-                        : "bg-white border border-line text-muted hover:text-ink"
-                    }`}
-                    onClick={() => setExportFormat(f)}
-                    title={
-                      f === "markdown" ? t("library.export_format_md_desc") :
-                      f === "json" ? t("library.export_format_json_desc") :
-                      f === "opml" ? t("library.export_format_opml_desc") :
-                      t("library.export_format_zip_desc")
-                    }
-                  >
-                    {f === "markdown" ? "Markdown" : f === "zip" ? "ZIP" : f.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1 text-[11px] text-muted">
-                {exportFormat === "markdown" ? t("library.export_format_md_desc") :
-                 exportFormat === "json" ? t("library.export_format_json_desc") :
-                 exportFormat === "opml" ? t("library.export_format_opml_desc") :
-                 t("library.export_format_zip_desc")}
-              </p>
-              {/* v4.4 A3: Export safety note */}
-              <p className="mt-2 text-[11px] text-muted italic border-t border-line/50 pt-2">
-                {t("library.export_safety_note")}
-              </p>
-              <div className="mt-3 max-h-48 overflow-y-auto">
-                <div className="grid gap-1 sm:grid-cols-2">
-                  {Array.from(exportSelection).map((ref) => {
-                    const card = displayedCards.find((c) => (c.id ?? c.rel_path) === ref);
-                    return (
-                      <span key={ref} className="text-xs text-ink/80 px-2 py-1 rounded bg-white/50 border border-line/50 truncate" title={card?.title ?? ref}>
-                        {card?.title ?? ref}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
+        <div className="rounded-xl border border-line bg-panel p-5 shadow-subtle">
+          <h3 className="text-sm font-semibold text-ink">{t("library.export_preview_title")}</h3>
+          <p className="mt-1 text-xs text-muted">
+            {t("library.export_preview_desc").replace("{count}", String(exportSelection.size)).replace("{format}", exportFormat === "zip" ? "ZIP" : exportFormat === "json" ? "JSON" : exportFormat === "opml" ? "OPML" : "Markdown")}
+          </p>
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-muted">{t("library.export_format")}:</span>
+            {(["markdown", "json", "opml", "zip"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`rounded-lg px-3 py-1 text-[11px] font-medium transition ${
+                  exportFormat === f
+                    ? "bg-[var(--mf-accent)] text-white"
+                    : "border border-line text-muted hover:text-ink"
+                }`}
+                onClick={() => setExportFormat(f)}
+              >
+                {f === "markdown" ? "Markdown" : f === "zip" ? "ZIP" : f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-muted italic border-t border-line/50 pt-2">
+            {t("library.export_safety_note")}
+          </p>
+          <div className="mt-3 max-h-48 overflow-y-auto">
+            <div className="grid gap-1 sm:grid-cols-2">
+              {Array.from(exportSelection).map((ref) => {
+                const card = displayedCards.find((c) => (c.id ?? c.rel_path) === ref);
+                return (
+                  <span key={ref} className="text-xs text-ink/80 px-2 py-1 rounded bg-muted/10 border border-line/50 truncate" title={card?.title ?? ref}>
+                    {card?.title ?? ref}
+                  </span>
+                );
+              })}
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               style={{ background: "var(--mf-accent)" }}
               disabled={exporting}
               onClick={confirmExport}
@@ -434,7 +449,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-muted/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-muted/10"
               onClick={cancelExport}
               disabled={exporting}
             >
@@ -444,9 +459,10 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         </div>
       ) : null}
 
-      {filterIds && displayedCards.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted">None of the affected cards were found in this vault. They may have been deleted or are no longer approved.</p>
-      ) : null}
+      {/* Boundary callout — 中文学习型说明：明确 Library 只包含已确认知识，不混入草稿 */}
+      <section className="rounded-lg border border-stone-200/70 bg-stone-50/50 px-4 py-3">
+        <p className="text-xs text-muted leading-relaxed">{t("library.boundary_callout")}</p>
+      </section>
 
       {/* Bulk Actions */}
       <BulkActions
@@ -455,199 +471,261 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         onApplied={handleBulkApplied}
       />
 
-      {/* Filter Bar — view switcher + track / source_type / quality / status with sort */}
-      <div className="flex flex-wrap items-center gap-2 rounded-md border p-3" style={{ borderColor: "var(--mf-border)", background: "var(--mf-surface)" }}>
-        <ViewSwitcher
-          statusFilter={statusFilter}
-          trackFilter={trackFilter}
-          sourceTypeFilter={sourceTypeFilter}
-          qualityFilter={qualityFilter}
-          sortBy={sortBy}
-          onApplyView={applyView}
-        />
-        <span className="text-muted">|</span>
-        <SlidersHorizontal className="h-4 w-4 text-muted shrink-0" />
-        {/* Status filter */}
-        <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label={t("library.filter_status")}>
-          <option value="all">{t("library.filter_status")}: {t("library.filter_all")}</option>
-          <option value="ai_draft">{t("approval.status_ai_draft")}</option>
-          <option value="human_approved">{t("approval.status_human_approved")}</option>
-        </select>
-        {/* Track filter — only shown when tracks exist */}
-        {uniqueTracks.length > 0 ? (
-          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)} aria-label={t("library.filter_track")}>
-            <option value="all">{t("library.filter_track")}: {t("library.filter_all")}</option>
-            {uniqueTracks.map((tr) => (
-              <option key={tr} value={tr ?? ""}>{friendlyTrack(tr, locale)}</option>
-            ))}
-          </select>
-        ) : null}
-        {/* Source type filter — only shown when types exist */}
-        {uniqueSourceTypes.length > 0 ? (
-          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={sourceTypeFilter} onChange={(e) => setSourceTypeFilter(e.target.value)} aria-label={t("library.filter_source_type")}>
-            <option value="all">{t("library.filter_source_type")}: {t("library.filter_all")}</option>
-            {uniqueSourceTypes.map((st) => (
-              <option key={st} value={st ?? ""}>{sourceTypeBadge(st)}</option>
-            ))}
-          </select>
-        ) : null}
-        {/* Quality filter — only shown when qualities exist */}
-        {uniqueQualities.length > 0 ? (
-          <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)} aria-label={t("library.filter_quality")}>
-            <option value="all">{t("library.filter_quality")}: {t("library.filter_all")}</option>
-            {uniqueQualities.map((q) => (
-              <option key={q} value={q ?? ""}>{q}</option>
-            ))}
-          </select>
-        ) : null}
-        {/* Sort */}
-        <select className="rounded border border-line bg-white px-2 py-1 text-xs text-ink" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label={t("library.sort_label")}>
-          <option value="newest">{t("library.sort_newest")}</option>
-          <option value="oldest">{t("library.sort_oldest")}</option>
-          <option value="title">{t("library.sort_title")}</option>
-          <option value="score">{t("library.sort_score")}</option>
-        </select>
-        {/* Active filter badge + clear */}
-        {activeFilterCount > 0 ? (
-          <>
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--mf-accent)]" style={{ background: "var(--mf-accent)15" }}>
-              {t("library.filter_active").replace("{count}", String(activeFilterCount))}
-            </span>
-            <button type="button" className="text-xs text-muted hover:text-ink" onClick={clearAllFilters}>
-              {t("library.filter_clear")}
-            </button>
-          </>
-        ) : null}
+      {/* Stats row */}
+      <div className="flex flex-wrap items-center gap-6 text-sm">
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: "rgba(20,150,107,0.12)", color: "var(--mf-approved)" }}>
+            {data.stats.by_status.human_approved ?? 0}
+          </span>
+          <span style={{ color: "var(--mf-text-secondary)" }}>{t("library.stats_approved")}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: "rgba(216,135,34,0.12)", color: "var(--mf-draft)" }}>
+            {data.stats.by_status.ai_draft ?? 0}
+          </span>
+          <span style={{ color: "var(--mf-text-secondary)" }}>{t("library.stats_drafts")}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold" style={{ color: "var(--mf-accent)" }}>
+            {data.stats.total_cards}
+          </span>
+          <span style={{ color: "var(--mf-text-secondary)" }}>{t("library.stats_total")}</span>
+        </span>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatusCard label={t("library.stats_approved")} value={data.stats.by_status.human_approved ?? 0} status={(data.stats.by_status.human_approved ?? 0) > 0 ? "ok" : "info"} detail={t("library.stats_approved_detail")} locale={locale} />
-        <StatusCard label={t("library.stats_drafts")} value={data.stats.by_status.ai_draft ?? 0} status={(data.stats.by_status.ai_draft ?? 0) > 0 ? "warn" : "ok"} detail={t("library.stats_drafts_detail")} locale={locale} />
-        <StatusCard label={t("library.stats_index")} value={data.stats.index_exists ? t("library.stats_index_ready") : t("library.stats_index_rebuild")} status={data.stats.index_exists ? "ok" : "warn"} detail={data.stats.next_action} locale={locale} />
-        <StatusCard label={t("library.stats_total")} value={data.stats.total_cards} status={data.stats.total_cards > 0 ? "ok" : "info"} detail={t("library.stats_total_detail")} locale={locale} />
-      </div>
-
-      {/* Health Status Bar */}
-      <HealthStatusBar />
-
-      {/* Graph Explorer */}
-      <GraphExplorer onSelectCard={selectCard} />
-
-      {/* Collections */}
-      <CollectionPanel selectedCardRefs={selected ? [selected] : []} />
-
-      {/* Knowledge Community Browser */}
-      <details className="border border-line rounded-md bg-panel" open={false}>
-        <summary className="px-5 py-3 cursor-pointer select-none text-sm font-medium text-ink hover:text-primary">
-          {t("community.title")}
-        </summary>
-        <KnowledgeCommunityPanel />
-      </details>
-
-      {/* Card Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {displayedCards.map((card) => {
-          const ref = card.id ?? card.rel_path;
-          const isSelected = selected === ref;
-          const isApproved = card.status === "human_approved";
-          return (
-            <button
-              className="w-full p-5 text-left transition border border-l-[3px]"
-              style={{
-                background: "var(--mf-surface)",
-                boxShadow: isSelected ? "var(--mf-shadow-card), 0 0 0 2px var(--mf-accent)" : "var(--mf-shadow-flat)",
-                borderRadius: "var(--mf-radius-lg)",
-                borderColor: isSelected ? "var(--mf-accent)" : "var(--mf-border)",
-                borderLeftColor: isApproved ? "var(--mf-approved)" : "var(--mf-draft)",
-              }}
-              key={card.rel_path}
-              onClick={() => selectCard(ref)}
-              type="button"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h3
-                  className="font-medium leading-snug line-clamp-2"
-                  style={{
-                    fontFamily: "var(--mf-font-serif)",
-                    fontSize: "var(--mf-text-h2)",
-                    lineHeight: 1.25,
-                  }}
+      {/* Filter tabs + search bar */}
+      <div className="rounded-xl border border-line bg-panel p-4 shadow-subtle">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-1">
+            {filterTabs.map((tab) => {
+              const isActive = activeTab === tab.key && !tab.disabled;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  disabled={tab.disabled}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    isActive
+                      ? "bg-[var(--mf-accent)] text-white"
+                      : tab.disabled
+                        ? "opacity-40 cursor-not-allowed text-muted"
+                        : "text-muted hover:bg-muted/10 hover:text-ink"
+                  }`}
+                  onClick={() => { if (!tab.disabled) setActiveTab(tab.key); }}
                 >
-                  {card.title ?? t("card.untitled")}
-                </h3>
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 rounded"
-                  style={{ accentColor: "var(--mf-accent)" }}
-                  checked={bulkMode ? bulkSelectedRefs.has(ref) : exportSelection.has(ref)}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    if (bulkMode) {
-                      toggleBulkSelect(ref);
-                    } else {
-                      toggleExportSelect(ref);
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                  style={{
-                    background: isApproved ? "rgba(45,125,95,0.1)" : "rgba(204,122,0,0.1)",
-                    color: isApproved ? "var(--mf-approved)" : "var(--mf-warning)",
-                  }}
-                >
-                  {friendlyStatus(card.status, locale)}
-                </span>
-                {card.source_type ? (
-                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "var(--mf-text-tertiary)" }}>
-                    {sourceTypeBadge(card.source_type)}
-                  </span>
-                ) : null}
-                {card.track ? <span style={{ color: "var(--mf-text-tertiary)" }}>{friendlyTrack(card.track, locale)}</span> : null}
-              </div>
-              <p className="mt-2 text-xs line-clamp-1" style={{ color: "var(--mf-text-tertiary)" }}>
-                {card.source_title ?? card.source_path_view?.display_path}
-              </p>
-              {card.updated_at ? (
-                <p className="mt-2 text-[11px]" style={{ color: "var(--mf-text-tertiary)" }}>
-                  {formatDate(card.updated_at, locale)}
-                </p>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected Card Detail */}
-      {selected ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <button
-              className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted/10"
-              onClick={deselectCard}
-              type="button"
-            >
-              <X className="h-4 w-4" /> {t("shared.close")}
-            </button>
-            <span className="text-sm text-muted">{detail?.card.title ?? ""}</span>
+                  {t(tab.label)}
+                </button>
+              );
+            })}
           </div>
-          {error ? <ErrorState message={error} /> : null}
-          {!error && detail ? (
-            <CardWorkspace
-              detail={detail}
-              mode="library"
-              onSave={(body) => saveLibraryCardBody(selected ?? detail.card.id ?? detail.card.rel_path, body)}
-              onSaved={refreshSelected}
-              onMoveToTrash={handleMoveToTrash}
-              onSelectCard={selectCard}
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+              <input
+                type="text"
+                placeholder={t("library.search_placeholder")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rounded-lg border border-line bg-white pl-8 pr-3 py-1.5 text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-[var(--mf-accent)]/30"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Advanced filter dropdowns (shown below tabs) */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-line/50">
+          <SlidersHorizontal className="h-4 w-4 text-muted shrink-0" />
+          <ViewSwitcher
+            statusFilter={statusFilter}
+            trackFilter={trackFilter}
+            sourceTypeFilter={sourceTypeFilter}
+            qualityFilter={qualityFilter}
+            sortBy={sortBy}
+            onApplyView={applyView}
+          />
+          <select className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label={t("library.filter_status")}>
+            <option value="all">{t("library.filter_status")}: {t("library.filter_all")}</option>
+            <option value="human_approved">{t("approval.status_human_approved")}</option>
+          </select>
+          {uniqueTracks.length > 0 ? (
+            <select className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink" value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)} aria-label={t("library.filter_track")}>
+              <option value="all">{t("library.filter_track")}: {t("library.filter_all")}</option>
+              {uniqueTracks.map((tr) => (
+                <option key={tr} value={tr ?? ""}>{friendlyTrack(tr, locale)}</option>
+              ))}
+            </select>
+          ) : null}
+          {uniqueSourceTypes.length > 0 ? (
+            <select className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink" value={sourceTypeFilter} onChange={(e) => setSourceTypeFilter(e.target.value)} aria-label={t("library.filter_source_type")}>
+              <option value="all">{t("library.filter_source_type")}: {t("library.filter_all")}</option>
+              {uniqueSourceTypes.map((st) => (
+                <option key={st} value={st ?? ""}>{sourceTypeLabels[st ?? ""] ?? st}</option>
+              ))}
+            </select>
+          ) : null}
+          {uniqueQualities.length > 0 ? (
+            <select className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)} aria-label={t("library.filter_quality")}>
+              <option value="all">{t("library.filter_quality")}: {t("library.filter_all")}</option>
+              {uniqueQualities.map((q) => (
+                <option key={q} value={q ?? ""}>{q}</option>
+              ))}
+            </select>
+          ) : null}
+          <select className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label={t("library.sort_label")}>
+            <option value="newest">{t("library.sort_newest")}</option>
+            <option value="oldest">{t("library.sort_oldest")}</option>
+            <option value="title">{t("library.sort_title")}</option>
+            <option value="score">{t("library.sort_score")}</option>
+          </select>
+          {activeFilterCount > 0 ? (
+            <>
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--mf-accent)]" style={{ background: "var(--mf-accent)15" }}>
+                {t("library.filter_active").replace("{count}", String(activeFilterCount))}
+              </span>
+              <button type="button" className="text-xs text-muted hover:text-ink" onClick={clearAllFilters}>
+                {t("library.filter_clear")}
+              </button>
+            </>
           ) : null}
         </div>
-      ) : (
-        <p className="py-8 text-center text-sm text-muted">{t("library.select_to_view")}</p>
-      )}
+      </div>
+
+      {/* Content: table + detail panel */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: selected ? "1fr 1fr" : "1fr" }}>
+        {/* Table list */}
+        <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-xs font-medium" style={{ color: "var(--mf-text-tertiary)" }}>
+                <th className="px-4 py-3 text-left w-8">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded"
+                    style={{ accentColor: "var(--mf-accent)" }}
+                    checked={bulkMode ? bulkSelectedRefs.size === displayedCards.length && displayedCards.length > 0 : exportSelection.size === displayedCards.length && displayedCards.length > 0}
+                    onChange={(e) => {
+                      if (bulkMode) {
+                        e.target.checked ? selectAllForBulk() : deselectAllForBulk();
+                      } else {
+                        e.target.checked ? selectAllForExport() : deselectAllForExport();
+                      }
+                    }}
+                  />
+                </th>
+                <th className="px-4 py-3 text-left">{t("library.col_title") ?? "Title"}</th>
+                <th className="px-4 py-3 text-left">{t("library.col_source")}</th>
+                <th className="px-4 py-3 text-left">{t("library.col_date")}</th>
+                <th className="px-4 py-3 text-left">{t("library.col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("library.col_tags")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedCards.map((card) => {
+                const ref = card.id ?? card.rel_path;
+                const isSelected = selected === ref;
+                // tags come from API — cast through unknown
+                const raw = card as unknown as Record<string, unknown>;
+                const tags: string[] = Array.isArray(raw.tags) ? (raw.tags as string[]) : [];
+                return (
+                  <tr
+                    key={ref}
+                    className={`border-b border-line/50 cursor-pointer transition-colors ${
+                      isSelected ? "bg-[var(--mf-accent)]/5" : "hover:bg-muted/5"
+                    }`}
+                    onClick={() => selectCard(ref)}
+                  >
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded"
+                        style={{ accentColor: "var(--mf-accent)" }}
+                        checked={bulkMode ? bulkSelectedRefs.has(ref) : exportSelection.has(ref)}
+                        onChange={(e) => {
+                          if (bulkMode) toggleBulkSelect(ref);
+                          else toggleExportSelect(ref);
+                        }}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--mf-accent)" }} />
+                        <span className="font-medium text-ink truncate" style={{ fontFamily: "var(--mf-font-serif)" }}>
+                          {card.title ?? t("card.untitled")}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--mf-text-tertiary)" }}>
+                      {card.source_type ? (sourceTypeLabels[card.source_type] ?? card.source_type) : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--mf-text-tertiary)" }}>
+                      {formatDate(card.updated_at ?? card.created_at, locale)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "rgba(20,150,107,0.12)", color: "var(--mf-approved)" }}>
+                        {friendlyStatus(card.status, locale)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {tags.slice(0, 2).map((tag) => (
+                          <span key={tag} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "var(--mf-accent-soft)", color: "var(--mf-accent)" }}>
+                            {tag}
+                          </span>
+                        ))}
+                        {tags.length > 2 && (
+                          <span className="text-[10px]" style={{ color: "var(--mf-text-tertiary)" }}>+{tags.length - 2}</span>
+                        )}
+                        {tags.length === 0 && (
+                          <span className="text-[10px]" style={{ color: "var(--mf-text-tertiary)" }}>{t("library.no_tags")}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {displayedCards.length === 0 && (
+            <div className="py-12 text-center text-sm text-muted">
+              {searchQuery ? t("review.no_results") : t("library.select_to_view")}
+            </div>
+          )}
+          {displayedCards.length > 0 && (
+            <div className="px-4 py-2 border-t border-line/50 text-xs" style={{ color: "var(--mf-text-tertiary)" }}>
+              {displayedCards.length} / {approvedCards.length} {t("library.card_count").replace("{count}", String(approvedCards.length))}
+            </div>
+          )}
+        </div>
+
+        {/* Detail panel */}
+        {selected && (
+          <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line">
+              <span className="text-sm font-medium text-ink">{detail?.card.title ?? t("library.select_to_view")}</span>
+              <button
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-ink"
+                onClick={deselectCard}
+                type="button"
+              >
+                <X className="h-3.5 w-3.5" /> {t("shared.close")}
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[70vh]">
+              {error ? <ErrorState message={error} /> : null}
+              {!error && detail ? (
+                <CardWorkspace
+                  detail={detail}
+                  mode="library"
+                  onSave={(body) => saveLibraryCardBody(selected ?? detail.card.id ?? detail.card.rel_path, body)}
+                  onSaved={refreshSelected}
+                  onMoveToTrash={handleMoveToTrash}
+                  onSelectCard={selectCard}
+                />
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
