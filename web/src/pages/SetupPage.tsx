@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
   FlaskConical,
   KeyRound,
-  Network,
   PlayCircle,
   Settings,
   ShieldCheck,
@@ -100,6 +99,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [activationChecked, setActivationChecked] = useState(false);
   const [activationBusy, setActivationBusy] = useState(false);
   const [keyVisible, setKeyVisible] = useState(false);
+  const editingFormRef = useRef<HTMLDivElement>(null);
   const { locale, t } = useLocale();
   const STEP_LABELS = getStepLabels(t);
 
@@ -149,6 +149,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
   function startAdd() {
     setEditing({ modelId: "", isNew: true, form: emptyModelForm() });
+    setStep("models");
+    // Scroll to form after render
+    requestAnimationFrame(() => {
+      editingFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function startEdit(modelId: string) {
@@ -612,7 +617,7 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
 
             {/* Add/Edit form */}
             {editing ? (
-              <div className="rounded-md border border-line bg-stone-50 p-4">
+              <div ref={editingFormRef} className="rounded-md border-2 border-primary/30 bg-stone-50 p-4">
                 <h3 className="mb-3 text-sm font-semibold text-ink">{editing.isNew ? t("setup.add_model_title") : `${t("setup.edit_model")}${editing.modelId}`}</h3>
                 {editing.isNew ? (
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -1105,7 +1110,7 @@ function SetupGuide({
             <Settings className="h-4 w-4" aria-hidden="true" />
             {hasConfiguredModels ? t("setup.guide_edit_model") : t("setup.guide_add_model")}
           </button>
-          <button className="mf-secondary-button px-4 py-3 text-sm" type="button" onClick={onValidate} disabled={!canValidate || validationBusy}>
+          <button className="mf-secondary-button px-4 py-3 text-sm" type="button" onClick={onValidate} disabled={!canValidate || validationBusy} title={t("setup.guide_validate_tooltip")}>
             <PlayCircle className="h-4 w-4" aria-hidden="true" />
             {validationBusy ? t("setup.saving") : t("setup.guide_validate")}
           </button>
@@ -1138,24 +1143,17 @@ function SetupGuide({
             </button>
           </div>
           <div className="grid gap-2 md:grid-cols-4">
-            <PresetCard name="Qwen" status={t("setup.preset_manual")} desc={t("setup.preset_qwen_desc")} />
+            <PresetCard name="OpenAI" status={t("setup.preset_native")} desc={t("setup.preset_openai_native_desc")} />
+            <PresetCard name="Anthropic" status={t("setup.preset_native")} desc={t("setup.preset_anthropic_desc")} />
             <PresetCard name="OpenAI-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_openai_desc")} />
-            <PresetCard name="Anthropic-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_anthropic_desc")} />
             <PresetCard name="Custom" status={t("setup.preset_manual")} desc={t("setup.preset_custom_desc")} />
           </div>
         </div>
         <div className="rounded-2xl border border-white/70 bg-white/72 p-4">
           <h3 className="text-sm font-black text-ink">{t("setup.guide_after_title")}</h3>
           <p className="mt-2 text-xs leading-5 text-muted">{t("setup.guide_after_desc")}</p>
-          <div className="mt-4 grid gap-2">
-            <span className="mf-chip !justify-start !text-xs">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("setup.guide_no_plain_key")}
-            </span>
-            <span className="mf-chip !justify-start !text-xs">
-              <Network className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("setup.guide_no_llm_test")}
-            </span>
+          <div className="mt-3 rounded-lg border border-stone-200/60 bg-stone-50/60 p-3">
+            <p className="text-[11px] leading-5 text-muted">{t("setup.guide_safety_note")}</p>
           </div>
         </div>
       </div>

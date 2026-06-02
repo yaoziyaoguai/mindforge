@@ -1,11 +1,11 @@
 import type { SourcesResponse, WatchedSourceResponse } from "../api/types";
 import { deleteWatchedSource, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
-import { getFrequencyOptions } from "../components/SourceAddPanel";
+import { SourceAddPanel, getFrequencyOptions } from "../components/SourceAddPanel";
 import { BoundaryBadge } from "../components/BoundaryBadge";
 import { useLocale } from "../lib/i18n";
 import { sourceDueStatusLabel, sourceRunStatusLabel, sourceStatusLabel } from "../lib/utils";
 import { useState } from "react";
-import { ArrowDown, FolderOpen, Terminal, Clipboard, Globe, Rss, FileText, Package, ExternalLink, Play, Clock, BarChart3 } from "lucide-react";
+import { ArrowDown, FolderOpen, Terminal, Clipboard, Globe, Rss, FileText, Package, ExternalLink, Play, Clock, BarChart3, Plus } from "lucide-react";
 
 /**
  * SourcesPage - 知识来源管理 / Import Center
@@ -78,6 +78,7 @@ export function SourcesPage({
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const { locale, t } = useLocale();
 
   async function removeWatch(source: SourcesResponse["watched_sources"][number]) {
@@ -190,12 +191,20 @@ export function SourcesPage({
           </div>
           <button
             className="mf-primary-button rounded-lg px-4 py-2 text-sm"
-            onClick={() => onNavigate("/setup")}
+            onClick={() => setShowAddPanel(!showAddPanel)}
             type="button"
           >
-            + {t("sources.new_source_btn")}
+            <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            {t("sources.new_source_btn")}
           </button>
         </div>
+
+        {/* Inline Source Add Panel */}
+        {showAddPanel && (
+          <div className="mt-4">
+            <SourceAddPanel onRefresh={onRefresh} hasModels />
+          </div>
+        )}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {sourceAdapters.map((adapter) => {
             const Icon = adapter.icon;
@@ -284,7 +293,7 @@ export function SourcesPage({
               </p>
               <button
                 className="mt-4 mf-primary-button rounded-lg px-4 py-2 text-sm"
-                onClick={() => onNavigate("/setup")}
+                onClick={() => setShowAddPanel(true)}
                 type="button"
               >
                 {t("sources.add_source_in_setup")}

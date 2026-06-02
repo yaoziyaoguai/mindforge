@@ -152,6 +152,38 @@ This log prevents the reference-image redesign from implying backend capabilitie
 - `pictures/` not staged: yes (untracked only)
 - working tree: clean (only untracked pictures/, tmp/)
 
-## Assets
+## Batch 5: Setup / Source Flow UX Remediation (2026-06-02)
+
+### Problem Summary
+
+User-reported UX issues in Setup/Sources/Model Configuration flow:
+1. Sources "新来源" button jumped to Setup page instead of adding source inline
+2. "添加模型" button had no clear visual feedback
+3. Demo Mode in sidebar was a clickable button that only navigated to /setup (loop)
+4. "验证配置" name implied real LLM connectivity test, but only checked local config
+5. Qwen shown as independent provider card instead of OpenAI-compatible example
+6. Setup page copy too engineering-heavy
+
+### Changes Made
+
+| change | files modified | backend impact |
+| --- | --- | --- |
+| Sources "新来源" opens inline SourceAddPanel | `SourcesPage.tsx` | none — uses existing `addWatchedSource` API |
+| "添加模型" → "配置模型" with scroll-to-form feedback | `SetupPage.tsx`, `i18n.ts` | none |
+| Demo Mode → status chip (non-clickable) | `Sidebar.tsx`, `i18n.ts` | none |
+| "验证配置" → "检查配置" with tooltip | `SetupPage.tsx`, `i18n.ts` | none |
+| Provider types converged to 4: OpenAI native, Anthropic native, OpenAI-compatible, Custom | `SetupPage.tsx`, `i18n.ts` | none — UI-only presets |
+| Engineering chips moved to single safety note | `SetupPage.tsx`, `i18n.ts` | none |
+| Sources page desc updated to reference inline add | `SourcesPage.tsx`, `i18n.ts` | none |
+
+### Backend Gap Assessment
+
+No backend changes required. All changes are frontend UX improvements using existing APIs:
+- Source add: existing `POST /api/sources` endpoint
+- Model config: existing `POST /api/config` endpoint
+- Validate: existing `POST /api/config/validate` endpoint (already local-only, no LLM calls)
+- Provider mode: existing mode toggle endpoints (unchanged)
+
+### Assets
 
 No external assets were added in Batch 1 or Batch 2.
