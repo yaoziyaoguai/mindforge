@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, FlaskConical, ShieldCheck } from "lucide-react";
 import { useLocale } from "../lib/i18n";
 
 /**
@@ -20,31 +20,46 @@ export function ProviderStatusBanner({
   const { t } = useLocale();
   const isReady = providerState === "ready";
 
-  if (isReady) return null; // In the new design, we don't show the banner if it's already Live/Ready. It's implicit.
-
   return (
     <div
-      className="flex items-center gap-4 rounded-xl border p-4 shadow-sm"
+      className="mf-card-soft flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
       style={{
-        background: "rgba(45,125,95,0.03)",
-        borderColor: "rgba(45,125,95,0.1)"
+        background: isReady
+          ? "linear-gradient(135deg, rgba(20,150,107,0.1), rgba(255,255,255,0.96))"
+          : undefined,
       }}
     >
       <div className="flex flex-1 items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md" style={{ background: "rgba(45,125,95,0.1)" }}>
-          <ShieldCheck className="h-4 w-4" style={{ color: "var(--mf-accent)" }} />
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-2xl"
+          style={{ background: isReady ? "rgba(20,150,107,0.12)" : "var(--mf-accent-soft)" }}
+        >
+          {isReady ? (
+            <CheckCircle2 className="h-5 w-5" style={{ color: "var(--mf-approved)" }} aria-hidden="true" />
+          ) : (
+            <FlaskConical className="h-5 w-5" style={{ color: "var(--mf-accent)" }} aria-hidden="true" />
+          )}
         </div>
         <div>
-          <div className="text-sm font-semibold text-ink">You are in Demo Mode</div>
-          <div className="text-xs text-muted">AI outputs are simulated. Configure a real provider to generate real content.</div>
+          <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-ink">
+            {isReady ? t("provider_banner.real_title") : t("provider_banner.demo_title")}
+            <span className={isReady ? "mf-chip mf-chip-success !px-2 !py-1 !text-[11px]" : "mf-chip mf-chip-accent !px-2 !py-1 !text-[11px]"}>
+              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+              {isReady ? t("provider_banner.real_chip") : t("provider_banner.demo_chip")}
+            </span>
+          </div>
+          <div className="mt-1 text-xs leading-relaxed text-muted">
+            {isReady ? t("provider_banner.real_desc") : t("provider_banner.demo_desc")}
+          </div>
         </div>
       </div>
       <button
         onClick={() => onNavigate("/setup")}
-        className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
-        style={{ background: "var(--mf-accent)" }}
+        className={isReady ? "mf-secondary-button shrink-0 px-4 py-2 text-xs" : "mf-primary-button shrink-0 px-4 py-2 text-xs"}
+        type="button"
       >
-        Configure Real Model <ArrowRight className="h-3.5 w-3.5" />
+        {isReady ? t("provider_banner.manage") : t("provider_banner.configure")}
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
   );

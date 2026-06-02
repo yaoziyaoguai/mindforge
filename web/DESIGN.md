@@ -19,25 +19,26 @@ The UI MUST rigidly reflect the compiler pipeline:
 
 ## 3. Visual Tone & Rules
 - **Editorial Experience**: Use whitespace as a structural element rather than borders.
-- **Flat Design**: No physical shadows, no gradients, no glassmorphism.
-- **Calmness**: No aggressive colors. All status indicators must be muted.
+- **Reference-image Direction (Batch 1)**: Clean, modern, light, spacious, soft pastel cards, and a calm purple accent.
+- **Depth**: Subtle shadows and very soft gradients are allowed for shell/cards/primary CTA hierarchy. They must stay quiet and product-like, never glossy or marketing-heavy.
+- **Calmness**: No aggressive colors. Status indicators must be muted and consistent.
 
 ## 4. Typography
 - **Reading Area**: Use high line-height (`leading-relaxed` or `leading-loose`) and constrained widths (`max-w-3xl`) for text.
 - **Font**: Prefer clean, highly legible sans-serif (like Inter or system defaults). For long-form reading, high-quality serif fonts may be used if integrated into the editorial theme.
 
 ## 5. Color Tokens (Base Palette)
-- **Background (Canvas)**: Use warm, paper-like tones.
-    - `stone-50` or `zinc-50`. Avoid pure `#FFFFFF` for the main canvas.
+- **Background (Canvas)**: Use light white / warm off-white / lavender-tinted neutrals.
+    - Prefer `--mf-bg`, `--mf-app-bg`, `--mf-surface`, and `--mf-sidebar`.
 - **Text (Ink)**:
-    - Primary: `stone-800` or `zinc-800`.
-    - Secondary/Meta: `stone-500` or `zinc-500`.
+    - Primary: deep blue-black (`--mf-text-primary`).
+    - Secondary/Meta: muted blue-gray (`--mf-text-secondary`, `--mf-text-tertiary`).
 - **Accent (Action)**:
-    - `stone-800` (Neutral Bold) or a muted terracotta (`orange-800`) strictly for the `Approve` action.
+    - Soft purple (`--mf-accent`) for navigation active state, setup CTA, and first-run guidance.
 - **Status Color**:
-    - Safe/Approved: Muted green (`emerald-700/800`).
-    - Warning/Action Required: Muted amber (`amber-700`).
-    - Lab/Internal: Muted purple (`indigo-600`).
+    - Safe/Approved: muted green (`--mf-approved`).
+    - Warning/Action Required: muted amber (`--mf-warning`).
+    - Lab/Internal: muted neutral / secondary text. Do not make lab features look like a main path.
 
 ## 6. Spacing & Layout
 - Follow a strict 4px/8px grid.
@@ -45,12 +46,13 @@ The UI MUST rigidly reflect the compiler pipeline:
 - The "Main Desk" area must have generous padding to prevent claustrophobia.
 
 ## 7. Component Rules
-- **Buttons**: Flat. No shadows. Subtle hover state (`bg-stone-100` or slight opacity change).
-- **Cards**: Avoid nested cards. Use simple vertical spacing and typography to separate items.
+- **Buttons**: Primary CTAs may use a soft purple gradient and restrained shadow. Secondary buttons stay white with a fine border.
+- **Cards**: Rounded cards, subtle borders, and restrained shadows are allowed for repeated items and framed tools. Avoid heavy report panels.
 - **Forms**: Clean, focused inputs. Use labels and clear helper text.
 
 ## 8. Navigation Rules
-- Main navigation MUST follow the pipeline order: `Sources` -> `Review` -> `Library` -> `Recall / Wiki` -> `Export`.
+- Sidebar is Home-first for first-run clarity, then the knowledge pipeline: `Sources` -> `Review Drafts` -> `Library` -> `Recall / Wiki` -> `Export`.
+- The sidebar must include a clear Demo Mode / Configure Real Model card when provider readiness is not `ready`.
 - `Lab` features must be grouped, collapsed by default, and visually distinct (e.g., using a "Lab" icon or different accent).
 
 ## 9. Review / Approval Interaction Rules
@@ -96,9 +98,16 @@ These rules capture the visual corrections applied to move the UI from "engineer
 - Background: `bg-stone-50/50`, text: `text-xs text-muted`.
 
 ### 12.4 Color Token Discipline
-- **Primary accent**: Use a single accent color (`--mf-accent`, currently green `#2d7d5f`) consistently.
+- **Primary accent**: Use a single accent color (`--mf-accent`, currently purple `#5b46f6`) consistently.
 - Do NOT introduce new badge/semantic colors beyond the defined token set.
-- The Tailwind `primary: #2368d1` (blue) conflicts with CSS `accent: #2d7d5f` (green) — prefer CSS tokens for semantic meaning, Tailwind utilities for layout only.
+- Tailwind semantic utilities are globally overridden in `styles.css` during Batch 1 to keep legacy pages aligned with the CSS token direction. Prefer CSS tokens for semantic meaning, Tailwind utilities for layout.
+
+### 12.7 Reference-Image Batch 1 Rules (2026-06-02)
+
+- **Shell**: Sidebar uses a light lavender-white surface, rounded active items, purple active indicator, and a visible workspace footer.
+- **Home / Welcome Desk**: The first viewport must show Configure Real Model, demo/real provider state, overview cards, and the Knowledge Flow: Import -> AI Draft -> Human Review -> Approved Knowledge -> Export.
+- **Setup / Model Configuration**: Setup must read as a guided model configuration flow, not a raw engineering form. The visible guide is Provider -> Connection -> Model -> Validate/Test.
+- **Reality Boundary**: Beautiful UI must never imply unsupported backend capability. Missing capabilities are represented as disabled, empty, hidden, or explicitly documented gaps.
 
 ### 12.6 Product Quality Pass (Slice 2.6 — 2026-06-02)
 

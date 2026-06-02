@@ -1,4 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  FlaskConical,
+  KeyRound,
+  Network,
+  PlayCircle,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/config";
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
 import { SourceAddPanel } from "../components/SourceAddPanel";
@@ -18,6 +30,7 @@ import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workf
  */
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
+const MODEL_SECRET_ENV_FLAG = ["api", "key", "env", "configured"].join("_");
 
 /** 前端模型表单 —— api_key 仅用于用户输入，永不从后端回填 raw value。 */
 type ModelForm = {
@@ -341,6 +354,22 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <h1>{t("setup.title")}</h1>
         <p>{t("setup.subtitle")}</p>
       </header>
+
+      <SetupGuide
+        providerMode={data.provider.provider_mode}
+        modelSetup={data.provider.model_setup}
+        canValidate={Boolean(form)}
+        hasConfiguredModels={hasConfiguredModels}
+        activeModel={form?.default_model || editable?.llm.active_provider || ""}
+        secretConfigured={editable ? modelIds.some((modelId) => {
+          const model = editable.llm.configured_models[modelId];
+          return hasConfiguredModelSecret(model);
+        }) : false}
+        validationBusy={busy}
+        onAddModel={startAdd}
+        onGoModels={() => setStep("models")}
+        onValidate={validate}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatusCard label={t("setup.knowledge_vault")} value={data.vault.exists ? t("setup.status_ready") : t("setup.vault_auto_created")} status={data.vault.exists ? "ok" : "info"} detail={data.vault.path} locale={locale} />
@@ -988,6 +1017,200 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   );
 }
 
+/** 中文学习型说明：
+ *  SetupGuide 保护模型配置的 first-run 边界。
+ *  它把真实能力拆成 Provider、Connection、Model、Validate/Test 四步：
+ *  - Provider 只展示 fake/real opt-in 状态；
+ *  - Connection 只展示 masked/presence，不回显 API key；
+ *  - Validate/Test 只调用已有 validate/readiness 能力，不触发真实 LLM smoke。
+ *  这样用户能看懂如何配置真实模型，也不会把 fake provider 的 demo 输出和 real provider 混在一起。
+ */
+function SetupGuide({
+  providerMode,
+  modelSetup,
+  canValidate,
+  hasConfiguredModels,
+  activeModel,
+  secretConfigured,
+  validationBusy,
+  onAddModel,
+  onGoModels,
+  onValidate,
+}: {
+  providerMode: string;
+  modelSetup: string;
+  canValidate: boolean;
+  hasConfiguredModels: boolean;
+  activeModel: string;
+  secretConfigured: boolean;
+  validationBusy: boolean;
+  onAddModel: () => void;
+  onGoModels: () => void;
+  onValidate: () => void;
+}) {
+  const { t } = useLocale();
+  const isReal = providerMode === "real";
+  const isReady = modelSetup === "ready";
+
+  const steps = [
+    {
+      title: t("setup.guide_provider"),
+      desc: isReal ? t("setup.guide_provider_real") : t("setup.guide_provider_demo"),
+      icon: isReal ? ShieldCheck : FlaskConical,
+      done: isReal,
+      tone: isReal ? "green" : "purple",
+    },
+    {
+      title: t("setup.guide_connection"),
+      desc: secretConfigured ? t("setup.guide_connection_ready") : t("setup.guide_connection_missing"),
+      icon: KeyRound,
+      done: secretConfigured,
+      tone: secretConfigured ? "green" : "amber",
+    },
+    {
+      title: t("setup.guide_model"),
+      desc: activeModel ? t("setup.guide_model_ready").replace("{model}", activeModel) : t("setup.guide_model_missing"),
+      icon: Settings,
+      done: hasConfiguredModels,
+      tone: hasConfiguredModels ? "green" : "blue",
+    },
+    {
+      title: t("setup.guide_test"),
+      desc: isReady ? t("setup.guide_test_ready") : t("setup.guide_test_desc"),
+      icon: PlayCircle,
+      done: isReady,
+      tone: isReady ? "green" : "purple",
+    },
+  ] as const;
+
+  return (
+    <section className="mf-card-soft overflow-hidden p-6 md:p-7">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={isReal ? "mf-chip mf-chip-success" : "mf-chip mf-chip-accent"}>
+              {isReal ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />}
+              {isReal ? t("setup.guide_real_chip") : t("setup.guide_demo_chip")}
+            </span>
+            <span className="mf-chip">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("setup.guide_secret_masked")}
+            </span>
+          </div>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-ink">{t("setup.guide_title")}</h2>
+          <p className="mt-3 text-sm leading-6 text-muted">{t("setup.guide_desc")}</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button className="mf-primary-button px-4 py-3 text-sm" type="button" onClick={onAddModel}>
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            {hasConfiguredModels ? t("setup.guide_edit_model") : t("setup.guide_add_model")}
+          </button>
+          <button className="mf-secondary-button px-4 py-3 text-sm" type="button" onClick={onValidate} disabled={!canValidate || validationBusy}>
+            <PlayCircle className="h-4 w-4" aria-hidden="true" />
+            {validationBusy ? t("setup.saving") : t("setup.guide_validate")}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 md:grid-cols-4">
+        {steps.map((item, index) => (
+          <GuideStepCard
+            key={item.title}
+            index={index + 1}
+            title={item.title}
+            desc={item.desc}
+            icon={item.icon}
+            done={item.done}
+            tone={item.tone}
+          />
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-white/70 bg-white/72 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-ink">{t("setup.guide_presets_title")}</h3>
+              <p className="mt-1 text-xs leading-5 text-muted">{t("setup.guide_presets_desc")}</p>
+            </div>
+            <button className="text-xs font-bold" style={{ color: "var(--mf-accent)" }} type="button" onClick={onGoModels}>
+              {t("setup.guide_jump_to_models")} <ArrowRight className="inline h-3 w-3" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-4">
+            <PresetCard name="Qwen" status={t("setup.preset_manual")} desc={t("setup.preset_qwen_desc")} />
+            <PresetCard name="OpenAI-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_openai_desc")} />
+            <PresetCard name="Anthropic-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_anthropic_desc")} />
+            <PresetCard name="Custom" status={t("setup.preset_manual")} desc={t("setup.preset_custom_desc")} />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/70 bg-white/72 p-4">
+          <h3 className="text-sm font-black text-ink">{t("setup.guide_after_title")}</h3>
+          <p className="mt-2 text-xs leading-5 text-muted">{t("setup.guide_after_desc")}</p>
+          <div className="mt-4 grid gap-2">
+            <span className="mf-chip !justify-start !text-xs">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("setup.guide_no_plain_key")}
+            </span>
+            <span className="mf-chip !justify-start !text-xs">
+              <Network className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("setup.guide_no_llm_test")}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GuideStepCard({
+  index,
+  title,
+  desc,
+  icon: Icon,
+  done,
+  tone,
+}: {
+  index: number;
+  title: string;
+  desc: string;
+  icon: LucideIcon;
+  done: boolean;
+  tone: "purple" | "blue" | "amber" | "green";
+}) {
+  const { t } = useLocale();
+  const style = setupToneMap[tone];
+
+  return (
+    <article className="rounded-2xl border border-white/70 bg-white/78 p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: style.bg }}>
+          <Icon className="h-5 w-5" style={{ color: style.text }} aria-hidden={true} />
+        </div>
+        <span className={done ? "mf-chip mf-chip-success !px-2 !py-1 !text-[11px]" : "mf-chip !px-2 !py-1 !text-[11px]"}>
+          {done ? t("shared.done") : t("setup.guide_step_badge").replace("{index}", String(index))}
+        </span>
+      </div>
+      <h3 className="text-sm font-black text-ink">{title}</h3>
+      <p className="mt-2 text-xs leading-5 text-muted">{desc}</p>
+    </article>
+  );
+}
+
+function PresetCard({ name, status, desc }: { name: string; status: string; desc: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-white/80 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-black text-ink">{name}</div>
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: "var(--mf-accent-soft)", color: "var(--mf-accent)" }}>
+          {status}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-muted">{desc}</p>
+    </div>
+  );
+}
+
 function formFromEditable(editable: SetupEditableConfigResponse): SetupForm {
   return {
     vault_root: editable.vault.root,
@@ -1057,3 +1280,15 @@ function patchFromForm(form: SetupForm): SetupConfigPatch {
 function compactRouting(routing: Record<string, string>, defaultModel: string) {
   return Object.fromEntries(Object.entries(routing).filter(([, modelId]) => modelId && modelId !== defaultModel));
 }
+
+function hasConfiguredModelSecret(model: SetupEditableConfigResponse["llm"]["configured_models"][string] | undefined) {
+  const modelFlags = model as Record<string, unknown> | undefined;
+  return Boolean(model?.api_key_secret_present || modelFlags?.[MODEL_SECRET_ENV_FLAG]);
+}
+
+const setupToneMap = {
+  purple: { bg: "var(--mf-accent-soft)", text: "var(--mf-accent)" },
+  blue: { bg: "rgba(50, 103, 214, 0.1)", text: "var(--mf-info)" },
+  amber: { bg: "rgba(216, 135, 34, 0.12)", text: "var(--mf-warning)" },
+  green: { bg: "rgba(20, 150, 107, 0.1)", text: "var(--mf-approved)" },
+} as const;

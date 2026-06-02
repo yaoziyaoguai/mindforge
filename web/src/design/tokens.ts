@@ -14,19 +14,19 @@
 // 用法: className="text-ink bg-panel border-line"
 
 export const twColors = {
-  surface: "#f7f5f1", // 页面背景
+  surface: "#f6f7fb", // 页面背景
   panel: "#ffffff", // 卡片/面板背景
-  ink: "#23211d", // 主文字
-  muted: "#6d685f", // 次级文字
-  line: "#ddd8cf", // 边框/分割线
-  primary: "#2368d1", // 交互/强调蓝
-  safe: "#237a57", // 成功/已批准
-  warn: "#b66b13", // 警告
-  danger: "#b42318", // 错误/危险
+  ink: "#111a3a", // 主文字
+  muted: "#435171", // 次级文字
+  line: "rgba(17, 26, 58, 0.1)", // 边框/分割线
+  primary: "#5b46f6", // 交互/强调紫
+  safe: "#14966b", // 成功/已批准
+  warn: "#d88722", // 警告
+  danger: "#d04b4b", // 错误/危险
 } as const;
 
 export const twShadow = {
-  subtle: "0 1px 2px rgba(35, 33, 29, 0.08)",
+  subtle: "0 14px 40px rgba(17, 26, 58, 0.06), 0 4px 14px rgba(17, 26, 58, 0.04)",
 } as const;
 
 // ─── B 套：CSS 自定义属性 ────────────────────────────────────────
@@ -34,20 +34,20 @@ export const twShadow = {
 // 用法: style={{ color: "var(--mf-text-primary)" }} 或 className="text-[var(--mf-accent)]"
 
 export const cssColors = {
-  bg: "var(--mf-bg)", // #faf9f5
+  bg: "var(--mf-bg)", // #fbfbff
   surface: "var(--mf-surface)", // #ffffff
-  surfaceAlt: "var(--mf-surface-alt)", // #f3f1eb
-  textPrimary: "var(--mf-text-primary)", // #1c1b18
-  textSecondary: "var(--mf-text-secondary)", // #5e5c56
-  textTertiary: "var(--mf-text-tertiary)", // #8a8880
-  border: "var(--mf-border)", // rgba(0,0,0,0.08)
-  accent: "var(--mf-accent)", // #2d7d5f
-  accentHover: "var(--mf-accent-hover)", // #236b4f
-  draft: "var(--mf-draft)", // #b8860b
-  approved: "var(--mf-approved)", // #2d7d5f
-  lab: "var(--mf-lab)", // #8a8880
-  warning: "var(--mf-warning)", // #cc7a00
-  error: "var(--mf-error)", // #c04040
+  surfaceAlt: "var(--mf-surface-alt)", // #f7f7ff
+  textPrimary: "var(--mf-text-primary)", // #111a3a
+  textSecondary: "var(--mf-text-secondary)", // #435171
+  textTertiary: "var(--mf-text-tertiary)", // #7c869f
+  border: "var(--mf-border)", // rgba(17,26,58,0.1)
+  accent: "var(--mf-accent)", // #5b46f6
+  accentHover: "var(--mf-accent-hover)", // #4632dc
+  draft: "var(--mf-draft)", // #d88722
+  approved: "var(--mf-approved)", // #14966b
+  lab: "var(--mf-lab)", // #7c869f
+  warning: "var(--mf-warning)", // #d88722
+  error: "var(--mf-error)", // #d04b4b
 } as const;
 
 export const cssTypography = {
@@ -93,9 +93,8 @@ export const cssSpacing = {
 
 // ─── 已知问题 ────────────────────────────────────────────────────
 //
-// 1. 双系统值不对齐 (e.g. A套 accent=#2368d1 蓝, B套 accent=#2d7d5f 绿)
-//    不同页面视觉不一致。需要统一但属于中等规模重构。
-//    Slice 2.5 (2026-06-02): 新组件优先用 B套 CSS 变量；Tailwind A套仅用于布局。
+// 1. 双系统已在 Batch 1 用全局 CSS 语义覆盖先对齐到 reference 方向。
+//    Tailwind config 文件仍可在后续批次清理；本批次不扩大到构建配置。
 //
 // 2. CSS 变量引用缺失:
 //    - var(--mf-warn) 在 ExportPage 使用，但定义的是 --mf-warning
