@@ -12,7 +12,7 @@
 - 扫描器本身不依赖任何外部工具 (只读 ``Path.read_text``)。
 
 如果未来某个 gate 被 human authorizer 正式打开，必须同步更新
-``README.md``、``docs/ROADMAP_COMPLETION_LEDGER.md`` 和本测试中的
+``README.md``、``docs/developer/product-boundaries.md`` 和本测试中的
 显式 allowlist；靠删测试通过 gate 本身是 P0 违规。
 """
 
