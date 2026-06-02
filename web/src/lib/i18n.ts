@@ -37,6 +37,7 @@ const copy: Record<Locale, LocaleDict> = {
     "nav.setup": "连接模型",
     "nav.sources": "知识源",
     "nav.drafts": "审阅草稿",
+    "nav.review": "人工审阅",
     "nav.trash": "回收站",
     "nav.home": "首页",
     "nav.library": "知识库",
@@ -799,6 +800,7 @@ const copy: Record<Locale, LocaleDict> = {
     "shared.no": "否",
     "shared.done": "完成",
     "shared.open": "打开",
+    "shared.safety_notice": "安全说明",
 
     // ---- Knowledge Health ----
     "health.page_title": "知识健康报告",
@@ -1143,6 +1145,7 @@ const copy: Record<Locale, LocaleDict> = {
     "library.filter_favorites": "收藏",
     "library.filter_recent": "最近浏览",
     "library.search_placeholder": "搜索知识...",
+    "library.col_title": "标题",
     "library.col_source": "来源",
     "library.col_date": "日期",
     "library.col_tags": "标签",
@@ -1225,6 +1228,7 @@ const copy: Record<Locale, LocaleDict> = {
     "nav.setup": "Connect Models",
     "nav.sources": "Sources",
     "nav.drafts": "Review Drafts",
+    "nav.review": "Human Review",
     "nav.trash": "Trash",
     "nav.home": "Home",
     "nav.library": "Library",
@@ -1986,6 +1990,7 @@ const copy: Record<Locale, LocaleDict> = {
     "shared.no": "No",
     "shared.done": "Done",
     "shared.open": "Open",
+    "shared.safety_notice": "Safety Notice",
 
     // ---- Knowledge Health ----
     "health.page_title": "Knowledge Health Report",
@@ -2330,6 +2335,7 @@ const copy: Record<Locale, LocaleDict> = {
     "library.filter_favorites": "Favorites",
     "library.filter_recent": "Recently Viewed",
     "library.search_placeholder": "Search knowledge...",
+    "library.col_title": "Title",
     "library.col_source": "Source",
     "library.col_date": "Date",
     "library.col_tags": "Tags",
