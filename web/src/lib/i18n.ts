@@ -985,8 +985,8 @@ const copy: Record<Locale, LocaleDict> = {
 
   en: {
     // ---- Sidebar ----
-    "nav.group.processing": "Processing",
-    "nav.group.using": "Using Knowledge",
+    "nav.group.pipeline": "Main Pipeline",
+    "nav.group.system": "System Settings",
     "nav.group.lab": "Lab",
     "nav.group.tools": "Tools",
     "nav.feedback": "Feedback",

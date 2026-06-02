@@ -27,27 +27,22 @@ export function Sidebar({ path, onNavigate }: { path: string; onNavigate: (href:
 
   const groups = [
     {
-      label: t("nav.group.processing"),
+      label: t("nav.group.pipeline"),
       items: [
-        { href: "/setup", label: t("nav.setup"), icon: Settings },
         { href: "/sources", label: t("nav.sources"), icon: Inbox },
         { href: "/drafts", label: t("nav.drafts"), icon: CheckSquare },
+        { href: "/library", label: t("nav.library"), icon: Library },
+        { href: "/recall", label: t("nav.recall"), icon: Search },
+        { href: "/wiki", label: t("nav.wiki"), icon: BookMarked },
+        { href: "/export", label: t("nav.export"), icon: Download },
       ],
     },
     {
-      label: t("nav.group.using"),
+      label: t("nav.group.system"),
       items: [
         { href: "/", label: t("nav.home"), icon: Home },
-        { href: "/library", label: t("nav.library"), icon: Library },
-        { href: "/wiki", label: t("nav.wiki"), icon: BookMarked },
-        { href: "/recall", label: t("nav.recall"), icon: Search },
-      ],
-    },
-    {
-      label: t("nav.group.tools"),
-      items: [
+        { href: "/setup", label: t("nav.setup"), icon: Settings },
         { href: "/health", label: t("nav.health"), icon: Heart },
-        { href: "/export", label: t("nav.export"), icon: Download },
         { href: "/trash", label: t("nav.trash"), icon: Trash2 },
       ],
     },
