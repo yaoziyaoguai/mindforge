@@ -424,6 +424,31 @@ export function WikiPage() {
         </div>
       )}
 
+      {page && filteredSections.length === 0 && !searchQuery && status && (
+        <div className="rounded-lg border border-line bg-white/60 p-8 text-center">
+          <h3 className="mb-2 text-base font-semibold text-ink">
+            {locale === "zh" ? "Wiki 暂无内容" : "Wiki is empty"}
+          </h3>
+          <p className="mb-1 text-sm text-muted">
+            {status.approved_card_count > 0
+              ? (locale === "zh"
+                  ? `已有 ${status.approved_card_count} 条已确认知识，可以重新生成 Wiki`
+                  : `${status.approved_card_count} approved cards available — regenerate Wiki to include them`)
+              : (locale === "zh" ? "没有已确认知识，无法生成 Wiki" : "No approved knowledge to generate Wiki from")}
+          </p>
+          {status.approved_card_count > 0 && (
+            <button
+              type="button"
+              onClick={() => rebuild("llm")}
+              disabled={busy}
+              className="mt-3 inline-flex items-center gap-2 rounded-md bg-[var(--mf-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--mf-accent)]/90 disabled:opacity-40"
+            >
+              {t("wiki.generate")}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Quality metrics — 简化显示 */}
       {quality?.exists && quality.coverage && (
         <details className="rounded-lg border border-line bg-white/60 p-5">

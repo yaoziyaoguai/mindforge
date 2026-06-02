@@ -72,101 +72,77 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
-      {/* v4.2.1: LAB/INTERNAL warning banner */}
-      <div style={{
-        border: "2px solid #f59e0b", borderRadius: "8px",
-        background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-        padding: "0.85rem 1rem", marginBottom: "1.25rem",
-        fontSize: "0.85rem", lineHeight: 1.6,
-      }}>
-        <div style={{ fontWeight: 700, color: "#92400e", marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          <span style={{ fontSize: "1.1rem" }}>⚠️</span> LAB / INTERNAL — 实验性分析功能
+    <div className="space-y-4">
+      {/* v4.2.1: LAB/INTERNAL warning banner — styled with main web tokens */}
+      <div className="rounded-lg border p-4" style={{ borderColor: "var(--mf-warning)/30", background: "var(--mf-accent-faint)" }}>
+        <div className="text-sm font-semibold" style={{ color: "var(--mf-warning)" }}>
+          LAB / INTERNAL — 实验性分析功能
         </div>
-        <div style={{ color: "#a16207", fontSize: "0.8rem" }}>
-          <p style={{ margin: 0 }}>本页面提供的是基于确定性 heuristics 的实验性分析（BFS + 集合运算），不是成熟的 sensemaking 产品能力。</p>
-          <ul style={{ margin: "0.35rem 0 0 1.2rem", padding: 0 }}>
+        <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--mf-text-secondary)" }}>
+          <p className="mb-1">本页面提供的是基于确定性 heuristics 的实验性分析（BFS + 集合运算），不是成熟的 sensemaking 产品能力。</p>
+          <ul className="ml-4 list-disc space-y-0.5">
             <li>BridgeNode: 简单社区交集计数，不涉及 centrality / modularity</li>
             <li>CardEvolutionPath: 按 card_id 排序，不代表真实时间演化</li>
             <li>SourceInfluencePath: 简单 BFS，不涉及 causal inference</li>
             <li>Evidence Trail: 集合交集匹配，仅供探索参考</li>
           </ul>
-          <p style={{ margin: "0.35rem 0 0 0" }}>
-            这不是 production sensemaking 功能。分析结果不应作为知识质量的权威依据。
-          </p>
+          <p className="mt-1">这不是 production sensemaking 功能。分析结果不应作为知识质量的权威依据。</p>
         </div>
       </div>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+      <div className="flex items-center gap-3">
         {onNavigateBack && (
           <button
             onClick={onNavigateBack}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: "0.25rem",
-              padding: "0.35rem 0.75rem", border: "1px solid var(--border, #e2e8f0)",
-              borderRadius: "6px", background: "var(--bg-secondary, #fff)", cursor: "pointer",
-              fontSize: "0.85rem", color: "var(--text-secondary, #64748b)",
-            }}
+            className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-1.5 text-sm text-muted hover:text-ink"
           >
             <ArrowLeft size={16} />
             {t("graph.back_to_library")}
           </button>
         )}
-        <Brain size={24} />
-        <h1 style={{ fontSize: "1.4rem", fontWeight: 700, margin: 0 }}>
+        <Brain size={20} className="text-[var(--mf-accent)]" />
+        <h1 className="text-lg font-semibold text-ink">
           {t("sensemaking.title")}
         </h1>
-        <span style={{
-          fontSize: "0.7rem", background: "#fef3c7", color: "#92400e",
-          borderRadius: "4px", padding: "0.15rem 0.45rem", fontWeight: 600,
-        }}>
+        <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "var(--mf-accent-soft)", color: "var(--mf-accent)" }}>
           LAB
         </span>
       </div>
 
       {/* Search bar */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
+      <div className="flex gap-2">
         <input
           type="text"
           value={inputCardId}
           onChange={(e) => setInputCardId(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="card ID or filename..."
-          style={{
-            flex: 1, padding: "0.5rem 0.75rem", border: "1px solid var(--border, #e2e8f0)",
-            borderRadius: "6px", fontSize: "0.9rem", background: "var(--bg-secondary, #fff)",
-            color: "var(--text-primary, #1e293b)",
-          }}
+          className="flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink placeholder:text-muted"
         />
         <button
           onClick={() => runAnalysis()}
           disabled={loading || !inputCardId.trim()}
-          style={{
-            padding: "0.5rem 1.25rem", border: "none", borderRadius: "6px",
-            background: loading ? "#94a3b8" : "var(--accent, #6366f1)", color: "#fff",
-            cursor: loading ? "not-allowed" : "pointer", fontWeight: 600, fontSize: "0.9rem",
-            whiteSpace: "nowrap",
-          }}
+          className="rounded-md px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          style={{ background: loading ? "var(--mf-text-tertiary)" : "var(--mf-accent)" }}
         >
-          {loading ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : "Analyze"}
+          {loading ? <Loader2 size={16} className="animate-spin" /> : "Analyze"}
         </button>
       </div>
 
       {/* View mode tabs */}
-      <div style={{ display: "flex", gap: "0.35rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+      <div className="flex flex-wrap gap-1">
         {VIEW_MODES.map((vm) => (
           <button
             key={vm.mode}
             onClick={() => { setViewMode(vm.mode); setSelectedTrailIndex(null); }}
             title={t(vm.descKey)}
-            style={{
-              padding: "0.4rem 0.85rem", border: viewMode === vm.mode ? "2px solid var(--accent, #6366f1)" : "1px solid var(--border, #e2e8f0)",
-              borderRadius: "20px", background: viewMode === vm.mode ? "var(--accent-light, #eef2ff)" : "var(--bg-secondary, #fff)",
-              cursor: "pointer", fontSize: "0.8rem", fontWeight: viewMode === vm.mode ? 600 : 400,
-              color: viewMode === vm.mode ? "var(--accent, #6366f1)" : "var(--text-secondary, #64748b)",
-              transition: "all 0.15s",
-            }}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              viewMode === vm.mode
+                ? "border-2 border-[var(--mf-accent)] text-[var(--mf-accent)]"
+                : "border border-line text-muted hover:text-ink"
+            }`}
+            style={{ background: viewMode === vm.mode ? "var(--mf-accent-soft)" : "var(--mf-surface, #fff)" }}
           >
             {vm.icon} {t(vm.labelKey)}
           </button>
@@ -175,22 +151,22 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
 
       {/* Content area */}
       {loading && (
-        <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted, #94a3b8)" }}>
-          <Loader2 size={32} style={{ animation: "spin 1s linear infinite", marginBottom: "0.5rem" }} />
+        <div className="flex items-center justify-center py-16 text-sm text-muted">
+          <Loader2 size={32} className="mb-2 animate-spin" />
           <p>{t("sensemaking.loading")}</p>
         </div>
       )}
 
       {error && (
-        <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>
+        <div className="rounded-lg border border-[var(--mf-error)]/30 bg-[var(--mf-error)]/5 p-6 text-center text-sm" style={{ color: "var(--mf-error)" }}>
           <p>{t("sensemaking.load_failed")}: {error}</p>
         </div>
       )}
 
       {!loading && !error && analysis && (
-        <div style={{ display: "flex", gap: "1.5rem" }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: selectedTrailIndex !== null ? "3fr 2fr" : "1fr" }}>
           {/* Main panel */}
-          <div style={{ flex: selectedTrailIndex !== null ? "1 1 60%" : "1 1 100%" }}>
+          <div className="rounded-xl border border-line bg-panel p-5 shadow-subtle">
             {viewMode === "bridge" && <BridgeNodesView analysis={analysis} t={t} onCardClick={(id) => { setInputCardId(id); runAnalysis(id); }} />}
             {viewMode === "orphan" && <OrphanIslandsView analysis={analysis} t={t} onCardClick={(id) => { setInputCardId(id); runAnalysis(id); }} />}
             {viewMode === "evidence" && (
@@ -207,25 +183,29 @@ export function SensemakingPage({ initialCardId, onNavigateBack }: Props) {
 
           {/* Evidence trail detail panel */}
           {selectedTrailIndex !== null && viewMode === "evidence" && analysis.evidence_trails[selectedTrailIndex] && (
-            <EvidenceTrailDetail
-              trail={analysis.evidence_trails[selectedTrailIndex]}
-              t={t}
-              onClose={() => setSelectedTrailIndex(null)}
-            />
+            <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
+              <EvidenceTrailDetail
+                trail={analysis.evidence_trails[selectedTrailIndex]}
+                t={t}
+                onClose={() => setSelectedTrailIndex(null)}
+              />
+            </div>
           )}
         </div>
       )}
 
       {!loading && !error && !analysis && (
-        <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted, #94a3b8)" }}>
-          <p>输入卡片 ID 以探索实验性知识图谱分析（LAB / INTERNAL）。</p>
-          <p style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>所有分析基于确定性 heuristics，不涉及 LLM / embedding / vector DB。</p>
+        <div className="flex items-center justify-center py-16 text-center text-sm text-muted">
+          <div>
+            <p>输入卡片 ID 以探索实验性知识图谱分析（LAB / INTERNAL）。</p>
+            <p className="mt-1 text-xs">所有分析基于确定性 heuristics，不涉及 LLM / embedding / vector DB。</p>
+          </div>
         </div>
       )}
 
       {/* v4.0 badge */}
       {analysis && (
-        <div style={{ marginTop: "2rem", fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)", textAlign: "center" }}>
+        <div className="text-center text-xs text-muted">
           {analysis.total_cards_analyzed} cards analyzed · center: {analysis.center_card_title}
         </div>
       )}
@@ -244,37 +224,27 @@ function BridgeNodesView({
   }
   return (
     <div>
-      <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+      <h2 className="mb-3 text-base font-semibold text-ink">
         {t("sensemaking.bridge_nodes")} ({bridges.length})
       </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="flex flex-col gap-2">
         {bridges.map((b) => (
           <div
             key={b.card_id}
-            style={{
-              border: "1px solid var(--border, #e2e8f0)", borderRadius: "8px",
-              padding: "0.75rem 1rem", background: "var(--bg-secondary, #fff)",
-            }}
+            className="rounded-lg border border-line bg-panel p-4"
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="flex justify-between items-center">
               <button
                 onClick={() => onCardClick(b.card_id)}
-                style={{
-                  background: "none", border: "none", color: "var(--accent, #6366f1)",
-                  cursor: "pointer", fontWeight: 600, fontSize: "0.95rem", textAlign: "left",
-                  padding: 0, textDecoration: "underline", textUnderlineOffset: "2px",
-                }}
+                className="text-sm font-semibold text-[var(--mf-accent)] underline underline-offset-2"
               >
                 {b.card_title}
               </button>
-              <span style={{
-                background: "var(--accent, #6366f1)", color: "#fff", borderRadius: "12px",
-                padding: "0.15rem 0.5rem", fontSize: "0.7rem", fontWeight: 600,
-              }}>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white" style={{ background: "var(--mf-accent)" }}>
                 {b.community_count} communities
               </span>
             </div>
-            <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", color: "var(--text-muted, #94a3b8)" }}>
+            <div className="mt-1 text-xs" style={{ color: "var(--mf-text-tertiary)" }}>
               {t("sensemaking.connecting_communities")}: {b.connecting_communities.slice(0, 5).join(", ")}
               {b.connecting_communities.length > 5 && ` +${b.connecting_communities.length - 5} more`}
             </div>
@@ -670,8 +640,8 @@ function CommunitySubgraphsView({
 
 function EmptyState({ icon, message }: { icon: string; message: string }) {
   return (
-    <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted, #94a3b8)" }}>
-      <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>{icon}</div>
+    <div className="flex items-center justify-center py-16 text-center text-sm text-muted">
+      <div className="mb-2 text-4xl">{icon}</div>
       <p>{message}</p>
     </div>
   );
@@ -679,10 +649,7 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
 
 function SectionBadge({ label, count }: { label: string; count: number }) {
   return (
-    <div style={{
-      fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary, #64748b)",
-      marginBottom: "0.35rem", marginTop: "0.75rem",
-    }}>
+    <div className="mb-1 mt-3 text-xs font-semibold" style={{ color: "var(--mf-text-secondary)" }}>
       {label} ({count})
     </div>
   );

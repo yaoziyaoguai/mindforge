@@ -39,7 +39,6 @@ export function Sidebar({
   const primaryItems = [
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/sources", label: t("nav.sources"), icon: Inbox },
-    { href: "/drafts", label: t("nav.drafts"), icon: CheckSquare },
     { href: "/review", label: t("nav.review"), icon: BarChart3 },
     { href: "/library", label: t("nav.library"), icon: Library },
     { href: "/recall", label: t("nav.recall"), icon: Search },
@@ -54,6 +53,7 @@ export function Sidebar({
   ];
 
   const labItems = [
+    { href: "/drafts", label: t("nav.drafts") ?? "Drafts", icon: CheckSquare },
     { href: "/graph", label: t("nav.graph"), icon: Network },
     { href: "/sensemaking", label: t("nav.sensemaking"), icon: Brain },
     { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },

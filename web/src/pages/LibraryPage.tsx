@@ -62,6 +62,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const filterCardsParam = searchParams.get("cards");
   const [selected, setSelected] = useState<string | undefined>(initialRef ?? undefined);
   const [detail, setDetail] = useState<LibraryCardDetailResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
@@ -158,14 +159,21 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   useEffect(() => {
     if (!selected) return;
     setError(null);
+    setDetailLoading(true);
     getLibraryCardDetail(selected)
-      .then(setDetail)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Card failed to load"));
+      .then((d) => {
+        setDetail(d);
+        setDetailLoading(false);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Card failed to load");
+        setDetailLoading(false);
+      });
   }, [selected]);
 
   function selectCard(ref: string) {
     setSelected(ref);
-    setDetail(null);
+    setDetailLoading(true);
     const url = new URL(window.location.href);
     url.searchParams.set("card", ref);
     window.history.pushState({}, "", url.toString());
@@ -321,7 +329,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
           action={{
             label: t("library.empty_label"),
             description: t("library.empty_desc"),
-            href: "/drafts",
+            href: "/review",
           }}
           locale={locale}
         />
@@ -591,7 +599,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       </div>
 
       {/* Content: table + detail panel */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: selected ? "1fr 1fr" : "1fr" }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: selected ? "2fr 3fr" : "1fr" }}>
         {/* Table list */}
         <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
           <table className="w-full text-sm">
@@ -701,7 +709,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
         {selected && (
           <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-line">
-              <span className="text-sm font-medium text-ink">{detail?.card.title ?? t("library.select_to_view")}</span>
+              <span className="text-sm font-medium text-ink">{detail?.card.title ?? (detailLoading ? (locale === "zh" ? "加载中..." : "Loading...") : t("library.select_to_view"))}</span>
               <button
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-ink"
                 onClick={deselectCard}
@@ -710,9 +718,14 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 <X className="h-3.5 w-3.5" /> {t("shared.close")}
               </button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[70vh]">
+            <div className="p-4 overflow-y-auto max-h-[85vh]">
               {error ? <ErrorState message={error} /> : null}
-              {!error && detail ? (
+              {detailLoading && !detail && !error ? (
+                <div className="flex items-center justify-center py-16 text-sm text-muted">
+                  {locale === "zh" ? "正在加载知识卡详情..." : "Loading card details..."}
+                </div>
+              ) : null}
+              {!error && !detailLoading && detail ? (
                 <CardWorkspace
                   detail={detail}
                   mode="library"

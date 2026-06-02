@@ -187,3 +187,56 @@ No backend changes required. All changes are frontend UX improvements using exis
 ### Assets
 
 No external assets were added in Batch 1 or Batch 2.
+
+## Batch 6: Review / Library / Wiki / Lab UX Remediation (2026-06-03)
+
+### Problem Summary
+
+User-reported UX issues from real browser trial:
+1. "人工审阅" and "审阅草稿" sidebar tabs looked duplicate, users confused about the difference
+2. Library first click on a card showed empty detail panel (interaction bug)
+3. Card detail content cramped in narrow side panel (max 50% width, 70vh height)
+4. Wiki default state unclear when approved knowledge exists but Wiki not generated
+5. Lab/Graph/Sensemaking visual style inconsistent with main web
+
+### Changes Made
+
+| change | files modified | backend impact |
+| --- | --- | --- |
+| Remove `/drafts` from primary sidebar nav; move to Lab section | `Sidebar.tsx` | none |
+| Library empty-state CTA updated from `/drafts` → `/review` | `LibraryPage.tsx` | none |
+| Add `detailLoading` state to Library; show loading indicator instead of blank | `LibraryPage.tsx` | none |
+| Widen Library detail panel grid from `1fr 1fr` → `2fr 3fr` | `LibraryPage.tsx` | none |
+| Increase Library detail panel max-h from `70vh` → `85vh` | `LibraryPage.tsx` | none |
+| Add Wiki empty-state for existing Wiki with no sections (shows refresh CTA + approved count) | `WikiPage.tsx` | none |
+| Polish SensemakingPage header/tabs/LAB banner to use main web design tokens | `SensemakingPage.tsx` | none |
+
+### Root Cause: Library first-click detail empty bug
+
+**Location:** `LibraryPage.tsx:166-172` (before fix)
+
+**Causal chain:**
+1. User clicks first card → `selectCard(ref)` called
+2. `setSelected(ref)` updates selected state
+3. `setDetail(null)` **synchronously clears** detail state
+4. Detail panel renders (condition: `selected &&`) — panel appears but `detail` is null
+5. Inside panel: `!error && detail` — detail is null, **nothing renders**
+6. `useEffect` fires async `getLibraryCardDetail()` — request in flight
+7. Panel shows blank until response returns
+8. Second click works because the first request already completed and cached detail
+
+**Fix:** Replace `setDetail(null)` with `setDetailLoading(true)` in `selectCard()`. Add loading indicator in detail panel.
+
+### Backend Gap Assessment
+
+| capability | status | safe to show? | notes |
+| --- | --- | --- | --- |
+| Library full-detail API (`getLibraryCardDetail`) | **supported** | yes | Real API, working |
+| Wiki auto-generation on approved knowledge | **manual rebuild required** | yes | User must click "生成 Wiki" or "刷新 Wiki"; no auto-trigger |
+| Wiki related pages / history / spaces | **partial** | yes | `/api/wiki/related-sections` exists but not surfaced in UI |
+| Graph / Sensemaking current support | **lab/internal, deterministic only** | yes | BFS + set operations only; no LLM/embedding/vector DB |
+| Review / Drafts duplicate entry | **IA history** | resolved | Merged into single `/review` entry; `/drafts` moved to Lab |
+
+### Assets
+
+No external assets were added.
