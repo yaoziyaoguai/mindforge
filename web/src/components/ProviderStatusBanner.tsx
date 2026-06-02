@@ -6,12 +6,9 @@ import { useLocale } from "../lib/i18n";
  *
  * 中文学习型说明：
  * 此组件保护 fake/real provider 边界可见性。
- * 1. 首页和关键页面展示当前 provider mode，让用户一眼知道是否在 demo 模式。
- * 2. sandbox 模式提供前往 Setup 的 CTA，降低"不知道怎么配置真实模型"的障碍。
- * 3. live 模式只展示确认信息，不做多余引导。
- *
- * 为什么 fake/real 不能混：fake provider 输出带 [fake] 前缀，
- * 用户必须知道当前输出不是真实模型生成的，避免误用。
+ * 为什么 first-run 用户必须看得懂真实模型配置：
+ * 本地知识库的灵魂是拥有真实的知识处理能力。Demo模式仅仅是沙盒，必须让用户一眼看到并明白如何配置真实的 LLM。
+ * 为什么 fake/real 不能混：fake provider 产生的数据是模拟的，不应与真实用户的思考混淆。
  */
 export function ProviderStatusBanner({
   providerState,
@@ -23,45 +20,32 @@ export function ProviderStatusBanner({
   const { t } = useLocale();
   const isReady = providerState === "ready";
 
+  if (isReady) return null; // In the new design, we don't show the banner if it's already Live/Ready. It's implicit.
+
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+      className="flex items-center gap-4 rounded-xl border p-4 shadow-sm"
       style={{
-        background: isReady
-          ? "rgba(45,125,95,0.06)"
-          : "rgba(204,122,0,0.04)",
-        borderColor: isReady
-          ? "rgba(45,125,95,0.18)"
-          : "rgba(204,122,0,0.15)",
+        background: "rgba(45,125,95,0.03)",
+        borderColor: "rgba(45,125,95,0.1)"
       }}
     >
-      <div className="flex items-center gap-2.5 min-w-0">
-        <span
-          className="inline-flex h-2 w-2 shrink-0 rounded-full"
-          style={{
-            background: isReady ? "var(--mf-approved)" : "var(--mf-warning)",
-          }}
-        />
-        <span
-          className="text-sm"
-          style={{ color: "var(--mf-text-secondary)" }}
-        >
-          {isReady
-            ? t("home.provider_live_label")
-            : t("home.provider_sandbox_label")}
-        </span>
+      <div className="flex flex-1 items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md" style={{ background: "rgba(45,125,95,0.1)" }}>
+          <ShieldCheck className="h-4 w-4" style={{ color: "var(--mf-accent)" }} />
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-ink">You are in Demo Mode</div>
+          <div className="text-xs text-muted">AI outputs are simulated. Configure a real provider to generate real content.</div>
+        </div>
       </div>
-      {!isReady && (
-        <button
-          type="button"
-          onClick={() => onNavigate("/setup")}
-          className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0 transition-colors hover:opacity-80"
-          style={{ color: "var(--mf-accent)" }}
-        >
-          {t("home.provider_configure_cta")}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      )}
+      <button
+        onClick={() => onNavigate("/setup")}
+        className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
+        style={{ background: "var(--mf-accent)" }}
+      >
+        Configure Real Model <ArrowRight className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

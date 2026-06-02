@@ -402,18 +402,19 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       </section>
 
       {form && editable ? (
-        <section className="space-y-5 rounded-md border border-line bg-panel p-4 shadow-subtle">
+        <section className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink">{t("setup.local_workspace")}</h2>
-              <p className="text-sm text-muted">{t("setup.local_workspace_desc")}</p>
+              <h2 className="text-xl font-semibold text-ink tracking-tight">{t("setup.local_workspace")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("setup.local_workspace_desc")}</p>
             </div>
-            <div className="flex gap-2">
-              {dirty ? <span className="self-center text-xs font-medium text-warn">{t("setup.unsaved")}</span> : null}
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving || !dirty} onClick={revert} type="button">{t("setup.revert")}</button>
-              <button className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink disabled:opacity-50" disabled={busy || saving} onClick={validate} type="button">{t("setup.validate")}</button>
+            <div className="flex items-center gap-3">
+              {dirty ? <span className="text-xs font-medium text-amber-600">{t("setup.unsaved")}</span> : null}
+              <button className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-stone-50 transition-colors disabled:opacity-50" disabled={busy || saving || !dirty} onClick={revert} type="button">{t("setup.revert")}</button>
+              <button className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-stone-50 transition-colors disabled:opacity-50" disabled={busy || saving} onClick={validate} type="button">{t("setup.validate")}</button>
               <button
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-50 inline-flex items-center gap-2"
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "var(--mf-accent)" }}
                 disabled={saving || !dirty}
                 onClick={() => save()}
                 type="button"
@@ -431,31 +432,31 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </div>
 
           {saveError ? (
-            <div className="rounded-md border border-danger bg-red-50 p-3 text-sm text-ink">
-              <div className="flex items-start gap-2">
-                <span className="mt-0.5 font-medium text-danger">{t("setup.save_failed")}</span>
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 font-medium">{t("setup.save_failed")}</span>
                 <span className="flex-1">{saveError}</span>
-                <button className="text-xs text-muted hover:text-ink" onClick={() => setSaveError(null)} type="button">{t("shared.close")}</button>
+                <button className="text-xs text-red-700 hover:text-red-900 font-medium" onClick={() => setSaveError(null)} type="button">{t("shared.close")}</button>
               </div>
             </div>
           ) : null}
 
           {/* 步骤指示器 */}
-          <div className="flex gap-2 rounded-md border border-line bg-stone-50 p-3">
+          <div className="flex gap-2 rounded-xl border border-line bg-stone-50/50 p-2">
             {STEP_ORDER.map((s, index) => {
               const isCurrent = s === step;
               const isPast = STEP_ORDER.indexOf(step) > index;
               return (
                 <button
                   key={s}
-                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isCurrent ? "bg-primary text-white" : "bg-stone-100 text-muted border border-line"
+                  className={`flex-1 rounded-lg px-4 py-3 text-left transition-all ${
+                    isCurrent ? "bg-white shadow-sm ring-1 ring-black/5" : "text-muted hover:bg-stone-100/50"
                   }`}
                   onClick={() => setStep(s)}
                   type="button"
                 >
-                  <div className="text-xs opacity-70">{t("setup.step_number")} {index + 1}</div>
-                  <div>{STEP_LABELS[s].label}</div>
+                  <div className={`text-[10px] font-bold uppercase tracking-wider ${isCurrent ? "text-indigo-600" : "opacity-60"}`}>{t("setup.step_number")} {index + 1}</div>
+                  <div className={`mt-1 text-sm font-semibold ${isCurrent ? "text-ink" : ""}`}>{STEP_LABELS[s].label}</div>
                 </button>
               );
             })}

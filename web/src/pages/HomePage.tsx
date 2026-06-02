@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, FileText } from "lucide-react";
+import { ArrowRight, BookOpen, CheckSquare, Inbox, ShieldCheck, Download, Settings } from "lucide-react";
 import type { HomeStatusResponse, LifecycleResponse, WorkflowSummaryResponse } from "../api/types";
 import type { HealthReportResponse } from "../api/types";
 import { useLocale } from "../lib/i18n";
 import { QuickStartWizard } from "../components/QuickStartWizard";
 import { ProviderStatusBanner } from "../components/ProviderStatusBanner";
+import { cssShadows } from "../design/tokens";
 
 interface WikiStatus {
   section_count?: number;
@@ -42,31 +43,7 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
   const totalCards = approvedCount + pendingCount;
   const sourceCount = workflow?.processed_source_count ?? 0;
 
-  /* ── Attention items (calm, no priority badges) ── */
-  interface AttentionItem {
-    message: string;
-    href?: string;
-  }
-  const attentionItems: AttentionItem[] = [];
-  if (pendingCount > 0) {
-    attentionItems.push({
-      message: t("home.attention.pending_approval").replace("{count}", String(pendingCount)),
-      href: "/drafts",
-    });
-  }
-  if (health?.issues) {
-    for (const issue of health.issues) {
-      if (issue.code === "wiki_stale" || issue.code.includes("stale")) {
-        attentionItems.push({ message: t("home.attention.stale_wiki"), href: "/wiki" });
-        break;
-      }
-    }
-  }
-  if (!data.recall.index_exists) {
-    attentionItems.push({ message: t("home.attention.index_needed"), href: "/recall" });
-  }
-
-  /* ── First-run: full onboarding wizard ── */
+  /* First-run: full onboarding wizard if no data at all */
   if (totalCards === 0 && sourceCount === 0) {
     return (
       <div className="space-y-8">
@@ -79,120 +56,167 @@ export function HomePage({ data, workflow, onNavigate }: { data: HomeStatusRespo
     );
   }
 
-  return (
-    <div className="space-y-12">
-      {/* Hero: Welcome + primary action */}
-      <section className="pt-4">
-        <h1
-          className="text-3xl font-medium text-ink leading-tight"
-          style={{ fontFamily: "var(--mf-font-serif)" }}
-        >
-          {approvedCount > 0
-            ? t("home.title")
-            : t("home.onboarding.title")}
-        </h1>
-        <p className="mt-3 text-base text-muted max-w-xl leading-relaxed">
-          {approvedCount > 0
-            ? `${t("home.dashboard.approved_label")}: ${approvedCount} 张卡片 · Wiki: ${wikiStatus?.section_count ?? 0} 章节`
-            : t("home.onboarding.subtitle")}
-        </p>
+  const isRealModel = data.safety.provider_state === "ready";
 
-        {/* Primary next action */}
-        {pendingCount > 0 && (
-          <button
-            type="button"
-            onClick={() => onNavigate("/drafts")}
-            className="mt-6 inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-medium text-white transition-colors hover:opacity-90"
-            style={{ background: "var(--mf-accent)" }}
+  return (
+    <div className="space-y-10">
+      {/* Top Section: Greeting and Status Banner */}
+      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <header>
+          <h1
+            className="text-[28px] font-medium text-ink leading-tight"
+            style={{ fontFamily: "var(--mf-font-serif)" }}
           >
-            {t("home.dashboard.pending_label")}: {pendingCount} 张待审阅
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        )}
+            {t("home.title") || "Good morning, MindForge"}
+          </h1>
+          <p className="mt-2 text-sm text-muted">
+            {t("home.subtitle") || "Turn scattered information into your trusted knowledge."}
+          </p>
+        </header>
+
+        {/* Setup Banner (replaces previous top-width banner) */}
+        <ProviderStatusBanner providerState={data.safety.provider_state} onNavigate={onNavigate} />
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <MetricCard
+          icon={Inbox}
+          label={t("home.lifecycle.source") || "Sources"}
+          value={sourceCount}
+          sub="Connected"
+          iconColor="text-indigo-600"
+          iconBg="bg-indigo-50"
+        />
+        <MetricCard
+          icon={Settings}
+          label={t("home.lifecycle.draft") || "AI Drafts"}
+          value={workflow?.ai_draft_count || 0}
+          sub="Generated"
+          iconColor="text-blue-600"
+          iconBg="bg-blue-50"
+        />
+        <MetricCard
+          icon={CheckSquare}
+          label="Ready for Review"
+          value={pendingCount}
+          sub="Pending"
+          iconColor="text-amber-600"
+          iconBg="bg-amber-50"
+          action={() => onNavigate("/drafts")}
+        />
+        <MetricCard
+          icon={BookOpen}
+          label={t("home.lifecycle.approved") || "Approved"}
+          value={approvedCount}
+          sub="Total"
+          iconColor="text-emerald-700"
+          iconBg="bg-emerald-50"
+        />
+      </div>
+
+      {/* The Knowledge Flow visual pipeline */}
+      <section>
+        <h2 className="mb-4 text-base font-semibold text-ink">The MindForge Knowledge Flow</h2>
+        <div
+          className="flex flex-col gap-3 rounded-xl border p-6 md:flex-row md:items-center md:gap-4"
+          style={{ background: "var(--mf-surface)", borderColor: "var(--mf-border)", boxShadow: cssShadows.raised }}
+        >
+          <FlowStep
+            step="1"
+            title="Import"
+            desc="Bring in what matters from Cubox, files, or web."
+            color="indigo"
+          />
+          <ArrowRight className="hidden text-line md:block" />
+          <FlowStep
+            step="2"
+            title="AI Draft"
+            desc="AI helps you summarize, structure and write."
+            color="blue"
+          />
+          <ArrowRight className="hidden text-line md:block" />
+          <FlowStep
+            step="3"
+            title="Human Review"
+            desc="You review, edit and approve. Quality comes from you."
+            color="amber"
+          />
+          <ArrowRight className="hidden text-line md:block" />
+          <FlowStep
+            step="4"
+            title="Safe Export"
+            desc="Export Markdown for Obsidian. We never write to your vault."
+            color="emerald"
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-4 text-[11px] font-medium text-muted/80">
+          <div className="flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" /> No auto-approval. You stay in control.</div>
+          <div className="flex items-center gap-1.5"><Download className="h-3 w-3" /> No real Obsidian write. Export is always a safe copy.</div>
+        </div>
       </section>
 
-      {/* Provider status: always visible, lets user know demo/real mode at a glance */}
-      <ProviderStatusBanner
-        providerState={data.safety.provider_state}
-        onNavigate={onNavigate}
-      />
-
-      {/* Lifecycle: calm horizontal flow */}
-      {totalCards > 0 && (
+      {/* Needs Review / Recent Activity lists */}
+      {pendingCount > 0 && (
         <section>
-          <h2 className="text-xs font-medium text-muted/70 mb-4">{t("home.lifecycle.title")}</h2>
-          <div className="flex items-center gap-6 flex-wrap text-sm">
-            <LifecycleStat icon={FileText} label={t("home.lifecycle.source")} value={sourceCount} />
-            <span className="text-muted/30">→</span>
-            <LifecycleStat icon={FileText} label={t("home.lifecycle.draft")} value={pendingCount} />
-            <span className="text-muted/30">→</span>
-            <LifecycleStat icon={BookOpen} label={t("home.lifecycle.approved")} value={approvedCount} />
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-ink">Needs Your Review</h2>
+            <button onClick={() => onNavigate("/drafts")} className="text-xs font-medium text-primary hover:underline">View all</button>
           </div>
-        </section>
-      )}
-
-      {/* Per-source breakdown */}
-      {lifecycle && lifecycle.sources.length > 0 && (
-        <section>
-          <h2 className="text-xs font-medium text-muted/70 mb-3">{t("home.lifecycle.by_source")}</h2>
-          <div className="space-y-1">
-            {lifecycle.sources.map((src) => {
-              const srcApprovalRate = src.total_cards > 0 ? Math.round((src.human_approved_count / src.total_cards) * 100) : 0;
-              return (
-                <div key={src.source_id} className="flex items-center gap-4 py-2 text-sm">
-                  <span className="flex-1 text-ink truncate">{src.source_title}</span>
-                  <span className="text-xs text-muted">
-                    <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: "var(--mf-draft)" }} />
-                    {src.ai_draft_count}
-                  </span>
-                  <span className="text-xs text-muted">
-                    <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: "var(--mf-approved)" }} />
-                    {src.human_approved_count}
-                  </span>
-                  <span className="text-xs text-muted min-w-[3rem] text-right">{srcApprovalRate}%</span>
+          <div className="rounded-xl border border-line bg-panel p-2 shadow-subtle">
+            {/* Mocking recent drafts for visual placeholder, actual data could be wired up if available */}
+            <div className="flex items-center justify-between rounded-lg p-3 hover:bg-stone-50 transition-colors cursor-pointer" onClick={() => onNavigate("/drafts")}>
+              <div className="flex items-center gap-3">
+                <div className="rounded bg-amber-50 p-1.5 text-amber-600"><CheckSquare className="h-4 w-4" /></div>
+                <div>
+                  <div className="text-sm font-medium text-ink">Review pending cards</div>
+                  <div className="text-xs text-muted">{pendingCount} items waiting for your approval</div>
                 </div>
-              );
-            })}
+              </div>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-800 tracking-wider">review</span>
+            </div>
           </div>
         </section>
       )}
 
-      {/* Attention: calm nudges */}
-      {attentionItems.length > 0 && (
-        <section>
-          <h2 className="text-xs font-medium text-muted/70 mb-3">{t("home.dashboard.attention_title")}</h2>
-          <div className="space-y-1">
-            {attentionItems.map((item, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => item.href && onNavigate(item.href)}
-                className="block text-sm text-muted hover:text-ink transition-colors py-0.5"
-              >
-                {item.message} {item.href ? "→" : ""}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {attentionItems.length === 0 && (
-        <p className="text-sm text-muted">{t("home.dashboard.attention_empty")}</p>
-      )}
     </div>
   );
 }
 
-function LifecycleStat({ icon: Icon, label, value }: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number;
-}) {
+function MetricCard({ icon: Icon, label, value, sub, iconColor, iconBg, action }: any) {
   return (
-    <div className="flex items-center gap-2">
-      <Icon className="h-4 w-4 text-muted/50" aria-hidden="true" />
-      <span className="text-muted">{label}</span>
-      <span className="font-medium text-ink tabular-nums">{value}</span>
+    <div
+      className={`relative rounded-xl border p-5 transition-shadow hover:shadow-subtle ${action ? "cursor-pointer" : ""}`}
+      style={{ background: "var(--mf-surface)", borderColor: "var(--mf-border)" }}
+      onClick={action}
+    >
+      <div className="mb-3 flex items-center gap-3">
+        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${iconBg}`}>
+          <Icon className={`h-4 w-4 ${iconColor}`} />
+        </div>
+        <span className="text-sm font-medium text-muted">{label}</span>
+      </div>
+      <div className="text-2xl font-semibold text-ink tracking-tight">{value}</div>
+      <div className="mt-1 text-xs text-muted/80">{sub}</div>
+    </div>
+  );
+}
+
+function FlowStep({ step, title, desc, color }: any) {
+  const colorMap: any = {
+    indigo: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100" },
+    blue: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100" },
+    amber: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-100" },
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-100" }
+  };
+  const c = colorMap[color];
+  return (
+    <div className={`flex flex-1 flex-col rounded-lg border p-4 ${c.bg} ${c.border}`}>
+      <div className="mb-2 flex items-center gap-2">
+        <div className={`flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold shadow-sm ${c.text}`}>{step}</div>
+        <div className={`text-sm font-semibold ${c.text}`}>{title}</div>
+      </div>
+      <div className="text-xs text-muted/90 leading-relaxed">{desc}</div>
     </div>
   );
 }

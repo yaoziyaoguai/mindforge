@@ -100,10 +100,14 @@ These rules capture the visual corrections applied to move the UI from "engineer
 - Do NOT introduce new badge/semantic colors beyond the defined token set.
 - The Tailwind `primary: #2368d1` (blue) conflicts with CSS `accent: #2d7d5f` (green) — prefer CSS tokens for semantic meaning, Tailwind utilities for layout only.
 
-### 12.5 Density & Breathing Room
-- Page sections must have visual breathing room — avoid nesting `border + p-4` inside `border + p-4`.
-- Callout sections use `px-4 py-3` (not `p-4`) to reduce vertical weight.
-- Text in informational sections uses `text-xs` (not `text-sm`) to reduce visual shouting.
+### 12.6 Product Quality Pass (Slice 2.6 — 2026-06-02)
+
+- **Home Knowledge Desk**: The Home page must act as a welcoming mission control. Use metric cards with soft pastel icon backgrounds to provide immediate state awareness.
+- **Visual Pipeline**: Ground the user in the compiler philosophy using a horizontal "Knowledge Flow" diagram. Clearly label the human-in-the-loop "Human Review" step.
+- **First-run Guidance**: Prioritize the "Configure Real Model" action for demo users. It should be an elegant product card, not a system warning.
+- **Depth & Dimension**: Use very subtle multi-layer shadows (`cssShadows.raised`) on main canvas cards to provide a sense of hierarchy without breaking the "Flat" philosophy (no heavy gradients).
+- **Navigation Clarity**: The sidebar should have a distinct header with the product logo/icon. Group labels should be uppercase, small, and low-contrast metadata.
+- **Safety as a Service**: The top-right header area should provide quiet reassurance of local-only status and demo/live mode, rather than a full-width alert bar.
 
 ## 12. Accessibility & Readability
 - Ensure WCAG AA contrast ratios.

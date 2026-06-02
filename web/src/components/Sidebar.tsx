@@ -56,21 +56,24 @@ export function Sidebar({ path, onNavigate, providerState }: { path: string; onN
 
   return (
     <nav
-      className="flex w-60 shrink-0 flex-col border-r border-line px-3 py-5"
+      className="flex w-64 shrink-0 flex-col px-4 py-6"
       style={{ background: "var(--mf-surface-alt)" }}
       aria-label="Main navigation"
     >
       <div
-        className="mb-8 px-2 text-lg font-medium text-ink tracking-tight"
+        className="mb-8 px-3 text-xl font-semibold text-ink tracking-tight flex items-center gap-2"
         style={{ fontFamily: "var(--mf-font-serif)" }}
       >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--mf-accent)" }}>
+          <span className="text-white text-lg font-bold">M</span>
+        </div>
         MindForge
       </div>
 
-      <div className="flex-1 space-y-5">
+      <div className="flex-1 space-y-6">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="mb-1.5 px-2 text-[11px] font-medium text-muted/70">
+            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-muted/50">
               {group.label}
             </p>
             <div className="space-y-0.5">
@@ -84,13 +87,13 @@ export function Sidebar({ path, onNavigate, providerState }: { path: string; onN
                     type="button"
                     onClick={() => onNavigate(item.href)}
                     className={cx(
-                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
+                      "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-all",
                       active
-                        ? "bg-white/80 text-ink font-medium shadow-sm"
-                        : "text-muted hover:bg-white/50 hover:text-ink",
+                        ? "bg-white text-ink font-semibold shadow-sm ring-1 ring-black/5"
+                        : "text-muted hover:bg-white/60 hover:text-ink",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <Icon className={cx("h-4 w-4 shrink-0 transition-colors", active ? "text-indigo-600" : "text-muted/70 group-hover:text-ink")} aria-hidden="true" />
                     <span className="flex-1">{item.label}</span>
                     {/* provider 状态指示灯 — 仅在 setup 条目上显示 */}
                     {item.href === "/setup" && (
@@ -116,17 +119,17 @@ export function Sidebar({ path, onNavigate, providerState }: { path: string; onN
           <button
             type="button"
             onClick={() => setLabOpen(!labOpen)}
-            className="flex w-full items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-muted/60 hover:text-muted"
+            className="group flex w-full items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted/50 hover:text-muted"
             aria-expanded={labOpen}
           >
+            {t("nav.group.lab")}
             <ChevronDown
-              className={cx("h-3 w-3 transition-transform", labOpen ? "rotate-0" : "-rotate-90")}
+              className={cx("h-3 w-3 transition-transform", labOpen ? "rotate-180" : "rotate-0")}
               aria-hidden="true"
             />
-            {t("nav.group.lab")}
           </button>
           {labOpen && (
-            <div className="mt-0.5 space-y-0.5">
+            <div className="mt-1 space-y-0.5">
               {labItems.map((item) => {
                 const active = path === item.href || path.startsWith(item.href);
                 const Icon = item.icon;
@@ -136,13 +139,13 @@ export function Sidebar({ path, onNavigate, providerState }: { path: string; onN
                     type="button"
                     onClick={() => onNavigate(item.href)}
                     className={cx(
-                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
+                      "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-all",
                       active
-                        ? "bg-white/80 text-ink font-medium shadow-sm"
-                        : "text-muted/70 hover:bg-white/50 hover:text-ink",
+                        ? "bg-white text-ink font-semibold shadow-sm ring-1 ring-black/5"
+                        : "text-muted/70 hover:bg-white/60 hover:text-ink",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <Icon className={cx("h-4 w-4 shrink-0 transition-colors", active ? "text-indigo-600" : "text-muted/50 group-hover:text-ink")} aria-hidden="true" />
                     {item.label}
                   </button>
                 );
@@ -152,7 +155,7 @@ export function Sidebar({ path, onNavigate, providerState }: { path: string; onN
         </div>
       </div>
 
-      <div className="mt-auto space-y-0.5 border-t border-line/60 pt-3">
+      <div className="mt-auto space-y-0.5 pt-4">
         <button
           type="button"
           className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted hover:bg-white/50 hover:text-ink"

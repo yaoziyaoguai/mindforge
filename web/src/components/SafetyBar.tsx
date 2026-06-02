@@ -23,50 +23,29 @@ export function SafetyBar({ safety, onNavigate }: { safety?: SafetySummary | nul
 
   return (
     <section
-      className="border-b border-line bg-stone-50/50 px-4 py-2"
+      className="flex items-center justify-end gap-4 px-10 py-5"
       aria-label="Safety Bar"
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <ShieldCheck className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
-          <span className="text-stone-500">Vault: {truncateMiddle(safety.vault_path, 36)}</span>
-        </span>
-
-        {providerReady ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span>{t("safety.model_setup")}</span>
-            <BoundaryBadge type="live" />
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5">
-            <span>{t("safety.model_setup")}</span>
-            {onNavigate ? (
-              <button
-                type="button"
-                onClick={() => onNavigate("/setup")}
-                className="hover:opacity-80 transition-opacity"
-                title={t("safety.configure_model")}
-              >
-                <BoundaryBadge type="sandbox" />
-              </button>
-            ) : (
-              <BoundaryBadge type="sandbox" />
-            )}
-          </span>
+      <div className="flex items-center gap-3 text-[13px] font-medium text-muted">
+        {!providerReady && (
+          <button
+            type="button"
+            onClick={() => onNavigate && onNavigate("/setup")}
+            className="flex items-center gap-1.5 rounded-full border border-indigo-100 bg-indigo-50/50 px-3 py-1.5 text-indigo-700 transition-colors hover:bg-indigo-100/50"
+          >
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            Demo Mode
+          </button>
         )}
 
-        <span className="inline-flex items-center gap-1">
-          <span>{t("safety.needs_review")}{safety.pending_drafts_count}</span>
-        </span>
+        <div className="flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-stone-600">
+          <div className="h-2 w-2 rounded-full" style={{ background: "var(--mf-approved)" }} />
+          Your data stays local
+        </div>
 
-        {safety.warnings.length > 0 ? (
-          <span className="text-warn">{safety.warnings[0]}</span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-stone-400">
-            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-            {t("safety.safe_local_read")}
-          </span>
-        )}
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-800 text-sm font-semibold text-white shadow-sm">
+          U
+        </div>
       </div>
     </section>
   );

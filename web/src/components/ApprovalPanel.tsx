@@ -117,7 +117,7 @@ export function ApprovalPanel({ detail, onApproved }: { detail: DraftDetailRespo
               onChange={(event) => setReviewed(event.target.checked)}
               type="checkbox"
               className="mt-0.5 h-4 w-4 rounded"
-              style={{ accentColor }}
+              style={{ accentColor: accent }}
             />
             <span className="leading-relaxed">{t("approval.reviewed_checkbox")}</span>
           </label>
