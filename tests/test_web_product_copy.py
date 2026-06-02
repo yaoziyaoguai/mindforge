@@ -62,9 +62,11 @@ def test_web_navigation_uses_knowledge_workspace_language() -> None:
     assert zh.get("nav.drafts") == "审阅草稿"
     assert zh.get("nav.library") == "知识库"
     assert zh.get("nav.recall") == "搜索"
-    assert zh.get("nav.group.processing") == "知识处理"
-    assert zh.get("nav.group.using") == "知识使用"
+    assert zh.get("nav.group.pipeline") == "主路径"
+    assert zh.get("nav.group.system") == "系统配置"
     # 英文导航不是中文原文
+    assert en.get("nav.group.pipeline") == "Main Pipeline"
+    assert en.get("nav.group.system") == "System Settings"
     assert en.get("nav.drafts") == "Review Drafts"
     assert en.get("nav.recall") == "Search"
 

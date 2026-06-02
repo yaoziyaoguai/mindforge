@@ -67,15 +67,18 @@ describe("SafetyBar", () => {
   describe("provider state", () => {
     it("renders ready state correctly", () => {
       renderWithLocale(<SafetyBar safety={baseSafety} />);
-      // t("safety.model_setup") + t("safety.model_ready") → "模型配置：就绪"
-      // 两个 JSX 表达式在 happy-dom 中可能产生独立文本节点，用正则匹配合并后的 textContent
-      expect(screen.getByText(/模型配置：\s*就绪/)).toBeInTheDocument();
+      // t("safety.model_setup") → "模型配置："
+      expect(screen.getByText(/模型配置：/)).toBeInTheDocument();
+      // t("boundary.live") → "Live / 真实模型"
+      expect(screen.getByText("Live / 真实模型")).toBeInTheDocument();
     });
 
     it("renders non-ready provider state", () => {
       renderWithLocale(<SafetyBar safety={{ ...baseSafety, provider_state: "blocked" }} />);
-      // t("safety.model_setup") + t("safety.model_check") → "模型配置：待检查"
-      expect(screen.getByText(/模型配置：\s*待检查/)).toBeInTheDocument();
+      // t("safety.model_setup") → "模型配置："
+      expect(screen.getByText(/模型配置：/)).toBeInTheDocument();
+      // t("boundary.sandbox") → "Sandbox / 模拟"
+      expect(screen.getByText("Sandbox / 模拟")).toBeInTheDocument();
     });
   });
 

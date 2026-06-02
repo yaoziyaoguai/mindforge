@@ -1,10 +1,21 @@
 import type { SourcesResponse } from "../api/types";
 import { deleteWatchedSource, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
 import { getFrequencyOptions } from "../components/SourceAddPanel";
+import { BoundaryBadge } from "../components/BoundaryBadge";
 import { useLocale } from "../lib/i18n";
 import { sourceDueStatusLabel, sourceRunStatusLabel, sourceStatusLabel } from "../lib/utils";
 import { useState } from "react";
 import { ArrowDown, FolderOpen, Terminal, Clipboard } from "lucide-react";
+
+/**
+ * SourcesPage - 知识来源管理
+ *
+ * 中文学习型说明：
+ * 此页面承载 Source Ingestion (资料摄入) 的逻辑。
+ * 1. 明确 Source Adapter 角色：它是“只读”资料源。
+ * 2. 强化“导入不等于确认”边界：导入后资料仅进入 ai_draft，需手动审批。
+ * 3. 区分 Source (资料) 与 Provider (加工能力)。
+ */
 
 export function SourcesPage({
   data,
@@ -96,6 +107,17 @@ export function SourcesPage({
           {t("sources.add_source_in_setup")}
         </button>
       </header>
+
+      {/* Source Ingestion Boundary Clarity */}
+      <section className="rounded-md border border-blue-200 bg-blue-50/30 p-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+          <BoundaryBadge type="source" />
+          {t("sources.boundary_title")}
+        </h2>
+        <p className="mt-1 text-xs text-blue-800/80 leading-relaxed">
+          {t("sources.boundary_desc")}
+        </p>
+      </section>
 
       {/* ── v4.4 A2: Import Methods Explanation ── */}
       <section className="rounded-md border border-line bg-panel p-5">

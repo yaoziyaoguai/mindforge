@@ -1,12 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Eye, FileText, Package } from "lucide-react";
+import { Download, Eye, FileText, Package, ShieldCheck } from "lucide-react";
 import { getLibraryCards } from "../api/library";
 import type { LibraryCardResponse, LibraryCardsResponse } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
+import { BoundaryBadge } from "../components/BoundaryBadge";
 import { useLocale } from "../lib/i18n";
 import { cx } from "../lib/utils";
 
+/**
+ * ExportPage - 知识导出
+ *
+ * 中文学习型说明：
+ * 此页面承载知识“流出”系统的逻辑。
+ * 1. 明确 Staging 角色：导出仅为生成副本，不操作用户生产环境。
+ * 2. 强化“只导出已审批”约束：不消费 ai_draft。
+ * 3. 保护主工作区安全：明确不直接写入真实 Obsidian 库。
+ */
+
 type ExportFormat = "markdown" | "zip";
+
+function StagingBoundaryCallout() {
+  const { t } = useLocale();
+  return (
+    <section className="rounded-md border border-green-200 bg-green-50/30 p-4">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-green-900">
+        <BoundaryBadge type="staging" />
+        {t("export.staging_title")}
+      </h2>
+      <p className="mt-1 text-xs text-green-800/80 leading-relaxed">
+        {t("export.staging_desc")}
+      </p>
+    </section>
+  );
+}
 
 export function ExportPage() {
   const { locale, t } = useLocale();
@@ -154,6 +180,7 @@ export function ExportPage() {
           <h1>{t("export.title")}</h1>
           <p>{t("export.subtitle")}</p>
         </header>
+        <StagingBoundaryCallout />
         <div className="rounded-lg border border-[var(--mf-warn)]/30 bg-[var(--mf-warn)]/5 p-4 text-sm text-[var(--mf-warn)]">
           {error}
         </div>
@@ -168,6 +195,7 @@ export function ExportPage() {
           <h1>{t("export.title")}</h1>
           <p>{t("export.subtitle")}</p>
         </header>
+        <StagingBoundaryCallout />
         <EmptyState
           title={t("export.preview_empty")}
           action={{
@@ -187,6 +215,8 @@ export function ExportPage() {
         <h1>{t("export.title")}</h1>
         <p>{t("export.subtitle")}</p>
       </header>
+
+      <StagingBoundaryCallout />
 
       {/* Scope Selection */}
       <section className="rounded-lg border border-line bg-white/60 p-5">
@@ -297,9 +327,15 @@ export function ExportPage() {
       </section>
 
       {/* Safety Notice */}
-      <div className="rounded-lg border border-[var(--mf-info)]/30 bg-[var(--mf-info)]/5 p-4 text-sm text-ink">
-        <span className="font-medium">安全说明：</span>
-        {t("export.safety_notice")}
+      <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-ink shadow-sm flex items-start gap-3">
+        <ShieldCheck className="h-5 w-5 text-green-700 shrink-0 mt-0.5" />
+        <div>
+          <span className="font-bold text-green-800 flex items-center gap-2 mb-1">
+            {t("shared.safety_notice") || "安全说明"}
+            <BoundaryBadge type="staging" />
+          </span>
+          {t("export.safety_notice")}
+        </div>
       </div>
 
       {/* Actions */}

@@ -3,8 +3,19 @@ import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
+import { BoundaryBadge } from "../components/BoundaryBadge";
 import { useLocale } from "../lib/i18n";
 import { strategyDescriptionLabel, strategyNameLabel, strategyStatusLabel, workflowStepLabel, workflowStepPurpose, nextActionDescription, friendlyProviderName } from "../lib/utils";
+
+/**
+ * SetupPage - Provider 与基础配置
+ *
+ * 中文学习型说明：
+ * 此页面承载 Provider (LLM) 的 Opt-in 逻辑。
+ * 1. 明确区分“本地工作区”与“外部 Provider”。
+ * 2. 强化 Sandbox vs Live 概念，防止非预期的网络调用。
+ * 3. 保护 API Key：仅作为 Write-only 存在，前端不回显。
+ */
 
 const supportedTypes = ["openai", "openai_compatible", "anthropic", "anthropic_compatible"] as const;
 
@@ -336,12 +347,26 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
         <StatusCard label={t("setup.model_config_status")} value={data.provider.model_setup === "ready" ? t("setup.model_configured") : t("setup.model_check_setup")} status={data.provider.model_setup === "ready" ? "ok" : "warn"} detail={t("setup.api_key_status_detail")} locale={locale} />
       </div>
 
+      {/* Provider Boundary Clarity Callout */}
+      <section className="rounded-md border border-purple-200 bg-purple-50/30 p-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-purple-900">
+          <BoundaryBadge type="provider" />
+          {t("setup.boundary_title")}
+        </h2>
+        <p className="mt-1 text-xs text-purple-800/80 leading-relaxed">
+          {t("setup.boundary_desc")}
+        </p>
+      </section>
+
       {/* 中文学习型说明：provider 安全边界横幅，根据 provider_mode 展示不同状态。 */}
       {data.provider.provider_mode === "real" ? (
-        <section className="rounded-md border border-amber-300 bg-amber-50 p-4">
+        <section className="rounded-md border border-amber-300 bg-amber-50 p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-amber-900">{t("setup.mode_real_title")}</h2>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <BoundaryBadge type="live" />
+                {t("setup.mode_real_title")}
+              </h2>
               <p className="mt-1 text-xs text-amber-700">{t("setup.mode_real_desc")}</p>
             </div>
             <button
@@ -355,14 +380,17 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
           </div>
         </section>
       ) : (
-        <section className="rounded-md border border-green-200 bg-green-50 p-4">
+        <section className="rounded-md border border-stone-200 bg-stone-50 p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-green-900">{t("setup.mode_fake_title")}</h2>
-              <p className="mt-1 text-xs text-green-700">{t("setup.mode_fake_desc")}</p>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                <BoundaryBadge type="sandbox" />
+                {t("setup.mode_fake_title")}
+              </h2>
+              <p className="mt-1 text-xs text-stone-600">{t("setup.mode_fake_desc")}</p>
             </div>
             <button
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-md bg-stone-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-50"
               onClick={() => setActivationDialogOpen(true)}
               disabled={!hasConfiguredModels}
               type="button"
