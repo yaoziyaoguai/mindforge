@@ -104,6 +104,54 @@ This log prevents the reference-image redesign from implying backend capabilitie
 | Knowledge export download (zip) | `web/src/api/library.ts` (via fetch), `/api/knowledge/export/download` | ExportPage download | yes | n/a | None | P0 |
 | Export options (metadata, TOC, tags, frontmatter) | not in export API yet | ExportPage options checkboxes | no | Backend export API doesn't accept options | Add options to export request body | P2 |
 
+## Batch 4: Fake Mode QA Findings (2026-06-02)
+
+### QA Matrix
+
+| page | opens | demo mode visible | buttons work | empty states correct | product boundaries safe | score |
+| --- | --- | --- | --- | --- | --- | --- |
+| Home | yes | yes (sidebar + safety bar) | nav links, CTA all work | N/A (has demo data) | yes — no fake real-provider activation | 9/10 |
+| Setup | yes | yes (Demo / Fake Provider section) | add model, validate disabled until filled | N/A | yes — API key only masked, validate warns no real LLM call | 9/10 |
+| Sources | yes | yes (safety bar) | "立即处理" works, Cubox/WebClipper/RSS disabled | N/A (has 1 local file source) | yes — source ≠ provider clearly separated | 9/10 |
+| Drafts | yes | yes | "浏览草稿" link works | yes — empty state with CTA to sources | yes — only ai_draft shown, no auto-mixing | 8/10 |
+| Review | yes | yes | N/A (empty) | yes — guidance text present | yes — no Approve All, no auto approve | 8/10 |
+| Library | yes | yes | detail panel, export, search, filter, sort work | N/A (has 6 demo cards) | yes — only human_approved shown | 9/10 |
+| Wiki | yes | yes | search, sections expand/collapse work | yes — warns model needed for LLM synthesis | yes — no RAG/vector DB claims | 8/10 |
+| Export | yes | yes | preview, download work, format cards correct | N/A (has 6 approved cards) | yes — PDF/HTML/Word/JSON disabled, options collapsible Coming Soon | 9/10 |
+
+### Issues Found and Fixed
+
+1. **Missing i18n key `library.col_title`** — Library table header showed raw key "library.col_title" instead of "标题". Fixed by adding zh/en equivalents.
+2. **Missing i18n key `nav.review`** — Sidebar showed raw key "nav.review" instead of "人工审阅". Fixed by adding zh/en equivalents.
+3. **Missing i18n key `shared.safety_notice`** — Export page safety section showed raw key. Fixed by adding zh/en equivalents.
+
+### Fake Mode Main Path Status
+
+- Source → Process: "立即处理" triggered on Local Files adapter ✓
+- Process → Drafts: Background processing initiated; drafts may take time to appear in fake mode
+- Drafts → Review: Review page correctly shows empty when no drafts exist ✓
+- Library → Export: 6 demo cards exported successfully via Markdown preview and download ✓
+
+### Screenshots
+
+- `tmp/fake-qa-home.png`
+- `tmp/fake-qa-setup.png`
+- `tmp/fake-qa-sources.png`
+- `tmp/fake-qa-drafts.png`
+- `tmp/fake-qa-review.png`
+- `tmp/fake-qa-library.png`
+- `tmp/fake-qa-wiki.png`
+- `tmp/fake-qa-export.png`
+- `tmp/fake-qa-library-fixed.png` (after i18n fixes)
+
+### Gates
+
+- `git diff --check`: pass (exit 0)
+- `web/ npm run build`: pass (tsc -b && vite build completed in 4.72s)
+- `main` synced with `origin/main`: yes (0 0 after push)
+- `pictures/` not staged: yes (untracked only)
+- working tree: clean (only untracked pictures/, tmp/)
+
 ## Assets
 
 No external assets were added in Batch 1 or Batch 2.
