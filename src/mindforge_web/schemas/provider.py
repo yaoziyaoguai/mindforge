@@ -57,6 +57,58 @@ class ProviderReadinessResponse(BaseModel):
     invariants: dict[str, bool] = Field(default_factory=dict)
 
 
+class ProviderStatusResponse(BaseModel):
+    """GET /api/provider/status — 安全脱敏的 provider 连接状态。
+
+    只返回 redacted/masked 信息，绝不包含 API key 明文、Authorization header 或 raw secret。
+    """
+    provider_type: str | None = None
+    model: str | None = None
+    configured: bool = False
+    verified: bool = False
+    verification_status: Literal["not_verified", "verified", "failed"] = "not_verified"
+    masked_key: str | None = None
+    base_url_host: str | None = None
+    base_url_path: str | None = None
+    last_checked_at: str | None = None
+    last_error: str | None = None
+    provider_mode: Literal["fake", "real"] = "fake"
+    can_run_real_smoke: bool = False
+
+
+class TestConnectionRequest(BaseModel):
+    model_id: str = Field(description="要测试的模型 alias")
+
+
+class TestConnectionResponse(BaseModel):
+    ok: bool
+    message: str
+    verification_status: Literal["not_verified", "verified", "failed"] = "not_verified"
+    last_checked_at: str | None = None
+    last_error: str | None = None
+    latency_ms: int | None = None
+
+
+class UsageReportResponse(BaseModel):
+    """GET /api/usage/report — 本地使用摘要，不上传，不追踪。
+
+    local-only，无遥测，不收集 secret。缺失数据展示为 empty/not available。
+    """
+    generated_at: str
+    total_cards: int = 0
+    approved_count: int = 0
+    draft_count: int = 0
+    total_sources: int = 0
+    wiki_sections: int = 0
+    search_available: bool = False
+    provider_configured: bool = False
+    provider_verified: bool = False
+    provider_verification_status: str = "not_verified"
+    provider_mode: str = "fake"
+    recent_runs: int = 0
+    backend_gaps: list[str] = Field(default_factory=list)
+
+
 class SetProviderModeRequest(BaseModel):
     mode: Literal["fake", "real"]
 

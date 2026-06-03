@@ -13,7 +13,7 @@ from mindforge.first_run_config import maybe_bootstrap_local_config
 from mindforge_web.routers import (
     approval, config, discovery, dogfood, drafts, graph, health, home,
     library, lifecycle, processing, prompts, provider_readiness, provenance,
-    quality, recall, sources, trash, wiki,
+    quality, recall, sources, trash, usage, wiki,
 )
 from mindforge_web.services.web_facade import WebFacade
 
@@ -102,6 +102,7 @@ def create_app(
     app.include_router(discovery.router)
     app.include_router(dogfood.router)
     app.include_router(provider_readiness.router)
+    app.include_router(usage.router)
     app.include_router(lifecycle.router)
     if static_dir and static_dir.exists():
         assets_dir = static_dir / "assets"

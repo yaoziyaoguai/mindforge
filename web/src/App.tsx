@@ -23,6 +23,7 @@ import { DogfoodPage } from "./pages/DogfoodPage";
 import { GraphPage } from "./pages/GraphPage";
 import { SensemakingPage } from "./pages/SensemakingPage";
 import { ExportPage } from "./pages/ExportPage";
+import { UsageReportPage } from "./pages/UsageReportPage";
 
 type PageData = {
   home?: HomeStatusResponse;
@@ -84,13 +85,14 @@ export default function App() {
   if (!content && path.startsWith("/health")) content = <HealthPage onNavigate={navigate} />;
   if (!content && path.startsWith("/trash")) content = <TrashPage onRefresh={load} />;
   if (!content && path.startsWith("/wiki")) content = <WikiPage />;
+  if (!content && path.startsWith("/usage-report")) content = <UsageReportPage />;
   if (!content && path.startsWith("/dogfood")) content = <DogfoodPage onNavigate={navigate} />;
   if (!content && path.startsWith("/graph")) content = <GraphPage onNavigateBack={() => navigate("/library")} />;
   if (!content && path.startsWith("/sensemaking")) content = <SensemakingPage onNavigateBack={() => navigate("/library")} />;
   if (!content && path.startsWith("/export")) content = <ExportPage />;
   if (!content && data.home) content = <HomePage data={data.home} workflow={data.workflow} onNavigate={navigate} />;
   if (!content) {
-    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/review") ? "drafts" : path.startsWith("/drafts") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : path.startsWith("/export") ? "default" : path.startsWith("/graph") ? "default" : "default";
+    const variant = path.startsWith("/wiki") ? "wiki" : path.startsWith("/library") ? "library" : path.startsWith("/review") ? "drafts" : path.startsWith("/drafts") ? "drafts" : path.startsWith("/setup") ? "setup" : path.startsWith("/sources") ? "sources" : path.startsWith("/recall") || path.startsWith("/search") ? "search" : path.startsWith("/health") ? "health" : path.startsWith("/trash") ? "trash" : path.startsWith("/dogfood") ? "dogfood" : path.startsWith("/usage-report") ? "usage-report" : path.startsWith("/export") ? "default" : path.startsWith("/graph") ? "default" : "default";
     content = <LoadingSkeleton variant={variant as "default" | "wiki" | "library" | "drafts" | "search" | "sources" | "health" | "trash" | "setup" | "dogfood"} />;
   }
 

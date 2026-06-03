@@ -54,12 +54,18 @@ class Checkpoint:
         active_profile: str | None = None,
         provider_mode: str = "fake",
         backup: bool = True,
+        verification_status: str = "not_verified",
+        last_checked_at: str | None = None,
+        last_error: str | None = None,
     ) -> None:
         self.path = path
         self.items = items
         self.active_profile = active_profile
         self.provider_mode = provider_mode
         self.backup = backup
+        self.verification_status = verification_status
+        self.last_checked_at = last_checked_at
+        self.last_error = last_error
 
     # ------------------------------------------------------------------ load
     @classmethod
@@ -93,15 +99,32 @@ class Checkpoint:
             active_profile=raw.get("active_profile"),
             provider_mode=raw.get("provider_mode", "fake"),
             backup=backup,
+            verification_status=raw.get("verification_status", "not_verified"),
+            last_checked_at=raw.get("last_checked_at"),
+            last_error=raw.get("last_error"),
         )
 
     # ----------------------------------------------------------------- save
-    def save(self, *, active_profile: str | None = None, provider_mode: str | None = None) -> None:
+    def save(
+        self,
+        *,
+        active_profile: str | None = None,
+        provider_mode: str | None = None,
+        verification_status: str | None = None,
+        last_checked_at: str | None = None,
+        last_error: str | None = None,
+    ) -> None:
         """原子保存。先写 .tmp 再 rename；可选写 .bak。"""
         if active_profile is not None:
             self.active_profile = active_profile
         if provider_mode is not None:
             self.provider_mode = provider_mode
+        if verification_status is not None:
+            self.verification_status = verification_status
+        if last_checked_at is not None:
+            self.last_checked_at = last_checked_at
+        if last_error is not None:
+            self.last_error = last_error
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -113,6 +136,9 @@ class Checkpoint:
             "updated_at": datetime.now().isoformat(timespec="seconds"),
             "active_profile": self.active_profile,
             "provider_mode": self.provider_mode,
+            "verification_status": self.verification_status,
+            "last_checked_at": self.last_checked_at,
+            "last_error": self.last_error,
             "items": {k: _item_to_dict(v) for k, v in self.items.items()},
         }
 

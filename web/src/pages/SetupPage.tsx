@@ -11,6 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getEditableConfig, saveSetupConfig, validateSetupConfig } from "../api/config";
+import { getProviderStatus, testProviderConnection } from "../api/provider";
+import type { ProviderStatusResponse, TestConnectionResponse } from "../api/provider";
 import type { ConfigStatusResponse, SetupConfigPatch, SetupEditableConfigResponse } from "../api/types";
 import { SourceAddPanel } from "../components/SourceAddPanel";
 import { StatusCard } from "../components/StatusCard";
@@ -99,13 +101,49 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   const [activationChecked, setActivationChecked] = useState(false);
   const [activationBusy, setActivationBusy] = useState(false);
   const [keyVisible, setKeyVisible] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatusResponse | null>(null);
+  const [testConnState, setTestConnState] = useState<{ busy: boolean; result: TestConnectionResponse | null }>({ busy: false, result: null });
   const editingFormRef = useRef<HTMLDivElement>(null);
   const { locale, t } = useLocale();
   const STEP_LABELS = getStepLabels(t);
 
   useEffect(() => {
     void loadEditable();
+    void loadProviderStatus();
   }, []);
+
+  async function loadProviderStatus() {
+    try {
+      const status = await getProviderStatus();
+      setProviderStatus(status);
+    } catch {
+      // 静默失败，provider status 非关键路径
+    }
+  }
+
+  async function handleTestConnection() {
+    if (!editable?.llm.active_provider) return;
+    const modelId = form?.default_model || editable.llm.active_provider;
+    setTestConnState({ busy: true, result: null });
+    try {
+      const result = await testProviderConnection(modelId);
+      setTestConnState({ busy: false, result });
+      // 刷新 provider status
+      await loadProviderStatus();
+    } catch (error) {
+      setTestConnState({
+        busy: false,
+        result: {
+          ok: false,
+          message: error instanceof Error ? error.message : "Test connection failed",
+          verification_status: "failed",
+          last_checked_at: null,
+          last_error: error instanceof Error ? error.message : "Unknown error",
+          latency_ms: null,
+        },
+      });
+    }
+  }
 
   async function loadEditable() {
     const response = await getEditableConfig();
@@ -608,6 +646,105 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
                 </div>
               </details>
             )}
+
+            {/* Provider 连接状态 + 测试连接 */}
+            {providerStatus ? (
+              <div className="rounded-md border border-line p-4">
+                <h3 className="text-sm font-semibold text-ink mb-3">{t("setup.provider_status_title")}</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded bg-stone-50 border border-line p-3 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">{t("setup.provider_mode_label")}</span>
+                      <span className={`font-medium ${providerStatus.provider_mode === "real" ? "text-green-700" : "text-muted"}`}>
+                        {providerStatus.provider_mode === "real" ? t("setup.guide_real_chip") : t("setup.provider_status_fake")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">{t("setup.model_type")}</span>
+                      <span className="font-medium text-ink">{providerStatus.provider_type || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">{t("setup.model_name")}</span>
+                      <span className="font-medium text-ink">{providerStatus.model || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">{t("setup.model_api_key")}</span>
+                      <span className="font-medium text-ink">{providerStatus.masked_key || "—"}</span>
+                    </div>
+                    {providerStatus.base_url_host ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted">endpoint</span>
+                        <span className="font-medium text-ink truncate max-w-[180px]">{providerStatus.base_url_host}{providerStatus.base_url_path ?? ""}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">{t("setup.provider_status_title")}</span>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[11px] font-medium ${
+                        providerStatus.verification_status === "verified" ? "bg-green-100 text-green-700"
+                        : providerStatus.verification_status === "failed" ? "bg-red-100 text-red-700"
+                        : providerStatus.configured ? "bg-amber-100 text-amber-700" : "bg-stone-100 text-muted"
+                      }`}>
+                        {providerStatus.verification_status === "verified" ? t("setup.provider_status_verified")
+                        : providerStatus.verification_status === "failed" ? t("setup.provider_status_failed")
+                        : providerStatus.configured ? t("setup.provider_status_not_verified")
+                        : t("setup.provider_status_not_configured")}
+                      </span>
+                    </div>
+                    {providerStatus.last_checked_at ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted">last checked</span>
+                        <span className="font-medium text-ink text-[11px]">{providerStatus.last_checked_at}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      className="rounded-md border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-stone-50 disabled:opacity-50 transition-colors"
+                      onClick={validate}
+                      disabled={busy || !hasConfiguredModels}
+                      type="button"
+                      title={t("setup.check_config_desc")}
+                    >
+                      <CheckCircle2 className="inline h-3.5 w-3.5 mr-1" />
+                      {busy ? t("setup.saving") : t("setup.check_config")}
+                    </button>
+                    <p className="text-[11px] text-muted">{t("setup.check_config_desc")}</p>
+                    <button
+                      className="rounded-md bg-primary px-3 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                      onClick={handleTestConnection}
+                      disabled={testConnState.busy || !providerStatus.configured || providerStatus.provider_mode !== "real"}
+                      type="button"
+                    >
+                      {testConnState.busy ? (
+                        <>
+                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white mr-1" />
+                          {t("setup.test_connection_testing")}
+                        </>
+                      ) : (
+                        t("setup.test_connection")
+                      )}
+                    </button>
+                    <p className="text-[11px] text-amber-700 font-medium">{t("setup.test_connection_warning")}</p>
+                    {testConnState.result ? (
+                      <div className={`rounded p-2 text-xs ${testConnState.result.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                        <div className="font-medium">{testConnState.result.ok ? t("setup.test_connection_success") : t("setup.test_connection_failed")}</div>
+                        <div className="mt-0.5">{testConnState.result.message}</div>
+                        {testConnState.result.latency_ms != null ? (
+                          <div className="mt-0.5 text-muted">latency: {testConnState.result.latency_ms}ms</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {providerStatus.last_error && !testConnState.result ? (
+                      <div className="rounded bg-red-50 p-2 text-xs text-red-700">
+                        <span className="font-medium">{t("setup.test_connection_failed")}: </span>
+                        {providerStatus.last_error}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">{t("setup.configured_models")}</h2>

@@ -55,6 +55,9 @@ from mindforge_web.schemas import (
     DogfoodReportResponse,
     ProviderAliasStatus,
     ProviderReadinessResponse,
+    ProviderStatusResponse,
+    TestConnectionResponse,
+    UsageReportResponse,
     CardBodyUpdateResponse,
     GraphEdgeDetailResponse,
     GraphResponse,
@@ -815,6 +818,87 @@ class WebFacade:
             maintenance_suggestions=suggestions,
         )
 
+    def usage_report(self) -> UsageReportResponse:
+        """返回本地使用摘要 — local-only，无遥测，不收集 secret。
+
+        中文学习型说明：轻量聚合，仅基于已有的 vault/wiki/provider status 数据。
+        缺失数据标记为 backend gap，不伪造数字。
+        """
+        from datetime import datetime, timezone
+        from mindforge.cards import iter_cards
+        from mindforge.wiki_service import get_wiki_status
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # 扫描卡片
+        scan = iter_cards(self.cfg.vault.root, self.cfg.vault.cards_dir)
+        cards = list(scan.cards)
+
+        total = len(cards)
+        approved_count = sum(1 for c in cards if c.status == "human_approved")
+        draft_count = sum(1 for c in cards if c.status == "ai_draft")
+        source_ids = {c.source_id for c in cards if c.source_id}
+
+        # Wiki 状态
+        wiki_sections = 0
+        try:
+            ws = get_wiki_status(self.cfg)
+            wiki_sections = ws.approved_card_count
+        except Exception:
+            pass
+
+        # 搜索索引
+        search_available = False
+        try:
+            recall = self.recall_status()
+            search_available = recall.index_exists
+        except Exception:
+            pass
+
+        # Provider 状态
+        provider_configured = False
+        provider_verified = False
+        provider_verification_status = "not_verified"
+        provider_mode = "fake"
+        try:
+            ps = self.provider_status_detail()
+            provider_configured = ps.configured
+            provider_verified = ps.verified
+            provider_verification_status = ps.verification_status
+            provider_mode = ps.provider_mode
+        except Exception:
+            pass
+
+        # 统计 processing runs
+        recent_runs = 0
+        try:
+            from mindforge.checkpoint import Checkpoint
+            cp = Checkpoint.load(self.cfg.state.state_path)
+            recent_runs = len(cp.items)
+        except Exception:
+            pass
+
+        backend_gaps: list[str] = []
+        # 以下统计数据当前没有后端支持
+        backend_gaps.append("export_formats: no per-format export count tracked yet")
+        backend_gaps.append("recall/searches: no search history tracked yet")
+
+        return UsageReportResponse(
+            generated_at=now,
+            total_cards=total,
+            approved_count=approved_count,
+            draft_count=draft_count,
+            total_sources=len(source_ids),
+            wiki_sections=wiki_sections,
+            search_available=search_available,
+            provider_configured=provider_configured,
+            provider_verified=provider_verified,
+            provider_verification_status=provider_verification_status,
+            provider_mode=provider_mode,
+            recent_runs=recent_runs,
+            backend_gaps=backend_gaps,
+        )
+
     # ── v2.5 U4 Provider Readiness Center ───────────────────────────
 
     def provider_readiness_detail(self) -> ProviderReadinessResponse:
@@ -876,6 +960,229 @@ class WebFacade:
             blockers=list(opt_in["blockers"]),
             invariants=invariants,
         )
+
+    def provider_status_detail(self) -> ProviderStatusResponse:
+        """返回安全脱敏的 provider 连接状态 — 不返回 API key 明文。
+
+        中文学习型说明：基于 readiness report + model_setup_readiness +
+        checkpoint verification 状态，组合出 configured/verified/verification_status/
+        masked_key/base_url 等安全字段，供 Setup 页面和 ProviderStatusBanner 使用。
+        """
+        from urllib.parse import urlparse
+        from mindforge.provider_readiness import build_readiness_report
+        from mindforge.model_setup_readiness import model_setup_readiness
+
+        report = build_readiness_report(self.cfg.llm)
+        provider = report["provider"]
+        readiness = model_setup_readiness(self.cfg)
+
+        # 获取 active 模型的配置信息
+        model_id = provider.get("active_profile", "")
+        model_cfg = self.cfg.llm.models.get(model_id)
+
+        provider_type = None
+        model_name = None
+        masked_key = None
+        base_url_host = None
+        base_url_path = None
+
+        if model_cfg is not None:
+            provider_type = getattr(model_cfg, "type", None) or None
+            model_name = getattr(model_cfg, "model", None) or getattr(model_cfg, "default_model", None) or None
+
+            # 安全脱敏 key
+            api_key_env = getattr(model_cfg, "api_key_env", None) or None
+            api_key_source = self.config_service.secrets.api_key_source(
+                model_id, provider_type or "", api_key_env,
+            )
+            if api_key_source in ("local_secret", "env"):
+                masked_key = self.config_service.secrets.masked_api_key_value(
+                    model_id, api_key_env, api_key_source,
+                )
+
+            # base_url 安全拆分
+            base_url = getattr(model_cfg, "base_url", None) or None
+            if not base_url and getattr(model_cfg, "base_url_env", None):
+                import os
+                base_url = os.environ.get(model_cfg.base_url_env, "") or None
+            if base_url:
+                try:
+                    parsed = urlparse(base_url)
+                    base_url_host = parsed.hostname or None
+                    base_url_path = parsed.path or None
+                except Exception:
+                    pass
+
+        # 从 checkpoint 读取 verification 状态
+        verification_status = "not_verified"
+        last_checked_at = None
+        last_error = None
+        provider_mode = "fake"
+        try:
+            from mindforge.checkpoint import Checkpoint
+            cp = Checkpoint.load(self.cfg.state.state_path)
+            mode = cp.provider_mode
+            if mode in ("fake", "real"):
+                provider_mode = mode
+            verification_status = cp.verification_status
+            last_checked_at = cp.last_checked_at
+            last_error = cp.last_error
+        except Exception:
+            pass
+
+        configured = model_cfg is not None and readiness.status == "ready"
+        verified = verification_status == "verified"
+
+        return ProviderStatusResponse(
+            provider_type=provider_type,
+            model=model_name,
+            configured=configured,
+            verified=verified,
+            verification_status=verification_status,
+            masked_key=masked_key,
+            base_url_host=base_url_host,
+            base_url_path=base_url_path,
+            last_checked_at=last_checked_at,
+            last_error=last_error,
+            provider_mode=provider_mode,
+            can_run_real_smoke=readiness.ready,
+        )
+
+    def test_provider_connection(self, model_id: str) -> TestConnectionResponse:
+        """手动触发一次真实 provider 连接测试。
+
+        安全边界：
+        - 使用最小 prompt ("ping")，max_tokens=1
+        - 不生成 ai_draft，不写 Library，不进入 Review
+        - 仅更新 checkpoint 的 verification_status / last_checked_at / last_error
+        - 错误信息经过 redact_provider_error_text() 脱敏
+        - 不影响 fake/demo 主路径
+
+        中文学习型说明：用户必须手动点击"测试连接"按钮才会触发，不会自动调用。
+        """
+        from datetime import datetime as dt
+        from mindforge.llm.openai_compatible import OpenAICompatibleProvider
+        from mindforge.llm.base import LLMRequest, ProviderError as LLMProviderError
+        import time
+
+        model_cfg = self.cfg.llm.models.get(model_id)
+        if model_cfg is None:
+            return TestConnectionResponse(
+                ok=False,
+                message=f"模型 {model_id} 未配置",
+                verification_status="not_verified",
+            )
+
+        # 分类错误，便于 UI 展示
+        try:
+            provider = OpenAICompatibleProvider.from_model_config(
+                model_cfg,
+                project_root=self.cfg.vault.root,
+            )
+        except LLMProviderError as e:
+            error_msg = str(e)
+            return TestConnectionResponse(
+                ok=False,
+                message=self._classify_connection_error(error_msg),
+                verification_status="failed",
+                last_checked_at=dt.now().isoformat(timespec="seconds"),
+                last_error=error_msg,
+            )
+
+        request = LLMRequest(
+            model=model_cfg.model or model_cfg.default_model or "",
+            prompt="ping",
+            max_tokens=1,
+            stage="test_connection",
+        )
+
+        start = time.perf_counter()
+        try:
+            result = provider.generate(request)
+            latency_ms = result.latency_ms
+        except LLMProviderError as e:
+            latency_ms = int((time.perf_counter() - start) * 1000)
+            error_msg = str(e)
+            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), error_msg)
+            return TestConnectionResponse(
+                ok=False,
+                message=self._classify_connection_error(error_msg),
+                verification_status="failed",
+                last_checked_at=dt.now().isoformat(timespec="seconds"),
+                last_error=error_msg,
+                latency_ms=latency_ms,
+            )
+        except Exception as e:
+            latency_ms = int((time.perf_counter() - start) * 1000)
+            error_msg = f"未知错误：{e}"
+            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), error_msg)
+            return TestConnectionResponse(
+                ok=False,
+                message=error_msg,
+                verification_status="failed",
+                last_checked_at=dt.now().isoformat(timespec="seconds"),
+                last_error=error_msg,
+                latency_ms=latency_ms,
+            )
+
+        if result.text is None:
+            error_msg = "Provider 返回空响应"
+            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), error_msg)
+            return TestConnectionResponse(
+                ok=False,
+                message=error_msg,
+                verification_status="failed",
+                last_checked_at=dt.now().isoformat(timespec="seconds"),
+                last_error=error_msg,
+                latency_ms=latency_ms,
+            )
+
+        # 连接成功
+        checked_at = dt.now().isoformat(timespec="seconds")
+        self._save_verification_state("verified", checked_at, None)
+        return TestConnectionResponse(
+            ok=True,
+            message=f"连接成功（延迟 {latency_ms}ms）",
+            verification_status="verified",
+            last_checked_at=checked_at,
+            latency_ms=latency_ms,
+        )
+
+    def _save_verification_state(
+        self,
+        status: str,
+        checked_at: str | None,
+        error: str | None,
+    ) -> None:
+        """持久化 provider 验证状态到 checkpoint。"""
+        try:
+            from mindforge.checkpoint import Checkpoint
+            cp = Checkpoint.load(self.cfg.state.state_path, backup=True)
+            cp.save(
+                verification_status=status,
+                last_checked_at=checked_at,
+                last_error=error,
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _classify_connection_error(error_msg: str) -> str:
+        """分类连接错误，给出更友好的提示。"""
+        lower = error_msg.lower()
+        if "timed out" in lower or "timeout" in lower:
+            return f"连接超时 — 请检查 endpoint 地址或网络/代理设置：{error_msg}"
+        if "401" in error_msg or "403" in error_msg or "unauthorized" in lower:
+            return f"认证失败 — 请检查 API key 是否正确：{error_msg}"
+        if "404" in error_msg or "not found" in lower:
+            return f"endpoint 未找到 — 请检查 base_url 是否正确：{error_msg}"
+        if "model" in lower and ("not found" in lower or "not exist" in lower or "invalid" in lower):
+            return f"模型名无效 — 请检查 model 名称：{error_msg}"
+        if "json" in lower or "parse" in lower or "response" in lower:
+            return f"响应格式异常 — 请确认 endpoint 是否为 OpenAI 兼容 API：{error_msg}"
+        if "incomplete" in lower:
+            return f"配置不完整 — {error_msg}"
+        return error_msg
 
     # ── v2.5 U2 Source-to-Card Lifecycle ────────────────────────────
 
