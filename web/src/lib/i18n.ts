@@ -376,8 +376,10 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.col_source": "来源",
     "drafts.col_score": "评分",
     "drafts.send_to_review": "发送至审阅",
+    "drafts.go_to_review": "前往审阅",
     "drafts.view_full_detail": "查看完整详情",
     "drafts.empty_selection_title": "选择草稿查看详情",
+    "drafts.lab_note": "草稿页面为试验区功能；正式审阅请使用左侧「审阅草稿」入口。",
     "drafts.empty_selection_desc": "从左侧列表选择一张草稿进行预览。",
     "drafts.preview_truncated": "预览截断，前往审阅页查看完整内容",
 
@@ -400,6 +402,7 @@ const copy: Record<Locale, LocaleDict> = {
     "review.empty_selection_desc": "从左侧列表选择一张草稿进行预览和审批。",
     "review.retry": "重试",
     "review.preview_truncated": "预览截断",
+    "review.preview_show_all": "展开全部内容",
 
     // ---- Shared ----
     "library.title": "知识库",
@@ -584,6 +587,9 @@ const copy: Record<Locale, LocaleDict> = {
     "sources.advanced_tech_details": "高级 / 技术详情",
     "sources.stop_watching_warning": "此操作仅停止未来监控，不会删除文件夹、源文件或知识卡片。",
     "sources.remove_warning": "移除监控仅停止后续收录，不会删除原始文件或知识卡片。",
+    "sources.cleanup_missing": "清理缺失来源",
+    "sources.cleanup_missing_confirm": "确定要删除 {count} 个缺失的来源？此操作不可撤销。",
+    "sources.cleanup_missing_result": "已清理 {count} 个缺失来源。",
     "sources.processing_background": "后台处理中，可继续使用 MindForge。",
     "sources.starting_background": "正在启动后台处理，可继续使用 MindForge。",
     "sources.try_process_again": "请先解决问题后再尝试「立即处理」。",
@@ -1572,8 +1578,10 @@ const copy: Record<Locale, LocaleDict> = {
     "drafts.col_source": "Source",
     "drafts.col_score": "Score",
     "drafts.send_to_review": "Send to Review",
+    "drafts.go_to_review": "Go to Review",
     "drafts.view_full_detail": "View Full Detail",
     "drafts.empty_selection_title": "Select a draft to view details",
+    "drafts.lab_note": "Drafts page is experimental; use the \"Review\" sidebar entry for formal review.",
     "drafts.empty_selection_desc": "Pick a draft from the list to preview it.",
     "drafts.preview_truncated": "Preview truncated. Go to Review page for full content.",
 
@@ -1596,6 +1604,7 @@ const copy: Record<Locale, LocaleDict> = {
     "review.empty_selection_desc": "Pick a draft from the list to preview and approve.",
     "review.retry": "Retry",
     "review.preview_truncated": "Preview truncated",
+    "review.preview_show_all": "Show full content",
 
     // ---- LibraryPage ----
     "library.title": "Library",
@@ -1780,6 +1789,9 @@ const copy: Record<Locale, LocaleDict> = {
     "sources.advanced_tech_details": "Advanced / Technical details",
     "sources.stop_watching_warning": "This only stops future monitoring. It does not delete the folder, source files, or knowledge cards.",
     "sources.remove_warning": "Removing a watched source only stops future intake. It does not delete original files or knowledge cards.",
+    "sources.cleanup_missing": "Clean up missing sources",
+    "sources.cleanup_missing_confirm": "Are you sure you want to remove {count} missing sources? This cannot be undone.",
+    "sources.cleanup_missing_result": "Cleaned up {count} missing source(s).",
     "sources.processing_background": "Processing in the background. You can keep using MindForge.",
     "sources.starting_background": "Starting background processing. You can keep using MindForge.",
     "sources.try_process_again": "Try Process now again after fixing the issue.",

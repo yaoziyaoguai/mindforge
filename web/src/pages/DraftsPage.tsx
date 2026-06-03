@@ -24,10 +24,12 @@ import { friendlyStatus, friendlyTrack } from "../lib/utils";
 export function DraftsPage({
   data,
   onRefresh,
+  onNavigate,
   providerState,
 }: {
   data: DraftsResponse;
   onRefresh: () => void;
+  onNavigate?: (href: string) => void;
   providerState?: string;
 }) {
   const [selected, setSelected] = useState<string | undefined>(data.drafts[0]?.id ?? data.drafts[0]?.rel_path);
@@ -241,11 +243,11 @@ export function DraftsPage({
               <div className="flex flex-col gap-2">
                 <button
                   className="mf-primary-button rounded-lg px-4 py-2.5 text-sm font-bold"
-                  onClick={() => onRefresh()}
+                  onClick={() => onNavigate?.("/review")}
                   type="button"
                 >
                   <ArrowRight className="mr-1.5 h-4 w-4" />
-                  {t("drafts.send_to_review")}
+                  {t("drafts.go_to_review")}
                 </button>
                 <button
                   className="mf-secondary-button rounded-lg px-4 py-2.5 text-sm"
@@ -273,7 +275,7 @@ export function DraftsPage({
 
               {/* 产品边界提示：草稿不是正式知识 */}
               <p className="text-[11px] text-center leading-relaxed" style={{ color: "var(--mf-text-tertiary)" }}>
-                {t("drafts.boundary_note_long")}
+                {t("drafts.lab_note")}
               </p>
             </div>
           ) : (

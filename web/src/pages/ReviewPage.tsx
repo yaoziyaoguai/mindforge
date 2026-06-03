@@ -37,6 +37,7 @@ export function ReviewPage({
   const [confirming, setConfirming] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [search, setSearch] = useState("");
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const { locale, t } = useLocale();
 
   const aiDrafts = data.drafts.filter((d) => d.status === "ai_draft");
@@ -177,7 +178,7 @@ export function ReviewPage({
                 <button
                   key={draft.rel_path}
                   type="button"
-                  onClick={() => { setSelected(id); setConfirming(false); setReviewed(false); }}
+                  onClick={() => { setSelected(id); setConfirming(false); setReviewed(false); setPreviewExpanded(false); }}
                   className={`w-full rounded-xl border text-left transition-all ${
                     isActive
                       ? "border-[var(--mf-accent)]/40 bg-[var(--mf-accent)]/5 shadow-sm"
@@ -241,12 +242,28 @@ export function ReviewPage({
                 >
                   {detail.draft.title ?? detail.draft.rel_path}
                 </h2>
-                <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--mf-text-secondary)", lineHeight: 1.7 }}>
-                  {(detail.body ?? "").slice(0, 800)}
-                  {(detail.body ?? "").length > 800 ? (
-                    <span className="text-muted">... {t("review.preview_truncated")}</span>
+                <div
+                  className={`mt-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                    !previewExpanded ? "max-h-[480px] overflow-hidden" : "max-h-[60vh] overflow-y-auto"
+                  }`}
+                  style={{ color: "var(--mf-text-secondary)", lineHeight: 1.7 }}
+                >
+                  {!previewExpanded && (detail.body ?? "").length > 2000
+                    ? (detail.body ?? "").slice(0, 2000)
+                    : (detail.body ?? "")}
+                  {!previewExpanded && (detail.body ?? "").length > 2000 ? (
+                    <span className="text-muted">... </span>
                   ) : null}
                 </div>
+                {!previewExpanded && (detail.body ?? "").length > 2000 && (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-medium text-primary hover:underline"
+                    onClick={() => setPreviewExpanded(true)}
+                  >
+                    {t("review.preview_show_all")}
+                  </button>
+                )}
               </div>
 
               {/* 审批面板 */}
