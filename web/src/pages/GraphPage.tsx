@@ -78,6 +78,16 @@ export function GraphPage({ initialCardId, onNavigateBack }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* LAB warning banner */}
+      <div className="rounded-lg border p-4" style={{ borderColor: "var(--mf-warning)/30", background: "var(--mf-accent-faint)" }}>
+        <div className="text-sm font-semibold" style={{ color: "var(--mf-warning)" }}>
+          LAB / INTERNAL — 实验性图谱探索
+        </div>
+        <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--mf-text-secondary)" }}>
+          <p>本页面提供基础的知识图谱节点和关系浏览，仅支持部分数据类型。它不是主路径上的功能，主要用于研发测试。暂不提供图谱推理、RAG 集成等功能。</p>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

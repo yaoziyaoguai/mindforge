@@ -71,6 +71,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSelectedRefs, setBulkSelectedRefs] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [fullView, setFullView] = useState(false);
   const { locale, t } = useLocale();
 
   // Support ?cards=id1,id2 filtering (from Health Page exploration links)
@@ -599,8 +600,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
       </div>
 
       {/* Content: table + detail panel */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: selected ? "2fr 3fr" : "1fr" }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: fullView ? "1fr" : selected ? "2fr 3fr" : "1fr" }}>
         {/* Table list */}
+        {!fullView && (
         <div className="rounded-xl border border-line bg-panel shadow-subtle overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -704,6 +706,7 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
             </div>
           )}
         </div>
+        )}
 
         {/* Detail panel */}
         {selected && (
@@ -736,9 +739,9 @@ export function LibraryPage({ data, onRefresh }: { data: LibraryCardsResponse; o
                 />
               ) : null}
             </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+            </div>
+            )}
+            </div>
+            </div>
+            );
+            }
