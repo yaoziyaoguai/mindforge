@@ -240,4 +240,23 @@ User-reported UX issues from real browser trial:
 ### Assets
 
 No external assets were added.
-\n### Endpoint Diagnosis & Readiness Semantics\n\n- 当前 readiness 状态已从 "Ready" 改为 "Configured / Not verified"（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。\n- 真正的 "Test Connection"（测试连接）功能尚未实现。\n- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。\n- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示“模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。”
+\n### Endpoint Diagnosis & Readiness Semantics\n\n- 当前 readiness 状态已从 “Ready” 改为 “Configured / Not verified”（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。\n- 真正的 “Test Connection”（测试连接）功能尚未实现。\n- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。\n- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示”模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。”
+
+### Batch 7: Setup Model Save UX Fix
+
+**User report:** “配置完模型的时候，第一次点模型配置部分的保存没有反应，按全局的保存的才保存”
+
+**Root cause:** `saveModelEdit()` 存在两个问题：
+1. 验证失败时使用 `setMessage()` 显示绿色成功消息，视觉上与成功提示无区别，用户误以为”无反应”
+2. `await save()` 未包裹在 try/catch 中，API 错误抛出 unhandled rejection，React 可能抑制状态更新
+3. `if (!form || !editing) return` 零反馈退出
+
+**Fix:**
+- 所有验证错误改用 `setSaveError()`，显示在红色错误横幅中
+- 添加 try/catch 包裹 `await save()`，捕获 save 抛出的错误并静默处理（save 已设置 saveError）
+- 添加 missing i18n key `setup.validation.form_not_loaded`
+- 顺便修复 i18n.ts 中 pre-existing 语法错误（line 1553 转义引号）
+
+**Files changed:**
+- `web/src/pages/SetupPage.tsx` — saveModelEdit error handling
+- `web/src/lib/i18n.ts` — new i18n key + fix escaped quotes bug

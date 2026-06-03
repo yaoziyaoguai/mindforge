@@ -236,31 +236,36 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
   /** 确认模型编辑并持久化到后端。
    *  真实 dogfood 发现：此前此函数仅更新本地 React 状态（setForm），不调用 API，
    *  导致用户点击模型编辑区的"保存"按钮后以为已持久化，但实际必须再点全局"保存配置"才生效。
-   *  现在改为确认后自动触发后端保存，单次操作完成持久化，消除双保存按钮的认知歧义。 */
+   *  现在改为确认后自动触发后端保存，单次操作完成持久化，消除双保存按钮的认知歧义。
+   *  真实试用发现：首次点击保存无可见反馈，因为 API 错误未捕获 + 验证错误用绿色文字显示。
+   *  现在添加 try/catch 包裹，确保 API 错误也显示为红色错误信息。 */
   async function saveModelEdit() {
-    if (!form || !editing) return;
+    if (!form || !editing) {
+      setMessage(t("setup.validation.form_not_loaded"));
+      return;
+    }
     const { modelId: originalId, isNew, form: editForm } = editing;
     const newId = (isNew ? originalId.trim() : originalId) || originalId;
 
     if (!newId) {
-      setMessage(t("setup.validation.model_id_required"));
+      setSaveError(t("setup.validation.model_id_required"));
       return;
     }
     if (isNew && modelIds.includes(newId)) {
-      setMessage(t("setup.validation.model_id_exists").replace("{id}", newId!));
+      setSaveError(t("setup.validation.model_id_exists").replace("{id}", newId!));
       return;
     }
     if (!editForm.type) {
-      setMessage(t("setup.validation.type_required"));
+      setSaveError(t("setup.validation.type_required"));
       return;
     }
     if (!editForm.model) {
-      setMessage(t("setup.validation.model_name_required"));
+      setSaveError(t("setup.validation.model_name_required"));
       return;
     }
 
     if (editForm.base_url && editForm.base_url.includes("/chat/completions")) {
-      setMessage(t("setup.validation.base_url_invalid"));
+      setSaveError(t("setup.validation.base_url_invalid"));
       return;
     }
 
@@ -283,7 +288,12 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
     };
     setForm(finalForm);
     // 直接传入 finalForm 避免依赖 React 异步批处理后的 draftForm
-    await save(finalForm);
+    try {
+      await save(finalForm);
+    } catch {
+      // save() 已设置 saveError，此处静默捕获避免 unhandled rejection
+      return;
+    }
     // 保存成功后才关闭编辑表单，确保用户能看到 loading 和 success/error 反馈
     setEditing(null);
   }
