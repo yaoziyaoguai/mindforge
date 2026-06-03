@@ -259,6 +259,11 @@ export function SetupPage({ data, onRefresh }: { data: ConfigStatusResponse; onR
       return;
     }
 
+    if (editForm.base_url && editForm.base_url.includes("/chat/completions")) {
+      setMessage(t("setup.validation.base_url_invalid"));
+      return;
+    }
+
     const nextModels = { ...form.models };
 
     if (isNew) {

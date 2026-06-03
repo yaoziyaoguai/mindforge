@@ -36,13 +36,13 @@ export function SafetyBar({ safety, onNavigate }: { safety?: SafetySummary | nul
         onClick={() => onNavigate?.("/setup")}
         className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors hover:bg-white"
         style={{
-          borderColor: providerReady ? "rgba(20,150,107,0.18)" : "rgba(91,70,246,0.18)",
-          background: providerReady ? "rgba(20,150,107,0.08)" : "var(--mf-accent-soft)",
-          color: providerReady ? "var(--mf-approved)" : "var(--mf-accent)",
+          borderColor: providerReady ? "rgba(50, 103, 214, 0.18)" : "rgba(91,70,246,0.18)",
+          background: providerReady ? "rgba(50, 103, 214, 0.08)" : "var(--mf-accent-soft)",
+          color: providerReady ? "var(--mf-info)" : "var(--mf-accent)",
         }}
       >
         {providerReady ? (
-          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
         ) : (
           <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
         )}

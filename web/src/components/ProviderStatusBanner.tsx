@@ -25,17 +25,17 @@ export function ProviderStatusBanner({
       className="mf-card-soft flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
       style={{
         background: isReady
-          ? "linear-gradient(135deg, rgba(20,150,107,0.1), rgba(255,255,255,0.96))"
+          ? "linear-gradient(135deg, rgba(50, 103, 214, 0.05), rgba(255,255,255,0.96))"
           : undefined,
       }}
     >
       <div className="flex flex-1 items-center gap-3">
         <div
           className="flex h-10 w-10 items-center justify-center rounded-2xl"
-          style={{ background: isReady ? "rgba(20,150,107,0.12)" : "var(--mf-accent-soft)" }}
+          style={{ background: isReady ? "rgba(50, 103, 214, 0.1)" : "var(--mf-accent-soft)" }}
         >
           {isReady ? (
-            <CheckCircle2 className="h-5 w-5" style={{ color: "var(--mf-approved)" }} aria-hidden="true" />
+            <ShieldCheck className="h-5 w-5" style={{ color: "var(--mf-info)" }} aria-hidden="true" />
           ) : (
             <FlaskConical className="h-5 w-5" style={{ color: "var(--mf-accent)" }} aria-hidden="true" />
           )}
@@ -43,7 +43,7 @@ export function ProviderStatusBanner({
         <div>
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-ink">
             {isReady ? t("provider_banner.real_title") : t("provider_banner.demo_title")}
-            <span className={isReady ? "mf-chip mf-chip-success !px-2 !py-1 !text-[11px]" : "mf-chip mf-chip-accent !px-2 !py-1 !text-[11px]"}>
+            <span className={isReady ? "mf-chip !px-2 !py-1 !text-[11px]" : "mf-chip mf-chip-accent !px-2 !py-1 !text-[11px]"} style={isReady ? { background: "rgba(50, 103, 214, 0.1)", color: "var(--mf-info)" } : {}}>
               <ShieldCheck className="h-3 w-3" aria-hidden="true" />
               {isReady ? t("provider_banner.real_chip") : t("provider_banner.demo_chip")}
             </span>

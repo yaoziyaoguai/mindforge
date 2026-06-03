@@ -240,3 +240,4 @@ User-reported UX issues from real browser trial:
 ### Assets
 
 No external assets were added.
+\n### Endpoint Diagnosis & Readiness Semantics\n\n- 当前 readiness 状态已从 "Ready" 改为 "Configured / Not verified"（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。\n- 真正的 "Test Connection"（测试连接）功能尚未实现。\n- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。\n- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示“模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。”
