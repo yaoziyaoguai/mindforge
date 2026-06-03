@@ -35,8 +35,10 @@ export function ReviewPage({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [rejectConfirming, setRejectConfirming] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [search, setSearch] = useState("");
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const { locale, t } = useLocale();
 
   const aiDrafts = data.drafts.filter((d) => d.status === "ai_draft");
@@ -55,6 +57,7 @@ export function ReviewPage({
       .then((d) => {
         setDetail(d);
         setConfirming(false);
+        setRejectConfirming(false);
         setReviewed(false);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Draft failed to load"));
@@ -85,6 +88,7 @@ export function ReviewPage({
     try {
       await rejectDraft(selected, {});
       setConfirming(false);
+      setRejectConfirming(false);
       setReviewed(false);
       await onRefresh();
       setSelected(undefined);
@@ -177,7 +181,7 @@ export function ReviewPage({
                 <button
                   key={draft.rel_path}
                   type="button"
-                  onClick={() => { setSelected(id); setConfirming(false); setReviewed(false); }}
+                  onClick={() => { setSelected(id); setConfirming(false); setReviewed(false); setPreviewExpanded(false); }}
                   className={`w-full rounded-xl border text-left transition-all ${
                     isActive
                       ? "border-[var(--mf-accent)]/40 bg-[var(--mf-accent)]/5 shadow-sm"
@@ -241,12 +245,28 @@ export function ReviewPage({
                 >
                   {detail.draft.title ?? detail.draft.rel_path}
                 </h2>
-                <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--mf-text-secondary)", lineHeight: 1.7 }}>
-                  {(detail.body ?? "").slice(0, 800)}
-                  {(detail.body ?? "").length > 800 ? (
-                    <span className="text-muted">... {t("review.preview_truncated")}</span>
+                <div
+                  className={`mt-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                    !previewExpanded ? "max-h-[480px] overflow-hidden" : "max-h-[60vh] overflow-y-auto"
+                  }`}
+                  style={{ color: "var(--mf-text-secondary)", lineHeight: 1.7 }}
+                >
+                  {!previewExpanded && (detail.body ?? "").length > 2000
+                    ? (detail.body ?? "").slice(0, 2000)
+                    : (detail.body ?? "")}
+                  {!previewExpanded && (detail.body ?? "").length > 2000 ? (
+                    <span className="text-muted">... </span>
                   ) : null}
                 </div>
+                {!previewExpanded && (detail.body ?? "").length > 2000 && (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-medium text-primary hover:underline"
+                    onClick={() => setPreviewExpanded(true)}
+                  >
+                    {t("review.preview_show_all")}
+                  </button>
+                )}
               </div>
 
               {/* 审批面板 */}
@@ -325,20 +345,65 @@ export function ReviewPage({
                   )}
 
                   {/* Reject 按钮 — 独立操作，与 Approve 视觉区分 */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={handleReject}
-                    className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
-                    style={{
-                      borderColor: "var(--mf-error)",
-                      color: "var(--mf-error)",
-                      background: "rgba(208, 75, 75, 0.04)",
-                    }}
-                  >
-                    <X className="mr-2 inline h-4 w-4" />
-                    {t("approval.reject")}
-                  </button>
+                  {!selected ? (
+                    <div>
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium opacity-40"
+                        style={{
+                          borderColor: "var(--mf-error)",
+                          color: "var(--mf-error)",
+                          background: "rgba(208, 75, 75, 0.04)",
+                        }}
+                      >
+                        <X className="mr-2 inline h-4 w-4" />
+                        {t("approval.reject")}
+                      </button>
+                      <p className="mt-1.5 text-center text-[11px]" style={{ color: "var(--mf-text-tertiary)" }}>
+                        {t("approval.reject_disabled_hint")}
+                      </p>
+                    </div>
+                  ) : !rejectConfirming ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setRejectConfirming(true)}
+                      className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
+                      style={{
+                        borderColor: "var(--mf-error)",
+                        color: "var(--mf-error)",
+                        background: "rgba(208, 75, 75, 0.04)",
+                      }}
+                    >
+                      <X className="mr-2 inline h-4 w-4" />
+                      {t("approval.reject")}
+                    </button>
+                  ) : (
+                    <div className="rounded-lg border p-4" style={{ borderColor: "var(--mf-error-soft)", background: "rgba(208, 75, 75, 0.04)" }}>
+                      <p className="text-sm font-bold" style={{ color: "var(--mf-error)" }}>
+                        {t("approval.reject_confirm_title")}
+                      </p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={handleReject}
+                        className="mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-all disabled:opacity-40"
+                        style={{ background: "var(--mf-error)" }}
+                      >
+                        <X className="mr-2 inline h-4 w-4" />
+                        {t("approval.reject_confirm_button")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRejectConfirming(false)}
+                        className="mt-2 w-full rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-surface"
+                        style={{ borderColor: "var(--mf-border)", color: "var(--mf-text-secondary)" }}
+                      >
+                        {t("approval.cancel")}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 安全提示：不存在 Approve All，不存在 auto approve */}

@@ -13,7 +13,6 @@ import {
   Inbox,
   Library,
   Network,
-  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -40,7 +39,6 @@ export function Sidebar({
   const primaryItems = [
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/sources", label: t("nav.sources"), icon: Inbox },
-    { href: "/drafts", label: t("nav.drafts"), icon: CheckSquare },
     { href: "/review", label: t("nav.review"), icon: BarChart3 },
     { href: "/library", label: t("nav.library"), icon: Library },
     { href: "/recall", label: t("nav.recall"), icon: Search },
@@ -55,6 +53,7 @@ export function Sidebar({
   ];
 
   const labItems = [
+    { href: "/drafts", label: t("nav.drafts") ?? "Drafts", icon: CheckSquare },
     { href: "/graph", label: t("nav.graph"), icon: Network },
     { href: "/sensemaking", label: t("nav.sensemaking"), icon: Brain },
     { href: "/dogfood", label: t("nav.dogfood"), icon: BarChart3 },
@@ -116,20 +115,18 @@ export function Sidebar({
             </p>
           </div>
         </div>
-        <button
-          type="button"
+        <div
           className={cx(
-            "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-all",
+            "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold",
             providerReady
-              ? "border border-white/70 bg-white/80 text-ink hover:bg-white"
-              : "text-white hover:opacity-95",
+              ? "border border-white/70 bg-white/80 text-ink"
+              : "text-white/80",
           )}
-          style={providerReady ? undefined : { background: "linear-gradient(135deg, var(--mf-accent), #6f5cff)" }}
-          onClick={() => onNavigate("/setup")}
+          style={providerReady ? undefined : { background: "linear-gradient(135deg, var(--mf-accent), #6f5cff)", opacity: 0.7 }}
         >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {providerReady ? t("sidebar.manage_model") : t("sidebar.configure_model")}
-        </button>
+          <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" style={{ opacity: 0.6 }} />
+          {providerReady ? t("sidebar.manage_model") : t("sidebar.demo_mode_chip")}
+        </div>
       </section>
 
       <div className="flex-1 space-y-5 overflow-y-auto pr-1">

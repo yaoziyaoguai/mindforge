@@ -1,11 +1,11 @@
 import type { SourcesResponse, WatchedSourceResponse } from "../api/types";
 import { deleteWatchedSource, scanWatchedSources, updateWatchedSourceFrequency } from "../api/sources";
-import { getFrequencyOptions } from "../components/SourceAddPanel";
+import { SourceAddPanel, getFrequencyOptions } from "../components/SourceAddPanel";
 import { BoundaryBadge } from "../components/BoundaryBadge";
 import { useLocale } from "../lib/i18n";
 import { sourceDueStatusLabel, sourceRunStatusLabel, sourceStatusLabel } from "../lib/utils";
 import { useState } from "react";
-import { ArrowDown, FolderOpen, Terminal, Clipboard, Globe, Rss, FileText, Package, ExternalLink, Play, Clock, BarChart3 } from "lucide-react";
+import { ArrowDown, FolderOpen, Terminal, Clipboard, Globe, Rss, FileText, Package, ExternalLink, Play, Clock, BarChart3, Plus } from "lucide-react";
 
 /**
  * SourcesPage - 知识来源管理 / Import Center
@@ -78,6 +78,7 @@ export function SourcesPage({
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const { locale, t } = useLocale();
 
   async function removeWatch(source: SourcesResponse["watched_sources"][number]) {
@@ -93,6 +94,25 @@ export function SourcesPage({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cleanupMissingSources() {
+    const missingSources = data.watched_sources.filter((s) => s.status_label === "Missing" || s.status === "missing");
+    if (missingSources.length === 0 || !window.confirm(t("sources.cleanup_missing_confirm").replace("{count}", String(missingSources.length)))) return;
+    setBusy(true);
+    setResult(null);
+    let removed = 0;
+    for (const source of missingSources) {
+      try {
+        await deleteWatchedSource(source.id);
+        removed++;
+      } catch {
+        // continue with remaining
+      }
+    }
+    setResult(t("sources.cleanup_missing_result").replace("{count}", String(removed)));
+    await onRefresh?.();
+    setBusy(false);
   }
 
   async function editFrequency(ref: string, currentFrequency: string) {
@@ -190,12 +210,20 @@ export function SourcesPage({
           </div>
           <button
             className="mf-primary-button rounded-lg px-4 py-2 text-sm"
-            onClick={() => onNavigate("/setup")}
+            onClick={() => setShowAddPanel(!showAddPanel)}
             type="button"
           >
-            + {t("sources.new_source_btn")}
+            <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            {t("sources.new_source_btn")}
           </button>
         </div>
+
+        {/* Inline Source Add Panel */}
+        {showAddPanel && (
+          <div className="mt-4">
+            <SourceAddPanel onRefresh={onRefresh} hasModels />
+          </div>
+        )}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {sourceAdapters.map((adapter) => {
             const Icon = adapter.icon;
@@ -268,6 +296,17 @@ export function SourcesPage({
             <h2 className="text-base font-semibold text-ink">{t("sources.watched_sources")}</h2>
             <p className="mt-1 text-sm text-muted">{t("sources.watched_sources_desc")}</p>
           </div>
+          {data.watched_sources.some((s) => s.status_label === "Missing" || s.status === "missing") && (
+            <button
+              className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
+              style={{ borderColor: "var(--mf-error)", color: "var(--mf-error)", background: "rgba(208, 75, 75, 0.04)" }}
+              disabled={busy}
+              onClick={cleanupMissingSources}
+              type="button"
+            >
+              {t("sources.cleanup_missing")}
+            </button>
+          )}
         </div>
         {result && <p className="mt-3 text-sm text-primary">{result}</p>}
         <div className="mt-4 space-y-3">
@@ -284,17 +323,23 @@ export function SourcesPage({
               </p>
               <button
                 className="mt-4 mf-primary-button rounded-lg px-4 py-2 text-sm"
-                onClick={() => onNavigate("/setup")}
+                onClick={() => setShowAddPanel(true)}
                 type="button"
               >
                 {t("sources.add_source_in_setup")}
               </button>
             </div>
           ) : (
-            data.watched_sources.map((source) => (
+            data.watched_sources.map((source) => {
+              const isMissingOrError = source.status_label === "Missing" || source.status === "missing" || source.status_label === "Error" || source.status === "error";
+              return (
               <article
                 key={source.id}
-                className="rounded-xl border border-line transition-colors hover:border-[var(--mf-accent)]/15"
+                className={`rounded-xl border transition-colors ${
+                  isMissingOrError
+                    ? "border-[var(--mf-error)]/20 bg-[var(--mf-error)]/3 opacity-75 hover:opacity-100 hover:border-[var(--mf-error)]/30"
+                    : "border-line hover:border-[var(--mf-accent)]/15"
+                }`}
                 style={{ borderRadius: "var(--mf-radius-lg)" }}
               >
                 {/* Source header row */}
@@ -454,7 +499,8 @@ export function SourcesPage({
                   </div>
                 )}
               </article>
-            ))
+              );
+            })
           )}
         </div>
         {data.watched_sources.length > 0 && (

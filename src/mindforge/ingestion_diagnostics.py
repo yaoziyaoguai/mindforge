@@ -240,12 +240,22 @@ def classify_provider_error(message: str, status_code: int | None = None) -> Pro
                 "or split large imports into smaller batches."
             ),
         )
+    if "ConnectError" in message or "NameResolutionError" in message or "ReadTimeout" in message:
+        return ProviderErrorClassification(
+            error_type="network_connectivity_error",
+            safe_message=(
+                "模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。"
+            ),
+            retry_hint=(
+                "Verify your base URL format, network proxy settings, and provider availability."
+            ),
+        )
+
     # generic provider error：不暴露 raw message，但保留 error_type 区分
     return ProviderErrorClassification(
         error_type="provider_error",
         safe_message=(
-            "Provider request failed. Check your model configuration, "
-            "API endpoint, and network connectivity."
+            "模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。"
         ),
         retry_hint=None,
     )

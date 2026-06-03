@@ -60,3 +60,17 @@ def test_provider_error_safe_message_does_not_echo_raw_payload_or_secret() -> No
     assert "sk-test-secret" not in classification.safe_message
     assert "raw_body" not in classification.safe_message
     assert "secret" not in classification.safe_message.lower()
+
+def test_network_connectivity_errors() -> None:
+    classification = classify_provider_error("httpx.ConnectError: [Errno 61] Connection refused")
+    assert classification.error_type == "network_connectivity_error"
+    assert "模型连接失败" in classification.safe_message
+
+    classification = classify_provider_error("httpx.ReadTimeout: The read operation timed out")
+    assert classification.error_type == "network_connectivity_error"
+    assert "模型连接失败" in classification.safe_message
+
+def test_generic_provider_error_is_network_centric_now() -> None:
+    classification = classify_provider_error("HTTP 500 Internal Server Error")
+    assert classification.error_type == "provider_error"
+    assert "模型连接失败" in classification.safe_message

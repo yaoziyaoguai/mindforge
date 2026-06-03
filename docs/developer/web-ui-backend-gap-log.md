@@ -152,6 +152,111 @@ This log prevents the reference-image redesign from implying backend capabilitie
 - `pictures/` not staged: yes (untracked only)
 - working tree: clean (only untracked pictures/, tmp/)
 
-## Assets
+## Batch 5: Setup / Source Flow UX Remediation (2026-06-02)
+
+### Problem Summary
+
+User-reported UX issues in Setup/Sources/Model Configuration flow:
+1. Sources "新来源" button jumped to Setup page instead of adding source inline
+2. "添加模型" button had no clear visual feedback
+3. Demo Mode in sidebar was a clickable button that only navigated to /setup (loop)
+4. "验证配置" name implied real LLM connectivity test, but only checked local config
+5. Qwen shown as independent provider card instead of OpenAI-compatible example
+6. Setup page copy too engineering-heavy
+
+### Changes Made
+
+| change | files modified | backend impact |
+| --- | --- | --- |
+| Sources "新来源" opens inline SourceAddPanel | `SourcesPage.tsx` | none — uses existing `addWatchedSource` API |
+| "添加模型" → "配置模型" with scroll-to-form feedback | `SetupPage.tsx`, `i18n.ts` | none |
+| Demo Mode → status chip (non-clickable) | `Sidebar.tsx`, `i18n.ts` | none |
+| "验证配置" → "检查配置" with tooltip | `SetupPage.tsx`, `i18n.ts` | none |
+| Provider types converged to 4: OpenAI native, Anthropic native, OpenAI-compatible, Custom | `SetupPage.tsx`, `i18n.ts` | none — UI-only presets |
+| Engineering chips moved to single safety note | `SetupPage.tsx`, `i18n.ts` | none |
+| Sources page desc updated to reference inline add | `SourcesPage.tsx`, `i18n.ts` | none |
+
+### Backend Gap Assessment
+
+No backend changes required. All changes are frontend UX improvements using existing APIs:
+- Source add: existing `POST /api/sources` endpoint
+- Model config: existing `POST /api/config` endpoint
+- Validate: existing `POST /api/config/validate` endpoint (already local-only, no LLM calls)
+- Provider mode: existing mode toggle endpoints (unchanged)
+
+### Assets
 
 No external assets were added in Batch 1 or Batch 2.
+
+## Batch 6: Review / Library / Wiki / Lab UX Remediation (2026-06-03)
+
+### Problem Summary
+
+User-reported UX issues from real browser trial:
+1. "人工审阅" and "审阅草稿" sidebar tabs looked duplicate, users confused about the difference
+2. Library first click on a card showed empty detail panel (interaction bug)
+3. Card detail content cramped in narrow side panel (max 50% width, 70vh height)
+4. Wiki default state unclear when approved knowledge exists but Wiki not generated
+5. Lab/Graph/Sensemaking visual style inconsistent with main web
+
+### Changes Made
+
+| change | files modified | backend impact |
+| --- | --- | --- |
+| Remove `/drafts` from primary sidebar nav; move to Lab section | `Sidebar.tsx` | none |
+| Library empty-state CTA updated from `/drafts` → `/review` | `LibraryPage.tsx` | none |
+| Add `detailLoading` state to Library; show loading indicator instead of blank | `LibraryPage.tsx` | none |
+| Widen Library detail panel grid from `1fr 1fr` → `2fr 3fr` | `LibraryPage.tsx` | none |
+| Increase Library detail panel max-h from `70vh` → `85vh` | `LibraryPage.tsx` | none |
+| Add Wiki empty-state for existing Wiki with no sections (shows refresh CTA + approved count) | `WikiPage.tsx` | none |
+| Polish SensemakingPage header/tabs/LAB banner to use main web design tokens | `SensemakingPage.tsx` | none |
+
+### Root Cause: Library first-click detail empty bug
+
+**Location:** `LibraryPage.tsx:166-172` (before fix)
+
+**Causal chain:**
+1. User clicks first card → `selectCard(ref)` called
+2. `setSelected(ref)` updates selected state
+3. `setDetail(null)` **synchronously clears** detail state
+4. Detail panel renders (condition: `selected &&`) — panel appears but `detail` is null
+5. Inside panel: `!error && detail` — detail is null, **nothing renders**
+6. `useEffect` fires async `getLibraryCardDetail()` — request in flight
+7. Panel shows blank until response returns
+8. Second click works because the first request already completed and cached detail
+
+**Fix:** Replace `setDetail(null)` with `setDetailLoading(true)` in `selectCard()`. Add loading indicator in detail panel.
+
+### Backend Gap Assessment
+
+| capability | status | safe to show? | notes |
+| --- | --- | --- | --- |
+| Library full-detail API (`getLibraryCardDetail`) | **supported** | yes | Real API, working |
+| Wiki auto-generation on approved knowledge | **manual rebuild required** | yes | User must click "生成 Wiki" or "刷新 Wiki"; no auto-trigger |
+| Wiki related pages / history / spaces | **partial** | yes | `/api/wiki/related-sections` exists but not surfaced in UI |
+| Graph / Sensemaking current support | **lab/internal, deterministic only** | yes | BFS + set operations only; no LLM/embedding/vector DB |
+| Review / Drafts duplicate entry | **IA history** | resolved | Merged into single `/review` entry; `/drafts` moved to Lab |
+
+### Assets
+
+No external assets were added.
+\n### Endpoint Diagnosis & Readiness Semantics\n\n- 当前 readiness 状态已从 “Ready” 改为 “Configured / Not verified”（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。\n- 真正的 “Test Connection”（测试连接）功能尚未实现。\n- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。\n- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示”模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。”
+
+### Batch 7: Setup Model Save UX Fix
+
+**User report:** “配置完模型的时候，第一次点模型配置部分的保存没有反应，按全局的保存的才保存”
+
+**Root cause:** `saveModelEdit()` 存在两个问题：
+1. 验证失败时使用 `setMessage()` 显示绿色成功消息，视觉上与成功提示无区别，用户误以为”无反应”
+2. `await save()` 未包裹在 try/catch 中，API 错误抛出 unhandled rejection，React 可能抑制状态更新
+3. `if (!form || !editing) return` 零反馈退出
+
+**Fix:**
+- 所有验证错误改用 `setSaveError()`，显示在红色错误横幅中
+- 添加 try/catch 包裹 `await save()`，捕获 save 抛出的错误并静默处理（save 已设置 saveError）
+- 添加 missing i18n key `setup.validation.form_not_loaded`
+- 顺便修复 i18n.ts 中 pre-existing 语法错误（line 1553 转义引号）
+
+**Files changed:**
+- `web/src/pages/SetupPage.tsx` — saveModelEdit error handling
+- `web/src/lib/i18n.ts` — new i18n key + fix escaped quotes bug
