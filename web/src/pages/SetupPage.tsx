@@ -1159,9 +1159,9 @@ function SetupGuide({
           </div>
           <div className="grid gap-2 md:grid-cols-4">
             <PresetCard name="OpenAI" status={t("setup.preset_native")} desc={t("setup.preset_openai_native_desc")} />
-            <PresetCard name="Anthropic" status={t("setup.preset_native")} desc={t("setup.preset_anthropic_desc")} />
+            <PresetCard name="Anthropic" status={t("setup.preset_native")} desc={t("setup.preset_anthropic_native_desc")} />
             <PresetCard name="OpenAI-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_openai_desc")} />
-            <PresetCard name="Custom" status={t("setup.preset_manual")} desc={t("setup.preset_custom_desc")} />
+            <PresetCard name="Anthropic-compatible" status={t("setup.preset_supported")} desc={t("setup.preset_anthropic_compatible_desc")} />
           </div>
         </div>
         <div className="rounded-2xl border border-white/70 bg-white/72 p-4">
