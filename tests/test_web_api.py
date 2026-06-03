@@ -5547,3 +5547,864 @@ def test_sample_workspace_api_with_custom_cards_dir(tmp_path: Path) -> None:
     demo_dir = cards / "demo-workspace"
     assert demo_dir.is_dir()
     assert len(list(demo_dir.glob("*.md"))) == 6
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# P2 Provider Security Tests — provider status / test connection redaction
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestProviderStatusSecretSafety:
+    """A. Provider status 不泄露 secret — GET /api/provider/status 安全边界测试。"""
+
+    def test_status_never_returns_api_key(self, tmp_path: Path, monkeypatch):
+        """GET /api/provider/status 不返回 raw API key 值。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.secret_store import SecretStore
+
+        secret = "sk-secret-must-not-leak-12345678"
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", secret)
+        monkeypatch.chdir(tmp_path)
+
+        # 写 secret store
+        store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+        store.set("main", secret)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen-plus", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        combined = resp.text
+
+        assert secret not in combined, f"API key leaked: {combined}"
+        assert "sk-secret" not in combined
+        # 关键安全断言：配置了 key 也不能自动 verified
+        assert data["verified"] is False
+        assert data["verification_status"] == "not_verified"
+        # 不返回任何 secret 相关字段
+        assert "api_key" not in combined.lower() or "api_key_env" in combined.lower()
+
+    def test_status_configured_does_not_imply_verified(self, tmp_path: Path, monkeypatch):
+        """configured=true 不能自动意味着 verified=true。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.secret_store import SecretStore
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test-key-value")
+        # 写 secret store
+        store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+        store.set("main", "sk-test-key-value")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # 关键安全断言：即使配置完整，verified 绝不能为 True（除非通过真实测试）
+        assert data["verified"] is False
+        assert data["verification_status"] == "not_verified"
+        # configured 可能为 False（profile/model 映射问题），但不影响安全
+
+    def test_status_fake_provider_not_verified(self, tmp_path: Path, monkeypatch):
+        """fake/demo provider 不会显示 verified。"""
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        cfg_path, _vault, _cards = _write_config(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["verified"] is False
+        assert data["verification_status"] == "not_verified"
+        assert data["provider_mode"] == "fake"
+        # fake config with models may still pass readiness for processing,
+        # but verified must remain false.
+
+    def test_status_masked_key_format(self, tmp_path: Path, monkeypatch):
+        """masked_key 格式正确：sk-****XXXX。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.secret_store import SecretStore
+
+        secret = "sk-ant-api03-abcdefgh12345678"
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", secret)
+        # 写 secret store
+        store = SecretStore(tmp_path / ".mindforge" / "secrets.json")
+        store.set("main", secret)
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        combined = resp.text
+
+        # 绝不泄露 raw key
+        assert secret not in combined, f"Raw key leaked in status: {combined}"
+        # 如果 masked_key 存在，必须是脱敏格式
+        if data["masked_key"]:
+            assert data["masked_key"].startswith("sk-****")
+            assert "abcdefgh12345678" not in data["masked_key"]
+
+    def test_status_no_authorization_header(self, tmp_path: Path, monkeypatch):
+        """status 响应绝不包含 Authorization header 文本。"""
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        cfg_path, _vault, _cards = _write_config(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        combined = resp.text.lower()
+        assert "authorization" not in combined
+        assert "bearer" not in combined
+
+
+class TestConnectionRedaction:
+    """B. Test connection 失败时错误必须 redacted。"""
+
+    def test_connection_error_redacts_bearer_token(self, tmp_path: Path, monkeypatch):
+        """provider 抛异常包含 Bearer token 时，API 响应不泄露。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        secret = "sk-secret-bearer-leak-test-123456"
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", secret)
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        # Mock provider construction to raise with secret-laden error
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError(
+                "HTTP 401: Unauthorized. Response body: "
+                '{"error":{"message":"Invalid API key","authorization":"Bearer sk-secret-bearer-leak-test-123456"}}'
+            )
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        data = resp.json()
+        combined = resp.text
+
+        assert not data["ok"]
+        assert secret not in combined, f"Bearer token leaked: {combined}"
+        assert "sk-secret-bearer" not in combined
+        assert "Bearer sk-secret" not in combined
+        # 应该包含 [REDACTED] 或安全摘要
+        assert data.get("last_error") is not None
+        assert secret not in data["last_error"]
+        assert secret not in data["message"]
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_error_redacts_url_credential(self, tmp_path: Path, monkeypatch):
+        """provider 异常包含 URL credential 时，API 响应不泄露。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError(
+                "Connection failed to https://user:secret-password-123@api.example.com/v1/chat/completions"
+            )
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        data = resp.json()
+        combined = resp.text
+
+        assert "secret-password-123" not in combined, f"URL credential leaked: {combined}"
+        assert "user:secret" not in combined
+        assert data.get("last_error") is not None
+        assert "secret-password-123" not in data["last_error"]
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_error_redacts_api_key_in_json(self, tmp_path: Path, monkeypatch):
+        """provider 异常 JSON body 含 api_key 时不泄露。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError(
+                'Response: {"api_key":"sk-json-leaked-key-abcdef","model":"test","error":"invalid"}'
+            )
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        combined = resp.text
+        assert "sk-json-leaked-key-abcdef" not in combined, f"JSON api_key leaked: {combined}"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_error_redacts_query_token(self, tmp_path: Path, monkeypatch):
+        """provider 异常含 query param token 时不泄露。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError(
+                "Failed to connect: https://api.example.com/v1/chat?api_key=sk-query-leaked-123&model=test"
+            )
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        combined = resp.text
+        assert "sk-query-leaked-123" not in combined, f"Query token leaked: {combined}"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_error_checkpoint_last_error_redacted(self, tmp_path: Path, monkeypatch):
+        """checkpoint 中的 last_error 也被 redacted。"""
+        import json
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        secret = "sk-checkpoint-leak-test-789"
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", secret)
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError(f"Authorization: Bearer {secret}")
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        client.post("/api/provider/test-connection", json={"model_id": "main"})
+
+        # 检查 checkpoint 中的 last_error
+        state_path = tmp_path / ".mindforge" / "state.json"
+        if state_path.exists():
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            last_error = state.get("last_error", "")
+            assert secret not in last_error, f"Checkpoint last_error leaked: {last_error}"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_error_safe_message_classification(self, tmp_path: Path, monkeypatch):
+        """错误分类返回安全摘要，不包含 raw provider 错误文本。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError("HTTP 401 Unauthorized: invalid token sk-abcdef123456")
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # message 应为安全摘要，不含 raw error
+        assert "sk-abcdef123456" not in data["message"]
+        # 认证失败应有"认证失败"提示
+        assert "认证失败" in data["message"] or "401" not in data["message"]
+        # message 不应包含完整 raw error 拼接
+        assert "HTTP 401" not in data["message"] or "认证失败" in data["message"]
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+
+class TestConnectionNoAutoTrigger:
+    """C. Test connection 不会自动触发。"""
+
+    def test_status_endpoint_does_not_call_provider(self, tmp_path: Path, monkeypatch):
+        """GET /api/provider/status 不调用 provider client。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        call_count = [0]
+
+        from mindforge.llm import openai_compatible as oc
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            call_count[0] += 1
+            return original_from_config(model_cfg, **kwargs)
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        # 状态查询不应触发任何 provider 构造
+        assert call_count[0] == 0, f"provider_status_detail should not call provider, but called {call_count[0]} times"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_usage_report_does_not_call_provider(self, tmp_path: Path, monkeypatch):
+        """GET /api/usage/report 不调用 provider client。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        call_count = [0]
+
+        from mindforge.llm import openai_compatible as oc
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            call_count[0] += 1
+            return original_from_config(model_cfg, **kwargs)
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.get("/api/usage/report")
+        assert resp.status_code == 200
+        assert call_count[0] == 0, f"usage_report should not call provider, but called {call_count[0]} times"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_only_test_connection_triggers_provider(self, tmp_path: Path, monkeypatch):
+        """只有 POST /api/provider/test-connection 才会触发 provider test。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        call_count = [0]
+
+        from mindforge.llm import openai_compatible as oc
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            call_count[0] += 1
+            raise ProviderError("simulated error for test")
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        # 各 GET 端点不应触发 test
+        client.get("/api/provider/status")
+        assert call_count[0] == 0
+
+        client.get("/api/usage/report")
+        assert call_count[0] == 0
+
+        client.get("/api/home/status")
+        assert call_count[0] == 0
+
+        client.get("/api/provider/readiness")
+        assert call_count[0] == 0
+
+        # 只有 test-connection 触发
+        client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert call_count[0] == 1, f"test-connection should trigger provider once, got {call_count[0]}"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+
+class TestConnectionNoSideEffects:
+    """D. Test connection 无副作用。"""
+
+    def test_connection_does_not_generate_draft(self, tmp_path: Path, monkeypatch):
+        """测试连接不生成 ai_draft。"""
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        cards_dir = vault / "20-Knowledge-Cards"
+        cards_dir.mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        # 记录 test 前的卡片数
+        cards_before = list(cards_dir.glob("*.md"))
+
+        from mindforge.llm import openai_compatible as oc
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError("simulated connection error")
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        client.post("/api/provider/test-connection", json={"model_id": "main"})
+
+        # 不应新增任何卡片
+        cards_after = list(cards_dir.glob("*.md"))
+        assert len(cards_after) == len(cards_before), f"test-connection should not create cards, but {len(cards_before)} → {len(cards_after)}"
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+    def test_connection_only_updates_verification_state(self, tmp_path: Path, monkeypatch):
+        """测试连接仅更新 verification status，不改变 source/card 数据。"""
+        import json
+        import yaml
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+        from mindforge.llm.base import ProviderError
+
+        vault = tmp_path / "vault"
+        (vault / "20-Knowledge-Cards").mkdir(parents=True)
+        monkeypatch.setenv("TEST_KEY", "sk-test")
+        monkeypatch.chdir(tmp_path)
+
+        config = {
+            "version": 0.7,
+            "vault": {"root": str(vault), "cards_dir": "20-Knowledge-Cards"},
+            "state": {"workdir": str(tmp_path / ".mindforge"), "state_file": "state.json", "runs_dir": "runs", "index_file": "index.jsonl", "backup_state": True},
+            "sources": {"enabled": ["plain_markdown"], "registry": {"plain_markdown": {"adapter": "PlainMarkdownAdapter", "inbox_subdir": ".", "file_glob": "*.md", "enabled": True}}},
+            "triage": {"value_score_threshold": 5, "default_track": "unrouted"},
+            "llm": {
+                "default_model": "main",
+                "models": {"main": {"type": "openai_compatible", "base_url": "https://test.example.com/v1", "model": "test-model", "api_key_env": "TEST_KEY"}},
+                "routing": {"triage": "main", "distill": "main"},
+            },
+        }
+        cfg_path = tmp_path / "mindforge.yaml"
+        cfg_path.write_text(yaml.dump(config))
+
+        from mindforge.llm import openai_compatible as oc
+        original_from_config = oc.OpenAICompatibleProvider.from_model_config
+
+        def mock_from_config(model_cfg, **kwargs):
+            raise ProviderError("test error for verification")
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", staticmethod(mock_from_config))
+
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+        resp = client.post("/api/provider/test-connection", json={"model_id": "main"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["verification_status"] == "failed"
+
+        # checkpoint 应记录失败状态
+        state_path = tmp_path / ".mindforge" / "state.json"
+        if state_path.exists():
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            assert state.get("verification_status") == "failed"
+            assert state.get("last_checked_at") is not None
+            assert state.get("last_error") is not None
+
+        monkeypatch.setattr(oc.OpenAICompatibleProvider, "from_model_config", original_from_config)
+
+
+class TestFakeProviderNotReal:
+    """E. Fake 不伪装 real。"""
+
+    def test_fake_mode_status_never_verified(self, tmp_path: Path, monkeypatch):
+        """fake/demo 模式下 provider status 绝不会显示 verified。"""
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        cfg_path, _vault, _cards = _write_config(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        resp = client.get("/api/provider/status")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["provider_mode"] == "fake"
+        assert data["verified"] is False
+        assert data["verification_status"] == "not_verified"
+        # 关键断言：fake 模式下 verified 绝不能为 True
+        # can_run_real_smoke 由 model_setup_readiness 决定，fake models 可能通过 readiness
+
+    def test_fake_mode_test_connection_not_applicable(self, tmp_path: Path, monkeypatch):
+        """fake 模式下 test-connection 对 fake model 应返回 safe 错误。"""
+        from fastapi.testclient import TestClient
+        from mindforge_web.app import create_app
+
+        cfg_path, _vault, _cards = _write_config(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
+
+        # fake model 的 type 是 "fake"，test-connection 会尝试用 OpenAICompatibleProvider
+        # 处理，应该安全失败，不泄露任何 secret
+        resp = client.post("/api/provider/test-connection", json={"model_id": "fake_alias"})
+        combined = resp.text
+        assert "sk-" not in combined.lower() or "[REDACTED]" in combined
+
+
+class TestRedactProviderErrorText:
+    """redact_provider_error_text() 单元测试。"""
+
+    def test_redact_bearer_token(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Error: Authorization: Bearer sk-secret-token-12345678 failed")
+        assert "sk-secret-token-12345678" not in result
+        assert "Bearer [REDACTED]" in result
+
+    def test_redact_api_key_header(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Error: x-api-key: sk-abcdefg-header-key timeout")
+        assert "sk-abcdefg-header-key" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_dashscope_api_key_header(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Error: X-DashScope-Api-Key: sk-dashscope-key-123 timeout")
+        assert "sk-dashscope-key-123" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_json_api_key(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text('Response: {"api_key":"sk-json-secret-key-999","error":"invalid"}')
+        assert "sk-json-secret-key-999" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_query_param_api_key(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("URL: https://api.example.com/v1?api_key=sk-query-leaked-key&model=test")
+        assert "sk-query-leaked-key" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_url_credential(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Failed: https://user:my-secret-pass@api.example.com/v1")
+        assert "my-secret-pass" not in result
+        assert "user:my-secret-pass" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_sk_token(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Invalid key sk-proj-abcdefghijklmnop")
+        assert "sk-proj-abcdefghijklmnop" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_ak_token(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Invalid key ak-dashscope-key-123456")
+        assert "ak-dashscope-key-123456" not in result
+        assert "[REDACTED]" in result
+
+    def test_redact_high_entropy_long_token(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        result = redact_provider_error_text("Error with token: A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0")
+        assert "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0" not in result
+        assert "[REDACTED]" in result
+
+    def test_preserve_low_entropy_hash(self):
+        """纯小写 hash（如 git sha）不应被误杀。"""
+        from mindforge.llm.base import redact_provider_error_text
+
+        sha = "abcdef1234567890abcdef1234567890abcdef12"
+        result = redact_provider_error_text(f"Commit {sha} is bad")
+        assert sha in result  # 纯小写 hash 不满足高熵条件
+
+    def test_truncation(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        long_text = "x" * 500
+        result = redact_provider_error_text(long_text, limit=100)
+        assert len(result) <= 100
+
+    def test_empty_and_none(self):
+        from mindforge.llm.base import redact_provider_error_text
+
+        assert redact_provider_error_text("") == ""
+        assert redact_provider_error_text(None) is None  # type: ignore

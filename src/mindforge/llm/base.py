@@ -66,16 +66,39 @@ def redact_provider_error_text(text: str, *, limit: int = 300) -> str:
         return text
     sanitized = text.replace("\n", " ")
     patterns = (
+        # Authorization header: "Authorization: Bearer xxx"
         (r"(Authorization\s*:\s*Bearer\s+)[^,\s\"']+", r"\1[REDACTED]"),
-        (r"(x-api-key\s*:\s*)[^,\s\"']+", r"\1[REDACTED]"),
-        (r'("(?:api[_-]?key|access[_-]?token|token|authorization)"\s*:\s*")[^"]+(")', r"\1[REDACTED]\2"),
-        (r"((?:api[_-]?key|access[_-]?token|token)=)[^&\s]+", r"\1[REDACTED]"),
+        # Any *-api-key header: "X-DashScope-Api-Key: xxx", "x-api-key: xxx"
+        (r"([\w-]*api[_-]?key\s*:\s*)[^,\s\"']+", r"\1[REDACTED]"),
+        # JSON key fields: "api_key": "xxx", "token": "xxx", "authorization": "xxx"
+        (r'("(?:api[_-]?key|access[_-]?token|token|authorization|secret)"\s*:\s*")[^"]+(")', r"\1[REDACTED]\2"),
+        # Query params: api_key=xxx, token=xxx, access_token=xxx, key=xxx
+        (r"((?:api[_-]?key|access[_-]?token|token|key)=)[^&\s]+", r"\1[REDACTED]"),
+        # URL credentials: https://user:pass@example.com
+        (r"(https?://)[^:@/\s]+:[^@/\s]+(@)", r"\1[REDACTED]\2"),
+        # sk- tokens (OpenAI, Anthropic, etc.)
         (r"\bsk-[A-Za-z0-9_\-]{8,}\b", "[REDACTED]"),
+        # ak- tokens (DashScope / Qwen style)
+        (r"\bak-[A-Za-z0-9_\-]{8,}\b", "[REDACTED]"),
+        # Bearer tokens in plain text
         (r"\bBearer\s+[A-Za-z0-9_\-\.]{12,}\b", "Bearer [REDACTED]"),
+        # Long high-entropy token-like strings (mixed case + digits, 32+ chars)
+        (r"\b[A-Za-z0-9_\-]{32,}\b", _redact_if_high_entropy),
     )
     for pattern, replacement in patterns:
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
     return sanitized[:limit]
+
+
+def _redact_if_high_entropy(match: re.Match) -> str:
+    """仅当 token 含大小写+数字时替换为 [REDACTED]，避免误杀纯小写 hash。"""
+    token = match.group(0)
+    has_upper = any(c.isupper() for c in token)
+    has_lower = any(c.islower() for c in token)
+    has_digit = any(c.isdigit() for c in token)
+    if has_upper and has_lower and has_digit:
+        return "[REDACTED]"
+    return token
 
 
 __all__ = [

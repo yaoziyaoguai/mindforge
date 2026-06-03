@@ -21,6 +21,7 @@ from mindforge_web.services.web_recall_service import WebRecallService
 from mindforge.cards import iter_cards
 from mindforge.card_workspace_service import CardWorkspaceError, update_card_body
 from mindforge.checkpoint import Checkpoint, CheckpointError
+from mindforge.llm.base import redact_provider_error_text
 
 from mindforge.library_service import (
     LibraryLookupError,
@@ -1026,7 +1027,7 @@ class WebFacade:
                 provider_mode = mode
             verification_status = cp.verification_status
             last_checked_at = cp.last_checked_at
-            last_error = cp.last_error
+            last_error = redact_provider_error_text(cp.last_error) if cp.last_error else None
         except Exception:
             pass
 
@@ -1080,13 +1081,13 @@ class WebFacade:
                 project_root=self.cfg.vault.root,
             )
         except LLMProviderError as e:
-            error_msg = str(e)
+            redacted = redact_provider_error_text(str(e))
             return TestConnectionResponse(
                 ok=False,
-                message=self._classify_connection_error(error_msg),
+                message=self._classify_connection_error(redacted),
                 verification_status="failed",
                 last_checked_at=dt.now().isoformat(timespec="seconds"),
-                last_error=error_msg,
+                last_error=redacted,
             )
 
         request = LLMRequest(
@@ -1102,26 +1103,26 @@ class WebFacade:
             latency_ms = result.latency_ms
         except LLMProviderError as e:
             latency_ms = int((time.perf_counter() - start) * 1000)
-            error_msg = str(e)
-            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), error_msg)
+            redacted = redact_provider_error_text(str(e))
+            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), redacted)
             return TestConnectionResponse(
                 ok=False,
-                message=self._classify_connection_error(error_msg),
+                message=self._classify_connection_error(redacted),
                 verification_status="failed",
                 last_checked_at=dt.now().isoformat(timespec="seconds"),
-                last_error=error_msg,
+                last_error=redacted,
                 latency_ms=latency_ms,
             )
         except Exception as e:
             latency_ms = int((time.perf_counter() - start) * 1000)
-            error_msg = f"未知错误：{e}"
-            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), error_msg)
+            redacted = redact_provider_error_text(f"未知错误：{e}")
+            self._save_verification_state("failed", dt.now().isoformat(timespec="seconds"), redacted)
             return TestConnectionResponse(
                 ok=False,
-                message=error_msg,
+                message=redacted,
                 verification_status="failed",
                 last_checked_at=dt.now().isoformat(timespec="seconds"),
-                last_error=error_msg,
+                last_error=redacted,
                 latency_ms=latency_ms,
             )
 
@@ -1168,21 +1169,21 @@ class WebFacade:
 
     @staticmethod
     def _classify_connection_error(error_msg: str) -> str:
-        """分类连接错误，给出更友好的提示。"""
+        """分类连接错误，返回安全摘要（不含 raw provider 错误文本）。"""
         lower = error_msg.lower()
         if "timed out" in lower or "timeout" in lower:
-            return f"连接超时 — 请检查 endpoint 地址或网络/代理设置：{error_msg}"
+            return "连接超时 — 请检查 endpoint 地址或网络/代理设置"
         if "401" in error_msg or "403" in error_msg or "unauthorized" in lower:
-            return f"认证失败 — 请检查 API key 是否正确：{error_msg}"
+            return "认证失败 — 请检查 API key 是否正确"
         if "404" in error_msg or "not found" in lower:
-            return f"endpoint 未找到 — 请检查 base_url 是否正确：{error_msg}"
+            return "endpoint 未找到 — 请检查 base_url 是否正确"
         if "model" in lower and ("not found" in lower or "not exist" in lower or "invalid" in lower):
-            return f"模型名无效 — 请检查 model 名称：{error_msg}"
+            return "模型名无效 — 请检查 model 名称"
         if "json" in lower or "parse" in lower or "response" in lower:
-            return f"响应格式异常 — 请确认 endpoint 是否为 OpenAI 兼容 API：{error_msg}"
+            return "响应格式异常 — 请确认 endpoint 是否为 OpenAI 兼容 API"
         if "incomplete" in lower:
-            return f"配置不完整 — {error_msg}"
-        return error_msg
+            return "配置不完整 — 请检查必填项"
+        return "连接失败 — 请检查网络和配置"
 
     # ── v2.5 U2 Source-to-Card Lifecycle ────────────────────────────
 
