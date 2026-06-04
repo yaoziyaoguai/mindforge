@@ -216,7 +216,7 @@ Approved summary.
 
 
 def test_wiki_rebuild_json_mode_overrides_config_mode_for_deterministic(tmp_path: Path) -> None:
-    """Web rebuild 按 JSON body 的 mode 执行，不能因 config wiki.mode=llm 回落误跑 LLM。"""
+    """Web rebuild is deprecated."""
 
     cfg_path, _vault, cards = _write_config(tmp_path)
     raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
@@ -227,44 +227,24 @@ def test_wiki_rebuild_json_mode_overrides_config_mode_for_deterministic(tmp_path
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     response = client.post("/api/wiki/rebuild", json={"mode": "deterministic"})
 
-    assert response.status_code == 200
+    assert response.status_code == 410
     data = response.json()
-    assert data["ok"] is True
-    assert data["mode"] == "deterministic"
-    assert data["included_cards"] == 1
+    assert data["ok"] is False
+    assert "deprecated" in data["error"].lower()
 
 
 def test_wiki_rebuild_json_mode_runs_llm_branch(tmp_path: Path, monkeypatch) -> None:
-    """Web LLM 按钮传 JSON mode=llm 时后端必须进入 LLM rebuild 分支。"""
-
-    from mindforge.wiki_service import LLMWikiResult
+    """Web rebuild is deprecated."""
 
     cfg_path, _vault, _cards = _write_config(tmp_path)
-    called = {"value": False}
-
-    def _fake_llm_rebuild(_cfg):
-        called["value"] = True
-        return LLMWikiResult(
-            wiki_path=str(tmp_path / "Main-Wiki.md"),
-            included_cards=1,
-            section_count=1,
-            additional_cards=0,
-            warnings=[],
-            model_id="main",
-            last_rebuilt_at="2026-05-08T00:00:00+0800",
-        )
-
-    monkeypatch.setattr("mindforge.wiki_service.llm_rebuild_wiki", _fake_llm_rebuild)
 
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     response = client.post("/api/wiki/rebuild", json={"mode": "llm"})
 
-    assert response.status_code == 200
+    assert response.status_code == 410
     data = response.json()
-    assert called["value"] is True
-    assert data["ok"] is True
-    assert data["mode"] == "llm"
-    assert data["model_id"] == "main"
+    assert data["ok"] is False
+    assert "deprecated" in data["error"].lower()
 
 
 def test_wiki_page_parses_deterministic_card_marker_into_sections(tmp_path: Path) -> None:

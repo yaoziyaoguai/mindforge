@@ -85,54 +85,17 @@ def wiki_rebuild(
     payload: WikiRebuildRequest | None = None,
     facade: WebFacade = Depends(get_facade),
 ):
-    """从 approved cards 重建 Main Wiki。主路径为 LLM synthesis，需要 model setup ready。"""
-    from mindforge.model_setup_readiness import model_setup_readiness
-    from mindforge.wiki_service import rebuild_main_wiki, llm_rebuild_wiki, WikiError
-
-    requested_mode = payload.mode if payload and payload.mode else None
-    effective_mode = requested_mode or facade.cfg.wiki.mode
-
-    if effective_mode == "llm":
-        readiness = model_setup_readiness(facade.cfg)
-        if not readiness.ready:
-            return {
-                "ok": False,
-                "mode": "llm",
-                "error": f"LLM-first wiki rebuild requires model setup ready ({readiness.label}). Complete model setup first.",
-            }
-        try:
-            result = llm_rebuild_wiki(facade.cfg)
-            return {
-                "ok": True,
-                "mode": "llm",
-                "wiki_path": result.wiki_path,
-                "included_cards": result.included_cards,
-                "section_count": result.section_count,
-                "additional_cards": result.additional_cards,
-                "model_id": result.model_id,
-                "warnings": result.warnings,
-                "last_rebuilt_at": result.last_rebuilt_at,
-            }
-        except WikiError as e:
-            return {"ok": False, "mode": "llm", "error": str(e)}
-
-    if effective_mode == "deterministic":
-        # deterministic template rebuild 仅保留为内部 Troubleshooting 回退，
-        # 不在 Web UI 普通用户路径中暴露。
-        result = rebuild_main_wiki(facade.cfg)
-        return {
-            "ok": True,
-            "mode": "deterministic",
-            "wiki_path": result.wiki_path,
-            "included_cards": result.included_cards,
-            "last_rebuilt_at": result.last_rebuilt_at,
+    """(Deprecated) From v0.5, direct LLM Wiki rebuild is disabled to enforce approval boundaries."""
+    from fastapi.responses import JSONResponse
+    
+    return JSONResponse(
+        status_code=410,
+        content={
+            "ok": False,
+            "mode": payload.mode if payload else facade.cfg.wiki.mode,
+            "error": "Direct LLM Wiki rebuild is deprecated in v0.5 to enforce strict approval boundaries. LLM summaries must now be generated as AI drafts and explicitly approved."
         }
-
-    return {
-        "ok": False,
-        "mode": effective_mode or "unknown",
-        "error": f"Unknown wiki mode: {effective_mode!r}. Use llm or deterministic（Troubleshooting fallback）.",
-    }
+    )
 
 
 @router.get("/page")

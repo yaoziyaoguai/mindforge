@@ -160,48 +160,31 @@ def test_wiki_status_returns_model_ready_false_when_no_model(tmp_path: Path) -> 
 # ---------------------------------------------------------------------------
 
 def test_wiki_rebuild_llm_is_primary_path(tmp_path: Path, monkeypatch) -> None:
-    """Web Wiki rebuild 的 llm 路径是可用的主路径。"""
-    from mindforge.wiki_service import LLMWikiResult
-
+    """Web Wiki rebuild is deprecated."""
     cfg_path, _vault, cards = _write_llm_first_config(tmp_path, with_model=True)
     _write_approved_card(cards)
-
-    def _fake_llm_rebuild(_cfg):
-        return LLMWikiResult(
-            wiki_path=str(tmp_path / "Main-Wiki.md"),
-            included_cards=1,
-            section_count=1,
-            additional_cards=0,
-            warnings=[],
-            model_id="main",
-            last_rebuilt_at="2026-05-12T00:00:00+0800",
-        )
-
-    monkeypatch.setattr("mindforge.wiki_service.llm_rebuild_wiki", _fake_llm_rebuild)
 
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     resp = client.post("/api/wiki/rebuild", json={"mode": "llm"})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 410
     data = resp.json()
-    assert data["ok"] is True, "LLM rebuild 应成功"
-    assert data["mode"] == "llm"
-    assert data["model_id"] == "main"
+    assert data["ok"] is False
+    assert "deprecated" in data["error"].lower()
 
 
 def test_wiki_rebuild_deterministic_still_works_as_fallback(tmp_path: Path) -> None:
-    """deterministic rebuild 作为内部回退仍然可用（不回归）。"""
+    """deterministic rebuild is deprecated."""
     cfg_path, _vault, cards = _write_llm_first_config(tmp_path, with_model=False)
     _write_approved_card(cards)
 
     client = TestClient(create_app(config_path=cfg_path, host="127.0.0.1"))
     resp = client.post("/api/wiki/rebuild", json={"mode": "deterministic"})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 410
     data = resp.json()
-    assert data["ok"] is True, "deterministic rebuild 作为内部回退必须仍然可用"
-    assert data["mode"] == "deterministic"
-    assert data["included_cards"] == 1
+    assert data["ok"] is False
+    assert "deprecated" in data["error"].lower()
 
 
 # ---------------------------------------------------------------------------
