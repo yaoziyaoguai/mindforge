@@ -4,9 +4,7 @@ import { revealSourceByRef } from "../api/sources";
 import { getProvenanceTrail, linkCards } from "../api/library";
 import { ApprovalTimeline } from "./ApprovalTimeline";
 import { GraphNavigationPanel } from "./GraphNavigationPanel";
-import { LocalGraphPreview } from "./LocalGraphPreview";
 import { ProvenanceTrail } from "./ProvenanceTrail";
-import { QualityPanel } from "./quality/QualityPanel";
 import { SourceLocationBadge } from "./provenance/SourceLocationBadge";
 import type { CardBodyUpdateResponse, DraftDetailResponse, LibraryCardDetailResponse, LibraryCardResponse, ProvenanceTrailResponse } from "../api/types";
 import { friendlyStatus, friendlyTrack, statusIcon, truncateMiddle } from "../lib/utils";
@@ -52,7 +50,6 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
   const [busy, setBusy] = useState(false);
   const [pathActionMsg, setPathActionMsg] = useState<string | null>(null);
   const [pathActionErr, setPathActionErr] = useState<string | null>(null);
-  const [summaryOpen, setSummaryOpen] = useState(true);
   const [trail, setTrail] = useState<ProvenanceTrailResponse | null>(null);
   const { locale, t } = useLocale();
 
@@ -195,37 +192,18 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
         {card.strategy_note ? <p className="mt-3 text-sm text-muted">{card.strategy_note}</p> : null}
       </header>
 
+      {/* Layer 1: KnowledgeHero — what this knowledge is */}
       {mode === "library" ? (
-        <SummaryPanel
+        <KnowledgeHero
           body={body}
+          sections={sections}
           card={card}
-          open={summaryOpen}
-          onToggle={() => setSummaryOpen((v) => !v)}
           t={t}
           locale={locale}
         />
       ) : null}
 
-      {/* v1.4 W1: Relationship Map as primary navigation — elevated from bottom section */}
-      {mode === "library" && (card.id || card.rel_path) ? (
-        <div className="px-5 pt-5">
-          <GraphNavigationPanel
-            cardRef={card.id ?? card.rel_path ?? ""}
-            onSelectCard={onSelectCard}
-          />
-        </div>
-      ) : null}
-
-      <QualityPanel cardId={card.id ?? ""} />
-
-      {mode === "library" && trail ? (
-        <ProvenanceTrail trail={trail} onSelectCard={onSelectCard} />
-      ) : null}
-
-      {mode === "library" && "local_graph" in detail ? (
-        <LocalGraphPreview graph={detail.local_graph} relatedCards={detail.related_cards ?? []} onSelectCard={onSelectCard} />
-      ) : null}
-
+      {/* Layer 2: KnowledgeSections — structured content, grouped & collapsible */}
       <section className="p-5">
         <h3 className="text-lg font-semibold text-ink">{t("card.knowledge_content")}</h3>
         {editing ? (
@@ -247,9 +225,42 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
             {error ? <p className="text-sm text-danger">{error}</p> : null}
           </div>
         ) : (
-          <CardSections body={body} sections={sections} />
+          <KnowledgeSections body={body} sections={sections} t={t} />
         )}
       </section>
+
+      {/* Layer 3: Related Knowledge — merged graph + related cards */}
+      {mode === "library" && (card.id || card.rel_path) ? (
+        <section className="border-t border-line p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 text-primary">
+              <Link className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">{t("card.related_knowledge")}</h3>
+              <p className="text-xs text-muted mt-0.5">{t("card.related_knowledge_desc")}</p>
+            </div>
+          </div>
+          <GraphNavigationPanel
+            cardRef={card.id ?? card.rel_path ?? ""}
+            onSelectCard={onSelectCard}
+          />
+          {"related_cards" in detail ? (
+            <div className="mt-4">
+              <RelatedCardsPanel
+                relatedCards={detail.related_cards}
+                onSelectCard={onSelectCard}
+                t={t}
+                currentCardRef={card.id ?? card.rel_path ?? ""}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {mode === "library" && trail ? (
+        <ProvenanceTrail trail={trail} onSelectCard={onSelectCard} />
+      ) : null}
 
       <section className="border-t border-line p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -296,15 +307,6 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
         </dl>
       </section>
 
-      {mode === "library" && "related_cards" in detail ? (
-        <RelatedCardsPanel
-          relatedCards={detail.related_cards}
-          onSelectCard={onSelectCard}
-          t={t}
-          currentCardRef={card.id ?? card.rel_path ?? ""}
-        />
-      ) : null}
-
       <details className="border-t border-line p-5">
         <summary className="cursor-pointer text-sm font-semibold text-ink">{t("card.tech_details")}</summary>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
@@ -325,19 +327,81 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
   );
 }
 
-function CardSections({ body, sections }: { body: string; sections: Array<{ title: string; content: string }> }) {
+/** Layer 2: 结构化内容 — 分组折叠，分为"理解内容"和"处理过程" */
+function KnowledgeSections({ body, sections, t }: {
+  body: string;
+  sections: Array<{ title: string; content: string }>;
+  t: (key: string) => string;
+}) {
+  const [expandUnderstanding, setExpandUnderstanding] = useState(false);
+  const [expandProcessing, setExpandProcessing] = useState(false);
+
   if (!body.trim()) return <p className="mt-4 text-sm text-muted">No card body.</p>;
   if (!sections.length) {
     return <pre className="mt-4 whitespace-pre-wrap rounded-md bg-stone-50 p-4 text-sm leading-7 text-ink">{body}</pre>;
   }
+
+  // 分组规则：匹配 AI Summary / Human Note / Key Points 等归为"理解内容"
+  const understandingPatterns = /^(AI\s*Summary|Human\s*Note|Key\s*Points|Summary|核心要点|人工备注|摘要|要点|关键点|笔记)\s*$/i;
+
+  const understandingSections = sections.filter((s) => understandingPatterns.test(s.title));
+  const processingSections = sections.filter((s) => !understandingPatterns.test(s.title));
+
   return (
     <div className="mt-4 space-y-4">
-      {sections.map((section) => (
-        <section key={section.title} className="rounded-md border border-line bg-white p-4">
-          <h4 className="font-semibold text-ink">{section.title}</h4>
-          <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink">{section.content || "-"}</div>
-        </section>
-      ))}
+      {/* 理解内容组 */}
+      {understandingSections.length > 0 ? (
+        <div className="rounded-md border border-line bg-white overflow-hidden">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-ink hover:bg-stone-50/50 transition"
+            onClick={() => setExpandUnderstanding((v) => !v)}
+          >
+            <span className="flex items-center gap-2">
+              {expandUnderstanding ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+              {t("card.understanding_sections")}
+              <span className="font-normal text-muted/60 text-xs">({understandingSections.length})</span>
+            </span>
+          </button>
+          {expandUnderstanding ? (
+            <div className="border-t border-line px-4 py-3 space-y-4">
+              {understandingSections.map((section) => (
+                <div key={section.title}>
+                  <h4 className="text-sm font-semibold text-ink mb-1">{section.title}</h4>
+                  <div className="whitespace-pre-wrap text-sm leading-7 text-ink">{section.content || "-"}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* 处理过程组 */}
+      {processingSections.length > 0 ? (
+        <div className="rounded-md border border-line bg-white overflow-hidden">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-ink hover:bg-stone-50/50 transition"
+            onClick={() => setExpandProcessing((v) => !v)}
+          >
+            <span className="flex items-center gap-2">
+              {expandProcessing ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+              {t("card.processing_sections")}
+              <span className="font-normal text-muted/60 text-xs">({processingSections.length})</span>
+            </span>
+          </button>
+          {expandProcessing ? (
+            <div className="border-t border-line px-4 py-3 space-y-4">
+              {processingSections.map((section) => (
+                <div key={section.title}>
+                  <h4 className="text-sm font-semibold text-ink mb-1">{section.title}</h4>
+                  <div className="whitespace-pre-wrap text-sm leading-7 text-ink">{section.content || "-"}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -386,16 +450,6 @@ function sourceTypeIcon(st: string | null | undefined): React.ComponentType<{ cl
   return sourceTypeIcons[st] ?? File;
 }
 
-function extractHeadings(body: string): Array<{ level: number; text: string }> {
-  const re = /^(#{2,3})\s+(.+?)\s*$/gm;
-  const result: Array<{ level: number; text: string }> = [];
-  let match;
-  while ((match = re.exec(body)) !== null) {
-    result.push({ level: match[1].length, text: match[2] });
-  }
-  return result;
-}
-
 function stripMarkdown(text: string): string {
   return text
     .replace(/^#{1,6}\s+/gm, "")
@@ -408,42 +462,100 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-function SummaryPanel({ body, card, open, onToggle, t, locale }: {
+/** Layer 1: 默认阅读层 — 用户第一眼看到的知识概览 */
+function KnowledgeHero({ body, sections, card, t, locale }: {
   body: string;
-  card: Pick<LibraryCardResponse, "track" | "strategy_label">;
-  open: boolean;
-  onToggle: () => void;
+  sections: Array<{ title: string; content: string }>;
+  card: Pick<LibraryCardResponse, "track" | "strategy_label" | "source_title" | "source_type"> & { tags?: string[] };
   t: (key: string) => string;
   locale: Locale;
 }) {
-  const headings = extractHeadings(body);
+  // 一句话摘要：取 body 前 150 字符，stripped markdown
+  const summary = useMemo(() => {
+    const stripped = stripMarkdown(body);
+    return stripped ? stripped.slice(0, 150) + (stripped.length > 150 ? "..." : "") : null;
+  }, [body]);
+
+  // 核心要点：从 ## Key Points / 核心要点 section 提取
+  const keyPointsContent = useMemo(() => {
+    const kpSection = sections.find((s) =>
+      /^(Key Points|核心要点|要点|关键点)\s*$/i.test(s.title),
+    );
+    if (kpSection?.content) return kpSection.content;
+    return null;
+  }, [sections]);
+
+  // 人工备注
+  const humanNote = useMemo(() => {
+    const hnSection = sections.find((s) =>
+      /^(Human Note|人工备注|备注|笔记)\s*$/i.test(s.title),
+    );
+    if (hnSection?.content) return hnSection.content;
+    return null;
+  }, [sections]);
+
+  const { tags } = card;
 
   return (
-    <div className="border-b border-line p-5">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between text-sm font-semibold text-ink"
-        onClick={onToggle}
-      >
-        <span>{t("library.summary_title")}</span>
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
-      {open ? (
-        <div className="mt-3 space-y-2">
-          {headings.length > 0 ? (
-            <ul className="space-y-1 text-sm text-muted">
-              {headings.map((h, i) => (
-                <li key={i} className={h.level === 3 ? "ml-4" : ""}>
-                  {h.text}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted">{stripMarkdown(body).slice(0, 150)}{body.length > 150 ? "..." : ""}</p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-            {card.track ? <span className="rounded bg-muted/20 px-1.5 py-0.5">{friendlyTrack(card.track, locale)}</span> : null}
-            {card.strategy_label ? <span className="rounded bg-muted/20 px-1.5 py-0.5">{card.strategy_label}</span> : null}
+    <div className="border-b border-line p-5 space-y-4">
+      {/* 一句话摘要 */}
+      {summary ? (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted mb-1.5">{t("card.one_sentence_summary")}</h4>
+          <p className="text-sm text-ink leading-relaxed">{summary}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">{t("card.no_summary")}</p>
+      )}
+
+      {/* 核心要点 */}
+      {keyPointsContent ? (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted mb-1.5">{t("card.key_points")}</h4>
+          <div className="rounded-md bg-stone-50 border border-line p-3">
+            <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap">{keyPointsContent}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 标签 */}
+      {tags && tags.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tags.map((tag) => (
+            <span key={tag} className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* 元信息行 */}
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+        {card.source_title ? (
+          <span className="inline-flex items-center gap-1">
+            <FolderOpen className="h-3 w-3" />
+            {card.source_title}
+          </span>
+        ) : null}
+        {card.track ? (
+          <span className="rounded bg-muted/20 px-1.5 py-0.5">{friendlyTrack(card.track, locale)}</span>
+        ) : null}
+        {card.strategy_label ? (
+          <span className="rounded bg-muted/20 px-1.5 py-0.5">{card.strategy_label}</span>
+        ) : null}
+        {card.source_type ? (
+          <span className="inline-flex items-center rounded bg-muted/20 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
+            {sourceTypeLabels[card.source_type] ?? card.source_type}
+          </span>
+        ) : null}
+      </div>
+
+      {/* 人工备注预览 */}
+      {humanNote ? (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted mb-1.5">{t("card.human_note_preview")}</h4>
+          <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+            <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap line-clamp-3">{humanNote}</div>
           </div>
         </div>
       ) : null}
