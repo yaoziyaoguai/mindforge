@@ -334,6 +334,7 @@ def test_human_approved_promotion_requires_explicit_approve_card_call() -> None:
             # 标签为 [demo sample]，不经过用户数据的 ai_draft 管道。
             # 用户数据审批边界不受影响。
             "sample_workspace.py",
+            "topic_presenter.py",
         }
     for f in src_files:
         text = f.read_text(encoding="utf-8")

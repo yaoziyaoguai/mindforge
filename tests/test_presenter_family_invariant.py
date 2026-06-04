@@ -70,6 +70,7 @@ _PRESENTER_FILES = [
     # service / writer / RunLogger / Typer。允许使用 obsidian_stage 里的
     # 纯 path 工具 ``safe_relative_to``。
     _SRC / "obsidian_cli_presenter.py",
+    _SRC / "topic_presenter.py",
 ]
 
 
