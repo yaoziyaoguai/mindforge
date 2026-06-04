@@ -257,17 +257,14 @@ mindforge library show <ref>     # 查看单张卡片详情
 mindforge recall --query "关键词"  # BM25 词法检索
 ```
 
-Wiki 是 **LLM-first synthesis**：从所有 `human_approved` cards 生成结构化 topic pages。Web **Wiki** 页面点击 **Generate Wiki**，或 CLI：
+Wiki 页面已从 LLM synthesis 迁移为 **运行时 Topic View**（v0.5）。从 `human_approved` cards 按 topic 聚合展示，无需手动触发合成。Web **Wiki** 页面直接浏览，或 CLI：
 
 ```bash
 mindforge wiki status
-mindforge wiki rebuild
 mindforge wiki show
 ```
 
-Wiki 只从 approved cards 生成，不绕过 approval 读取 raw source。Wiki 不是 source of truth，approved cards 才是。LLM synthesis 必须由用户在 Wiki 页面或 CLI 手动触发，不会在 approve 路径自动调用真实模型。
-
-Web **Wiki** 页面 **Advanced** 折叠区提供 Safe fallback rebuild 作为 troubleshooting 回退。这不是推荐的 Wiki 生成路径，只在没有可用模型时应急使用。
+Topic View 只展示 approved cards，不调用 LLM，不生成合成文本。Approved cards 是 source of truth，Topic View 是派生的运行时视图。LLM-based Wiki synthesis（`llm_rebuild_wiki`）已在 v0.5 废弃。
 
 ## Web UI 概览
 

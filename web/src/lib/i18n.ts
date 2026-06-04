@@ -164,7 +164,7 @@ const copy: Record<Locale, LocaleDict> = {
     "onboarding.hint.review": "AI 生成的草稿需要你逐张审阅。确认操作始终需要显式手动执行，不会自动发生。审阅通过后卡片进入知识库。",
     "onboarding.hint.library": "这里是你已确认的知识卡片库。可以按状态、来源、标签筛选和排序。点击任意卡片查看详细信息。",
     "onboarding.hint.recall": "使用 BM25 关键词搜索你的知识库。输入关键词即可检索，结果按相关性排序。支持中文和英文搜索。",
-    "onboarding.hint.wiki": "Wiki 是从你的已确认知识卡片自动生成的综合文档。点击刷新可重建 Wiki，反映最新的知识库状态。",
+    "onboarding.hint.wiki": "按主题浏览已确认的知识卡片。左侧选择主题，中间查看卡片，右侧查看卡片关系和来源信息。仅展示人工确认的内容。",
     "onboarding.hint.export": "将你的知识导出为 Markdown 或 ZIP 文件。选择需要导出的卡片，格式支持 Markdown、JSON 和 OPML。",
 
     // ---- QuickStartWizard ----
@@ -659,7 +659,7 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Wiki ----
     "wiki.title": "Wiki",
-    "wiki.subtitle": "你的个人知识库，由已确认的知识卡片合成。浏览章节、探索关联、追溯思路至原始来源。",
+    "wiki.subtitle": "按主题浏览已确认的知识卡片。运行时视图，直接从已审批卡片构建，不调用 LLM 合成。",
     "wiki.status_label": "状态",
     "wiki.status_ready": "就绪",
     "wiki.status_not_built": "未构建",
@@ -667,7 +667,7 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.cards_in_wiki": "Wiki 中卡片数",
     "wiki.knowledge_cards": "知识卡片",
     "wiki.new_approved_hint": "有新确认的知识可用（{count} 张新卡片）。重新构建 Wiki 以包含它们。",
-    "wiki.rebuild_tooltip": "使用 LLM 合成重新构建 Wiki",
+    "wiki.rebuild_tooltip": "LLM Wiki synthesis 已在 v0.5 废弃 — 当前为运行时 Topic View",
     "wiki.refresh": "刷新 Wiki",
     "wiki.generate": "生成 Wiki",
     "wiki.empty_no_approved": "没有已确认的知识卡片",
@@ -1259,7 +1259,7 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.pages_count": "{count} 个页面",
     "wiki.view_count": "{count} 次浏览",
     "wiki.updated": "更新于",
-    "wiki.boundary_callout": "Wiki 是从已确认知识卡片自动生成的综合文档。它不依赖 RAG、向量数据库或图谱推理。",
+    "wiki.boundary_callout": "Topic View 是已审批知识卡片的运行时视图。不依赖 RAG、向量数据库、LLM synthesis 或图谱推理。仅展示 human_approved 卡片。",
   },
 
   en: {
@@ -1410,7 +1410,7 @@ const copy: Record<Locale, LocaleDict> = {
     "onboarding.hint.review": "AI-generated drafts need your review, one card at a time. Approval is always explicit and manual — it never happens automatically. Approved cards enter your library.",
     "onboarding.hint.library": "Your confirmed knowledge card library. Filter and sort by status, source, or tags. Click any card to view details.",
     "onboarding.hint.recall": "Use BM25 keyword search on your knowledge base. Enter keywords, results are ranked by relevance. Supports both English and Chinese search.",
-    "onboarding.hint.wiki": "Wiki is auto-generated comprehensive documentation from your approved knowledge cards. Click Refresh to rebuild and reflect the latest library state.",
+    "onboarding.hint.wiki": "Browse approved knowledge cards by topic. Select a topic on the left, view cards in the center, and explore card relations and provenance on the right. Only human-approved content is shown.",
     "onboarding.hint.export": "Export your knowledge as Markdown or ZIP files. Select the cards to export. Formats: Markdown, JSON, and OPML.",
 
     "onboarding.wizard.demo_badge": "Safe Demo Mode",
@@ -1904,7 +1904,7 @@ const copy: Record<Locale, LocaleDict> = {
 
     // ---- Wiki ----
     "wiki.title": "Wiki",
-    "wiki.subtitle": "Your personal knowledge base, synthesized from approved knowledge cards. Browse sections, explore connections, and trace ideas back to their sources.",
+    "wiki.subtitle": "Browse approved knowledge cards by topic. Runtime view built directly from approved cards — no LLM synthesis.",
     "wiki.status_label": "Status",
     "wiki.status_ready": "Ready",
     "wiki.status_not_built": "Not built",
@@ -1912,7 +1912,7 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.cards_in_wiki": "Cards in Wiki",
     "wiki.knowledge_cards": "Knowledge cards",
     "wiki.new_approved_hint": "New approved knowledge is available ({count} new). Rebuild Wiki to include it.",
-    "wiki.rebuild_tooltip": "Rebuild Wiki with LLM synthesis",
+    "wiki.rebuild_tooltip": "LLM Wiki synthesis deprecated in v0.5 — now a runtime Topic View",
     "wiki.refresh": "Refresh Wiki",
     "wiki.generate": "Generate Wiki",
     "wiki.empty_no_approved": "No approved cards",
@@ -2504,7 +2504,7 @@ const copy: Record<Locale, LocaleDict> = {
     "wiki.pages_count": "{count} pages",
     "wiki.view_count": "{count} views",
     "wiki.updated": "Updated",
-    "wiki.boundary_callout": "Wiki is auto-generated from approved knowledge cards. It does not use RAG, vector databases, or graph reasoning.",
+    "wiki.boundary_callout": "Topic View is a runtime view of approved knowledge cards. It does not use RAG, vector databases, LLM synthesis, or graph reasoning. Only human_approved cards are shown.",
   },
 };
 
