@@ -118,7 +118,7 @@ refactor: extract secret store to own module
 
 ## 文档
 
-- 用户文档在 `docs/zh-CN/` 和 `docs/en/`
+- 用户文档在 `docs/zh-CN/`
 - 开发者文档在 `docs/dev/`
 - 设计文档在 `docs/design/`（RFC、SDD、Roadmap）
 - 内部规则在 `.github/` 下（如适用）

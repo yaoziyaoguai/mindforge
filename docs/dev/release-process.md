@@ -25,7 +25,7 @@ MindForge 发布流程。
 ### 文档
 
 - [ ] README.zh-CN.md 和 README.md 更新
-- [ ] 用户文档（`docs/zh-CN/`、`docs/en/`）与代码同步
+- [ ] 用户文档（`docs/zh-CN/`）与代码同步
 - [ ] 开发者文档更新
 - [ ] Release notes 包含 breaking changes 和迁移指南
 

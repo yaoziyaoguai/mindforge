@@ -82,9 +82,8 @@ The following assets are preserved and may be reused in future projects:
 
 The following README files have been updated with a project status banner at the top:
 
-- `README.md` — Chinese
-- `README.zh-CN.md` — Chinese
-- `README.en.md` — English
+- `README.md` — 中文
+- `README.zh-CN.md` — 中文
 
 ### Chinese Banner
 

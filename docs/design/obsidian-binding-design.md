@@ -1,13 +1,13 @@
 ---
-title: "v1.5 I3: Obsidian Binding Design Doc"
+title: "v1.5 I3: Obsidian 绑定设计文档"
 type: design-doc
-status: deferred — Obsidian vault write is a hard non-goal; preserved as historical design discussion evidence
+status: deferred — Obsidian vault write 是硬非目标；保留作为历史设计讨论证据
 date: 2026-05-25
-parent: v1.5 Safe Integration & Import/Export Expansion
+parent: v1.5 安全集成与导入/导出扩展
 priority: P2
 ---
 
-# Obsidian Binding Design Doc
+# Obsidian 绑定设计文档
 
 ## 现状
 

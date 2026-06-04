@@ -1,82 +1,82 @@
-# Frontend Topic Browser Reconstruction Plan
+# 前端 Topic Browser 重构计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **供 agent 工作者使用：** REQUIRED SUB-SKILL: 使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 来逐步实现本计划。步骤使用 checkbox（`- [ ]`）语法用于跟踪。
 
-**Goal:** Replace the deprecated LLM Wiki rebuild UI with a runtime Topic Browser that consumes `/api/topics` endpoints.
+**目标：** 用运行时 Topic Browser 替换已废弃的 LLM Wiki 重建 UI，消费 `/api/topics` 端点。
 
-**Architecture:** New `web/src/api/topics.ts` API client fetches from `/api/topics`. `WikiPage.tsx` is rewritten as a thin adapter composing `TopicBrowser`, which orchestrates `TopicList` + `TopicView` + `TopicContextPanel`. All old "Generate Wiki" / `/api/wiki/rebuild` calls are removed. No new dependencies.
+**架构：** 新建 `web/src/api/topics.ts` API 客户端从 `/api/topics` 获取数据。`WikiPage.tsx` 重写为薄适配器，组合 `TopicBrowser`，后者编排 `TopicList` + `TopicView` + `TopicContextPanel`。所有旧的 "Generate Wiki" / `/api/wiki/rebuild` 调用已移除。无新依赖。
 
-**Tech Stack:** React 19, TypeScript, Tailwind CSS, Vitest + Testing Library, custom i18n (LocaleProvider)
+**技术栈：** React 19, TypeScript, Tailwind CSS, Vitest + Testing Library, 自定义 i18n（LocaleProvider）
 
-**API Contract:** `docs/specs/topic_view_api.md` — `GET /api/topics` → `TopicListResponse`, `GET /api/topics/{topic_name}` → `TopicViewResponse` (404 for no approved cards)
+**API 契约：** `docs/specs/topic_view_api.md` — `GET /api/topics` → `TopicListResponse`，`GET /api/topics/{topic_name}` → `TopicViewResponse`（无已审批卡片时返回 404）
 
 ---
 
-## Current Problems
+## 当前问题
 
-1. `WikiPage.tsx` calls `/api/wiki/status`, `/api/wiki/page`, `/api/wiki/quality`, `/api/wiki/related-sections` — all legacy endpoints
-2. "Generate Wiki" button calls `POST /api/wiki/rebuild` which returns 410
-3. "Safe fallback rebuild" calls `POST /api/wiki/rebuild` with `mode: "deterministic"` which also returns 410
-4. `docs/zh-CN/web-wiki.md` describes old Generate Wiki flow
-5. Navigation says "Wiki" but content is LLM synthesis, not runtime topic view
+1. `WikiPage.tsx` 调用 `/api/wiki/status`、`/api/wiki/page`、`/api/wiki/quality`、`/api/wiki/related-sections` — 全是遗留端点
+2. "Generate Wiki" 按钮调用 `POST /api/wiki/rebuild`，返回 410
+3. "Safe fallback rebuild" 调用 `POST /api/wiki/rebuild` 并带 `mode: "deterministic"`，同样返回 410
+4. `docs/zh-CN/web-wiki.md` 描述的是旧的 Generate Wiki 流程
+5. 导航显示 "Wiki" 但内容是 LLM 合成，而非运行时 topic 视图
 
-## Target Experience
+## 目标体验
 
-User visits `/wiki` → sees:
-- **Left sidebar**: Topic list from `GET /api/topics`, each with topic name, clickable
-- **Center**: Selected topic's cards from `GET /api/topics/{name}`, showing card details
-- **Right**: Selected card's relations/provenance context
-- **Empty state**: Clear message when no topics exist (no approved cards)
-- **No Generate Wiki button**, no `/api/wiki/rebuild` calls
+用户访问 `/wiki` → 看到：
+- **左侧栏**：来自 `GET /api/topics` 的 topic 列表，每个 topic 名称可点击
+- **中间**：来自 `GET /api/topics/{name}` 的选中 topic 卡片列表，显示卡片详情
+- **右侧**：选中卡片的关系/来源上下文
+- **空状态**：无 topic 时清晰提示（无已审批卡片）
+- **无 Generate Wiki 按钮**，无 `/api/wiki/rebuild` 调用
 
-## Component Tree
+## 组件树
 
 ```
-WikiPage (thin adapter)
-└── TopicBrowser (orchestration: selected topic state, loading)
-    ├── TopicList (left: list of topic names)
-    ├── TopicView (center: cards for selected topic)
-    │   └── TopicCard (single card display, repeated)
-    └── TopicContextPanel (right: selected card's relations)
+WikiPage（薄适配器）
+└── TopicBrowser（编排：选中 topic 状态、loading）
+    ├── TopicList（左侧：topic 列表）
+    ├── TopicView（中间：选中 topic 的卡片）
+    │   └── TopicCard（单张卡片展示，可重复）
+    └── TopicContextPanel（右侧：选中卡片的关系）
 ```
 
-## File Changes
+## 文件变更
 
-### Create
-- `web/src/api/topics.ts` — `listTopics()`, `getTopic(name)`
-- `web/src/components/wiki/TopicBrowser.tsx` — orchestration
-- `web/src/components/wiki/TopicList.tsx` — topic sidebar
-- `web/src/components/wiki/TopicView.tsx` — card list for topic
-- `web/src/components/wiki/TopicCard.tsx` — single card
-- `web/src/components/wiki/TopicContextPanel.tsx` — relations panel
-- `web/src/pages/__tests__/WikiPage.test.tsx` — component tests
+### 新建
+- `web/src/api/topics.ts` — `listTopics()`、`getTopic(name)`
+- `web/src/components/wiki/TopicBrowser.tsx` — 编排层
+- `web/src/components/wiki/TopicList.tsx` — topic 侧边栏
+- `web/src/components/wiki/TopicView.tsx` — topic 卡片列表
+- `web/src/components/wiki/TopicCard.tsx` — 单张卡片
+- `web/src/components/wiki/TopicContextPanel.tsx` — 关系面板
+- `web/src/pages/__tests__/WikiPage.test.tsx` — 组件测试
 
-### Modify
-- `web/src/pages/WikiPage.tsx` — full rewrite as thin adapter
-- `web/src/lib/i18n.ts` — add topic-related i18n keys
+### 修改
+- `web/src/pages/WikiPage.tsx` — 完整重写为薄适配器
+- `web/src/lib/i18n.ts` — 添加 topic 相关 i18n key
 
-### Docs
-- `docs/zh-CN/web-wiki.md` — rewrite for Topic View
+### 文档
+- `docs/zh-CN/web-wiki.md` — 重写为 Topic View
 
-### Not Touched
-- Old wiki components under `web/src/components/wiki/` (keep for potential legacy read, not imported by new WikiPage)
-- `web/src/api/wiki.ts` (keep types for any legacy consumers, not imported by new WikiPage)
-- Backend code (no changes)
+### 不触碰
+- `web/src/components/wiki/` 下的旧 wiki 组件（保留供潜在遗留读取，不被新 WikiPage 导入）
+- `web/src/api/wiki.ts`（保留类型供遗留消费者使用，不被新 WikiPage 导入）
+- 后端代码（无变更）
 
-## Self-Review Checklist
+## 自审清单
 
-- [x] Does NOT call `/api/wiki/rebuild`
-- [x] Does NOT treat legacy wiki as core experience
-- [x] Does NOT break approval boundary (only shows `approval_state: "human_approved"`)
-- [x] No new large dependencies
-- [x] Not over-engineered — 5 focused components
-- [x] Uses existing API contract as-is
+- [x] 不调用 `/api/wiki/rebuild`
+- [x] 不将遗留 wiki 作为核心体验
+- [x] 不破坏审批边界（仅显示 `approval_state: "human_approved"`）
+- [x] 无新的大型依赖
+- [x] 不过度工程化 — 5 个聚焦组件
+- [x] 原样使用现有 API 契约
 
-## Acceptance Criteria
+## 验收标准
 
-1. `npm run build` passes
-2. WikiPage renders topic list from API, shows cards on selection
-3. No `/api/wiki/rebuild` calls in WikiPage code
-4. Generate Wiki buttons removed
-5. Empty state handled for no topics / no approved cards
-6. `docs/zh-CN/web-wiki.md` updated to Topic View
+1. `npm run build` 通过
+2. WikiPage 从 API 渲染 topic 列表，选中后显示卡片
+3. WikiPage 代码中无 `/api/wiki/rebuild` 调用
+4. Generate Wiki 按钮已移除
+5. 无 topic / 无已审批卡片的空状态已处理
+6. `docs/zh-CN/web-wiki.md` 更新为 Topic View

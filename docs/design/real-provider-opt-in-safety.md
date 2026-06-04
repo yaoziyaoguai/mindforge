@@ -1,13 +1,13 @@
 ---
-title: "v1.5 I6: Real Provider Opt-in Safety Docs"
+title: "v1.5 I6: 真实 Provider Opt-in 安全文档"
 type: design-doc
 status: draft
 date: 2026-05-25
-parent: v1.5 Safe Integration & Import/Export Expansion
+parent: v1.5 安全集成与导入/导出扩展
 priority: P2
 ---
 
-# Real Provider Opt-in Safety Docs
+# 真实 Provider Opt-in 安全文档
 
 ## 核心原则
 

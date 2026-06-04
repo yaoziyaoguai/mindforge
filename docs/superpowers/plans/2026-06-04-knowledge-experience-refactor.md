@@ -1,41 +1,41 @@
-# Knowledge Experience Reconstruction Implementation Plan
+# Knowledge Experience 重构实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **供 agent 工作者使用：** REQUIRED SUB-SKILL: 使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 来逐步实现本计划。步骤使用 checkbox（`- [ ]`）语法用于跟踪。
 
-**Goal:** Completely reconstruct the Knowledge/Wiki experience by strictly enforcing approval boundaries, introducing typed knowledge and semantic relations, and transitioning from a monolithic Markdown file to a runtime API presenter.
+**目标：** 通过严格执行审批边界、引入类型化知识和语义关系，以及从单一 Markdown 文件迁移到运行时 API presenter，完全重构 Knowledge/Wiki 体验。
 
-**Architecture:** Deprecate `llm_rebuild_wiki` to stop unauthorized AI text generation. Enhance `CardSummary` with `knowledge_type` and `relations`. Implement a `TopicPresenter` to dynamically aggregate approved cards. Provide new REST APIs for the frontend. (Frontend UI implementation will be a separate, subsequent plan).
+**架构：** 废弃 `llm_rebuild_wiki` 以阻止未经授权的 AI 文本生成。增强 `CardSummary` 添加 `knowledge_type` 和 `relations`。实现 `TopicPresenter` 动态聚合已审批卡片。为前端提供新的 REST API。（前端 UI 实现将是单独的后续计划）。
 
-**Tech Stack:** Python, FastAPI, Pytest, YAML (for frontmatter).
+**技术栈：** Python, FastAPI, Pytest, YAML（用于 frontmatter）。
 
 ---
 
-### Task 1: Freeze Current Risk (Deprecate `llm_rebuild_wiki`)
+### 任务 1：冻结当前风险（废弃 `llm_rebuild_wiki`）
 
-**Files:**
-- Modify: `src/mindforge_web/routers/wiki.py`
-- Modify: `tests/test_wiki_related_sections.py` (or similar wiki router tests if they exist to adjust expectations)
+**文件：**
+- 修改：`src/mindforge_web/routers/wiki.py`
+- 修改：`tests/test_wiki_related_sections.py`（或类似的 wiki 路由测试以调整预期）
 
-- [ ] **Step 1: Write the failing test for the router**
+- [ ] **步骤 1：编写路由的失败测试**
 
 ```python
-# Create/modify test in tests/test_wiki_router.py (or similar suitable file)
+# 在 tests/test_wiki_router.py 中创建/修改测试（或类似文件）
 def test_wiki_rebuild_llm_is_deprecated(client, mock_facade):
     response = client.post("/api/wiki/rebuild", json={"mode": "llm"})
-    assert response.status_code == 410 # Or 400 with specific message
+    assert response.status_code == 410 # 或 400 带特定消息
     data = response.json()
     assert data["ok"] is False
     assert "deprecated" in data["error"].lower()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试验证失败**
 
-Run: `pytest tests/test_wiki_router.py -v` (Adjust filename based on actual test location)
-Expected: FAIL (currently returns 200 OK or tries to build)
+运行：`pytest tests/test_wiki_router.py -v`（根据实际测试位置调整文件名）
+预期：失败（当前返回 200 OK 或尝试构建）
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
-Modify `src/mindforge_web/routers/wiki.py` inside `wiki_rebuild`:
+修改 `src/mindforge_web/routers/wiki.py` 中的 `wiki_rebuild`：
 
 ```python
 @router.post("/rebuild")
@@ -43,7 +43,7 @@ def wiki_rebuild(
     payload: WikiRebuildRequest | None = None,
     facade: WebFacade = Depends(get_facade),
 ):
-    """(Deprecated) From v0.5, direct LLM Wiki rebuild is disabled to enforce approval boundaries."""
+    """（已废弃）从 v0.5 起，直接 LLM Wiki 重建已禁用以强制执行审批边界。"""
     from fastapi.responses import JSONResponse
     
     return JSONResponse(
@@ -56,12 +56,12 @@ def wiki_rebuild(
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试验证通过**
 
-Run: `pytest tests/test_wiki_router.py -v`
-Expected: PASS
+运行：`pytest tests/test_wiki_router.py -v`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/mindforge_web/routers/wiki.py tests/
@@ -70,13 +70,13 @@ git commit -m "feat(wiki): deprecate llm_rebuild_wiki API endpoint"
 
 ---
 
-### Task 2: Implement Knowledge Model v2 Core
+### 任务 2：实现 Knowledge Model v2 核心
 
-**Files:**
-- Modify: `src/mindforge/cards.py`
-- Create/Modify: `tests/test_knowledge_model_v2.py`
+**文件：**
+- 修改：`src/mindforge/cards.py`
+- 创建/修改：`tests/test_knowledge_model_v2.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写失败测试**
 
 ```python
 # tests/test_knowledge_model_v2.py
@@ -121,27 +121,27 @@ def test_load_summary_knowledge_model_fallbacks(tmp_path):
     
     summary = _load_summary(card_path, tmp_path)
     
-    assert summary.knowledge_type == "concept" # Default fallback
+    assert summary.knowledge_type == "concept" # 默认 fallback
     assert summary.human_note is None
     assert summary.relations == ()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试验证失败**
 
-Run: `pytest tests/test_knowledge_model_v2.py -v`
-Expected: FAIL (`CardSummary` lacks new attributes)
+运行：`pytest tests/test_knowledge_model_v2.py -v`
+预期：失败（`CardSummary` 缺少新属性）
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
-Modify `src/mindforge/cards.py`:
-1. Add to `CardSummary` dataclass:
+修改 `src/mindforge/cards.py`：
+1. 在 `CardSummary` dataclass 中添加：
 ```python
     # M5.x Knowledge Model v2
     knowledge_type: str = "concept"
     relations: tuple[dict[str, str], ...] = ()
     human_note: str | None = None
 ```
-2. Add helper function `_parse_relations`:
+2. 添加辅助函数 `_parse_relations`：
 ```python
 def _parse_relations(v: Any) -> tuple[dict[str, str], ...]:
     if not isinstance(v, list):
@@ -155,20 +155,20 @@ def _parse_relations(v: Any) -> tuple[dict[str, str], ...]:
                 parsed.append({"type": rel_type, "target_id": target_id})
     return tuple(parsed)
 ```
-3. Update `_load_summary` return instantiation:
+3. 更新 `_load_summary` 返回实例化：
 ```python
-        # ... existing args ...
+        # ... 已有参数 ...
         knowledge_type=_str_or_none(data.get("knowledge_type")) or "concept",
         human_note=_str_or_none(data.get("human_note")),
         relations=_parse_relations(data.get("relations")),
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试验证通过**
 
-Run: `pytest tests/test_knowledge_model_v2.py -v`
-Expected: PASS
+运行：`pytest tests/test_knowledge_model_v2.py -v`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/mindforge/cards.py tests/test_knowledge_model_v2.py
@@ -177,13 +177,13 @@ git commit -m "feat(cards): implement knowledge model v2 schema and fallbacks"
 
 ---
 
-### Task 3: Implement Topic Presenter (Approval Boundary Enforcement)
+### 任务 3：实现 Topic Presenter（审批边界强制执行）
 
-**Files:**
-- Create: `src/mindforge/topic_presenter.py`
-- Create: `tests/test_topic_presenter.py`
+**文件：**
+- 创建：`src/mindforge/topic_presenter.py`
+- 创建：`tests/test_topic_presenter.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写失败测试**
 
 ```python
 # tests/test_topic_presenter.py
@@ -207,7 +207,7 @@ def test_topic_presenter_enforces_approval_boundary():
     assert view["topic"] == "React"
     assert len(view["cards"]) == 1
     assert view["cards"][0]["id"] == "c1"
-    # Draft card MUST NOT be included
+    # draft card 绝不能被包含
     
 def test_topic_presenter_groups_by_knowledge_type():
     c1 = CardSummary(id="c1", title="C1", status="human_approved", path=Path("c1.md"), rel_path="c1", projects=(), tags=(), source_type=None, track="React", knowledge_type="concept")
@@ -219,28 +219,28 @@ def test_topic_presenter_groups_by_knowledge_type():
     assert view["type_counts"]["claim"] == 1
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试验证失败**
 
-Run: `pytest tests/test_topic_presenter.py -v`
-Expected: FAIL (`mindforge.topic_presenter` not found)
+运行：`pytest tests/test_topic_presenter.py -v`
+预期：失败（`mindforge.topic_presenter` 未找到）
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
-Create `src/mindforge/topic_presenter.py`:
+创建 `src/mindforge/topic_presenter.py`：
 ```python
 from typing import Any, Iterable
 from .cards import CardSummary
 
 def build_topic_view(topic: str, all_cards: Iterable[CardSummary]) -> dict[str, Any]:
     """
-    Builds a secure, runtime view of a topic.
-    CRITICAL: Enforces the approval boundary. Only human_approved cards are included.
+    构建 topic 的安全运行时视图。
+    关键：强制执行审批边界。仅包含 human_approved 卡片。
     """
     approved_cards = []
     type_counts: dict[str, int] = {}
     
     for card in all_cards:
-        # STRICT APPROVAL BOUNDARY
+        # 严格审批边界
         if card.status != "human_approved":
             continue
             
@@ -253,7 +253,7 @@ def build_topic_view(topic: str, all_cards: Iterable[CardSummary]) -> dict[str, 
             "knowledge_type": card.knowledge_type,
             "relations": list(card.relations),
             "tags": list(card.tags),
-            "summary": "", # In a real implementation, we might need to fetch the body snippet carefully
+            "summary": "", # 实际实现中可能需要小心地获取 body snippet
             "value_score": card.value_score
         })
         
@@ -268,12 +268,12 @@ def build_topic_view(topic: str, all_cards: Iterable[CardSummary]) -> dict[str, 
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试验证通过**
 
-Run: `pytest tests/test_topic_presenter.py -v`
-Expected: PASS
+运行：`pytest tests/test_topic_presenter.py -v`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/mindforge/topic_presenter.py tests/test_topic_presenter.py
@@ -282,20 +282,20 @@ git commit -m "feat(presenter): implement strict TopicPresenter with approval bo
 
 ---
 
-### Task 4: Expose Topic API
+### 任务 4：暴露 Topic API
 
-**Files:**
-- Create: `src/mindforge_web/routers/topics.py`
-- Modify: `src/mindforge_web/app.py` (to include the new router, check structure first)
-- Create: `tests/test_api_topics.py`
+**文件：**
+- 创建：`src/mindforge_web/routers/topics.py`
+- 修改：`src/mindforge_web/app.py`（引入新路由，先检查结构）
+- 创建：`tests/test_api_topics.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写失败测试**
 
 ```python
 # tests/test_api_topics.py
 def test_get_topic_view(client, mock_facade):
-    # Setup mock_facade.cfg to point to dummy data if needed, or mock iter_cards
-    # For now, just test the endpoint existence and basic structure
+    # 如果需要，设置 mock_facade.cfg 指向虚拟数据，或 mock iter_cards
+    # 目前只测试端点存在性和基本结构
     response = client.get("/api/topics/TestTopic")
     assert response.status_code == 200
     data = response.json()
@@ -304,14 +304,14 @@ def test_get_topic_view(client, mock_facade):
     assert "cards" in data
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试验证失败**
 
-Run: `pytest tests/test_api_topics.py -v`
-Expected: FAIL (404 Not Found)
+运行：`pytest tests/test_api_topics.py -v`
+预期：失败（404 Not Found）
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
-Create `src/mindforge_web/routers/topics.py`:
+创建 `src/mindforge_web/routers/topics.py`：
 ```python
 from fastapi import APIRouter, Depends
 from mindforge_web.deps import get_facade
@@ -328,23 +328,22 @@ def get_topic(topic_name: str, facade: WebFacade = Depends(get_facade)):
     return view
 ```
 
-*(Note: Verify where routers are included, likely in `src/mindforge_web/app.py` or `src/mindforge_web/main.py`. Include the router there.)*
+*（注意：验证路由在哪里引入，可能在 `src/mindforge_web/app.py` 或 `src/mindforge_web/main.py`。在那里引入路由。）*
 ```python
-# e.g., in app.py:
+# 例如在 app.py 中：
 # from .routers import topics
 # app.include_router(topics.router)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试验证通过**
 
-Run: `pytest tests/test_api_topics.py -v`
-Expected: PASS
+运行：`pytest tests/test_api_topics.py -v`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/mindforge_web/routers/topics.py tests/test_api_topics.py
-# git add src/mindforge_web/app.py (if modified)
+# git add src/mindforge_web/app.py（如果修改了）
 git commit -m "feat(api): expose /api/topics endpoint driven by TopicPresenter"
 ```
-````

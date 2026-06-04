@@ -1,6 +1,6 @@
 # MindForge 文档
 
-这是 MindForge 的文档入口，帮助用户和开发者快速定位需要的文档。 | [English version](README-en.md)
+这是 MindForge 的文档入口，帮助用户和开发者快速定位需要的文档。
 
 ---
 
@@ -20,16 +20,6 @@
 | [配置参考](zh-CN/configuration.md) | 完整配置参考 |
 | [Troubleshooting](zh-CN/troubleshooting.md) | 常见问题诊断 |
 | [FAQ](zh-CN/faq.md) | 常见问题解答 |
-
-### English
-
-| 文档 | 说明 |
-|------|------|
-| [Getting Started](en/getting-started.md) | Installation and first-run guide |
-| [User Guide](en/user-guide.md) | Complete feature guide |
-| [Model Setup](en/model-setup.md) | LLM provider configuration |
-| [Sources](en/sources.md) | Managing knowledge sources |
-| [Troubleshooting](en/troubleshooting.md) | Common issues and solutions |
 
 ---
 
