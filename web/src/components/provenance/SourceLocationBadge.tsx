@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { SourceLocationResponse } from "../../api/provenance";
 import { fetchCardLocation } from "../../api/provenance";
+import { useLocale } from "../../lib/i18n";
 
 interface SourceLocationBadgeProps {
   cardId: string;
@@ -13,6 +14,7 @@ export function SourceLocationBadge({
   cardId,
   hasSource,
 }: SourceLocationBadgeProps) {
+  const { t } = useLocale();
   const [location, setLocation] = useState<SourceLocationResponse | null>(
     null,
   );
@@ -36,7 +38,7 @@ export function SourceLocationBadge({
 
   return (
     <div>
-      <dt className="text-xs uppercase text-muted">Source location</dt>
+      <dt className="text-xs uppercase text-muted">{t("card.source_location")}</dt>
       <dd className="mt-1 break-words text-ink">{location.display}</dd>
     </div>
   );

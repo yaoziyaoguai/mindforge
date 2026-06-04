@@ -8,6 +8,7 @@ import { useLocale } from "../lib/i18n";
 interface Props {
   cardRef: string;
   onSelectCard?: (ref: string) => void;
+  embedded?: boolean;
 }
 
 const EDGE_TYPE_LABEL_KEY: Record<string, string> = {
@@ -83,7 +84,7 @@ function qualityColor(score: number): string {
   return "bg-slate-300";
 }
 
-export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
+export function GraphNavigationPanel({ cardRef, onSelectCard, embedded }: Props) {
   const { t } = useLocale();
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [communities, setCommunities] = useState<KnowledgeCommunityResponse[]>([]);
@@ -214,99 +215,150 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
   }
 
   return (
-    <section className="border border-line rounded-lg bg-panel overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-line bg-stone-50/50">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 text-primary">
-              <GitBranch className="h-4 w-4" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-ink">{t("graph.title")}</h3>
-              <p className="text-xs text-muted mt-0.5">
-                {neighborCards.length} {t("graph.neighbor_cards")} · {totalEdges} {t("graph.evidence")}
-              </p>
+    <section className={embedded ? "" : "border border-line rounded-lg bg-panel overflow-hidden"}>
+      {/* Header — suppressed when embedded (parent section provides context) */}
+      {!embedded ? (
+        <div className="px-6 py-4 border-b border-line bg-stone-50/50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 text-primary">
+                <GitBranch className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-ink">{t("graph.title")}</h3>
+                <p className="text-xs text-muted mt-0.5">
+                  {neighborCards.length} {t("graph.neighbor_cards")} · {totalEdges} {t("graph.evidence")}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Grouping mode toggle */}
-            <div className="flex items-center rounded-md border border-line bg-white overflow-hidden">
+            <div className="flex items-center gap-2">
+              {/* Grouping mode toggle */}
+              <div className="flex items-center rounded-md border border-line bg-white overflow-hidden">
+                <button
+                  type="button"
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                    groupingMode === "by_type"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted hover:text-ink"
+                  }`}
+                  onClick={() => setGroupingMode("by_type")}
+                  title={t("graph.group_by_type") ?? "By relation type"}
+                >
+                  <Layers className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                    groupingMode === "by_community"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted hover:text-ink"
+                  }`}
+                  onClick={() => setGroupingMode("by_community")}
+                  title={t("graph.group_by_community") ?? "By community"}
+                >
+                  <Users className="h-3 w-3" />
+                </button>
+              </div>
+              {/* Summary chips (type mode only) */}
+              {groupingMode === "by_type" ? (
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {sortedTypes.slice(0, 3).map((etype) => (
+                    <span
+                      key={etype}
+                      className="inline-flex items-center gap-1 rounded-full bg-white border border-line px-2 py-0.5 text-[10px] text-muted"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${EDGE_TYPE_COLOR[etype] ? EDGE_TYPE_COLOR[etype].replace("border-l-", "bg-").replace("safe", "bg-safe") : "bg-muted"}`} />
+                      {t(EDGE_TYPE_LABEL_KEY[etype] ?? etype)}·{typeDistribution[etype]}
+                    </span>
+                  ))}
+                  {sortedTypes.length > 3 ? (
+                    <span className="text-[10px] text-muted">+{sortedTypes.length - 3}</span>
+                  ) : null}
+                </div>
+              ) : null}
+              {/* Open in full graph view */}
+              <a
+                href={`/graph?card=${encodeURIComponent(cardRef)}`}
+                className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-primary text-white hover:bg-primary/90 transition"
+                title={t("graph.open_graph_view")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState({}, "", `/graph?card=${encodeURIComponent(cardRef)}`);
+                  window.dispatchEvent(new PopStateEvent("popstate"));
+                }}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {t("graph.open_graph_view")}
+              </a>
+              {/* Depth toggle */}
               <button
                 type="button"
-                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
-                  groupingMode === "by_type"
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                  depth >= 2
                     ? "bg-primary/10 text-primary"
-                    : "text-muted hover:text-ink"
+                    : "bg-white border border-line text-muted hover:text-ink"
                 }`}
-                onClick={() => setGroupingMode("by_type")}
-                title={t("graph.group_by_type") ?? "By relation type"}
+                onClick={() => setDepth(depth >= 2 ? 1 : 2)}
               >
                 <Layers className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
-                  groupingMode === "by_community"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted hover:text-ink"
-                }`}
-                onClick={() => setGroupingMode("by_community")}
-                title={t("graph.group_by_community") ?? "By community"}
-              >
-                <Users className="h-3 w-3" />
+                {depth >= 2 ? t("graph.collapse_2hop") : t("graph.expand_2hop")}
               </button>
             </div>
-            {/* Summary chips (type mode only) */}
-            {groupingMode === "by_type" ? (
-              <div className="hidden sm:flex items-center gap-1.5">
-                {sortedTypes.slice(0, 3).map((etype) => (
-                  <span
-                    key={etype}
-                    className="inline-flex items-center gap-1 rounded-full bg-white border border-line px-2 py-0.5 text-[10px] text-muted"
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${EDGE_TYPE_COLOR[etype] ? EDGE_TYPE_COLOR[etype].replace("border-l-", "bg-").replace("safe", "bg-safe") : "bg-muted"}`} />
-                    {t(EDGE_TYPE_LABEL_KEY[etype] ?? etype)}·{typeDistribution[etype]}
-                  </span>
-                ))}
-                {sortedTypes.length > 3 ? (
-                  <span className="text-[10px] text-muted">+{sortedTypes.length - 3}</span>
-                ) : null}
-              </div>
-            ) : null}
-            {/* Open in full graph view */}
-            <a
-              href={`/graph?card=${encodeURIComponent(cardRef)}`}
-              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-primary text-white hover:bg-primary/90 transition"
-              title={t("graph.open_graph_view")}
-              onClick={(e) => {
-                e.preventDefault();
-                window.history.pushState({}, "", `/graph?card=${encodeURIComponent(cardRef)}`);
-                window.dispatchEvent(new PopStateEvent("popstate"));
-              }}
-            >
-              <ExternalLink className="h-3 w-3" />
-              {t("graph.open_graph_view")}
-            </a>
-            {/* Depth toggle */}
-            <button
-              type="button"
-              className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                depth >= 2
-                  ? "bg-primary/10 text-primary"
-                  : "bg-white border border-line text-muted hover:text-ink"
-              }`}
-              onClick={() => setDepth(depth >= 2 ? 1 : 2)}
-            >
-              <Layers className="h-3 w-3" />
-              {depth >= 2 ? t("graph.collapse_2hop") : t("graph.expand_2hop")}
-            </button>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Compact embedded toolbar */
+        <div className="flex items-center justify-end gap-2 mb-3">
+          <div className="flex items-center rounded-md border border-line bg-white overflow-hidden">
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                groupingMode === "by_type" ? "bg-primary/10 text-primary" : "text-muted hover:text-ink"
+              }`}
+              onClick={() => setGroupingMode("by_type")}
+              title={t("graph.group_by_type") ?? "By relation type"}
+            >
+              <Layers className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium transition ${
+                groupingMode === "by_community" ? "bg-primary/10 text-primary" : "text-muted hover:text-ink"
+              }`}
+              onClick={() => setGroupingMode("by_community")}
+              title={t("graph.group_by_community") ?? "By community"}
+            >
+              <Users className="h-3 w-3" />
+            </button>
+          </div>
+          <a
+            href={`/graph?card=${encodeURIComponent(cardRef)}`}
+            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-medium bg-primary text-white hover:bg-primary/90 transition"
+            title={t("graph.open_graph_view")}
+            onClick={(e) => {
+              e.preventDefault();
+              window.history.pushState({}, "", `/graph?card=${encodeURIComponent(cardRef)}`);
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }}
+          >
+            <ExternalLink className="h-3 w-3" />
+            {t("graph.open_graph_view")}
+          </a>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-medium transition ${
+              depth >= 2 ? "bg-primary/10 text-primary" : "bg-white border border-line text-muted hover:text-ink"
+            }`}
+            onClick={() => setDepth(depth >= 2 ? 1 : 2)}
+          >
+            <Layers className="h-3 w-3" />
+            {depth >= 2 ? t("graph.collapse_2hop") : t("graph.expand_2hop")}
+          </button>
+        </div>
+      )}
 
       {/* Content */}
-      <div className="px-6 py-4 space-y-3">
+      <div className={embedded ? "space-y-3" : "px-6 py-4 space-y-3"}>
         {groupingMode === "by_type" ? (
           /* ── By relation type ── */
           sortedTypes.map((edgeType) => {
@@ -419,7 +471,7 @@ export function GraphNavigationPanel({ cardRef, onSelectCard }: Props) {
   );
 }
 
-/** 单个邻居卡片按钮（复用组件）。 */
+/** 单个邻居卡片按钮（复用组件）。仅展示 card 类型节点，过滤 source/tag 等非卡片节点。 */
 function NeighborCardButton({
   edge,
   graph,
@@ -438,6 +490,14 @@ function NeighborCardButton({
   const neighborNode = graph.nodes.find(
     (n) => n.id === neighborId && n.type === "card",
   );
+  // 非 card 类型节点（如 source/tag）不渲染，避免 sha1 等技术标识暴露
+  if (!neighborNode) return null;
+
+  // 人话化 evidence 文本：截断 sha1 前缀，取实际描述
+  const evidenceText = edge.evidence?.evidence
+    ?.replace(/^sha1:[a-f0-9]{40}\s*/, "")
+    .replace(/same source document:\s*sha1:[a-f0-9]{40}\s*/, "") || null;
+
   return (
     <button
       key={`${edge.edge_type}-${edge.source_id}-${edge.target_id}`}
@@ -447,11 +507,11 @@ function NeighborCardButton({
     >
       <div className="p-3 flex-1">
         <h4 className="text-sm font-medium text-ink line-clamp-2">
-          {neighborNode?.label ?? neighborId}
+          {neighborNode.label}
         </h4>
-        {edge.evidence?.evidence ? (
+        {evidenceText ? (
           <p className="mt-1.5 text-[11px] text-muted leading-relaxed line-clamp-2">
-            {edge.evidence.evidence}
+            {evidenceText}
           </p>
         ) : null}
       </div>

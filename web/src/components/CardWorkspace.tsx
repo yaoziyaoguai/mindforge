@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clipboard, Edit3, File, FileCode, FileEdit, FileText, FileType, FolderOpen, Link, Save, Trash2, X } from "lucide-react";
+import { marked } from "marked";
 import { revealSourceByRef } from "../api/sources";
 import { getProvenanceTrail, linkCards } from "../api/library";
 import { ApprovalTimeline } from "./ApprovalTimeline";
@@ -244,6 +245,7 @@ export function CardWorkspace({ detail, mode, onSave, onSaved, onMoveToTrash, on
           <GraphNavigationPanel
             cardRef={card.id ?? card.rel_path ?? ""}
             onSelectCard={onSelectCard}
+            embedded
           />
           {"related_cards" in detail ? (
             <div className="mt-4">
@@ -338,7 +340,12 @@ function KnowledgeSections({ body, sections, t }: {
 
   if (!body.trim()) return <p className="mt-4 text-sm text-muted">No card body.</p>;
   if (!sections.length) {
-    return <pre className="mt-4 whitespace-pre-wrap rounded-md bg-stone-50 p-4 text-sm leading-7 text-ink">{body}</pre>;
+    return (
+      <div
+        className="mt-4 prose prose-sm max-w-none text-ink [&_pre]:bg-stone-50 [&_pre]:rounded [&_pre]:p-3 [&_code]:text-sm [&_ul]:list-disc [&_ol]:list-decimal"
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(body) }}
+      />
+    );
   }
 
   // 分组规则：匹配 AI Summary / Human Note / Key Points 等归为"理解内容"
@@ -368,7 +375,10 @@ function KnowledgeSections({ body, sections, t }: {
               {understandingSections.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-sm font-semibold text-ink mb-1">{section.title}</h4>
-                  <div className="whitespace-pre-wrap text-sm leading-7 text-ink">{section.content || "-"}</div>
+                  <div
+                    className="prose prose-sm max-w-none text-ink [&_pre]:bg-stone-50 [&_pre]:rounded [&_pre]:p-3 [&_code]:text-sm [&_ul]:list-disc [&_ol]:list-decimal"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(section.content) || "-" }}
+                  />
                 </div>
               ))}
             </div>
@@ -395,7 +405,10 @@ function KnowledgeSections({ body, sections, t }: {
               {processingSections.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-sm font-semibold text-ink mb-1">{section.title}</h4>
-                  <div className="whitespace-pre-wrap text-sm leading-7 text-ink">{section.content || "-"}</div>
+                  <div
+                    className="prose prose-sm max-w-none text-ink [&_pre]:bg-stone-50 [&_pre]:rounded [&_pre]:p-3 [&_code]:text-sm [&_ul]:list-disc [&_ol]:list-decimal"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(section.content) || "-" }}
+                  />
                 </div>
               ))}
             </div>
@@ -452,7 +465,7 @@ function sourceTypeIcon(st: string | null | undefined): React.ComponentType<{ cl
 
 function stripMarkdown(text: string): string {
   return text
-    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^#{1,6}\s+.*$/gm, "")
     .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
     .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
     .replace(/`{1,3}[^`]*`{1,3}/g, "")
@@ -460,6 +473,12 @@ function stripMarkdown(text: string): string {
     .replace(/[>*\-+]/g, "")
     .replace(/\n+/g, " ")
     .trim();
+}
+
+/** Render markdown content as styled HTML for KnowledgeSections. */
+function renderMarkdown(text: string): string {
+  if (!text) return "";
+  return marked.parse(text) as string;
 }
 
 /** Layer 1: 默认阅读层 — 用户第一眼看到的知识概览 */
@@ -490,8 +509,11 @@ function KnowledgeHero({ body, sections, card, t, locale }: {
     const hnSection = sections.find((s) =>
       /^(Human Note|人工备注|备注|笔记)\s*$/i.test(s.title),
     );
-    if (hnSection?.content) return hnSection.content;
-    return null;
+    if (!hnSection?.content) return null;
+    const trimmed = hnSection.content.trim();
+    // Skip HTML comment-only templates (placeholder content)
+    if (/^<!--[\s\S]*-->$/.test(trimmed)) return null;
+    return hnSection.content;
   }, [sections]);
 
   const { tags } = card;
@@ -670,7 +692,7 @@ function RelatedCardsPanel({ relatedCards, onSelectCard, t, currentCardRef }: {
                       </div>
                       {rc.reasons.length > 0 && (
                         <p className="mt-1.5 text-[10px] text-muted leading-relaxed">
-                          {rc.reasons.map((r) => r.label).join(" · ")}
+                          {rc.reasons.map((r) => t(REASON_GROUP_KEYS[r.reason] ?? r.reason) || r.label).join(" · ")}
                         </p>
                       )}
                     </button>
