@@ -1,5 +1,8 @@
 # MindForge
 
+> **Project Status: Paused / Soft Archived**
+> MindForge is currently preserved as a vibe-coding learning project and postmortem artifact. The standalone Web knowledge-base product direction is no longer actively pursued. The code remains available for reference, learning, and possible future experiments. See [docs/postmortem/](docs/postmortem/) for details.
+
 [中文](README.md) | [English]
 
 MindForge is a local-first personal AI knowledge tool. It turns local Markdown, TXT, HTML, PDF, and DOCX materials into reviewable knowledge-card drafts, waits for explicit human approval, then uses approved cards to build a personal Wiki.

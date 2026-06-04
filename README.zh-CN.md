@@ -1,5 +1,8 @@
 # MindForge
 
+> **项目状态：Paused / Soft Archived**
+> MindForge 当前作为一次 vibe coding 学习项目与复盘样本保留。独立 Web 知识库产品方向不再继续积极推进；代码仍保留用于学习、复盘和未来可能的实验。详细复盘见 [docs/postmortem/](docs/postmortem/)。
+
 [中文] | [English](README.en.md)
 
 MindForge 是一个本地优先的个人 AI 知识库工具，帮助你把 Markdown、TXT、HTML、PDF、DOCX 等本地资料转成待审核知识卡片，经人工确认后进入知识库，并生成个人 Wiki。
