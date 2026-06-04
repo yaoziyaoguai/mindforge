@@ -13,7 +13,7 @@ from mindforge.first_run_config import maybe_bootstrap_local_config
 from mindforge_web.routers import (
     approval, config, discovery, dogfood, drafts, graph, health, home,
     library, lifecycle, processing, prompts, provider_readiness, provenance,
-    quality, recall, sources, trash, usage, wiki,
+    quality, recall, sources, topics, trash, usage, wiki,
 )
 from mindforge_web.services.web_facade import WebFacade
 
@@ -88,6 +88,7 @@ def create_app(
     app.include_router(home.router)
     app.include_router(config.router)
     app.include_router(sources.router)
+    app.include_router(topics.router)
     app.include_router(processing.router)
     app.include_router(drafts.router)
     app.include_router(approval.router)
