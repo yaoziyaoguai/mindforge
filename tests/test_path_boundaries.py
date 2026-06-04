@@ -891,28 +891,19 @@ class TestWikiPathSafety:
         wiki_p = _wiki_path(cfg)
         assert wiki_p.is_relative_to(cfg.vault.root)
 
-    def test_wiki_atomic_write_preserves_old_file_on_failure(self, tmp_path: Path):
-        """Wiki 原子写失败时应保留旧文件。"""
+    def test_wiki_rebuild_raises_deprecation(self, tmp_path: Path):
+        """v0.5: rebuild_main_wiki 已废弃，调用时抛出 WikiError。"""
         cfg = self._make_config(tmp_path)
         wiki_p = _wiki_path(cfg)
-        old_content = "# Old Wiki\n"
-        wiki_p.write_text(old_content, encoding="utf-8")
+        wiki_p.write_text("# Old Wiki\n", encoding="utf-8")
 
-        # 模拟写入失败：删除 wiki 文件并创建同名不可写目录
-        wiki_p.unlink()
-        wiki_p.mkdir(parents=True)
+        from mindforge.wiki_service import rebuild_main_wiki, WikiError
 
-        # rebuild 应不抛出异常（目录存在时 with_suffix('.tmp') 写不进目录内）
-        # 或至少旧内容不受影响
-        try:
-            from mindforge.wiki_service import rebuild_main_wiki
+        with pytest.raises(WikiError):
             rebuild_main_wiki(cfg)
-            # 如果返回错误提示，也应安全
-        except Exception:
-            pass
-        # 清理后验证
-        import shutil
-        shutil.rmtree(str(wiki_p), ignore_errors=True)
+
+        # 旧 Wiki 内容不受影响
+        assert wiki_p.read_text(encoding="utf-8") == "# Old Wiki\n"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

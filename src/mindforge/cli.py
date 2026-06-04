@@ -179,7 +179,7 @@ app = typer.Typer(
         "  approve list / approve 1     — 查看并显式确认 AI Draft\n"
         "  library list / show          — 浏览已审批知识\n"
         "  trash list / move / restore  — 管理回收站\n"
-        "  wiki status / rebuild / show — 管理从 approved cards 派生的 Wiki\n"
+        "  wiki status / show — 查看 Wiki 状态和内容（rebuild 已在 v0.5 废弃）\n"
         "  prompts list / show          — 只读查看内置 prompt\n"
         "  recall --query <text>        — 搜索已审批知识\n"
         "  version                      — 打印版本与运行配置摘要（不含 secret）\n"

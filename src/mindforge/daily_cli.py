@@ -131,7 +131,9 @@ _COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("mindforge trash list", "查看 Trash 中已移除的卡片"),
             ("mindforge trash move <path> --confirm", "安全移入 Trash（不删 source）"),
             ("mindforge trash restore <path> --confirm", "从 Trash 恢复卡片"),
-            ("mindforge wiki rebuild", "从 approved cards 重建 Wiki（LLM synthesis，使用当前配置）"),
+            ("mindforge wiki status", "查看 Wiki 状态（已审批卡片数、最后更新时间）"),
+            ("mindforge wiki show", "查看 Main Wiki 内容"),
+            # wiki rebuild 已在 v0.5 废弃，从命令地图移除
             ("mindforge prompts list", "只读查看内置 prompt assets"),
             ("mindforge prompts show triage", "只读查看单个 prompt 全文"),
         ],

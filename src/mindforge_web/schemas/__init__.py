@@ -385,6 +385,45 @@ class KnowledgeTopicsResponse(BaseModel):
 
 
 # ============================================================================
+# Topic View API (v0.5) — TopicPresenter 驱动的 runtime topic 视图
+# ============================================================================
+
+
+class TopicCardView(BaseModel):
+    """单张已审批卡片在 topic 视图中的安全表示。"""
+
+    id: str | None = None
+    title: str | None = None
+    knowledge_type: str = "concept"
+    relations: list[dict[str, str]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    summary: str = ""
+    human_note: str | None = None
+    approval_state: str = "human_approved"
+    value_score: int | None = None
+    source_title: str | None = None
+    source_type: str | None = None
+    track: str | None = None
+    created_at: str | None = None
+    approved_at: str | None = None
+
+
+class TopicViewResponse(BaseModel):
+    """GET /api/topics/{topic_name} 响应。"""
+
+    topic: str
+    total_approved_cards: int
+    type_counts: dict[str, int] = Field(default_factory=dict)
+    cards: list[TopicCardView] = Field(default_factory=list)
+
+
+class TopicListResponse(BaseModel):
+    """GET /api/topics 响应。"""
+
+    topics: list[str] = Field(default_factory=list)
+
+
+# ============================================================================
 # Dogfood + Lifecycle schemas — 已提取到 schemas/dogfood_lifecycle.py，此处 re-export 保持 backward compatibility。
 from mindforge_web.schemas.dogfood_lifecycle import (  # noqa: E402, F401
     DogfoodReportResponse,

@@ -288,7 +288,7 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     assert "anthropic_compatible" in text
     assert "openai" in text
     assert "openai_compatible" in text
-    assert "LLM synthesis 必须由用户在 Wiki 页面或 CLI 手动触发" in text
+    assert "LLM-based Wiki synthesis" in text and "v0.5 废弃" in text
     assert "not RAG / not embedding / no vector DB" in text
     assert "source_location_neighbor" in text
     assert "当前没有独立全局 Graph 页面" in text
@@ -698,20 +698,18 @@ class _NoOpLogger:
 # ---------------------------------------------------------------------------
 
 
-def test_commands_map_shows_wiki_rebuild_as_llm_first_not_deterministic() -> None:
-    """``mindforge commands`` 中 wiki rebuild 不展示 --mode deterministic 作为主路径。
+def test_commands_map_wiki_rebuild_deprecated() -> None:
+    """v0.5: ``mindforge commands`` 中 wiki rebuild 已隐藏。
 
-    设计意图：Wiki 主路径是 LLM synthesis，deterministic 只在 Advanced/Troubleshooting
-    回退中暴露。命令地图是用户发现入口，必须展示 LLM-first 语义。
+    Wiki rebuild 在 v0.5 废弃，命令地图不再展示。
     """
     result = runner.invoke(app, ["commands"])
 
     assert result.exit_code == 0, result.output
     out = result.output
 
-    # LLM-first wiki rebuild 命令存在
-    assert "mindforge wiki rebuild" in out
-    assert "LLM synthesis" in out or "LLM" in out
+    # wiki rebuild 已隐藏，不出现在命令地图
+    assert "mindforge wiki rebuild" not in out
 
     # 主路径命令地图不展示 --mode deterministic
     assert "--mode deterministic" not in out
@@ -787,30 +785,22 @@ def test_llm_provider_doc_auto_rebuild_explains_llm_safety() -> None:
 def test_readme_wiki_section_does_not_expose_deterministic_as_primary() -> None:
     """README Wiki 章节不暴露 deterministic 作为主路径。
 
-    Wiki 是 LLM-first synthesis；deterministic 仅在 Advanced/Troubleshooting 中出现。
+    v0.5: Wiki 已从 LLM-first synthesis 切换到 runtime Topic View。
     """
     text = Path("README.zh-CN.md").read_text(encoding="utf-8")
 
     # 找到 Wiki 相关内容
-    wiki_start = text.find("Wiki")
-    assert wiki_start >= 0, "README 应包含 Wiki 内容"
+    wiki_start = text.find("Topic View")
+    assert wiki_start >= 0, "README 应包含 Topic View 内容"
 
     # 在 Wiki 相关内容区域（前后各 200 字符）
     region = text[max(0, wiki_start - 200):wiki_start + 2000]
 
-    # LLM-first 描述
-    assert "LLM-first synthesis" in region or "LLM synthesis" in region
+    # v0.5: Topic View 是运行时视图，LLM synthesis 已废弃
+    assert "运行时视图" in region or "Topic View" in region
 
-    # Wiki rebuild 命令不展示 --mode deterministic
+    # Wiki rebuild 命令不展示 --mode deterministic（已废弃）
     assert "wiki rebuild\"" not in region or "--mode deterministic" not in region
-
-    # deterministic 只应在 Advanced 或 Troubleshooting 上下文
-    if "deterministic" in region:
-        idx = region.index("deterministic")
-        nearby = region[max(0, idx - 50):idx + 100]
-        assert any(w in nearby.lower() for w in ("advanced", "troubleshooting", "回退", "fallback", "not recommended")), (
-            "README 中 deterministic 只应在 Advanced/Troubleshooting 上下文出现"
-        )
 
 
 def _replace_strategy(cfg: MindForgeConfig, active: str) -> MindForgeConfig:
@@ -912,13 +902,13 @@ def test_wiki_rebuild_help_hides_mode_option(tmp_path: Path) -> None:
     )
 
 
-def test_wiki_rebuild_requires_model_setup(
+def test_wiki_rebuild_returns_deprecation(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """wiki rebuild 在 model setup incomplete 时必须报错，不能静默 fallback 到 deterministic。
+    """v0.5: wiki rebuild 返回 deprecation notice，exit 0。
 
-    LLM-first 原则：没有模型配置时，wiki rebuild 应明确提示需要 model setup，
-    而不是走 deterministic template rebuild 作为静默主路径。
+    LLM synthesis 和 deterministic template 均已废弃。无论 model setup 状态如何，
+    wiki rebuild 都应打印 deprecation 消息。
     """
     import yaml
 
@@ -979,14 +969,15 @@ def test_wiki_rebuild_requires_model_setup(
 
     result = runner.invoke(app, ["wiki", "rebuild", "--config", str(cfg_path)])
 
-    assert result.exit_code != 0, (
-        f"model setup incomplete 时 wiki rebuild 应报错退出，实际 exit_code=0: {result.output}"
+    assert result.exit_code == 0, (
+        f"wiki rebuild 应打印 deprecation 后正常退出，实际 exit_code={result.exit_code}: {result.output}"
     )
-    assert "model setup" in result.output.lower(), (
-        f"错误消息应包含 model setup，实际: {result.output}"
+    assert ("deprecated" in result.output.lower() or "废弃" in result.output), (
+        f"错误消息应包含 deprecation/废弃，实际: {result.output}"
     )
-    assert "deterministic" not in result.output.lower(), (
-        f"model setup incomplete 时不应建议 deterministic 作为替代方案: {result.output}"
+    # deterministic 可能在 deprecation 消息中出现（描述已废弃），但不作为可用选项
+    assert "--mode" not in result.output.lower() or "--mode deterministic" not in result.output, (
+        f"deprecation 消息不应展示 --mode deterministic 选项: {result.output}"
     )
 
 
@@ -1007,14 +998,14 @@ def test_llm_first_readme_wiki_rebuild_not_deterministic() -> None:
             )
 
 
-def test_mindforge_commands_wiki_rebuild_is_llm_first() -> None:
-    """mindforge commands 输出中 wiki rebuild 应描述为 LLM synthesis。"""
+def test_mindforge_commands_wiki_rebuild_is_deprecated() -> None:
+    """v0.5: mindforge commands 输出中 wiki rebuild 已废弃，不出现。"""
     result = runner.invoke(app, ["commands"])
 
     assert result.exit_code == 0, result.output
-    # wiki rebuild 描述应包含 LLM synthesis
-    assert ("LLM synthesis" in result.output or "LLM" in result.output), (
-        f"commands 中 wiki rebuild 应描述为 LLM synthesis，实际: {result.output}"
+    # wiki rebuild 已被隐藏，commands 输出不包含 rebuild
+    assert "wiki rebuild" not in result.output.lower(), (
+        f"commands 输出不应包含已废弃的 wiki rebuild: {result.output}"
     )
     # 不应将 deterministic 作为可见命令选项
     assert "deterministic" not in result.output, (

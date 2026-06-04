@@ -10,7 +10,7 @@ It is designed for people who want a small, inspectable knowledge loop over thei
 Source → AI Draft → Human Review → Explicit Approve → Approved Card
                                                         ├── Library
                                                         ├── Recall (BM25)
-                                                        └── Wiki (LLM synthesis)
+                                                        └── Topic View (runtime)
 ```
 
 ## What It Is
@@ -40,7 +40,7 @@ MindForge is not yet recommended for private sensitive vaults, company-confident
 - **AI draft card** — five-step workflow: Triage → Distill → Link Suggestion → Review Questions → Action Extraction.
 - **Human review/approval** — every draft requires CLI or Web Review approval.
 - **Knowledge Library** — browse approved `human_approved` cards.
-- **Wiki rebuild** — manually rebuild an LLM-first Wiki from approved cards.
+- **Topic View** — browse approved cards grouped by Topic via runtime API (`/api/topics`).
 - **Source provenance** — keep source, hash, and available page/paragraph/line provenance for traceability.
 - **Related cards** — deterministic relationships such as same source, same tag, same wiki section, and same review batch.
 - **Knowledge Health** — read-only maintenance report for review backlog, low-quality cards, missing provenance, duplicate candidates, orphan cards, stale wiki, and suggested actions.
@@ -50,15 +50,15 @@ MindForge is not yet recommended for private sensitive vaults, company-confident
 
 | Boundary | Meaning |
 |----------|---------|
-| offline by default | A fresh workspace does not call real LLM/API services and does not upload telemetry by default; external model calls require explicit provider/API key setup plus an explicit import/watch processing or Wiki rebuild action |
+| offline by default | A fresh workspace does not call real LLM/API services and does not upload telemetry by default; external model calls require explicit provider/API key setup plus an explicit import/watch processing action |
 | local-first | Single-user local workspace; reads and writes local files by default |
 | local API key setup | Configure keys through Web Setup; keys are stored in the local secret store (`.mindforge/secrets.json`) |
 | no automatic secret disclosure | MindForge does not automatically read environment files or secret store values for source processing and print API keys, tokens, or secrets |
 | no automatic local-data outflow | Raw sources, API keys, tokens, and secrets do not go into Git, the Web frontend, or telemetry by default |
 | do not paste keys | Do not paste API keys into chats, issues, terminal logs, README files, or YAML |
 | no automatic approval | `ai_draft` never enters Library automatically; `human_approved` requires explicit approve |
-| Wiki uses approved cards only | Wiki rebuild does not bypass approval, does not build from unapproved content, and does not read raw sources |
-| real model calls are explicit | Model + API key + explicit import/watch processing or wiki rebuild trigger |
+| Topic View uses approved cards only | Topic View does not bypass approval, does not include unapproved content, and does not read raw sources |
+| real model calls are explicit | Model + API key + explicit import/watch processing trigger |
 | legacy `.doc` unsupported | Old Word `.doc` files are reported with a friendly conversion hint |
 | no OCR | PDF support is text-layer only; scanned PDFs are not recognized |
 | Graph is not GraphRAG | Local Graph Preview is a local view based on deterministic relations such as same_source, same_tag, same_wiki_section, same_review_batch, and source_location_neighbor; there is currently no standalone global Graph page, and it is not Vector DB, Graph DB, Embedding, or GraphRAG |
@@ -144,7 +144,6 @@ Browse, search, and rebuild Wiki:
 mindforge library list
 mindforge recall --query "MindForge"
 mindforge wiki status
-mindforge wiki rebuild
 mindforge wiki show
 ```
 
@@ -217,17 +216,14 @@ mindforge library show <ref>
 mindforge recall --query "keyword"
 ```
 
-Wiki is **LLM-first synthesis** over all `human_approved` cards. Generate it from the Web **Wiki** page with **Generate Wiki**, or via CLI:
+Topic View is a **runtime view** over `human_approved` cards, grouped by Topic/Track. Access it via the `/api/topics` endpoints or CLI:
 
 ```bash
 mindforge wiki status
-mindforge wiki rebuild
 mindforge wiki show
 ```
 
-Wiki only uses approved cards. It does not bypass approval to read raw sources. Approved cards are the source of truth; Wiki is a derived view. LLM synthesis must be manually triggered.
-
-The Web **Wiki** page includes an **Advanced** Safe fallback rebuild for troubleshooting when no model is available. It is not the recommended path.
+Topic View only uses approved cards. It does not bypass approval to read raw sources. Approved cards are the source of truth; Topic View is a derived runtime view. LLM-based Wiki synthesis (`llm_rebuild_wiki`) is deprecated in v0.5.
 
 ## Web Console
 
@@ -242,7 +238,7 @@ Start with `mindforge web --open`:
 | **Library** | Browse approved cards, related cards, and Local Graph Preview |
 | **Trash** | Safe recycle bin with Restore |
 | **Recall** | Local BM25 lexical search |
-| **Wiki** | LLM synthesis Wiki generation, quality, and references |
+| **Wiki** | Topic View — runtime knowledge browsing by Topic |
 
 ## CLI Reference
 

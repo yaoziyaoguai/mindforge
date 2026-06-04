@@ -331,15 +331,14 @@ def approve_explicit_card(
             if effect.kind == "approved"
             else None
         )
-        # Wiki rebuild on approve —— 只在显式开启时运行，且永远是 deterministic。
-        # LLM synthesis 需要用户手动触发，避免 approve 路径隐式调用真实模型。
-        wiki_error = None
-        if effect.kind == "approved" and cfg.wiki.auto_rebuild_on_approve:
-            try:
-                from .wiki_service import rebuild_main_wiki
-                rebuild_main_wiki(cfg)
-            except Exception as e:
-                wiki_error = str(e)
+        # v0.5: Wiki rebuild on approve 已废弃。
+        # Wiki 现在是 runtime View（TopicPresenter），不再通过 approve 路径隐式写持久化 Markdown。
+        wiki_error = (
+            "wiki.auto_rebuild_on_approve is deprecated in v0.5. "
+            "Wiki is now a runtime view; persisted rebuild is no longer triggered on approval."
+            if effect.kind == "approved" and cfg.wiki.auto_rebuild_on_approve
+            else None
+        )
         return ApprovalExecutionResult(
             effect=effect,
             source_archive=archive_effect,

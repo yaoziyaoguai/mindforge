@@ -183,9 +183,9 @@ else
   pass "library 浏览 — $card_in_lib 个 card track"
 fi
 
-# ── [S9] wiki rebuild ──────────────────────────────────────────
+# ── [S9] wiki rebuild (deprecated) ──────────────────────────────
 
-step "[S9] mindforge wiki rebuild"
+step "[S9] mindforge wiki rebuild (deprecated)"
 
 wiki_output=$(python -m mindforge wiki rebuild --config "$DOGFOOD_CONFIG" 2>&1) || {
   echo "$wiki_output"
@@ -193,12 +193,11 @@ wiki_output=$(python -m mindforge wiki rebuild --config "$DOGFOOD_CONFIG" 2>&1) 
 }
 echo "$wiki_output"
 
-wiki_status=$(python -m mindforge wiki status --config "$DOGFOOD_CONFIG" 2>&1)
-
-if echo "$wiki_status" | grep -qi "card\|section\|Ready"; then
-  pass "wiki rebuild 完成"
+# v0.5: wiki rebuild 已废弃，CLI 返回 deprecation 消息（exit 0）
+if echo "$wiki_output" | grep -qi "deprecated\|废弃"; then
+  pass "wiki rebuild 返回 deprecation notice（符合 v0.5 预期）"
 else
-  fail "wiki rebuild 状态异常"
+  fail "wiki rebuild 应返回 deprecation notice"
 fi
 
 # ── [S10] index rebuild ───────────────────────────────────────
@@ -284,7 +283,7 @@ echo "   S5  card 结构验证"
 echo "   S6  安全边界验证"
 echo "   S7  approve ($approved_count 张 human_approved)"
 echo "   S8  Library 浏览"
-echo "   S9  wiki rebuild"
+echo "   S9  wiki rebuild (deprecated)"
 echo "   S10 index rebuild"
 echo "   S11 recall (BM25: $HIT_COUNT/10 查询命中)"
 echo "   S12 export"

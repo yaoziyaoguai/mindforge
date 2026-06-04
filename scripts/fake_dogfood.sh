@@ -192,9 +192,9 @@ echo "$approve_output"
 assert_contains "$approve_output" "human_approved" "卡片已晋升为 human_approved"
 pass "approve 完成"
 
-# ── [S8] wiki rebuild ──────────────────────────────────────────────────────
+# ── [S8] wiki rebuild (deprecated) ─────────────────────────────────────────────
 
-step "[S8] mindforge wiki rebuild"
+step "[S8] mindforge wiki rebuild (deprecated)"
 
 wiki_output=$(python -m mindforge wiki rebuild --config "$DOGFOOD_CONFIG" 2>&1) || {
   echo "$wiki_output"
@@ -202,16 +202,11 @@ wiki_output=$(python -m mindforge wiki rebuild --config "$DOGFOOD_CONFIG" 2>&1) 
 }
 echo "$wiki_output"
 
-# 验证 wiki 状态
-wiki_status=$(python -m mindforge wiki status --config "$DOGFOOD_CONFIG" 2>&1)
-echo "$wiki_status"
-
-if echo "$wiki_status" | grep -q "Ready"; then
-  pass "wiki rebuild 完成，status: Ready"
-elif echo "$wiki_status" | grep -qi "card\|section"; then
-  pass "wiki rebuild 完成，包含卡片/章节"
+# v0.5: wiki rebuild 已废弃，CLI 返回 deprecation 消息（exit 0）
+if echo "$wiki_output" | grep -qi "deprecated\|废弃"; then
+  pass "wiki rebuild 返回 deprecation notice（符合 v0.5 预期）"
 else
-  echo "  ⚠ WARN: 无法确认 wiki rebuild 状态"
+  fail "wiki rebuild 应返回 deprecation notice"
 fi
 
 # ── [S9] index rebuild ─────────────────────────────────────────────────────
@@ -279,7 +274,7 @@ echo "   S4  process（fake provider, ai_draft）"
 echo "   S5  card 结构验证"
 echo "   S6  安全边界验证（无自动 approve）"
 echo "   S7  approve --confirm（human_approved）"
-echo "   S8  wiki rebuild"
+echo "   S8  wiki rebuild (deprecated)"
 echo "   S9  index rebuild"
 echo "   S10 recall（BM25 词法检索）"
 echo "   S11 清理"
