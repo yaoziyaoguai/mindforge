@@ -66,6 +66,10 @@ class CardSummary:
     stage_models: dict[str, Any] = field(default_factory=dict)
     run_id: str | None = None
     source_location_index: int | None = None
+    # M5.x Knowledge Model v2
+    knowledge_type: str = "concept"
+    relations: tuple[dict[str, str], ...] = ()
+    human_note: str | None = None
     # M1 quality 字段
     quality_score: int | None = None
     quality_level: str | None = None
@@ -265,6 +269,9 @@ def _load_summary(card_path: Path, vault_root: Path) -> CardSummary:
         stage_models=_dict_or_empty(data.get("stage_models")),
         run_id=_str_or_none(data.get("run_id")),
         source_location_index=_source_location_index(data),
+        knowledge_type=_str_or_none(data.get("knowledge_type")) or "concept",
+        relations=_parse_relations(data.get("relations")),
+        human_note=_str_or_none(data.get("human_note")),
         quality_score=_int_or_none(_quality_field(data, "overall_score")),
         quality_level=_str_or_none(_quality_field(data, "overall_level")),
     )
@@ -276,6 +283,19 @@ def _quality_field(data: dict, key: str) -> Any:
     if not isinstance(quality, dict):
         return None
     return quality.get(key)
+
+
+def _parse_relations(v: Any) -> tuple[dict[str, str], ...]:
+    if not isinstance(v, list):
+        return ()
+    parsed = []
+    for item in v:
+        if isinstance(item, dict):
+            rel_type = str(item.get("type", ""))
+            target_id = str(item.get("target_id", ""))
+            if rel_type and target_id:
+                parsed.append({"type": rel_type, "target_id": target_id})
+    return tuple(parsed)
 
 
 def _str_or_none(v: Any) -> str | None:
