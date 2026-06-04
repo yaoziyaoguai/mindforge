@@ -1,14 +1,14 @@
-# Topic View API Contract (v0.5)
+# Topic View API 契约（v0.5）
 
 稳定 API 契约，供前端和其他消费者开发使用。
 
-## Endpoints
+## 接口端点
 
 ### `GET /api/topics`
 
 列出所有包含 `human_approved` 卡片的 topic 名称。
 
-**Response** (`TopicListResponse`):
+**响应**（`TopicListResponse`）：
 ```json
 {
   "topics": ["Python", "React"]
@@ -22,7 +22,7 @@
 
 获取指定 topic 的运行时视图。
 
-**Response** (`TopicViewResponse`):
+**响应**（`TopicViewResponse`）：
 ```json
 {
   "topic": "React",
@@ -49,9 +49,9 @@
 }
 ```
 
-### Card Fields
+### 卡片字段
 
-| Field | Type | Nullable | Description |
+| 字段 | Type | Nullable | 描述 |
 |-------|------|----------|-------------|
 | `id` | `string` | yes | 卡片唯一 ID |
 | `title` | `string` | yes | 卡片标题 |
@@ -68,16 +68,16 @@
 | `created_at` | `string` | yes | ISO 8601 创建时间 |
 | `approved_at` | `string` | yes | ISO 8601 审批时间 |
 
-### Error Behavior
+### 错误行为
 
-- **Unknown / empty topic**: `404 Not Found` with `{"detail": "Topic 'X' not found or has no approved cards"}`
-- **No approved cards for topic**: `404 Not Found`（同上）
+- **未知/空 topic**：`404 Not Found`，返回 `{"detail": "Topic 'X' not found or has no approved cards"}`
+- **topic 下无已审批卡片**：`404 Not Found`（同上）
 
-### Known Limitations
+### 已知限制
 
-- **Path-based topic name encoding**: `GET /api/topics/{topic_name}` uses FastAPI path parameters. Topic names containing `/` (e.g., `"Programming/Python"`) cannot be encoded in the standard URL path without escaping. Future versions may switch to query parameters (e.g., `GET /api/topics?name=...`) or use URL-safe slug encoding to support `/` in topic names. Tracked as follow-up.
+- **基于路径的 topic 名称编码**：`GET /api/topics/{topic_name}` 使用 FastAPI 路径参数。包含 `/` 的 topic 名称（如 `"Programming/Python"`）在不转义的情况下无法在标准 URL 路径中编码。未来版本可能改用查询参数（如 `GET /api/topics?name=...`）或使用 URL 安全的 slug 编码来支持 topic 名称中的 `/`。作为后续事项跟踪。
 
-### Approval Boundary
+### 审批边界
 
 - 只有 `status: human_approved` 的卡片出现在视图中
 - `ai_draft`、`trashed` 等状态的卡片被严格排除

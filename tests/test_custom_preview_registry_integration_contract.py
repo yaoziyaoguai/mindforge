@@ -348,7 +348,7 @@ def test_custom_strategy_doc_explains_preview_to_implementation_path() -> None:
     再次重申不会引入 arbitrary plugin / shell / 默认真实 LLM。
     """
 
-    p = Path("README.zh-CN.md")
+    p = Path("README.md")
     text = p.read_text(encoding="utf-8").lower()
     for token in (
         "preview to",

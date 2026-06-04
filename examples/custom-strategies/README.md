@@ -1,47 +1,33 @@
-# Example Custom Strategies — synthetic, preview-only
+# 示例自定义策略 — 合成数据，仅预览
 
-This directory holds **synthetic, non-sensitive** declarative custom
-strategy fixtures. They exist to:
+本目录存放的是**合成、非敏感**的声明式自定义策略示例文件。其用途包括：
 
-- Document the v0.12 declarative custom-strategy shape with a real,
-  loadable file.
-- Power `tests/test_custom_preview_packet_contract.py` Family E baseline
-  asserts (Slice 4 discovery + Slice 5 preview-only refusal).
-- Give downstream contributors a copy-paste-able starting point that
-  they can adapt to their own (still synthetic) experiments.
+- 用真实可加载的文件记录 v0.12 声明式自定义策略的格式。
+- 支撑 `tests/test_custom_preview_packet_contract.py` 中 Family E 基线断言（Slice 4 发现 + Slice 5 仅预览拒绝）。
+- 为下游贡献者提供一个可直接复制粘贴的起点，供其适配自己的（同样为合成的）实验。
 
-## Safety contract
+## 安全契约
 
-Per `docs/V0_13_DOGFOODING_READINESS.md` and the v0.12 capability matrix
-(`docs/V0_12_CAPABILITY_MATRIX.md`), any file in this directory:
+根据 `docs/V0_13_DOGFOODING_READINESS.md` 和 v0.12 能力矩阵（`docs/V0_12_CAPABILITY_MATRIX.md`），本目录中的任何文件：
 
-- is **review-only** — `mindforge` will refuse to execute it;
-- never causes a real LLM provider call;
-- never reads `.env`;
-- never writes any Obsidian vault;
-- never produces an `ai_draft` and never produces an approved card;
-- never auto-approves anything.
+- **仅供审阅** — `mindforge` 将拒绝执行；
+- 绝不会触发真实的 LLM provider 调用；
+- 绝不会读取 `.env`；
+- 绝不会写入任何 Obsidian vault；
+- 绝不会生成 `ai_draft`，也绝不会生成已审批卡片；
+- 绝不会自动审批任何内容。
 
-Loading happens only when the user passes the explicit
-`--custom-path examples/custom-strategies/` flag to
-`mindforge strategies list`. Nothing in MindForge implicitly scans this
-directory.
+仅当用户显式传递 `--custom-path examples/custom-strategies/` 标志给 `mindforge strategies list` 时才会加载。MindForge 不会隐式扫描此目录。
 
-## Files
+## 文件
 
-- `user_concept_review.yaml` — minimal synthetic example, status
-  `preview`, `safety_policy: ai_draft_only`. Same shape that Slice 5
-  preview-packet tests pin as the canonical valid sample.
+- `user_concept_review.yaml` — 最小合成示例，状态为 `preview`，`safety_policy: ai_draft_only`。与 Slice 5 预览包测试所固定的规范有效样本形状相同。
 
-## How to inspect
+## 如何查看
 
 ```bash
 .venv/bin/mindforge strategies list \
   --custom-path examples/custom-strategies/
 ```
 
-The command will list this synthetic strategy alongside built-ins and
-clearly mark it as `(custom)` and as preview-only. Asking
-`mindforge` to actually run it will fail loudly with
-`NotYetImplementedStrategyError("preview" + "discovery is not execution")`
-— that is the intended, documented behaviour.
+该命令会将此合成策略与内置策略一同列出，并清晰标记为 `(custom)` 和仅预览。要求 `mindforge` 实际运行它将失败，并抛出 `NotYetImplementedStrategyError("preview" + "discovery is not execution")` —— 这是预期且有文档记录的行为。

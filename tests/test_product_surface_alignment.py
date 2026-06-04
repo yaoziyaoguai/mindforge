@@ -194,7 +194,7 @@ def test_knowledge_card_strategy_can_run_with_injected_stub_llm() -> None:
 
 
 def test_readme_main_path_does_not_recommend_fake_or_internal_strategies() -> None:
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
     main, _, _ = text.partition("## 文档导航")
 
     for token in ("mindforge demo", "fake", "Cubox", "cubox", "dogfood", "active_profile", "profiles"):
@@ -228,7 +228,7 @@ def test_example_config_routing_refs_valid_models() -> None:
 
 def test_readme_references_example_config() -> None:
     """README 以 workspace 为用户主概念；example config 仍存在于磁盘供 CI/部署。"""
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
     # 磁盘上的 example config 是 CI/部署产物，仍然存在
     assert Path("configs/mindforge_example.yaml").is_file()
     # README 不再让用户把它当主概念——workspace 是用户唯一需要理解的概念
@@ -268,7 +268,7 @@ def test_readme_first_stage_dogfood_contract_is_explicit() -> None:
     新用户的第一入口，必须把本地配置、secret store、路径和 Wiki 手动边界说清楚。
     """
 
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
     main, _, _ = text.partition("## 文档导航")
 
     assert "configs/mindforge.yaml" in text
@@ -553,7 +553,7 @@ def test_doctor_logic_hides_demo_env_and_profile_hints() -> None:
 def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
     """README Quick Start 以 workspace 为用户主概念，说明 init 后自动记住 workspace。"""
 
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
 
     assert "mindforge web" in quickstart
@@ -568,7 +568,7 @@ def test_readme_quickstart_documents_clean_clone_bootstrap() -> None:
 def test_readme_quickstart_uses_async_cli_main_path_and_hides_legacy_terms() -> None:
     """Quick Start 必须从 clean clone 到 async processing，而不是 Web-only 或旧同步路径。"""
 
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
     quickstart = text.split("## 快速开始", 1)[1].split("\n## ", 1)[0]
 
     for token in (
@@ -787,7 +787,7 @@ def test_readme_wiki_section_does_not_expose_deterministic_as_primary() -> None:
 
     v0.5: Wiki 已从 LLM-first synthesis 切换到 runtime Topic View。
     """
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
 
     # 找到 Wiki 相关内容
     wiki_start = text.find("Topic View")
@@ -983,7 +983,7 @@ def test_wiki_rebuild_returns_deprecation(
 
 def test_llm_first_readme_wiki_rebuild_not_deterministic() -> None:
     """README 中 wiki rebuild 命令描述不应暗示 deterministic 为主路径。"""
-    text = Path("README.zh-CN.md").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
 
     # 找到 wiki rebuild 相关上下文
     lines = text.split("\n")

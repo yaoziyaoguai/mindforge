@@ -1,183 +1,183 @@
-# MindForge Postmortem
+# MindForge 项目复盘
 
-Date: 2026-06-05
-Status: Soft Archived — learning project and postmortem artifact
+日期：2026-06-05
+状态：软归档 — 学习项目与复盘产物
 
-## 1. Project Background
+## 1. 项目背景
 
-### What MindForge Tried to Solve
+### MindForge 试图解决什么问题
 
-MindForge started as a response to a real pain point: how to turn scattered notes, research materials, and project documents into a structured, reviewable, and retrievable personal knowledge base.
+MindForge 源于一个真实的痛点：如何将零散的笔记、研究资料和项目文档转化为结构化、可审阅、可检索的个人知识库。
 
-The core idea was:
+核心理念是：
 
-1. **Import** raw materials (markdown, text, PDF, DOCX).
-2. **AI distill** them into structured knowledge card drafts (`ai_draft`).
-3. **Human review** — explicit approve or reject.
-4. **Approved cards** (`human_approved`) enter a browsable, searchable library.
-5. **Wiki / Topic View** generates runtime summaries from approved cards.
+1. **导入**原始素材（markdown、text、PDF、DOCX）。
+2. **AI 提炼**为结构化知识卡片草稿（`ai_draft`）。
+3. **人工审阅** — 明确批准或拒绝。
+4. **已审批卡片**（`human_approved`）进入可浏览、可搜索的知识库。
+5. **Wiki / Topic View**从已审批卡片生成运行时摘要。
 
-### Why local-first / approval-first Seemed Valuable
+### 为什么本地优先 / 审批优先看起来有价值
 
-At the time, these principles felt important:
+在当时，这些原则感觉很重要：
 
-- **local-first**: Your knowledge lives on your machine, not in a cloud service. No data leaves your laptop unless you explicitly configure an LLM provider.
-- **approval-first**: AI output should never auto-promote to "fact." `ai_draft` → `human_approved` ensures the user stays in control.
-- **ai_draft / human_approved boundary**: A clear engineering contract that separates AI-generated content from human-confirmed knowledge.
-- **no RAG / no embedding / no vector DB**: Keep it simple, deterministic, and auditable. BM25 lexical search over approved cards is transparent.
+- **本地优先**：你的知识存在于你的机器上，而不是云服务中。除非你明确配置了 LLM 提供商，否则没有数据离开你的笔记本。
+- **审批优先**：AI 输出不应自动升级为"事实"。`ai_draft` → `human_approved` 确保用户始终处于控制之中。
+- **ai_draft / human_approved 边界**：一个清晰的工程契约，将 AI 生成的内容与人工确认的知识分开。
+- **无 RAG / 无 embedding / 无向量数据库**：保持简单、确定性和可审计性。在已审批卡片上使用 BM25 词法搜索是透明的。
 
-These were good principles. The problem wasn't the principles — it was the product form we wrapped them in.
+这些都是好的原则。问题不在于原则 — 而在于我们包装它们的**产品形态**。
 
-## 2. What We Actually Built
+## 2. 我们实际构建了什么
 
-Over 4 development iterations (Mint1-Mint4), MindForge accumulated:
+经过 4 轮开发迭代（Mint1-Mint4），MindForge 积累了：
 
-### Core Pipeline
-- **Source / Import**: ingest markdown, text, HTML, PDF (text layer), DOCX files
-- **FakeProvider**: deterministic offline LLM replacement for demo and testing
-- **5-stage pipeline**: triage → distill → link_suggestion → review_questions → action_extraction
-- **AI draft generation**: structured YAML cards with frontmatter + markdown body
-- **Review / Approval**: CLI (`mindforge approve`) and Web review page
-- **human_approved**: approved cards enter the library
+### 核心管线
+- **来源 / 导入**：导入 markdown、text、HTML、PDF（文本层）、DOCX 文件
+- **FakeProvider**：确定性离线 LLM 替代品，用于演示和测试
+- **5 阶段管线**：triage → distill → link_suggestion → review_questions → action_extraction
+- **AI 草稿生成**：带 frontmatter + markdown body 的结构化 YAML 卡片
+- **审阅 / 审批**：CLI（`mindforge approve`）和 Web 审阅页面
+- **human_approved**：已审批卡片进入知识库
 
-### Web Console
-- **13 pages**: Home, Setup, Sources, Review, Library, Recall, Wiki, Export, Health, Trash, Graph, Sensemaking, Dogfood
-- **30+ React/TypeScript components**
-- **FastAPI backend** with 19 routers, services, schemas
-- **Web Setup** for LLM provider configuration (API key in local secret store)
+### Web 控制台
+- **13 个页面**：Home、Setup、Sources、Review、Library、Recall、Wiki、Export、Health、Trash、Graph、Sensemaking、Dogfood
+- **30+ React/TypeScript 组件**
+- **FastAPI 后端**：包含 19 个路由器、服务、schema
+- **Web Setup**：LLM 提供商配置（API 密钥存储在本地密钥库中）
 
-### Knowledge Navigation
-- **Library**: browse approved cards
-- **Recall**: BM25 lexical search
-- **Wiki / Topic View**: runtime aggregated view by topic (migrated from LLM synthesis to TopicPresenter in v0.5)
-- **Related cards**: deterministic relations (same source, same tag, same topic)
-- **Local Graph Preview**: 4 node types (card, source, tag, wiki_section)
+### 知识导航
+- **Library**：浏览已审批卡片
+- **Recall**：BM25 词法搜索
+- **Wiki / Topic View**：按主题的运行时聚合视图（v0.5 从 LLM 合成迁移到 TopicPresenter）
+- **相关卡片**：确定性关系（同来源、同标签、同主题）
+- **本地图谱预览**：4 种节点类型（卡片、来源、标签、wiki_section）
 
-### Supporting Infrastructure
-- **Knowledge Health**: maintenance diagnostics (review backlog, low-quality cards, stale wiki, etc.)
-- **Export**: download markdown/ZIP
-- **Trash**: soft delete with restore
-- **Backup / Workspace management**
-- **CLI**: full command-line interface mirroring Web capabilities
+### 支撑基础设施
+- **知识健康**：维护诊断（审阅积压、低质量卡片、过期 wiki 等）
+- **导出**：下载 markdown/ZIP
+- **回收站**：软删除与恢复
+- **备份 / 工作区管理**
+- **CLI**：完整的命令行界面镜像 Web 功能
 
-### Documentation & Testing
-- **20+ user docs** (zh-CN and EN)
-- **Design docs**: architecture map, web design direction, final design decision, ADRs
-- **SPEC docs**: knowledge model v2, topic view API
-- **Validation protocol**: 5-user test plan with kill criteria (never executed)
-- **Tests**: unit and integration tests for pipeline, approval, presenter, retrieval
+### 文档与测试
+- **20+ 用户文档**（中文和英文）
+- **设计文档**：架构图、Web 设计方向、最终设计决策、ADR
+- **SPEC 文档**：knowledge model v2、topic view API
+- **验证协议**：5 用户测试计划与终止标准（从未执行）
+- **测试**：管线、审批、presenter、检索的单元测试和集成测试
 
-## 3. Final Judgment
+## 3. 最终判断
 
-**MindForge as a standalone Web knowledge-base product is no longer actively pursued.**
+**MindForge 作为独立 Web 知识库产品不再积极推进。**
 
-This judgment is based on the following findings:
+该判断基于以下发现：
 
-### The Application Scenario Was Not Specific Enough
+### 应用场景不够具体
 
-MindForge tried to serve "personal knowledge management" — which is too broad. The target users (students, researchers, product managers, developers) all have existing tools that work well enough. No specific user group had a pain point that only MindForge could solve.
+MindForge 试图服务"个人知识管理" — 这太宽泛了。目标用户（学生、研究者、产品经理、开发者）都有现有工具且已足够好用。没有特定用户群体有只有 MindForge 才能解决的痛点。
 
-### User Motivation Was Insufficient
+### 用户动力不足
 
-The core workflow — import → AI distill → review → approve → browse → recall → wiki — assumes users want to actively manage their knowledge through a dedicated tool. Most people's actual workflow is simpler: take notes in their existing tool, occasionally review. The approval step, while well-intentioned, adds friction that most users don't see value in.
+核心工作流 — 导入 → AI 提炼 → 审阅 → 审批 → 浏览 → 检索 → wiki — 假设用户希望通过专用工具主动管理自己的知识。大多数人的实际工作流更简单：在现有工具中做笔记，偶尔回顾。审批步骤虽然用意良好，但增加了大多数用户看不到价值的摩擦。
 
-### Web + Backend Was Overweight
+### Web + 后端过于臃肿
 
-Requiring `git clone + pip install + npm install + npm run build + mindforge web` to see the product is a developer-friendly workflow, not a user-friendly one. The maintenance cost of 13 pages + 30+ components + 20 backend files far exceeded the validated value.
+要求 `git clone + pip install + npm install + npm run build + mindforge web` 才能看到产品，是开发者友好的工作流，不是用户友好的。13 个页面 + 30+ 组件 + 20 个后端文件的维护成本远超验证过的价值。
 
-### General AI Tools Covered Adjacent Needs
+### 通用 AI 工具覆盖了相邻需求
 
-- Claude / ChatGPT can distill materials through conversation
-- Obsidian / Notion can manage knowledge bases
-- NotebookLM can understand multi-document context
-- coding agents can organize project documentation
+- Claude / ChatGPT 可以通过对话提炼资料
+- Obsidian / Notion 可以管理知识库
+- NotebookLM 可以理解多文档上下文
+- 编码 agent 可以组织项目文档
 
-MindForge did not offer a "only I can do this" value proposition.
+MindForge 没有提供"只有我能做"的价值主张。
 
-### Knowledge Extraction Value Was Never Validated
+### 知识提取价值从未被验证
 
-The multi-modal audit revealed: display UX scored 4/10, knowledge extraction scored 3/10. The extraction problem was the root cause — cards were "source excerpt + summary + tags," not reusable knowledge. But more importantly, the question "does AI-extracted knowledge have more value than a good summary?" was never answered.
+多模态审计揭示：展示 UX 评分 4/10，知识提取评分 3/10。提取问题是根本原因 — 卡片是"来源摘录 + 总结 + 标签"，而不是可复用的知识。但更重要的是，问题"AI 提取的知识是否比一个好的摘要更有价值？"从未被回答。
 
-### UI Problems Were Surface-Level
+### UI 问题是表面问题
 
-The audit found many UI issues (dense controls, missing tags, misleading labels, repeated relationships). But fixing these would not address the root cause: the product scenario and knowledge value were not established. Polishing UI on a product whose core value proposition is unvalidated is a sunk cost trap.
+审计发现了很多 UI 问题（密集的控件、缺失的标签、误导性的标签、重复的关系）。但修复这些问题不会解决根本原因：产品场景和知识价值未被确立。在一个核心价值主张未经验证的产品上打磨 UI 是沉没成本陷阱。
 
-## 4. Core Failure Reasons
+## 4. 核心失败原因
 
-### 1. No Specific User Scenario Validation First
+### 1. 没有先进行具体的用户场景验证
 
-We built a product for "personal knowledge management" without identifying a specific user group with a specific pain point that only MindForge could solve. "Everyone needs knowledge management" is not a user segment.
+我们为"个人知识管理"构建了一个产品，而没有确定一个只有 MindForge 才能解决的、具有特定痛点的特定用户群体。"每个人都需要知识管理"不是一个用户细分。
 
-### 2. No Manual / CLI / Script-Level Minimum Validation
+### 2. 没有手动 / CLI / 脚本级别的最小验证
 
-Before building a Web product, we should have validated the core workflow through a simple script or CLI: import a file, generate a card, approve it, export it. If that basic loop doesn't feel valuable, a Web UI won't make it valuable.
+在构建 Web 产品之前，我们本应通过简单的脚本或 CLI 验证核心工作流：导入文件、生成卡片、审批、导出。如果这个基本循环感觉不到价值，Web UI 也不会让它变得有价值。
 
-### 3. Premature Web Product Form
+### 3. 过早的 Web 产品形态
 
-We jumped to a full Web console (13 pages, 30+ components) before validating that users wanted the core workflow. The Web form assumed the product was worth building, but that assumption was never tested.
+我们在验证用户是否想要核心工作流之前，就跳到了完整的 Web 控制台（13 个页面、30+ 组件）。Web 形态假设了产品值得构建，但这个假设从未被检验。
 
-### 4. Premature Architecture Design
+### 4. 过早的架构设计
 
-We designed ADRs, target architecture maps, design directions, and layered system architectures for a product whose core value proposition was unvalidated. Architecture is good engineering practice, but it's expensive when the product direction is wrong.
+我们为一个核心价值主张未经验证的产品设计了 ADR、目标架构图、设计方向和分层系统架构。架构是好的工程实践，但当产品方向错误时，它是昂贵的。
 
-### 5. Packaging Correct Principles into an Overweight Product
+### 5. 将正确的原则包装进了一个臃肿的产品
 
-local-first, approval-first, ai_draft/human_approved, BM25, no-RAG — these are all good principles. But we wrapped them in a product form (full Web knowledge base) that was too heavy for the validated value. The principles are right; the product form was wrong.
+本地优先、审批优先、ai_draft/human_approved、BM25、无 RAG — 这些都是好的原则。但我们把它们包装在一个对验证过的价值来说太重的产品形态（完整的 Web 知识库）中。原则是对的；产品形态错了。
 
-### 6. Engineering Process Cannot Replace Product Judgment
+### 6. 工程流程无法替代产品判断
 
-SDD, TDD, review, audit workflows ensured implementation quality. But implementation quality is not product quality. A well-tested, well-reviewed, well-architected product that nobody needs is still a product nobody needs.
+SDD、TDD、审阅、审计工作流确保了实现质量。但实现质量不是产品质量。一个测试完善、审阅充分、架构良好但没人需要的产品，仍然是一个没人需要的产品。
 
-### 7. Vibe Coding Accelerates Wrong Directions Too
+### 7. Vibe Coding 也加速了错误的方向
 
-Coding agents make implementation fast. But they don't judge whether the product is worth building. Fast implementation of a wrong direction means you arrive at the wrong destination faster.
+编码 agent 让实现变得快速。但它们不判断产品是否值得构建。错误方向的快速实现意味着你更快地到达错误的目的地。
 
-## 5. What Was Not a Failure
+## 5. 什么不是失败
 
-This project was not a failure. It produced valuable assets and learning:
+这个项目不是失败。它产出了有价值的资产和学习：
 
-- **local-first is a valuable principle**. Your data stays on your machine. This matters.
-- **approval-first is a valuable principle**. AI output should not auto-promote to fact. `ai_draft` → `human_approved` is a good engineering boundary.
-- **ai_draft / human_approved boundary is a valuable engineering asset**. It applies to any AI-generated content workflow.
-- **FakeProvider is a good safety default**. Deterministic offline LLM replacement enables safe testing and demo without real API keys.
-- **SDD / TDD / audit workflow is effective engineering methodology**. The process was good; the product direction was wrong. These are different things.
-- **Multi-modal audit exposed real UX problems**. The audit methodology itself is reusable for future projects.
-- **Stopping a project is a mature engineering decision**. It's not failure. It's recognizing that continued investment would be a sunk cost trap.
+- **本地优先是一个有价值的原则**。你的数据留在你的机器上。这很重要。
+- **审批优先是一个有价值的原则**。AI 输出不应自动升级为事实。`ai_draft` → `human_approved` 是一个好的工程边界。
+- **ai_draft / human_approved 边界是一个有价值的工程资产**。它适用于任何 AI 生成内容的工作流。
+- **FakeProvider 是一个好的安全默认值**。确定性离线 LLM 替代品可以在没有真实 API 密钥的情况下实现安全测试和演示。
+- **SDD / TDD / audit 工作流是有效的工程方法论**。流程是好的；产品方向是错的。这些是不同的东西。
+- **多模态审计暴露了真实的 UX 问题**。审计方法论本身可以在未来项目中复用。
+- **停止一个项目是成熟的工程决策**。这不是失败。这是认识到继续投入将是沉没成本陷阱。
 
-## 6. Transferable Assets
+## 6. 可迁移资产
 
-The following assets can be reused in future projects (First Agent, future harness, Agent Memory projects, or any AI workflow project):
+以下资产可在未来项目中复用（First Agent、future harness、Agent Memory 项目或任何 AI 工作流项目）：
 
-| Asset | Description | Transferability |
-|-------|-------------|----------------|
-| **approval pipeline thought** | ai_draft → human_review → explicit_approve → approved | High — applies to any AI-generated content workflow |
-| **ai_draft / human_approved boundary** | Clear separation between AI output and human confirmation | High — reusable engineering contract |
-| **FakeProvider pattern** | Deterministic offline LLM replacement | High — useful for any LLM project demo/testing |
-| **local-only telemetry thought** | No data leaves machine unless explicitly configured | High — privacy-first design principle |
-| **explicit approval design** | CLI + Web review with approve/reject/edit/downgrade | Medium — needs adaptation to different product forms |
-| **docs / SPEC / Plan / Review / Gate workflow** | Engineering process with structured documentation | High — reusable methodology |
-| **postmortem experience** | Honest analysis of what went wrong and why | High — reference for future projects |
-| **multi-modal audit methodology** | Systematic UX + extraction value audit | High — reusable for any product |
-| **kill criteria definition** | Pre-defined conditions for stopping a product | High — should be defined before starting any project |
-| **BM25 retrieval** | Lightweight lexical search without embeddings | Medium — useful for simple retrieval needs |
-| **TopicPresenter pattern** | Runtime view from approved data | Medium — applicable to other aggregation scenarios |
+| 资产 | 描述 | 可迁移性 |
+|-------|-------------|-------------|
+| **审批管线思想** | ai_draft → human_review → explicit_approve → approved | 高 — 适用于任何 AI 生成内容的工作流 |
+| **ai_draft / human_approved 边界** | AI 输出和人工确认之间的清晰分离 | 高 — 可复用的工程契约 |
+| **FakeProvider 模式** | 确定性离线 LLM 替代品 | 高 — 对任何 LLM 项目演示/测试有用 |
+| **仅本地遥测思想** | 除非明确配置，否则数据不离开机器 | 高 — 隐私优先的设计原则 |
+| **显式审批设计** | CLI + Web 审阅，支持批准/拒绝/编辑/降级 | 中 — 需要适应不同的产品形态 |
+| **文档 / SPEC / Plan / Review / Gate 工作流** | 具有结构化文档的工程流程 | 高 — 可复用的方法论 |
+| **复盘经验** | 对出了什么问题以及为什么的诚实分析 | 高 — 未来项目的参考 |
+| **多模态审计方法论** | 系统性 UX + 提取价值审计 | 高 — 可用于任何产品 |
+| **终止标准定义** | 停止产品的预设条件 | 高 — 在任何项目开始前应定义 |
+| **BM25 检索** | 无需 embedding 的轻量级词法搜索 | 中 — 适用于简单的检索需求 |
+| **TopicPresenter 模式** | 从已审批数据生成的运行时视图 | 中 — 适用于其他聚合场景 |
 
-## 7. If Restarted in the Future, What Must Be Validated First
+## 7. 如果将来重新启动，必须先验证什么
 
-Before writing any code, the following must be answered:
+在编写任何代码之前，必须回答以下问题：
 
-1. **A very specific user scenario**: Who exactly is this for? What exactly are they trying to do? "Personal knowledge management" is not specific enough.
+1. **一个非常具体的用户场景**：这到底是为谁？他们到底想做什么？"个人知识管理"不够具体。
 
-2. **Whether users actually want to import, review, confirm, and reuse knowledge**: Do people want a dedicated tool for this, or are they happy with their existing note-taking workflow?
+2. **用户是否真的想要导入、审阅、确认和复用知识**：人们是否想要一个专用工具来做这个，还是他们对自己现有的笔记工作流感到满意？
 
-3. **Whether knowledge extraction has more value than a good summary**: Is AI-distilled knowledge actually more reusable than a well-written summary? This needs real user testing.
+3. **知识提取是否比好的摘要更有价值**：AI 提炼的知识是否真的比写得很好的摘要更可复用？这需要真实的用户测试。
 
-4. **Whether Web is actually needed**: Can the core workflow be validated through CLI, markdown files, or an Obsidian plugin first? If yes, Web is not the first step.
+4. **Web 是否真的需要**：能否先通过 CLI、markdown 文件或 Obsidian 插件验证核心工作流？如果能，Web 不是第一步。
 
-5. **Whether CLI / Markdown / Obsidian / agent workflow can validate first**: The smallest possible implementation that tests the core hypothesis. If a script works, a Web product might be worth building. If a script doesn't feel valuable, a Web product won't either.
+5. **CLI / Markdown / Obsidian / agent 工作流能否先验证**：测试核心假设的最小可实现实现。如果脚本能工作，Web 产品可能值得构建。如果脚本感觉不到价值，Web 产品也不会。
 
-6. **Whether there are 3-5 real users or real dogfood scenarios**: Not hypothetical users. Real people who will actually use the tool and provide feedback. The 5-user validation protocol was defined but never executed — it should be executed before any major product decision.
+6. **是否有 3-5 个真实用户或真实 dogfood 场景**：不是假设的用户。是真正会使用该工具并提供反馈的真实的人。5 用户验证协议已定义但从未执行 — 在做出任何重大产品决策之前应该执行它。
 
 ---
 
-This postmortem is written honestly, without promotion, without sugar-coating, and without shame. It is intended as a reference for future projects — a record of what we learned, what we built, and why we stopped.
+这份复盘是诚实地写成的，没有推广、没有粉饰、也没有羞愧。它旨在作为未来项目的参考 — 记录我们学到了什么、构建了什么以及为什么停止。

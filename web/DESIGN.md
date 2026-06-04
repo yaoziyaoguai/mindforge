@@ -1,124 +1,124 @@
-# MindForge Web Design System (DESIGN.md)
+# MindForge 网页设计系统 (DESIGN.md)
 
-> **Agent Instruction**: This is a structured design system and visual identity document. Any future UI changes MUST read this file first. Adherence to these rules is non-negotiable to maintain the "Harness Engineering" stability of MindForge.
+> **Agent 说明**：本文档是一份结构化的设计系统与视觉标识文档。任何未来的 UI 变更**必须**先阅读本文件。遵守这些规则是不可协商的，以维持 MindForge 的"Harness Engineering"稳定性。
 
-## 1. Design Philosophy
-- **Identity**: A local-first, approval-first personal knowledge compiler.
-- **Aesthetic**: Calm, Editorial, Knowledge Desk, Trustworthy, Low-distraction.
-- **Goal**: The UI should be an "invisible desk" that supports deep focus on knowledge processing. Visuals must prioritize information hierarchy and reading comfort over flair.
+## 1. 设计理念
+- **身份定位**：一款本地优先、审批优先的个人知识编译器。
+- **审美风格**：宁静、编辑感、知识台、可信赖、低干扰。
+- **目标**：UI 应该是一张支持深度专注于知识处理的"隐形办公桌"。视觉设计必须优先考虑信息层级和阅读舒适度，而非花哨效果。
 
-## 2. Product Boundary & Core User Journey
-The UI MUST rigidly reflect the compiler pipeline:
-1. **Sources / Import**: Gathering raw input (Cubox, Markdown files, etc.).
-2. **Review (ai_draft)**: The critical human-in-the-loop stage. AI proposes, human disposes.
-3. **Library (human_approved)**: The immutable long-term memory.
-4. **Recall / Wiki**: Using and exploring the approved knowledge.
-5. **Export**: Safe, staged output (e.g., preparing content for Obsidian).
+## 2. 产品边界与核心用户旅程
+UI**必须**严格反映编译器流水线：
+1. **Sources / 导入**：收集原始输入（Cubox、Markdown 文件等）。
+2. **Review（ai_draft）**：关键的人机协作环节。AI 提议，人工决断。
+3. **Library（human_approved）**：不可变的长期记忆。
+4. **Recall / Wiki**：使用和探索已审批的知识。
+5. **Export / 导出**：安全、分阶段的输出（例如，为 Obsidian 准备内容）。
 
-**CRITICAL**: Lab/Internal features (Graph, Sensemaking, Entity, Community) are NOT part of the main path and must be visually secondary.
+**关键**：Lab/内部功能（图谱、意义构建、实体、社区）**不属于**主路径，必须在视觉上处于次要地位。
 
-## 3. Visual Tone & Rules
-- **Editorial Experience**: Use whitespace as a structural element rather than borders.
-- **Reference-image Direction (Batch 1)**: Clean, modern, light, spacious, soft pastel cards, and a calm purple accent.
-- **Depth**: Subtle shadows and very soft gradients are allowed for shell/cards/primary CTA hierarchy. They must stay quiet and product-like, never glossy or marketing-heavy.
-- **Calmness**: No aggressive colors. Status indicators must be muted and consistent.
+## 3. 视觉基调与规则
+- **编辑体验**：使用留白而非边框作为结构元素。
+- **参考图方向（Batch 1）**：简洁、现代、明亮、通透、柔和淡彩卡片以及沉稳的紫色强调色。
+- **层次感**：允许在外壳/卡片/主要 CTA 层级使用微妙的阴影和非常柔和的渐变。它们必须保持低调、有产品感，绝不 glossy 或营销感过重。
+- **宁静感**：不使用侵略性颜色。状态指示器必须柔和且保持一致。
 
-## 4. Typography
-- **Reading Area**: Use high line-height (`leading-relaxed` or `leading-loose`) and constrained widths (`max-w-3xl`) for text.
-- **Font**: Prefer clean, highly legible sans-serif (like Inter or system defaults). For long-form reading, high-quality serif fonts may be used if integrated into the editorial theme.
+## 4. 字体排印
+- **阅读区**：使用高行高（`leading-relaxed` 或 `leading-loose`）和限制宽度（`max-w-3xl`）来呈现文本。
+- **字体**：优选清晰、高易读性的无衬线字体（如 Inter 或系统默认）。对于长文阅读，若能与编辑主题融合，可使用高品质衬线字体。
 
-## 5. Color Tokens (Base Palette)
-- **Background (Canvas)**: Use light white / warm off-white / lavender-tinted neutrals.
-    - Prefer `--mf-bg`, `--mf-app-bg`, `--mf-surface`, and `--mf-sidebar`.
-- **Text (Ink)**:
-    - Primary: deep blue-black (`--mf-text-primary`).
-    - Secondary/Meta: muted blue-gray (`--mf-text-secondary`, `--mf-text-tertiary`).
-- **Accent (Action)**:
-    - Soft purple (`--mf-accent`) for navigation active state, setup CTA, and first-run guidance.
-- **Status Color**:
-    - Safe/Approved: muted green (`--mf-approved`).
-    - Warning/Action Required: muted amber (`--mf-warning`).
-    - Lab/Internal: muted neutral / secondary text. Do not make lab features look like a main path.
+## 5. 色彩令牌（基础调色板）
+- **背景（画布）**：使用浅白 / 暖灰白 / 淡紫中性色。
+    - 优先使用 `--mf-bg`、`--mf-app-bg`、`--mf-surface` 和 `--mf-sidebar`。
+- **文字（墨色）**：
+    - 主要文字：深蓝黑（`--mf-text-primary`）。
+    - 次要/元数据：柔和蓝灰（`--mf-text-secondary`、`--mf-text-tertiary`）。
+- **强调色（操作）**：
+    - 柔和紫色（`--mf-accent`）用于导航激活状态、设置 CTA 以及首次运行引导。
+- **状态色**：
+    - 安全/已审批：柔和绿色（`--mf-approved`）。
+    - 警告/需操作：柔和琥珀色（`--mf-warning`）。
+    - 实验/内部：柔和中性色 / 次要文字。不要让实验功能看起来像主路径。
 
-## 6. Spacing & Layout
-- Follow a strict 4px/8px grid.
-- Navigation Sidebar must be distinct but not overwhelming.
-- The "Main Desk" area must have generous padding to prevent claustrophobia.
+## 6. 间距与布局
+- 遵循严格的 4px/8px 网格。
+- 导航侧边栏必须清晰可辨但不过度醒目。
+- "主工作台"区域必须有充足的留白，避免产生局促感。
 
-## 7. Component Rules
-- **Buttons**: Primary CTAs may use a soft purple gradient and restrained shadow. Secondary buttons stay white with a fine border.
-- **Cards**: Rounded cards, subtle borders, and restrained shadows are allowed for repeated items and framed tools. Avoid heavy report panels.
-- **Forms**: Clean, focused inputs. Use labels and clear helper text.
+## 7. 组件规则
+- **按钮**：主要 CTA 可使用柔和紫色渐变和克制的阴影。次要按钮保持白色加细边框。
+- **卡片**：允许使用圆角卡片、细微边框和克制的阴影来呈现重复项和框架工具。避免厚重的报告面板。
+- **表单**：干净、聚焦的输入框。使用标签和清晰的辅助说明文字。
 
-## 8. Navigation Rules
-- Sidebar is Home-first for first-run clarity, then the knowledge pipeline: `Sources` -> `Review Drafts` -> `Library` -> `Recall / Wiki` -> `Export`.
-- The sidebar must include a clear Demo Mode / Configure Real Model card when provider readiness is not `ready`.
-- `Lab` features must be grouped, collapsed by default, and visually distinct (e.g., using a "Lab" icon or different accent).
+## 8. 导航规则
+- 侧边栏以"首页"优先（便于首次运行清晰度），然后是知识流水线：`Sources` -> `Review Drafts` -> `Library` -> `Recall / Wiki` -> `Export`。
+- 当 provider 就绪状态不为 `ready` 时，侧边栏必须包含清晰的"演示模式 / 配置真实模型"卡片。
+- `Lab` 功能必须分组、默认折叠，并在视觉上可区分（例如，使用"Lab"图标或不同的强调色）。
 
-## 9. Review / Approval Interaction Rules
-- **Approval Desk**: The `Review` page is a high-stakes area.
-- The `Approve` action must be the most unambiguous element on the page.
-- AI-generated content (ai_draft) must be clearly labeled and distinguished from human-approved content.
+## 9. 审阅/审批交互规则
+- **审批台**：`Review` 页面是高利害区域。
+- `Approve` 操作必须是页面上最明确无误的元素。
+- AI 生成内容（ai_draft）必须清晰标注，并与人工审批内容区分开。
 
-## 10. Provider / Source / Export Boundary Rules
-- **Fake vs. Real**:
-    - **Real Provider** (LLM Provider): Must be explicitly opted-in. Show a "Live/Real" status only when active.
-    - **Fake Provider**: Default safe/demo path. Use a "Demo/Sandbox" badge.
-- **Source vs. Workspace**:
-    - **SourceAdapter** (e.g., Cubox): Input only.
-    - **Human Workspace** (e.g., Obsidian): Staged binding/safe export. Do NOT write directly to the real vault without a "safe export" review.
+## 10. Provider / Source / Export 边界规则
+- **模拟 vs. 真实**：
+    - **真实 Provider（LLM Provider）**：必须显式选择加入。仅在激活时显示"在线/真实"状态。
+    - **模拟 Provider**：默认的安全/演示路径。使用"演示/沙箱"徽章。
+- **Source vs. 工作区**：
+    - **SourceAdapter**（如 Cubox）：仅输入。
+    - **人工工作区**（如 Obsidian）：分阶段绑定/安全导出。未经"安全导出"审阅，不得直接写入真实 vault。
 
-## 11. Anti-patterns (Do NOT implement)
-- ❌ **SaaS Dashboard**: No charts, no complex metrics, no "Overview" widgets.
-- ❌ **Dark Mode**: Currently out of scope. Stick to the "Paper" theme.
-- ❌ **Auto-Approval**: All changes must be explicitly approved by a human.
-- ❌ **Blurry Boundaries**: Never hide whether a provider is real or fake.
+## 11. 反模式（请勿实现）
+- ❌ **SaaS 仪表盘**：无图表、无复杂指标、无"概览"小部件。
+- ❌ **深色模式**：当前不在范围内。坚持使用"纸张"主题。
+- ❌ **自动审批**：所有变更必须由人工显式审批。
+- ❌ **边界模糊**：永远不要隐藏 provider 是真实还是模拟。
 
-## 12. Visual Remediation Rules (Slice 2.5 — 2026-06-02)
+## 12. 视觉修正规则（Slice 2.5 — 2026-06-02）
 
-These rules capture the visual corrections applied to move the UI from "engineering dashboard" toward "calm knowledge desk."
+以下规则记录了将 UI 从"工程仪表盘"转向"宁静知识台"所应用的视觉修正。
 
-### 12.1 BoundaryBadge Rules
-- **Single neutral chip style** for all boundary types except `live` (which uses a muted warm tone).
-- Never more than 2 badge color variants visible at once.
-- Never use `text-[10px] font-bold uppercase` — badges are metadata, not stickers.
-- Badge should blend into the reading flow, not interrupt it.
+### 12.1 BoundaryBadge 规则
+- 除 `live` 类型（使用柔和暖色调）外，所有边界类型使用**单一中性标签样式**。
+- 任何时候最多可见 2 种徽章颜色变体。
+- 绝不使用 `text-[10px] font-bold uppercase` —— 徽章是元数据，不是贴纸。
+- 徽章应融入阅读流程，而不是打断它。
 
-### 12.2 Boundary Callout Rules
-- Use **one unified callout style** (`border-stone-200/70 bg-stone-50/50`) across all pages.
-- Never use page-specific callout colors (purple/blue/green variants).
-- Callout text must be **one short sentence** — not a paragraph of rules.
-- Callout is a contextual note, not a rule announcement banner.
+### 12.2 Boundary Callout 规则
+- 所有页面使用**一种统一的 callout 样式**（`border-stone-200/70 bg-stone-50/50`）。
+- 绝不使用页面特定的 callout 颜色（紫色/蓝色/绿色变体）。
+- Callout 文本必须是**一个短句** —— 不是一段规则说明。
+- Callout 是上下文提示，不是规则公告横幅。
 
-### 12.3 SafetyBar Rules
-- SafetyBar is a **status indicator**, not a system alert bar.
-- Reduce icon density — shield icon for local-only status + subtle checkmark for "all clear" is sufficient.
-- Never use `AlertTriangle` for routine status display; reserve for genuine warnings only.
-- Never use heavy `border-r` separators between segments — whitespace separation is sufficient.
-- Background: `bg-stone-50/50`, text: `text-xs text-muted`.
+### 12.3 SafetyBar 规则
+- SafetyBar 是一个**状态指示器**，不是系统警报栏。
+- 减少图标密度 —— 本地仅限状态使用盾牌图标 + 表示"一切正常"的细微勾选标记即可。
+- 日常状态显示绝不使用 `AlertTriangle`，仅保留给真正的警告。
+- 段落之间绝不使用厚重的 `border-r` 分隔线 —— 留白分隔即可。
+- 背景：`bg-stone-50/50`，文字：`text-xs text-muted`。
 
-### 12.4 Color Token Discipline
-- **Primary accent**: Use a single accent color (`--mf-accent`, currently purple `#5b46f6`) consistently.
-- Do NOT introduce new badge/semantic colors beyond the defined token set.
-- Tailwind semantic utilities are globally overridden in `styles.css` during Batch 1 to keep legacy pages aligned with the CSS token direction. Prefer CSS tokens for semantic meaning, Tailwind utilities for layout.
+### 12.4 色彩令牌规范
+- **主要强调色**：统一使用单一强调色（`--mf-accent`，目前为紫色 `#5b46f6`）。
+- 不要在已定义的令牌集之外引入新的徽章/语义颜色。
+- Tailwind 语义工具类在 Batch 1 期间已在 `styles.css` 中进行全局覆盖，以保持旧页面与 CSS 令牌方向一致。优先使用 CSS 令牌表达语义，使用 Tailwind 工具类处理布局。
 
-### 12.7 Reference-Image Batch 1 Rules (2026-06-02)
+### 12.7 参考图 Batch 1 规则（2026-06-02）
 
-- **Shell**: Sidebar uses a light lavender-white surface, rounded active items, purple active indicator, and a visible workspace footer.
-- **Home / Welcome Desk**: The first viewport must show Configure Real Model, demo/real provider state, overview cards, and the Knowledge Flow: Import -> AI Draft -> Human Review -> Approved Knowledge -> Export.
-- **Setup / Model Configuration**: Setup must read as a guided model configuration flow, not a raw engineering form. The visible guide is Provider -> Connection -> Model -> Validate/Test.
-- **Reality Boundary**: Beautiful UI must never imply unsupported backend capability. Missing capabilities are represented as disabled, empty, hidden, or explicitly documented gaps.
+- **外壳**：侧边栏使用浅紫白背景、圆角激活项、紫色激活指示器以及可见的工作区底部区域。
+- **Home / 欢迎台**：首屏必须展示"配置真实模型"、演示/真实 provider 状态、概览卡片以及知识流：导入 -> AI 草稿 -> 人工审阅 -> 已审批知识 -> 导出。
+- **设置 / 模型配置**：设置页面应呈现为引导式的模型配置流程，而非原始的工程表单。可见引导步骤为：Provider -> 连接 -> 模型 -> 验证/测试。
+- **真实边界**：精美的 UI 绝不得暗示后端不支持的能力。缺失的能力应表现为禁用、空白、隐藏或显式记录的缺口。
 
-### 12.6 Product Quality Pass (Slice 2.6 — 2026-06-02)
+### 12.6 产品质量审查（Slice 2.6 — 2026-06-02）
 
-- **Home Knowledge Desk**: The Home page must act as a welcoming mission control. Use metric cards with soft pastel icon backgrounds to provide immediate state awareness.
-- **Visual Pipeline**: Ground the user in the compiler philosophy using a horizontal "Knowledge Flow" diagram. Clearly label the human-in-the-loop "Human Review" step.
-- **First-run Guidance**: Prioritize the "Configure Real Model" action for demo users. It should be an elegant product card, not a system warning.
-- **Depth & Dimension**: Use very subtle multi-layer shadows (`cssShadows.raised`) on main canvas cards to provide a sense of hierarchy without breaking the "Flat" philosophy (no heavy gradients).
-- **Navigation Clarity**: The sidebar should have a distinct header with the product logo/icon. Group labels should be uppercase, small, and low-contrast metadata.
-- **Safety as a Service**: The top-right header area should provide quiet reassurance of local-only status and demo/live mode, rather than a full-width alert bar.
+- **首页知识台**：Home 页面必须充当欢迎式的任务控制中心。使用带有柔和淡彩图标背景的指标卡片，提供即时的状态感知。
+- **可视化流水线**：使用横向"知识流"图将用户置于编译器理念的语境中。清晰标注人机协作的"人工审阅"步骤。
+- **首次运行引导**：为演示用户优先展示"配置真实模型"操作。它应该是一张优雅的产品卡片，而不是系统警告。
+- **层次感与立体感**：在主画布卡片上使用非常细微的多层阴影（`cssShadows.raised`），以提供层级感而不破坏"扁平"理念（无厚重渐变）。
+- **导航清晰度**：侧边栏应有独特的头部区域，包含产品标志/图标。分组标签应为大写、小字、低对比度的元数据。
+- **安全即服务**：右上角头部区域应为本地仅限和演示/在线模式提供安静的安全确认，而非全宽警报栏。
 
-## 12. Accessibility & Readability
-- Ensure WCAG AA contrast ratios.
-- All interactive elements must have clear focus states.
-- Screen reader labels for all icons.
+## 12. 无障碍与可读性
+- 确保 WCAG AA 对比度标准。
+- 所有可交互元素必须有清晰的聚焦状态。
+- 所有图标需有屏幕阅读器标签。

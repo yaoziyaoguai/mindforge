@@ -1,4 +1,4 @@
-# v4.8 Target Architecture Map
+# v4.8 目标架构地图
 
 **日期**: 2026-05-26
 **状态**: target reference — 指导 v4.8 重构方向

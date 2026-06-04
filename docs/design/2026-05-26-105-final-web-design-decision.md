@@ -1,4 +1,4 @@
-# MindForge Web — Final Design Decision
+# MindForge Web — 最终设计决策
 
 **日期**: 2026-05-26
 **状态**: locked
@@ -7,134 +7,134 @@
 
 ---
 
-## 1. Design Review of All 5 Variants
+## 1. 全部 5 个方案的设计评审
 
-### Variant A — Calm Editorial Knowledge Desk
-**Verdict**: **Adopt as primary direction.**
+### 方案 A — 安静的编辑性知识工作台
+**结论**: **采用为主方向。**
 
-Serif-forward editorial reading with generous whitespace and single-column focus. Best match for MindForge's identity as a knowledge compiler, not a notes app or SaaS dashboard. The serif/sans distinction (Source Serif 4 for headings, DM Sans for body) gives each knowledge card editorial weight — the user feels like they're reviewing a publication entry, not a ticket.
+以衬线字体为主的编辑性阅读体验，搭配宽松的留白和单栏聚焦。最适合 MindForge 作为知识编译器的定位，而非笔记应用或 SaaS 仪表盘。衬线/无衬线字体的区分（标题使用 Source Serif 4，正文使用 DM Sans）赋予每张知识卡片编辑分量——用户感觉自己正在审阅一篇出版物条目，而非一张工单。
 
-Concern addressed: serif rendering on Windows (ClearType). Mitigation: Georgia fallback is a credible serif on all platforms. DM Sans body text is the primary reading font, serif is headings only, so FOUT on headings is acceptable.
+已解决的顾虑：Windows（ClearType）上的衬线字体渲染。缓解方案：Georgia 回退字体在所有平台上都是可信的衬线字体。DM Sans 正文是主要阅读字体，衬线仅用于标题，因此标题上的 FOUT（未加载字体时的闪现）是可接受的。
 
-### Variant B — Warm Research Library
-**Verdict**: **Adopt card shadow treatment as secondary ingredient. Do not adopt as standalone direction.**
+### 方案 B — 温暖的研究图书馆
+**结论**: **采用卡片阴影处理作为辅助元素。不作为独立方向采用。**
 
-The 4-layer shadow stack creates genuine paper depth. The catalog-entry metaphor maps naturally to Library browsing. However, the gradient sheen (`linear-gradient` on card surface) adds implementation complexity for diminishing returns. Adopt only the shadow stack, not the gradient sheen.
+4 层阴影叠加创造了真实的纸张深度。目录条目隐喻自然地映射到知识库浏览。然而，渐变光泽（卡片表面的 `linear-gradient`）增加了实现复杂度但收益递减。仅采用阴影叠加，不采用渐变光泽。
 
-### Variant C — Precision Review Console
-**Verdict**: **Reject as primary direction. Borrow pipeline thinking for sidebar organization.**
+### 方案 C — 精确审查控制台
+**结论**: **拒绝作为主方向。借用流程管道思路进行侧边栏组织。**
 
-The decision-forward grid layout is excellent for scanning many drafts quickly, but MindForge's review experience should prioritize reading quality over decision speed. The pipeline sidebar reorganization (Sources → Review → Library) is conceptually strong — adopt the pipeline grouping for sidebar navigation, but keep the editorial card treatment from A.
+决策优先的网格布局非常适合快速浏览大量草稿，但 MindForge 的审查体验应优先考虑阅读质量而非决策速度。流程式侧边栏重组（来源 → 审查 → 知识库）在概念上很有力——采用流程分组进行侧边栏导航，但保留方案 A 的编辑性卡片处理。
 
-### Variant D — Minimal Local-First Notebook
-**Verdict**: **Reject.**
+### 方案 D — 极简本地优先笔记本
+**结论**: **拒绝。**
 
-Radical subtraction loses the warmth and editorial quality that differentiate MindForge. Border-only cards feel under-designed for a knowledge reading experience. The file-path-on-hover pattern is clever but hidden. This direction reads as "unfinished" rather than "minimal."
+激进的减法丢失了区分 MindForge 的温暖感和编辑性品质。仅边框的卡片对于知识阅读体验而言感觉设计不足。悬停时显示文件路径的模式很巧妙但过于隐蔽。这个方向读起来像是"未完成"而非"极简"。
 
-One salvageable element: mono font (`JetBrains Mono`) for file paths and provenance display. Already specified in the design direction — keep this.
+一个可保留的元素：用于文件路径和溯源展示的等宽字体（`JetBrains Mono`）。已在设计方向中指定——保留此项。
 
-### Variant E — Quiet AI Knowledge Lab
-**Verdict**: **Reject.**
+### 方案 E — 安静的 AI 知识实验室
+**结论**: **拒绝。**
 
-Italic serif for AI-generated summaries is a clever typographic signal, but italic body text reduces readability. The process flow bar (Source → Review → Library → Recall/Wiki) takes vertical space and feels tutorial-like. The concept of "process visibility" is good, but the execution in E over-indexes on the AI distinction rather than the knowledge quality.
+AI 生成摘要使用斜体衬线是一种巧妙的排版信号，但斜体正文降低了可读性。流程步骤条（来源 → 审查 → 知识库 → 召回/Wiki）占用垂直空间，感觉像教程。"流程可见性"的概念很好，但方案 E 的执行过度强调 AI 区分而非知识质量。
 
-Salvageable: the colored left-border accent for draft vs. approved status. Simpler than E's full italic treatment — just a 3px left border in amber (draft) or green (approved) on cards. Adopt this, but on the right edge or as a subtle top-border accent to avoid looking like a notification/alert pattern.
-
----
-
-## 2. Final Decision
-
-### Primary Direction: Variant A — Calm Editorial Knowledge Desk
-
-**Framework**: Single-column editorial reading, serif headings, generous whitespace, warm paper palette.
-
-### Borrowed from Variant B
-
-- **4-layer card shadow stack** for Library cards and Review Queue cards
-- **10px card border radius** (matches A's existing proposal)
-- **NOT adopted**: card surface gradient sheen (unnecessary complexity)
-
-### Borrowed from Variant C
-
-- **Pipeline-aware sidebar grouping**: Sources → Review → Library as primary pipeline, Recall/Wiki as tools, Graph/Sensemaking as collapsed lab section
-
-### Borrowed from Variant E
-
-- **Subtle left-border status accent**: 3px amber border for ai_draft cards, 3px green border for human_approved cards. Applied on the left edge of cards as a color cue — not the full italic treatment.
+可保留：用于区分草稿与已批准状态的彩色左边框强调。比方案 E 的全斜体处理更简单——只需在卡片上使用 3px 琥珀色（草稿）或绿色（已批准）左边框。采用此方案，但放在右侧边缘或作为微妙的顶部边框强调，以避免看起来像通知/告警模式。
 
 ---
 
-## 3. Final Design Adjectives (7)
+## 2. 最终决策
 
-1. **Calm** — colors don't shout, no animation spam, cards breathe
-2. **Editorial** — serif headings, 1.6 line-height body, publication-entry feel
-3. **Trustworthy** — approval actions are clear but deliberate, provenance visible
-4. **Warm** — warm paper palette, no cold grays, no blue grays
-5. **Local-First** — no sync spinners, no cloud indicators, file paths in mono where relevant
-6. **Focused** — max 3 primary actions per page, lab features collapsed, navigation minimal
-7. **Honest** — BM25 boundaries explained, current limitations visible, no feature over-promise
+### 主方向：方案 A — 安静的编辑性知识工作台
+
+**框架**：单栏编辑性阅读、衬线标题、宽松留白、暖纸色系。
+
+### 从方案 B 借用
+
+- **4 层卡片阴影叠加**：用于知识库卡片和审查队列卡片
+- **10px 卡片圆角**（与方案 A 的现有提案一致）
+- **不采用**：卡片表面渐变光泽（不必要的复杂度）
+
+### 从方案 C 借用
+
+- **流程感知的侧边栏分组**：来源 → 审查 → 知识库作为主流程，召回/Wiki 作为工具，图谱/感知分析作为折叠的实验区域
+
+### 从方案 E 借用
+
+- **微妙的左边框状态强调**：ai_draft 卡片使用 3px 琥珀色边框，human_approved 卡片使用 3px 绿色边框。应用于卡片左侧边缘作为颜色提示——不采用全斜体处理。
 
 ---
 
-## 4. Final Token Decisions
+## 3. 最终设计形容词（7 个）
 
-### Color Tokens (locked)
+1. **安静**——色彩不喧闹，无动画泛滥，卡片有呼吸空间
+2. **编辑性**——衬线标题，1.6 行高正文，出版物条目感
+3. **可信**——审批操作清晰但慎重，溯源信息可见
+4. **温暖**——暖调纸色系，无冷灰，无蓝灰
+5. **本地优先**——无同步旋转图标，无云端指示器，文件路径在相关处使用等宽字体
+6. **聚焦**——每页最多 3 个主操作，实验功能折叠，导航精简
+7. **诚实**——BM25 边界有说明，当前限制可见，不过度承诺功能
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--mf-bg` | `#faf9f5` | Page background |
-| `--mf-surface` | `#ffffff` | Card, panel surfaces |
-| `--mf-surface-alt` | `#f3f1eb` | Sidebar, alternating rows |
-| `--mf-text-primary` | `#1c1b18` | Headings, body text |
-| `--mf-text-secondary` | `#5e5c56` | Descriptions, metadata |
-| `--mf-text-tertiary` | `#8a8880` | Placeholders, disabled |
-| `--mf-border` | `rgba(0,0,0,0.08)` | Card borders, dividers |
-| `--mf-accent` | `#2d7d5f` | Brand, approve button, links |
-| `--mf-accent-hover` | `#236b4f` | Accent hover state |
-| `--mf-draft` | `#b8860b` | ai_draft status |
-| `--mf-approved` | `#2d7d5f` | human_approved status (same as accent) |
-| `--mf-lab` | `#8a8880` | lab/internal status |
-| `--mf-warning` | `#cc7a00` | Warning messages |
-| `--mf-error` | `#c04040` | Error, reject button |
+---
 
-### Typography Tokens (locked)
+## 4. 最终 Token 决策
 
-| Token | Font Stack | Usage |
+### 色彩 Token（已锁定）
+
+| Token | 值 | 用途 |
+|-------|------|-------|
+| `--mf-bg` | `#faf9f5` | 页面背景色 |
+| `--mf-surface` | `#ffffff` | 卡片、面板表面 |
+| `--mf-surface-alt` | `#f3f1eb` | 侧边栏、交替行 |
+| `--mf-text-primary` | `#1c1b18` | 标题、正文 |
+| `--mf-text-secondary` | `#5e5c56` | 描述、元数据 |
+| `--mf-text-tertiary` | `#8a8880` | 占位符、禁用态 |
+| `--mf-border` | `rgba(0,0,0,0.08)` | 卡片边框、分割线 |
+| `--mf-accent` | `#2d7d5f` | 品牌色、批准按钮、链接 |
+| `--mf-accent-hover` | `#236b4f` | 强调色悬停态 |
+| `--mf-draft` | `#b8860b` | ai_draft 状态 |
+| `--mf-approved` | `#2d7d5f` | human_approved 状态（与强调色一致） |
+| `--mf-lab` | `#8a8880` | lab/internal 状态 |
+| `--mf-warning` | `#cc7a00` | 警告消息 |
+| `--mf-error` | `#c04040` | 错误、拒绝按钮 |
+
+### 排版 Token（已锁定）
+
+| Token | 字体栈 | 用途 |
 |-------|-----------|-------|
-| `--mf-font-serif` | `'Source Serif 4', Georgia, serif` | Headings only |
-| `--mf-font-sans` | `'DM Sans', system-ui, -apple-system, sans-serif` | Body, UI |
-| `--mf-font-mono` | `'JetBrains Mono', 'SF Mono', monospace` | Code, file paths |
+| `--mf-font-serif` | `'Source Serif 4', Georgia, serif` | 仅标题 |
+| `--mf-font-sans` | `'DM Sans', system-ui, -apple-system, sans-serif` | 正文、UI |
+| `--mf-font-mono` | `'JetBrains Mono', 'SF Mono', monospace` | 代码、文件路径 |
 
-**Font loading decision**: Use Google Fonts CDN `<link>` in `index.html`. System fallback fonts are specified in the stack. FOUT is acceptable for headings (serif → Georgia is visually close). No npm font packages.
+**字体加载决策**：在 `index.html` 中使用 Google Fonts CDN `<link>`。字体栈中指定了系统回退字体。标题上的 FOUT 是可接受的（衬线字体 → Georgia 在视觉上接近）。不引入 npm 字体包。
 
-### Typography Scale (locked)
+### 排版层级（已锁定）
 
-| Level | Font | Size/Line/Weight | Usage |
+| 级别 | 字体 | 字号/行高/字重 | 用途 |
 |-------|------|------------------|-------|
-| Display | Serif | 36px / 1.15 / 500 | Page main title |
-| H1 | Serif | 28px / 1.2 / 500 | Section headings |
-| H2 | Serif | 22px / 1.25 / 500 | Card titles |
-| H3 | Sans | 18px / 1.3 / 600 | Subheadings |
-| Body L | Sans | 16px / 1.6 / 400 | Card body text |
-| Body | Sans | 15px / 1.5 / 400 | Standard text |
-| Body S | Sans | 14px / 1.45 / 400 | Metadata |
-| Caption | Sans | 12px / 1.35 / 500 | Labels, badges |
-| Code | Mono | 13px / 1.5 / 400 | Paths, code |
+| Display | Serif | 36px / 1.15 / 500 | 页面主标题 |
+| H1 | Serif | 28px / 1.2 / 500 | Section 标题 |
+| H2 | Serif | 22px / 1.25 / 500 | 卡片标题 |
+| H3 | Sans | 18px / 1.3 / 600 | 子标题 |
+| Body L | Sans | 16px / 1.6 / 400 | 卡片正文 |
+| Body | Sans | 15px / 1.5 / 400 | 标准文本 |
+| Body S | Sans | 14px / 1.45 / 400 | 元数据 |
+| Caption | Sans | 12px / 1.35 / 500 | 标签、徽章 |
+| Code | Mono | 13px / 1.5 / 400 | 路径、代码 |
 
-### Shadow Tokens (locked — combining A + B)
+### 阴影 Token（已锁定——合并 A + B）
 
-| Token | Value | Usage |
+| Token | 值 | 用途 |
 |-------|-------|-------|
-| `--mf-shadow-flat` | `none` | Flat surfaces |
-| `--mf-shadow-raised` | `0px 2px 12px rgba(0,0,0,0.03), 0px 1px 4px rgba(0,0,0,0.015), 0px 0.4px 1.5px rgba(0,0,0,0.008)` | Standard cards (A's 3-layer) |
-| `--mf-shadow-card` | `0px 0.6px 2.2px rgba(0,0,0,0.006), 0px 1.6px 5.4px rgba(0,0,0,0.009), 0px 3.6px 11px rgba(0,0,0,0.012), 0px 8px 22px rgba(0,0,0,0.018)` | Library/browsing cards (B's 4-layer) |
-| `--mf-shadow-overlay` | `0px 4px 24px rgba(0,0,0,0.06)` | Modals, dropdowns |
+| `--mf-shadow-flat` | `none` | 平面表面 |
+| `--mf-shadow-raised` | `0px 2px 12px rgba(0,0,0,0.03), 0px 1px 4px rgba(0,0,0,0.015), 0px 0.4px 1.5px rgba(0,0,0,0.008)` | 标准卡片（A 的 3 层） |
+| `--mf-shadow-card` | `0px 0.6px 2.2px rgba(0,0,0,0.006), 0px 1.6px 5.4px rgba(0,0,0,0.009), 0px 3.6px 11px rgba(0,0,0,0.012), 0px 8px 22px rgba(0,0,0,0.018)` | 知识库/浏览卡片（B 的 4 层） |
+| `--mf-shadow-overlay` | `0px 4px 24px rgba(0,0,0,0.06)` | 模态框、下拉菜单 |
 
-**Decision**: Two shadow levels. `--mf-shadow-raised` (A, 3-layer) for Review Queue and detail cards. `--mf-shadow-card` (B, 4-layer) for Library browsing grid. This gives the Library page extra tactility without applying the heavier shadow everywhere.
+**决策**：两个阴影级别。`--mf-shadow-raised`（A，3 层）用于审查队列和详情卡片。`--mf-shadow-card`（B，4 层）用于知识库浏览网格。这为知识库页面提供了额外的触感，而无需在所有地方应用更重的阴影。
 
-### Border Radius (locked)
+### 圆角（已锁定）
 
-| Token | Value |
+| Token | 值 |
 |-------|-------|
 | `--mf-radius-sm` | `4px` |
 | `--mf-radius-md` | `8px` |
@@ -142,9 +142,9 @@ Salvageable: the colored left-border accent for draft vs. approved status. Simpl
 | `--mf-radius-xl` | `14px` |
 | `--mf-radius-full` | `9999px` |
 
-### Spacing Scale (locked)
+### 间距尺度（已锁定）
 
-| Token | Value |
+| Token | 值 |
 |-------|-------|
 | `--mf-space-2xs` | `4px` |
 | `--mf-space-xs` | `8px` |
@@ -157,87 +157,87 @@ Salvageable: the colored left-border accent for draft vs. approved status. Simpl
 
 ---
 
-## 5. Status Accent Border Decision
+## 5. 状态强调边框决策
 
-Adopted from Variant E's colored border concept, simplified:
+采用方案 E 的彩色边框概念，简化处理：
 
-- **ai_draft cards**: 3px left border in `--mf-draft` (#b8860b) — warm amber signals "needs your review"
-- **human_approved cards**: 3px left border in `--mf-approved` (#2d7d5f) — forest green signals "confirmed knowledge"
-- **lab/internal features**: 3px left border in `--mf-lab` (#8a8880) — neutral gray, not alarming
+- **ai_draft 卡片**：3px 左边框使用 `--mf-draft`（#b8860b）——温暖的琥珀色表示"需要你的审查"
+- **human_approved 卡片**：3px 左边框使用 `--mf-approved`（#2d7d5f）——森林绿表示"已确认的知识"
+- **lab/internal 功能**：3px 左边框使用 `--mf-lab`（#8a8880）——中性灰色，不引起警觉
 
-This is a 3px `border-left` applied to the card container. It's a single CSS property — no gradient bleed, no italic switching. The color cue is immediate from card edges without reading labels.
+这是应用于卡片容器的 3px `border-left`。这是单一的 CSS 属性——无需渐变扩散，无需斜体切换。颜色提示在卡片边缘即可立即识别，无需阅读标签。
 
 ---
 
-## 6. Final Component Priorities
+## 6. 最终组件优先级
 
-| Priority | Component | Source Variant | Notes |
+| 优先级 | 组件 | 来源方案 | 备注 |
 |----------|-----------|---------------|-------|
-| P0 | CSS Custom Properties | A (framework) | All tokens above |
-| P0 | AppShell + Sidebar | A + C pipeline grouping | Lab section collapsed |
-| P0 | Card surface (base) | A | 3-layer shadow, serif title, sans body |
-| P0 | Card surface (library) | B shadow stack | 4-layer shadow for grid browsing |
-| P1 | Status left-border accent | E (simplified) | 3px colored left border |
-| P1 | Status Badge (pill) | A | Amber draft, green approved |
-| P1 | Review Queue layout | A | Single-column, reading-first |
-| P1 | Approval buttons | A + C | Prominent but deliberate |
-| P2 | EmptyState | A | Warm, guiding, not marketing |
-| P2 | SafetyNotice | A | Calm callout, not alarming |
-| P2 | Provenance display | A + D | Mono font, visible but not dominant |
+| P0 | CSS 自定义属性 | A（框架） | 以上所有 Token |
+| P0 | AppShell + 侧边栏 | A + C 流程分组 | Lab 部分折叠 |
+| P0 | 卡片表面（基础） | A | 3 层阴影，衬线标题，无衬线正文 |
+| P0 | 卡片表面（知识库） | B 阴影叠加 | 4 层阴影用于网格浏览 |
+| P1 | 状态左边框强调 | E（简化版） | 3px 彩色左边框 |
+| P1 | 状态徽章（药丸形） | A | 琥珀色草稿，绿色已批准 |
+| P1 | 审查队列布局 | A | 单栏，阅读优先 |
+| P1 | 审批按钮 | A + C | 突出但慎重 |
+| P2 | 空状态 | A | 温暖，引导性，非营销语 |
+| P2 | 安全提示 | A | 安静的提示框，非告警样式 |
+| P2 | 溯源展示 | A + D | 等宽字体，可见但不主导 |
 
 ---
 
-## 7. Page Priority for Implementation
+## 7. 实施页面优先级
 
-| Priority | Page | Variant | Rationale |
+| 优先级 | 页面 | 方案 | 理由 |
 |----------|------|---------|-----------|
-| P0 | AppShell + Sidebar | A + C | Every page shares this |
-| P0 | Review Queue (DraftsPage) | A | Approval is the core differentiator |
-| P1 | Library | A + B shadows | Highest-frequency browsing page |
-| P1 | Card Detail | A | Deep reading experience |
-| P2 | Recall/Search | A | Second-highest operation |
-| P2 | Wiki | A | Editorial long-form reading |
-| P2 | Sources/Import | A | Knowledge entry point |
-| P3 | Home, Setup, Export | A | Supporting pages |
-| Lab | Graph, Sensemaking | A (minimal) | Only style adjustments |
+| P0 | AppShell + 侧边栏 | A + C | 每个页面共享此结构 |
+| P0 | 审查队列（草稿页面） | A | 审批是核心差异化 |
+| P1 | 知识库 | A + B 阴影 | 最高频的浏览页面 |
+| P1 | 卡片详情 | A | 深度阅读体验 |
+| P2 | 召回/搜索 | A | 次高频操作 |
+| P2 | Wiki | A | 编辑性长文阅读 |
+| P2 | 来源/导入 | A | 知识入口 |
+| P3 | 首页、设置、导出 | A | 辅助页面 |
+| Lab | 图谱、感知分析 | A（最小） | 仅样式调整 |
 
 ---
 
-## 8. What Must NOT Be Implemented
+## 8. 不得实施的内容
 
-- No Graph/Sensemaking expansion or main-nav promotion
-- No RAG/embedding/vector DB UI
-- No AI chatbot interface
-- No auto-approve or one-click bulk approval
-- No dark mode (wait for separate spec)
-- No animation system beyond existing transitions
-- No npm font packages (Google Fonts CDN only)
-- No backend logic changes
-- No API contract changes
-- No product copy changes (only visual styling)
-- No card surface gradient sheen from Variant B
-- No italic AI text treatment from Variant E
-- No pipeline flow indicator bar from Variant E
-
----
-
-## 9. Accessibility Notes
-
-- **Serif rendering**: Georgia fallback is credible on Windows ClearType
-- **Color contrast**: `#1c1b18` on `#faf9f5` = ~18:1 (exceeds WCAG AAA)
-- **Amber on warm paper**: `#b8860b` needs darkening if used as text — use as border/badge background only, not as text on `#faf9f5`
-- **Focus ring**: Replace current `#2368d1` blue with `#2d7d5f` Forest Green
-- **Status communication**: Left-border color + pill badge text together ensure status is not color-alone
-- **Font loading**: FOUT on serif headings is acceptable (Georgia → Source Serif 4 is visually close)
+- 不扩展 Graph/Sensemaking 或提升至主导航
+- 不做 RAG/嵌入/向量数据库 UI
+- 不实现 AI 聊天界面
+- 不实现自动批准或一键批量批准
+- 不做深色模式（等待独立规范）
+- 不引入除现有过渡之外的动画系统
+- 不引入 npm 字体包（仅 Google Fonts CDN）
+- 不改变后端逻辑
+- 不改变 API 契约
+- 不改变产品文案（仅视觉样式调整）
+- 不采用方案 B 的卡片表面渐变光泽
+- 不采用方案 E 的斜体 AI 文本处理
+- 不采用方案 E 的流程步骤条
 
 ---
 
-## 10. Implementation Risks
+## 9. 可访问性说明
 
-| Risk | Likelihood | Impact | Mitigation |
+- **衬线字体渲染**：Georgia 回退字体在 Windows ClearType 上可信
+- **色彩对比度**：`#1c1b18` 在 `#faf9f5` 上 ≈ 18:1（超过 WCAG AAA）
+- **琥珀色在暖纸上**：`#b8860b` 若用作文本需要加深——仅用作边框/徽章背景，不作为 `#faf9f5` 上的文本
+- **焦点环**：将当前的 `#2368d1` 蓝色替换为 `#2d7d5f` 森林绿
+- **状态传达**：左边框颜色 + 徽章文本标签共同确保状态不单独依赖颜色
+- **字体加载**：标题上的 FOUT 是可接受的（Georgia → Source Serif 4 在视觉上接近）
+
+---
+
+## 10. 实施风险
+
+| 风险 | 可能性 | 影响 | 缓解措施 |
 |------|-----------|--------|------------|
-| Tailwind theme extension conflicts with existing utility classes | Low | Medium | Only extend, never override; test build after each change |
-| Sidebar lab collapse breaks existing navigation tests | Low | Low | Keep all routes accessible; collapse is visual-only |
-| Google Fonts CDN blocked in some environments | Low | Medium | System fallback fonts are specified; app works offline |
-| 4-layer shadows invisible on low-DPI displays | Low | Low | Test on non-Retina; darken slightly if needed |
-| Existing custom Tailwind tokens (`text-ink`, `bg-panel`) conflict with new `--mf-*` variables | Low | Low | These are Tailwind classes, not CSS vars — they coexist |
+| Tailwind 主题扩展与现有工具类冲突 | 低 | 中 | 仅扩展，永不覆盖；每次修改后测试构建 |
+| 侧边栏 Lab 折叠破坏现有导航测试 | 低 | 低 | 保持所有路由可访问；折叠仅视觉层面 |
+| 某些环境下 Google Fonts CDN 被屏蔽 | 低 | 中 | 已指定系统回退字体；应用可离线工作 |
+| 4 层阴影在低 DPI 显示上不可见 | 低 | 低 | 在非 Retina 上测试；如有需要稍微加深 |
+| 现有自定义 Tailwind token（`text-ink`、`bg-panel`）与新 `--mf-*` 变量冲突 | 低 | 低 | 这些是 Tailwind 类名，不是 CSS 变量——它们可以共存 |

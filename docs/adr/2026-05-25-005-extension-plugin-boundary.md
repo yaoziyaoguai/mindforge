@@ -4,7 +4,7 @@ date: 2026-05-25
 status: active
 ---
 
-# ADR-005: Extension Plugin Boundary Architecture — v3.6
+# ADR-005: 扩展插件边界架构 — v3.6
 
 ## Context
 

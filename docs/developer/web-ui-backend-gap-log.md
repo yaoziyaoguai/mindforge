@@ -1,138 +1,138 @@
-# MindForge Web UI Backend Gap Log
+# MindForge Web UI 后端差距日志
 
-Last updated: 2026-06-02
+最后更新: 2026-06-02
 
-This log prevents the reference-image redesign from implying backend capabilities that do not exist yet.
+本文档用于防止参考图片重新设计暗示尚不存在的后端能力。
 
-## Batch 1: Shell, Home, Setup
+## Batch 1: Shell、Home、Setup
 
-| page/type | UI expectation from reference | current backend/API support | current UI behavior | needed backend work | priority | safe to show in UI now? | reason |
+| 页面/类型 | 参考图片的 UI 期望 | 当前后端/API 支持程度 | 当前 UI 行为 | 所需后端工作 | 优先级 | 当前 UI 可否安全展示？ | 原因 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home / Welcome Desk | Overview cards for Sources, AI Drafts, Ready for Review, Approved Knowledge | partial | real data when `/api/workflow/summary` is present; fallback to `/api/home/status` workspace/vault/safety counts | If product wants richer source freshness or per-stage deltas, add explicit home dashboard summary fields | P1 | yes | Counts shown are from existing status APIs or clearly minimal fallbacks; no fake cards are rendered. |
-| Home / Welcome Desk | Knowledge Flow: Import -> AI Draft -> Human Review -> Approved Knowledge -> Export | yes for product semantics, partial for per-step live activity | static explanatory flow using real product states and links | Optional per-step live status endpoint if future UI wants progress details | P2 | yes | Flow explains current lifecycle boundaries; it does not claim live pipeline automation beyond existing states. |
-| Home / Welcome Desk | First-run Configure Real Model card | yes for provider readiness/status, no for one-click setup | status card and CTA route to Setup only | None for status; future improvement could return recommended setup preset from backend | P2 | yes | Sidebar/Home card is status display and navigation, not a hidden provider activation action. |
-| Sidebar | Demo Mode / Configure Real Model card | partial | uses `SafetySummary.provider_state`; CTA navigates to `/setup` | Optional richer provider readiness reason summary for sidebar | P2 | yes | It only distinguishes demo vs ready provider and does not modify provider mode. |
-| Setup / Model Configuration | Provider -> Connection -> Model -> Validate/Test guide | partial | guide uses `ConfigStatusResponse.provider` and `/api/config/editable`; existing form still saves via current API | Backend could expose a first-run setup wizard shape if future UI needs server-authored steps | P2 | yes | Guide is a UI organization layer over existing editable config/readiness. |
-| Setup / Model Configuration | Validate/Test a configured provider | partial | `Validate Config` calls existing `validateSetupConfig`; no real LLM smoke/test is triggered | Add explicit non-generative readiness test endpoint if product wants endpoint/auth verification without content generation | P1 | yes | The UI labels Validate/Test as configuration validation and states no real LLM call occurs. |
-| Setup / Model Configuration | Provider presets: Qwen / OpenAI-compatible / Anthropic-compatible / Custom | partial | OpenAI-compatible and Anthropic-compatible are shown as supported mappings; Qwen and Custom are marked manual endpoint configuration | Add first-class provider presets only if backend supports provider-specific defaults and validation | P2 | yes | Presets are explanatory cards, not fake one-click integrations. |
-| Setup / Model Configuration | API key display | yes | input is write-only; configured keys are shown only as presence/masked state from editable config | None for Batch 1 | P0 | yes | Preserves secret boundary; no plaintext API key is shown. |
-| Setup / Model Configuration | Configure complete -> go to Sources/Drafts | yes for navigation, partial for contextual recommendation | guide text points to Sources after save/validate; no automatic redirect | Optional next-action endpoint could suggest Sources vs Drafts from current state | P3 | yes | Guidance is copy and navigation only; no fake completion state. |
+| Home / Welcome Desk | Sources、AI Drafts、Ready for Review、Approved Knowledge 的概览卡片 | 部分支持 | 当 `/api/workflow/summary` 存在时显示真实数据；否则回退到 `/api/home/status` 工作区/vault/安全计数 | 如果产品需要更丰富的来源新鲜度或按阶段增量，添加显式的首页仪表盘摘要字段 | P1 | 是 | 显示的计数来自已有状态 API，或为明确的最小回退值；未渲染伪造卡片。 |
+| Home / Welcome Desk | 知识流：Import -> AI Draft -> Human Review -> Approved Knowledge -> Export | 产品语义层面完整支持，按步骤的实时活动部分支持 | 使用真实产品状态和链接的静态说明性流程图 | 可选的按步骤实时状态端点，供未来 UI 展示进度详情 | P2 | 是 | 流程图解释当前生命周期边界；未声明超出已有状态的实时管线自动化。 |
+| Home / Welcome Desk | 首次运行配置真实模型卡片 | provider readiness/status 支持，一键设置不支持 | 状态卡片和 CTA 仅跳转到 Setup | 状态无需后端工作；未来改进可返回推荐设置预设 | P2 | 是 | 侧边栏/首页卡片是状态展示和导航，非隐藏的 provider 激活操作。 |
+| 侧边栏 | Demo 模式/配置真实模型卡片 | 部分支持 | 使用 `SafetySummary.provider_state`；CTA 导航到 `/setup` | 可选的更丰富的 provider readiness 原因摘要 | P2 | 是 | 仅区分 demo 和就绪 provider，不修改 provider 模式。 |
+| Setup / 模型配置 | Provider -> Connection -> Model -> Validate/Test 引导 | 部分支持 | 引导使用 `ConfigStatusResponse.provider` 和 `/api/config/editable`；现有表单仍通过当前 API 保存 | 如果未来 UI 需要服务端编写的步骤，后端可暴露首次运行设置向导形状 | P2 | 是 | 引导是对现有可编辑配置/就绪状态的 UI 组织层。 |
+| Setup / 模型配置 | 验证/测试已配置的 provider | 部分支持 | `Validate Config` 调用现有 `validateSetupConfig`；未触发真实 LLM smoke/test | 如果产品需要端点/认证验证但不生成内容，添加显式非生成式 readiness 测试端点 | P1 | 是 | UI 将 Validate/Test 标记为配置验证，并声明不会发生真实 LLM 调用。 |
+| Setup / 模型配置 | Provider 预设：Qwen / OpenAI-compatible / Anthropic-compatible / Custom | 部分支持 | OpenAI-compatible 和 Anthropic-compatible 显示为受支持映射；Qwen 和 Custom 标记为手动端点配置 | 仅在后端支持 provider 特定默认值和验证时才添加一等 provider 预设 | P2 | 是 | 预设是说明性卡片，非伪造的一键集成。 |
+| Setup / 模型配置 | API key 显示 | 支持 | 输入为只写；已配置的 key 仅通过可编辑配置中的存在/掩码状态显示 | Batch 1 无需后端工作 | P0 | 是 | 保留 secret 边界；不显示明文 API key。 |
+| Setup / 模型配置 | 配置完成 -> 跳转到 Sources/Drafts | 导航支持，上下文推荐部分支持 | 保存/验证后引导文本指向 Sources；无自动跳转 | 可选的 next-action 端点可根据当前状态建议 Sources 还是 Drafts | P3 | 是 | 引导仅为文案和导航；无伪造的完成状态。 |
 
-## Batch 2: Sources, Drafts, Review
+## Batch 2: Sources、Drafts、Review
 
-| page/type | UI expectation from reference | current backend/API support | current UI behavior | needed backend work | priority | safe to show in UI now? | reason |
+| 页面/类型 | 参考图片的 UI 期望 | 当前后端/API 支持程度 | 当前 UI 行为 | 所需后端工作 | 优先级 | 当前 UI 可否安全展示？ | 原因 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sources / Adapter Catalog | Cubox, Web Clipper, RSS Feed adapter cards with Browse/Connect buttons | no | Cubox/WebClipper/RSS shown as "Coming Soon" — not clickable or fake-connectable | Implement CuboxAdapter, WebClipperAdapter, RSSAdapter with source registry and ingestion pipeline | P2 | yes | Unimplemented adapters clearly marked "Coming Soon"; no fake data or fake connect flows. |
-| Sources / Adapter Catalog | Local Files adapter with source count | yes | "Active" badge shown; source count reflects actual `watched_sources` length | None | P0 | yes | Only implemented adapter shows real count from `/api/sources`. |
-| Sources / Import Methods | Watched Import, One-shot CLI, Paste/Folder descriptions | partial | Explainer cards shown; Watched links to existing sources page; CLI/Paste are informational | None for display; paste/folder import already exists in LibraryPage | P1 | yes | Cards explain existing import paths; no fake capabilities. |
-| Sources / Watched Sources | Source cards with status, path, metrics, actions | yes | Real data from `/api/sources`; expandable details with metrics; process/copy/frequency actions | None | P0 | yes | All shown data comes from existing API; actions use real backend endpoints. |
-| Sources / Empty State | Empty watched sources with CTA to add | yes | Empty state shown when `watched_sources` is empty; CTA to `/setup` | None | P0 | yes | Correctly handles empty data. |
-| Drafts / Table List | AI Draft table with title, status, source, score | yes | Real data from `/api/drafts`; only `ai_draft` status items shown; status badge always "AI Draft" | None | P0 | yes | Filters to `ai_draft` status only; does not show `human_approved` in drafts table. |
-| Drafts / Empty State | Empty drafts with CTA to add sources | yes | EmptyState component with link to `/sources` | None | P0 | yes | Correctly handles empty data. |
-| Drafts / Preview Panel | Draft body preview + actions (Send to Review, View Detail, Move to Trash) | partial | Body preview shown; Move to Trash uses real `moveDraftToTrash` API; Send to Review is placeholder (no backend for direct submit) | Add explicit "submit for review" endpoint if product wants drafts to be flagged for human review without approval | P2 | yes | Send to Review button is present but disabled (no backend support yet); Trash uses real API. |
-| Review / Left List | Draft list with search, status badges, source info, value score | yes | Real data from `/api/drafts`; filtered to `ai_draft` only; search filters client-side | None | P0 | yes | All data from existing API; search is client-side filtering. |
-| Review / Right Panel | Draft body preview + approval panel (checkbox, Approve with 2-step confirm, Reject) | yes | Body preview from `getDraftDetail`; Approve uses real `approveDraft` API with 2-step confirmation; Reject uses real `rejectDraft` API | None | P0 | yes | Approve/Reject use real backend; 2-step confirm prevents accidental approval; no auto approve. |
-| Review / Stats Row | AI Drafts count, Approved count | yes | Counts derived from real `/api/drafts` data | None | P0 | yes | Real counts from API response. |
-| Review / Empty State | No drafts pending with guidance | yes | Empty state shown when no `ai_draft` items exist | None | P0 | yes | Correctly handles empty data. |
-| Review / Safety Note | "No batch approval, no auto approval" messaging | yes | Static safety note in approval panel | None | P0 | yes | Text is purely UI messaging; no functional claim. |
+| Sources / Adapter 目录 | Cubox、Web Clipper、RSS Feed 适配器卡片，带 Browse/Connect 按钮 | 不支持 | Cubox/WebClipper/RSS 显示为"即将推出"——不可点击或伪造连接 | 实现 CuboxAdapter、WebClipperAdapter、RSSAdapter，包含 source registry 和导入管线 | P2 | 是 | 未实现的适配器明确标注"即将推出"；无伪造数据或伪造连接流程。 |
+| Sources / Adapter 目录 | 本地文件适配器，带来源计数 | 支持 | 显示"Active"徽章；来源计数反映实际的 `watched_sources` 长度 | 无 | P0 | 是 | 唯一已实现的适配器显示来自 `/api/sources` 的真实计数。 |
+| Sources / 导入方式 | 监听导入、一次性 CLI、粘贴/文件夹描述 | 部分支持 | 显示说明卡片；监听指向现有 sources 页面；CLI/Paste 为信息性 | 显示无需后端工作；LibraryPage 已存在 paste/folder 导入 | P1 | 是 | 卡片解释现有导入路径；无伪造能力。 |
+| Sources / 监听来源列表 | 带状态、路径、指标、操作的来源卡片 | 支持 | 来自 `/api/sources` 的真实数据；可展开详情带指标；process/copy/frequency 操作 | 无 | P0 | 是 | 所有展示数据来自现有 API；操作使用真实后端端点。 |
+| Sources / 空状态 | 空监听来源列表，带添加 CTA | 支持 | 当 `watched_sources` 为空时显示空状态；CTA 跳转到 `/setup` | 无 | P0 | 是 | 正确处理空数据。 |
+| Drafts / 表格列表 | 含标题、状态、来源、评分的 AI Draft 表格 | 支持 | 来自 `/api/drafts` 的真实数据；仅显示 `ai_draft` 状态项；状态徽章始终为"AI Draft" | 无 | P0 | 是 | 仅筛选 `ai_draft` 状态；不在草稿表中显示 `human_approved`。 |
+| Drafts / 空状态 | 空草稿列表，带添加来源 CTA | 支持 | EmptyState 组件，链接到 `/sources` | 无 | P0 | 是 | 正确处理空数据。 |
+| Drafts / 预览面板 | 草稿正文预览 + 操作（发送审阅、查看详情、移入回收站） | 部分支持 | 正文预览已显示；移入回收站使用真实 `moveDraftToTrash` API；发送审阅为占位（后端不支持直接提交） | 如果产品希望草稿被标记为待人工审阅但无需审批，添加显式"提交审阅"端点 | P2 | 是 | Send to Review 按钮已存在但禁用（尚无后端支持）；Trash 使用真实 API。 |
+| Review / 左侧列表 | 带搜索、状态徽章、来源信息、价值评分的草稿列表 | 支持 | 来自 `/api/drafts` 的真实数据；仅筛选 `ai_draft`；搜索为客户端过滤 | 无 | P0 | 是 | 所有数据来自现有 API；搜索为客户端过滤。 |
+| Review / 右侧面板 | 草稿正文预览 + 审批面板（复选框、带两步确认的 Approve、Reject） | 支持 | 来自 `getDraftDetail` 的正文预览；Approve 使用真实 `approveDraft` API 带两步确认；Reject 使用真实 `rejectDraft` API | 无 | P0 | 是 | Approve/Reject 使用真实后端；两步确认防止意外审批；无自动审批。 |
+| Review / 统计行 | AI Drafts 计数、Approved 计数 | 支持 | 计数来自真实的 `/api/drafts` 数据 | 无 | P0 | 是 | 来自 API 响应的真实计数。 |
+| Review / 空状态 | 无待审草稿，带引导 | 支持 | 当不存在 `ai_draft` 项时显示空状态 | 无 | P0 | 是 | 正确处理空数据。 |
+| Review / 安全提示 | "无批量审批，无自动审批"消息 | 支持 | 审批面板中的静态安全提示 | 无 | P0 | 是 | 文本仅为 UI 消息；无功能性声明。 |
 
-## Backend -> Frontend Matrix: Batch 1
+## 后端 -> 前端矩阵: Batch 1
 
-| backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
+| 后端/API 能力 | 路由/服务/API 文件 | 当前前端覆盖 | 现在暴露？ | 如否，原因 | 未来 UI 切片 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Home status with safety/workspace/vault/provider/recall summaries | `web/src/api/home.ts`, `/api/home/status` | Home overview, SafetyBar, Sidebar provider card | yes | n/a | Add richer empty states after Batch 2 pages settle | P0 |
-| Workflow summary with processed source, ai_draft, human_approved counts | `web/src/api/workflow.ts`, `/api/workflow/summary` | Home overview cards | yes | n/a | Could drive per-stage flow activity badges | P1 |
-| Editable setup config and masked secret metadata | `web/src/api/config.ts`, `/api/config/editable` | Setup guide and existing model form | yes | n/a | Improve provider preset form defaults | P0 |
-| Provider mode opt-in/out | `web/src/api/config.ts`, provider mode endpoints | Existing Setup activation dialog only | yes, but only in Setup | Sidebar/Home must not activate real mode implicitly | Keep opt-in confirmation in Setup | P0 |
-| Setup validation | `web/src/api/config.ts`, `/api/config/validate` | Setup guide Validate Config and existing Validate button | yes | n/a | Add clearer validation result panel | P1 |
-| Lab/internal graph/sensemaking/dogfood routes | existing app routes/pages | collapsed Lab only | no main-path exposure | Product boundary says Graph/Sensemaking/Entity/Community are lab/internal, not primary workflow | Separate lab redesign if requested | P3 |
+| Home 状态，含安全/工作区/vault/provider/recall 摘要 | `web/src/api/home.ts`，`/api/home/status` | Home 概览、SafetyBar、侧边栏 provider 卡片 | 是 | 不适用 | Batch 2 页面稳定后增加更丰富的空状态 | P0 |
+| 工作流摘要，含已处理 source、ai_draft、human_approved 计数 | `web/src/api/workflow.ts`，`/api/workflow/summary` | Home 概览卡片 | 是 | 不适用 | 可为按阶段流程活动徽章提供数据 | P1 |
+| 可编辑的配置和掩码后的 secret 元数据 | `web/src/api/config.ts`，`/api/config/editable` | Setup 引导和现有模型表单 | 是 | 不适用 | 改进 provider 预设表单默认值 | P0 |
+| Provider 模式 opt-in/opt-out | `web/src/api/config.ts`，provider mode 端点 | 仅现有 Setup 激活对话框 | 仅在 Setup 中暴露，但可以 | 侧边栏/首页不得隐式激活真实模式 | 将 opt-in 确认保留在 Setup 中 | P0 |
+| 配置验证 | `web/src/api/config.ts`，`/api/config/validate` | Setup 引导 Validate Config 和现有 Validate 按钮 | 是 | 不适用 | 添加更清晰的验证结果面板 | P1 |
+| Lab/内部 graph/sensemaking/dogfood 路由 | 现有应用路由/页面 | 仅折叠的 Lab | 不在主路径暴露 | 产品边界说明 Graph/Sensemaking/Entity/Community 为 lab/internal，非主要工作流 | 如有需求，单独重新设计 Lab | P3 |
 
-## Backend -> Frontend Matrix: Batch 2
+## 后端 -> 前端矩阵: Batch 2
 
-| backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
+| 后端/API 能力 | 路由/服务/API 文件 | 当前前端覆盖 | 现在暴露？ | 如否，原因 | 未来 UI 切片 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Draft list with ai_draft/human_approved filtering | `web/src/api/drafts.ts`, `/api/drafts` | DraftsPage table + ReviewPage list | yes | n/a | Server-side pagination for large draft sets | P1 |
-| Draft detail with body and frontmatter | `web/src/api/drafts.ts`, `/api/drafts/:id` | DraftsPage preview + ReviewPage preview | yes | n/a | Full body view in ReviewPage detail panel | P1 |
-| Draft approval (approve/reject) | `web/src/api/approval.ts`, `/api/drafts/:id/approve`, `/api/drafts/:id/reject` | ReviewPage approval panel | yes | n/a | Add reject reason field to UI | P1 |
-| Draft body save/edit | `web/src/api/drafts.ts`, PATCH `/api/drafts/:id` | DraftsPage CardWorkspace (existing) | yes | n/a | Inline body editor in ReviewPage | P2 |
-| Draft move to trash | `web/src/api/trash.ts`, `/api/drafts/:id/trash` | DraftsPage trash button | yes | n/a | Trash action in ReviewPage too | P2 |
-| Watched sources list with metrics | `web/src/api/sources.ts`, `/api/sources` | SourcesPage watched sources section | yes | n/a | Source-level drill-down pages | P2 |
-| Source scan/process | `web/src/api/sources.ts`, `/api/sources/:id/scan` | SourcesPage "Process now" button | yes | n/a | Background scan progress indicator | P2 |
-| Source frequency update | `web/src/api/sources.ts`, `/api/sources/:id/frequency` | SourcesPage frequency selector | yes | n/a | None | P0 |
-| Source delete/stop watching | `web/src/api/sources.ts`, `/api/sources/:id` | SourcesPage "Stop watching" button | yes | n/a | None | P0 |
-| Cubox adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend CuboxAdapter not implemented | Implement Cubox ingestion pipeline | P2 |
-| Web Clipper adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend WebClipperAdapter not implemented | Implement web clipper integration | P2 |
-| RSS Feed adapter | not implemented | SourcesPage "Coming Soon" card | no | Backend RSSAdapter not implemented | Implement RSS feed ingestion | P2 |
+| 草稿列表，含 ai_draft/human_approved 筛选 | `web/src/api/drafts.ts`，`/api/drafts` | DraftsPage 表格 + ReviewPage 列表 | 是 | 不适用 | 大批量草稿的服务端分页 | P1 |
+| 草稿详情，含正文和 frontmatter | `web/src/api/drafts.ts`，`/api/drafts/:id` | DraftsPage 预览 + ReviewPage 预览 | 是 | 不适用 | ReviewPage 详情面板中的完整正文视图 | P1 |
+| 草稿审批 (approve/reject) | `web/src/api/approval.ts`，`/api/drafts/:id/approve`，`/api/drafts/:id/reject` | ReviewPage 审批面板 | 是 | 不适用 | 在 UI 中添加拒绝原因字段 | P1 |
+| 草稿正文保存/编辑 | `web/src/api/drafts.ts`，PATCH `/api/drafts/:id` | DraftsPage CardWorkspace（现有） | 是 | 不适用 | ReviewPage 中的内联正文编辑器 | P2 |
+| 草稿移入回收站 | `web/src/api/trash.ts`，`/api/drafts/:id/trash` | DraftsPage 回收站按钮 | 是 | 不适用 | ReviewPage 中也添加回收站操作 | P2 |
+| 监听来源列表，含指标 | `web/src/api/sources.ts`，`/api/sources` | SourcesPage 监听来源区域 | 是 | 不适用 | 来源级别的下钻页面 | P2 |
+| 来源扫描/处理 | `web/src/api/sources.ts`，`/api/sources/:id/scan` | SourcesPage "立即处理"按钮 | 是 | 不适用 | 后台扫描进度指示器 | P2 |
+| 来源频率更新 | `web/src/api/sources.ts`，`/api/sources/:id/frequency` | SourcesPage 频率选择器 | 是 | 不适用 | 无 | P0 |
+| 来源删除/停止监听 | `web/src/api/sources.ts`，`/api/sources/:id` | SourcesPage "停止监听"按钮 | 是 | 不适用 | 无 | P0 |
+| Cubox adapter | 未实现 | SourcesPage "即将推出"卡片 | 否 | 后端 CuboxAdapter 未实现 | 实现 Cubox 导入管线 | P2 |
+| Web Clipper adapter | 未实现 | SourcesPage "即将推出"卡片 | 否 | 后端 WebClipperAdapter 未实现 | 实现 Web Clipper 集成 | P2 |
+| RSS Feed adapter | 未实现 | SourcesPage "即将推出"卡片 | 否 | 后端 RSSAdapter 未实现 | 实现 RSS Feed 导入 | P2 |
 
-## Batch 3: Library, Wiki, Export
+## Batch 3: Library、Wiki、Export
 
-### Reference -> Backend Matrix
+### 参考图片 -> 后端矩阵
 
-| page/type | UI expectation from reference | current backend/API support | current UI behavior | needed backend work | priority | safe to show in UI now? | reason |
+| 页面/类型 | 参考图片的 UI 期望 | 当前后端/API 支持程度 | 当前 UI 行为 | 所需后端工作 | 优先级 | 当前 UI 可否安全展示？ | 原因 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Library / Filter Tabs | All Knowledge, By Source, By Track, Favorites, Recently Viewed | partial | All/By Source/By Track work client-side on real data; Favorites/Recently Viewed disabled (no backend) | Add favorites/bookmarks endpoint and recently-viewed tracking | P2 | yes | Implemented tabs filter real human_approved cards; disabled tabs clearly marked. |
-| Library / Table | Knowledge table with title, source, date, status, tags | yes | Real data from `/api/library/cards`; only `human_approved` shown | None | P0 | yes | All columns from existing API; LibraryCardResponse has title, source_type, created_at, status, tags. |
-| Library / Detail Panel | Right-side detail panel with card body | yes | Uses `getLibraryCardDetail` API; shows body, source, provenance | None | P0 | yes | Real API call per selected card. |
-| Library / Graph Explorer | Graph visualization button | no | Removed from LibraryPage — Graph is lab/internal, not main path | None for Library; graph exists as separate page | P3 | yes | Removed to protect product boundary; graph is not main-path. |
-| Library / Community Panel | Knowledge community panel | no | Removed from LibraryPage — Community is lab/internal | None | P3 | yes | Removed to protect product boundary; community is not main-path. |
-| Library / Favorites | Favorite/starred knowledge | no | Filter tab disabled; star icon in table is visual only, no backend | Add favorites/bookmarks endpoint | P3 | yes | UI element shown but non-functional; no fake data. |
-| Library / Recently Viewed | Recently viewed tracking | no | Filter tab disabled; no backend tracking | Add view-count tracking per card | P3 | yes | Filter tab disabled with Coming Soon label. |
-| Wiki / Filter Tabs | All Pages, Favorites, Recent, Recently Updated | partial | All Pages works on real wiki sections; Favorites/Recent/Recently Updated disabled | Add wiki page favorites, view tracking, update timestamps | P3 | yes | All Pages filters real wiki sections; disabled tabs marked Coming Soon. |
-| Wiki / Page List | Section list with card count | yes | Real data from `/api/wiki/page`; sections with card counts | None | P0 | yes | Section data from existing wiki API. |
-| Wiki / Quality Metrics | Coverage, faithfulness, unused, stale, gaps | yes | Real data from `/api/wiki/quality`; shown in collapsible details | None | P0 | yes | All metrics from real API. |
-| Wiki / Rebuild | LLM + deterministic rebuild | yes | `POST /api/wiki/rebuild` with mode parameter | None | P0 | yes | Existing rebuild endpoint. |
-| Wiki / New Page | Create new wiki page manually | no | Button shown but no backend support | Add wiki page creation endpoint | P2 | yes | Button is placeholder; no fake capability. |
-| Export / Format Cards | Markdown, ZIP, PDF, HTML, Word, JSON | partial | Markdown/ZIP enabled and working; PDF/HTML/Word/JSON marked Coming Soon | Implement PDF/HTML/Word/JSON export formats | P2 | yes | Only implemented formats are functional; Coming Soon cards are disabled. |
-| Export / Scope | All / By Tag / By Track | yes | Real filtering on approved cards; tag/track dropdowns populated from API | None | P0 | yes | Filtering works on real human_approved data. |
-| Export / Download | Markdown download, ZIP download | yes | Uses `/api/knowledge/export` and `/api/knowledge/export/download` | None | P0 | yes | Real download endpoints. |
-| Export / Options | Include metadata, TOC, tags, frontmatter | no | Options checkboxes shown but not sent to backend yet | Add export options to export API request body | P2 | yes | Options UI prepared; backend integration pending. |
-| Export / Recent Exports | Recent export history | no | Section not shown (no backend tracking) | Add export history tracking | P3 | yes | Omitted rather than faked. |
+| Library / 筛选标签 | 所有知识、按来源、按轨道、收藏夹、最近浏览 | 部分支持 | 全部/按来源/按轨道具客户端在真实数据上运行；收藏夹/最近浏览禁用（无后端） | 添加收藏夹/书签端点和最近浏览跟踪 | P2 | 是 | 已实现的标签能筛选真实的 human_approved 卡片；禁用的标签明确标记。 |
+| Library / 表格 | 含标题、来源、日期、状态、标签的知识表格 | 支持 | 来自 `/api/library/cards` 的真实数据；仅显示 `human_approved` | 无 | P0 | 是 | 所有列来自现有 API；LibraryCardResponse 包含 title、source_type、created_at、status、tags。 |
+| Library / 详情面板 | 右侧卡片正文详情面板 | 支持 | 使用 `getLibraryCardDetail` API；显示正文、来源、溯源信息 | 无 | P0 | 是 | 每张选中卡片调用真实 API。 |
+| Library / Graph 探索 | Graph 可视化按钮 | 不支持 | 已从 LibraryPage 移除——Graph 为 lab/internal，非主路径 | Library 无需后端工作；graph 作为独立页面存在 | P3 | 是 | 已移除以保护产品边界；graph 非主路径。 |
+| Library / 社区面板 | 知识社区面板 | 不支持 | 已从 LibraryPage 移除——Community 为 lab/internal | 无 | P3 | 是 | 已移除以保护产品边界；community 非主路径。 |
+| Library / 收藏夹 | 收藏/星标知识 | 不支持 | 筛选标签禁用；表格中的星标图标仅为视觉，无后端 | 添加收藏夹/书签端点 | P3 | 是 | UI 元素存在但无功能；无伪造数据。 |
+| Library / 最近浏览 | 最近浏览跟踪 | 不支持 | 筛选标签禁用；无后端跟踪 | 添加每卡片的浏览计数跟踪 | P3 | 是 | 筛选标签禁用，带 Coming Soon 标签。 |
+| Wiki / 筛选标签 | 所有页面、收藏夹、最近、最近更新 | 部分支持 | 所有页面在真实 wiki 章节上运行；收藏夹/最近/最近更新禁用 | 添加 wiki 页面收藏、浏览跟踪、更新时间戳 | P3 | 是 | 所有页面筛选真实 wiki 章节；禁用的标签标记为 Coming Soon。 |
+| Wiki / 页面列表 | 带卡片计数的章节列表 | 支持 | 来自 `/api/wiki/page` 的真实数据；带卡片计数的章节 | 无 | P0 | 是 | 章节数据来自现有 wiki API。 |
+| Wiki / 质量指标 | 覆盖率、忠实度、未使用、陈旧、缺口 | 支持 | 来自 `/api/wiki/quality` 的真实数据；在可折叠详情中显示 | 无 | P0 | 是 | 所有指标来自真实 API。 |
+| Wiki / 重建 | LLM + 确定性重建 | 支持 | `POST /api/wiki/rebuild` 带模式参数 | 无 | P0 | 是 | 现有重建端点。 |
+| Wiki / 新页面 | 手动创建新 wiki 页面 | 不支持 | 按钮已显示但无后端支持 | 添加 wiki 页面创建端点 | P2 | 是 | 按钮为占位；无伪造能力。 |
+| Export / 格式卡片 | Markdown、ZIP、PDF、HTML、Word、JSON | 部分支持 | Markdown/ZIP 已启用并可工作；PDF/HTML/Word/JSON 标记为 Coming Soon | 实现 PDF/HTML/Word/JSON 导出格式 | P2 | 是 | 仅已实现格式可工作；Coming Soon 卡片已禁用。 |
+| Export / 范围 | 全部 / 按标签 / 按轨道 | 支持 | 在已审批卡片上实现真实筛选；标签/轨道下拉菜单由 API 填充 | 无 | P0 | 是 | 筛选在真实 human_approved 数据上工作。 |
+| Export / 下载 | Markdown 下载、ZIP 下载 | 支持 | 使用 `/api/knowledge/export` 和 `/api/knowledge/export/download` | 无 | P0 | 是 | 真实下载端点。 |
+| Export / 选项 | 包含元数据、目录、标签、frontmatter | 不支持 | 选项复选框已显示但尚未发送到后端 | 将导出选项添加到导出 API 请求体 | P2 | 是 | 选项 UI 已准备；后端集成待完成。 |
+| Export / 最近导出 | 最近导出历史 | 不支持 | 区域未显示（无后端跟踪） | 添加导出历史跟踪 | P3 | 是 | 已省略而非伪造。 |
 
-### Backend -> Frontend Matrix: Batch 3
+### 后端 -> 前端矩阵: Batch 3
 
-| backend/API capability | route/service/api file | current frontend surface | expose now? | if no, why | future UI slice | priority |
+| 后端/API 能力 | 路由/服务/API 文件 | 当前前端覆盖 | 现在暴露？ | 如否，原因 | 未来 UI 切片 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Library card list with status filtering | `web/src/api/library.ts`, `/api/library/cards` | LibraryPage table list | yes | n/a | Server-side pagination + favorites sorting | P0 |
-| Library card detail | `web/src/api/library.ts`, `/api/library/cards/:id` | LibraryPage detail panel | yes | n/a | Rich provenance visualization | P0 |
-| Library bulk actions (export, tag, track) | `web/src/api/library.ts`, bulk endpoints | LibraryPage bulk actions bar | yes | n/a | None | P0 |
-| Wiki status | `web/src/api/wiki.ts` (via fetch), `/api/wiki/status` | WikiPage status bar | yes | n/a | None | P0 |
-| Wiki page content | `web/src/api/wiki.ts` (via fetch), `/api/wiki/page` | WikiPage section list | yes | n/a | Full page navigation with TOC | P0 |
-| Wiki quality metrics | `web/src/api/wiki.ts` (via fetch), `/api/wiki/quality` | WikiPage quality collapsible | yes | n/a | None | P0 |
-| Wiki rebuild | `web/src/api/wiki.ts` (via fetch), `/api/wiki/rebuild` | WikiPage rebuild button | yes | n/a | None | P0 |
-| Wiki related sections | `web/src/api/wiki.ts` (via fetch), `/api/wiki/related-sections` | fetched but not yet surfaced in UI | no | No clear UI placement in new design | Add related-sections sidebar in detail view | P2 |
-| Knowledge export (markdown) | `web/src/api/library.ts` (via fetch), `/api/knowledge/export` | ExportPage preview + download | yes | n/a | None | P0 |
-| Knowledge export download (zip) | `web/src/api/library.ts` (via fetch), `/api/knowledge/export/download` | ExportPage download | yes | n/a | None | P0 |
-| Export options (metadata, TOC, tags, frontmatter) | not in export API yet | ExportPage options checkboxes | no | Backend export API doesn't accept options | Add options to export request body | P2 |
+| Library 卡片列表，含状态筛选 | `web/src/api/library.ts`，`/api/library/cards` | LibraryPage 表格列表 | 是 | 不适用 | 服务端分页 + 收藏排序 | P0 |
+| Library 卡片详情 | `web/src/api/library.ts`，`/api/library/cards/:id` | LibraryPage 详情面板 | 是 | 不适用 | 丰富的溯源可视化 | P0 |
+| Library 批量操作 (export、tag、track) | `web/src/api/library.ts`，批量端点 | LibraryPage 批量操作栏 | 是 | 不适用 | 无 | P0 |
+| Wiki 状态 | `web/src/api/wiki.ts` (via fetch)，`/api/wiki/status` | WikiPage 状态栏 | 是 | 不适用 | 无 | P0 |
+| Wiki 页面内容 | `web/src/api/wiki.ts` (via fetch)，`/api/wiki/page` | WikiPage 章节列表 | 是 | 不适用 | 带目录的完整页面导航 | P0 |
+| Wiki 质量指标 | `web/src/api/wiki.ts` (via fetch)，`/api/wiki/quality` | WikiPage 质量可折叠面板 | 是 | 不适用 | 无 | P0 |
+| Wiki 重建 | `web/src/api/wiki.ts` (via fetch)，`/api/wiki/rebuild` | WikiPage 重建按钮 | 是 | 不适用 | 无 | P0 |
+| Wiki 相关章节 | `web/src/api/wiki.ts` (via fetch)，`/api/wiki/related-sections` | 已获取但未在 UI 中展示 | 否 | 新设计中无明确 UI 位置 | 在详情视图中添加相关章节侧边栏 | P2 |
+| 知识导出 (markdown) | `web/src/api/library.ts` (via fetch)，`/api/knowledge/export` | ExportPage 预览 + 下载 | 是 | 不适用 | 无 | P0 |
+| 知识导出下载 (zip) | `web/src/api/library.ts` (via fetch)，`/api/knowledge/export/download` | ExportPage 下载 | 是 | 不适用 | 无 | P0 |
+| 导出选项 (metadata、TOC、tags、frontmatter) | 导出 API 中尚不支持 | ExportPage 选项复选框 | 否 | 后端导出 API 不接受选项 | 将选项添加到导出请求体 | P2 |
 
-## Batch 4: Fake Mode QA Findings (2026-06-02)
+## Batch 4: Fake 模式 QA 发现 (2026-06-02)
 
-### QA Matrix
+### QA 矩阵
 
-| page | opens | demo mode visible | buttons work | empty states correct | product boundaries safe | score |
+| 页面 | 可打开 | Demo 模式可见 | 按钮可工作 | 空状态正确 | 产品边界安全 | 评分 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Home | yes | yes (sidebar + safety bar) | nav links, CTA all work | N/A (has demo data) | yes — no fake real-provider activation | 9/10 |
-| Setup | yes | yes (Demo / Fake Provider section) | add model, validate disabled until filled | N/A | yes — API key only masked, validate warns no real LLM call | 9/10 |
-| Sources | yes | yes (safety bar) | "立即处理" works, Cubox/WebClipper/RSS disabled | N/A (has 1 local file source) | yes — source ≠ provider clearly separated | 9/10 |
-| Drafts | yes | yes | "浏览草稿" link works | yes — empty state with CTA to sources | yes — only ai_draft shown, no auto-mixing | 8/10 |
-| Review | yes | yes | N/A (empty) | yes — guidance text present | yes — no Approve All, no auto approve | 8/10 |
-| Library | yes | yes | detail panel, export, search, filter, sort work | N/A (has 6 demo cards) | yes — only human_approved shown | 9/10 |
-| Wiki | yes | yes | search, sections expand/collapse work | yes — warns model needed for LLM synthesis | yes — no RAG/vector DB claims | 8/10 |
-| Export | yes | yes | preview, download work, format cards correct | N/A (has 6 approved cards) | yes — PDF/HTML/Word/JSON disabled, options collapsible Coming Soon | 9/10 |
+| Home | 是 | 是（侧边栏 + safety bar） | 导航链接、CTA 均可工作 | 不适用（有 demo 数据） | 是——无伪造的真实 provider 激活 | 9/10 |
+| Setup | 是 | 是（Demo / Fake Provider 区域） | 添加模型、验证在填写前禁用 | 不适用 | 是——API key 仅掩码显示，validate 警告无真实 LLM 调用 | 9/10 |
+| Sources | 是 | 是（safety bar） | "立即处理"可工作，Cubox/WebClipper/RSS 禁用 | 不适用（有 1 个本地文件来源） | 是——source 与 provider 明确分离 | 9/10 |
+| Drafts | 是 | 是 | "浏览草稿"链接可工作 | 是——空状态带跳转来源的 CTA | 是——仅显示 ai_draft，无自动混合 | 8/10 |
+| Review | 是 | 是 | 不适用（空） | 是——显示引导文本 | 是——无 Approve All，无自动审批 | 8/10 |
+| Library | 是 | 是 | 详情面板、导出、搜索、筛选、排序均可工作 | 不适用（有 6 张 demo 卡片） | 是——仅显示 human_approved | 9/10 |
+| Wiki | 是 | 是 | 搜索、章节展开/折叠可工作 | 是——提示需要模型进行 LLM 综合 | 是——无 RAG/向量 DB 声明 | 8/10 |
+| Export | 是 | 是 | 预览、下载可工作，格式卡片正确 | 不适用（有 6 张已审批卡片） | 是——PDF/HTML/Word/JSON 禁用，选项可折叠为 Coming Soon | 9/10 |
 
-### Issues Found and Fixed
+### 发现并已修复的问题
 
-1. **Missing i18n key `library.col_title`** — Library table header showed raw key "library.col_title" instead of "标题". Fixed by adding zh/en equivalents.
-2. **Missing i18n key `nav.review`** — Sidebar showed raw key "nav.review" instead of "人工审阅". Fixed by adding zh/en equivalents.
-3. **Missing i18n key `shared.safety_notice`** — Export page safety section showed raw key. Fixed by adding zh/en equivalents.
+1. **缺少 i18n key `library.col_title`**——Library 表头显示原始 key "library.col_title" 而非"标题"。已通过添加中英文对应项修复。
+2. **缺少 i18n key `nav.review`**——侧边栏显示原始 key "nav.review" 而非"人工审阅"。已通过添加中英文对应项修复。
+3. **缺少 i18n key `shared.safety_notice`**——导出页面的安全区域显示原始 key。已通过添加中英文对应项修复。
 
-### Fake Mode Main Path Status
+### Fake 模式主路径状态
 
-- Source → Process: "立即处理" triggered on Local Files adapter ✓
-- Process → Drafts: Background processing initiated; drafts may take time to appear in fake mode
-- Drafts → Review: Review page correctly shows empty when no drafts exist ✓
-- Library → Export: 6 demo cards exported successfully via Markdown preview and download ✓
+- Source → Process: "立即处理"在 Local Files adapter 上触发 ✓
+- Process → Drafts: 后台处理已启动；在 fake 模式下草稿可能需要时间显示
+- Drafts → Review: 当无草稿存在时 Review 页面正确显示空状态 ✓
+- Library → Export: 6 张 demo 卡片通过 Markdown 预览和下载成功导出 ✓
 
-### Screenshots
+### 截图
 
 - `tmp/fake-qa-home.png`
 - `tmp/fake-qa-setup.png`
@@ -142,121 +142,127 @@ This log prevents the reference-image redesign from implying backend capabilitie
 - `tmp/fake-qa-library.png`
 - `tmp/fake-qa-wiki.png`
 - `tmp/fake-qa-export.png`
-- `tmp/fake-qa-library-fixed.png` (after i18n fixes)
+- `tmp/fake-qa-library-fixed.png`（i18n 修复后）
 
-### Gates
+### 关口
 
-- `git diff --check`: pass (exit 0)
-- `web/ npm run build`: pass (tsc -b && vite build completed in 4.72s)
-- `main` synced with `origin/main`: yes (0 0 after push)
-- `pictures/` not staged: yes (untracked only)
-- working tree: clean (only untracked pictures/, tmp/)
+- `git diff --check`: 通过 (exit 0)
+- `web/ npm run build`: 通过 (tsc -b && vite build completed in 4.72s)
+- `main` 与 `origin/main` 同步: 是 (push 后 0 0)
+- `pictures/` 未暂存: 是（仅 untracked）
+- 工作树: 干净（仅 untracked pictures/、tmp/）
 
-## Batch 5: Setup / Source Flow UX Remediation (2026-06-02)
+## Batch 5: Setup / Source 流程 UX 修复 (2026-06-02)
 
-### Problem Summary
+### 问题摘要
 
-User-reported UX issues in Setup/Sources/Model Configuration flow:
-1. Sources "新来源" button jumped to Setup page instead of adding source inline
-2. "添加模型" button had no clear visual feedback
-3. Demo Mode in sidebar was a clickable button that only navigated to /setup (loop)
-4. "验证配置" name implied real LLM connectivity test, but only checked local config
-5. Qwen shown as independent provider card instead of OpenAI-compatible example
-6. Setup page copy too engineering-heavy
+用户报告 Setup/Sources/模型配置流程中的 UX 问题：
+1. Sources 页面的"新来源"按钮跳转到 Setup 页面，而非内联添加来源
+2. "添加模型"按钮无明显视觉反馈
+3. 侧边栏的 Demo Mode 是可点击按钮，仅导航到 /setup（循环）
+4. "验证配置"名称暗示真实 LLM 连接测试，但仅检查本地配置
+5. Qwen 显示为独立 provider 卡片，而非 OpenAI-compatible 示例
+6. Setup 页面文案过于工程化
 
-### Changes Made
+### 已做修改
 
-| change | files modified | backend impact |
+| 修改 | 修改的文件 | 后端影响 |
 | --- | --- | --- |
-| Sources "新来源" opens inline SourceAddPanel | `SourcesPage.tsx` | none — uses existing `addWatchedSource` API |
-| "添加模型" → "配置模型" with scroll-to-form feedback | `SetupPage.tsx`, `i18n.ts` | none |
-| Demo Mode → status chip (non-clickable) | `Sidebar.tsx`, `i18n.ts` | none |
-| "验证配置" → "检查配置" with tooltip | `SetupPage.tsx`, `i18n.ts` | none |
-| Provider types converged to 4: OpenAI native, Anthropic native, OpenAI-compatible, Custom | `SetupPage.tsx`, `i18n.ts` | none — UI-only presets |
-| Engineering chips moved to single safety note | `SetupPage.tsx`, `i18n.ts` | none |
-| Sources page desc updated to reference inline add | `SourcesPage.tsx`, `i18n.ts` | none |
+| Sources 的"新来源"打开内联 SourceAddPanel | `SourcesPage.tsx` | 无——使用现有 `addWatchedSource` API |
+| "添加模型" → "配置模型"，带滚动到表单的反馈 | `SetupPage.tsx`，`i18n.ts` | 无 |
+| Demo Mode → 状态 chip（不可点击） | `Sidebar.tsx`，`i18n.ts` | 无 |
+| "验证配置" → "检查配置"，带 tooltip | `SetupPage.tsx`，`i18n.ts` | 无 |
+| Provider 类型收敛为 4 种：OpenAI native、Anthropic native、OpenAI-compatible、Custom | `SetupPage.tsx`，`i18n.ts` | 无——仅 UI 预设 |
+| 工程化 chip 整合为单条安全提示 | `SetupPage.tsx`，`i18n.ts` | 无 |
+| Sources 页面描述更新为引用内联添加 | `SourcesPage.tsx`，`i18n.ts` | 无 |
 
-### Backend Gap Assessment
+### 后端差距评估
 
-No backend changes required. All changes are frontend UX improvements using existing APIs:
-- Source add: existing `POST /api/sources` endpoint
-- Model config: existing `POST /api/config` endpoint
-- Validate: existing `POST /api/config/validate` endpoint (already local-only, no LLM calls)
-- Provider mode: existing mode toggle endpoints (unchanged)
+无需后端修改。所有修改均为使用现有 API 的前端 UX 改进：
+- 来源添加：现有 `POST /api/sources` 端点
+- 模型配置：现有 `POST /api/config` 端点
+- 验证：现有 `POST /api/config/validate` 端点（已仅为本地，无 LLM 调用）
+- Provider 模式：现有模式切换端点（未改动）
 
-### Assets
+### 资源
 
-No external assets were added in Batch 1 or Batch 2.
+Batch 1 和 Batch 2 中未添加外部资源。
 
-## Batch 6: Review / Library / Wiki / Lab UX Remediation (2026-06-03)
+## Batch 6: Review / Library / Wiki / Lab UX 修复 (2026-06-03)
 
-### Problem Summary
+### 问题摘要
 
-User-reported UX issues from real browser trial:
-1. "人工审阅" and "审阅草稿" sidebar tabs looked duplicate, users confused about the difference
-2. Library first click on a card showed empty detail panel (interaction bug)
-3. Card detail content cramped in narrow side panel (max 50% width, 70vh height)
-4. Wiki default state unclear when approved knowledge exists but Wiki not generated
-5. Lab/Graph/Sensemaking visual style inconsistent with main web
+用户通过真实浏览器试用报告的 UX 问题：
+1. "人工审阅"和"审阅草稿"侧边栏标签看起来重复，用户混淆其区别
+2. Library 首次点击卡片后显示空详情面板（交互 bug）
+3. 卡片详情内容在狭窄的侧面板中过于拥挤（最大 50% 宽度，70vh 高度）
+4. 当已审批知识存在但 Wiki 未生成时，Wiki 默认状态不清晰
+5. Lab/Graph/Sensemaking 视觉样式与主 Web 不一致
 
-### Changes Made
+### 已做修改
 
-| change | files modified | backend impact |
+| 修改 | 修改的文件 | 后端影响 |
 | --- | --- | --- |
-| Remove `/drafts` from primary sidebar nav; move to Lab section | `Sidebar.tsx` | none |
-| Library empty-state CTA updated from `/drafts` → `/review` | `LibraryPage.tsx` | none |
-| Add `detailLoading` state to Library; show loading indicator instead of blank | `LibraryPage.tsx` | none |
-| Widen Library detail panel grid from `1fr 1fr` → `2fr 3fr` | `LibraryPage.tsx` | none |
-| Increase Library detail panel max-h from `70vh` → `85vh` | `LibraryPage.tsx` | none |
-| Add Wiki empty-state for existing Wiki with no sections (shows refresh CTA + approved count) | `WikiPage.tsx` | none |
-| Polish SensemakingPage header/tabs/LAB banner to use main web design tokens | `SensemakingPage.tsx` | none |
+| 从主侧边栏导航移除 `/drafts`；移至 Lab 区域 | `Sidebar.tsx` | 无 |
+| Library 空状态 CTA 从 `/drafts` 更新为 `/review` | `LibraryPage.tsx` | 无 |
+| 在 Library 中添加 `detailLoading` 状态；显示加载指示器而非空白 | `LibraryPage.tsx` | 无 |
+| Library 详情面板网格从 `1fr 1fr` 加宽为 `2fr 3fr` | `LibraryPage.tsx` | 无 |
+| Library 详情面板最大高度从 `70vh` 增加为 `85vh` | `LibraryPage.tsx` | 无 |
+| 为已有 Wiki 但无章节时添加 Wiki 空状态（显示刷新 CTA + 已审批计数） | `WikiPage.tsx` | 无 |
+| 优化 SensemakingPage 头部/标签/LAB 横幅，使用主 Web 设计 token | `SensemakingPage.tsx` | 无 |
 
-### Root Cause: Library first-click detail empty bug
+### 根因：Library 首次点击详情为空 bug
 
-**Location:** `LibraryPage.tsx:166-172` (before fix)
+**位置：** `LibraryPage.tsx:166-172`（修复前）
 
-**Causal chain:**
-1. User clicks first card → `selectCard(ref)` called
-2. `setSelected(ref)` updates selected state
-3. `setDetail(null)` **synchronously clears** detail state
-4. Detail panel renders (condition: `selected &&`) — panel appears but `detail` is null
-5. Inside panel: `!error && detail` — detail is null, **nothing renders**
-6. `useEffect` fires async `getLibraryCardDetail()` — request in flight
-7. Panel shows blank until response returns
-8. Second click works because the first request already completed and cached detail
+**因果链：**
+1. 用户点击第一张卡片 → 调用 `selectCard(ref)`
+2. `setSelected(ref)` 更新选中状态
+3. `setDetail(null)` **同步清除**详情状态
+4. 详情面板渲染（条件：`selected &&`）——面板出现但 `detail` 为 null
+5. 面板内部：`!error && detail`——detail 为 null，**无内容渲染**
+6. `useEffect` 触发异步 `getLibraryCardDetail()`——请求已发出
+7. 面板保持空白直到响应返回
+8. 第二次点击正常工作，因为第一次请求已完成并缓存了详情
 
-**Fix:** Replace `setDetail(null)` with `setDetailLoading(true)` in `selectCard()`. Add loading indicator in detail panel.
+**修复：** 在 `selectCard()` 中将 `setDetail(null)` 替换为 `setDetailLoading(true)`。在详情面板中添加加载指示器。
 
-### Backend Gap Assessment
+### 后端差距评估
 
-| capability | status | safe to show? | notes |
+| 能力 | 状态 | 可安全展示？ | 说明 |
 | --- | --- | --- | --- |
-| Library full-detail API (`getLibraryCardDetail`) | **supported** | yes | Real API, working |
-| Wiki auto-generation on approved knowledge | **manual rebuild required** | yes | User must click "生成 Wiki" or "刷新 Wiki"; no auto-trigger |
-| Wiki related pages / history / spaces | **partial** | yes | `/api/wiki/related-sections` exists but not surfaced in UI |
-| Graph / Sensemaking current support | **lab/internal, deterministic only** | yes | BFS + set operations only; no LLM/embedding/vector DB |
-| Review / Drafts duplicate entry | **IA history** | resolved | Merged into single `/review` entry; `/drafts` moved to Lab |
+| Library 完整详情 API (`getLibraryCardDetail`) | **已支持** | 是 | 真实 API，可正常工作 |
+| Wiki 基于已审批知识自动生成 | **需要手动重建** | 是 | 用户必须点击"生成 Wiki"或"刷新 Wiki"；无自动触发 |
+| Wiki 相关页面/历史/空间 | **部分支持** | 是 | `/api/wiki/related-sections` 存在但未在 UI 中展示 |
+| Graph / Sensemaking 当前支持 | **lab/internal，仅确定性** | 是 | 仅 BFS + 集合操作；无 LLM/embedding/向量 DB |
+| Review / Drafts 重复入口 | **IA 历史** | 已解决 | 合并为单个 `/review` 入口；`/drafts` 移至 Lab |
 
-### Assets
+### 资源
 
-No external assets were added.
-\n### Endpoint Diagnosis & Readiness Semantics\n\n- 当前 readiness 状态已从 “Ready” 改为 “Configured / Not verified”（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。\n- 真正的 “Test Connection”（测试连接）功能尚未实现。\n- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。\n- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示”模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。”
+未添加外部资源。
 
-### Batch 7: Setup Model Save UX Fix
+### 端点诊断与就绪语义
 
-**User report:** “配置完模型的时候，第一次点模型配置部分的保存没有反应，按全局的保存的才保存”
+- 当前 readiness 状态已从 "Ready" 改为 "Configured / Not verified"（配置已保存 / 尚未测试连接），仅代表本地配置已保存，不代表外部提供商网络可达。
+- 真正的 "Test Connection"（测试连接）功能尚未实现。
+- `base_url` 格式要求：用户需要填写服务根路径（如包含 `/v1`），不应包含 `/chat/completions`，系统会自动拼接。
+- 真实连接失败可能来自 endpoint、network、proxy、key、model 多种原因，现在会在 UI 和日志中统一提示"模型连接失败。请检查 base URL、网络代理、provider 类型、model name 或 API key。"
 
-**Root cause:** `saveModelEdit()` 存在两个问题：
-1. 验证失败时使用 `setMessage()` 显示绿色成功消息，视觉上与成功提示无区别，用户误以为”无反应”
+### Batch 7: Setup 模型保存 UX 修复
+
+**用户报告：** "配置完模型的时候，第一次点模型配置部分的保存没有反应，按全局的保存的才保存"
+
+**根因：** `saveModelEdit()` 存在两个问题：
+1. 验证失败时使用 `setMessage()` 显示绿色成功消息，视觉上与成功提示无区别，用户误以为"无反应"
 2. `await save()` 未包裹在 try/catch 中，API 错误抛出 unhandled rejection，React 可能抑制状态更新
 3. `if (!form || !editing) return` 零反馈退出
 
-**Fix:**
+**修复：**
 - 所有验证错误改用 `setSaveError()`，显示在红色错误横幅中
 - 添加 try/catch 包裹 `await save()`，捕获 save 抛出的错误并静默处理（save 已设置 saveError）
 - 添加 missing i18n key `setup.validation.form_not_loaded`
 - 顺便修复 i18n.ts 中 pre-existing 语法错误（line 1553 转义引号）
 
-**Files changed:**
+**修改的文件：**
 - `web/src/pages/SetupPage.tsx` — saveModelEdit error handling
 - `web/src/lib/i18n.ts` — new i18n key + fix escaped quotes bug

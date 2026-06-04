@@ -1,145 +1,144 @@
-# MindForge Archive Plan
+# MindForge 归档计划
 
-Date: 2026-06-05
-Status: Soft Archived — paused learning project
+日期：2026-06-05
+状态：软归档 — 已暂停的学习项目
 
-## 1. Archive Type
+## 1. 归档类型
 
-This is a **soft archive** (also called "paused" or "learning project preserved"). Specifically:
+此为**软归档**（也称为"暂停"或"学习项目保留"）。具体来说：
 
-- **NOT** a GitHub hard archive (the repository is not archived on GitHub)
-- **NOT** code deletion (all code remains in the repository)
-- **NOT** directory restructuring (no files or directories are moved)
-- **NOT** a git tag (no `archive/vX-final` or `paused/YYYY-MM-DD` tag is created in this commit)
-- **NOT** a push to remote (changes are committed locally only)
-- The code **can still run locally** — nothing is broken
-- The project **can be restarted** from any direction in the future
+- **不是** GitHub 硬归档（仓库未在 GitHub 上归档）
+- **不是** 代码删除（所有代码保留在仓库中）
+- **不是** 目录重组（不移动任何文件或目录）
+- **不是** git 标签（本次提交不创建 `archive/vX-final` 或 `paused/YYYY-MM-DD` 标签）
+- **不是** 推送到远程（变更仅在本地提交）
+- 代码**仍然可以在本地运行** — 没有任何破坏
+- 项目**可以从任何方向在未来重新启动**
 
-**What soft archive means**: We stop actively investing in new features and product development. The repository is preserved as a learning artifact, postmortem reference, and potential starting point for future experiments.
+**软归档的含义**：我们停止积极投入新功能和产品开发。仓库作为学习产物、复盘参考和未来实验的潜在起点保留。
 
-## 2. Current State
+## 2. 当前状态
 
-| Item | Status |
+| 项目 | 状态 |
 |------|--------|
-| Branch | `main` |
+| 分支 | `main` |
 | HEAD | `e02c9fc` |
-| Ahead of origin/main | 0 |
-| Behind origin/main | 11 (will be updated after commit) |
-| Dirty tracked changes | None |
-| Untracked files | `pictures/`, `setup.png`, `tmp/`, `uv.lock`, `docs/specs/*_v2.md`, `docs/superpowers/brainstorms/*`, `docs/superpowers/reviews/*` |
-| Strategic docs exist | Yes — `docs/specs/mindforge_strategic_repositioning.md`, brainstorm, review |
-| Postmortem docs exist | Yes — `docs/postmortem/mindforge-postmortem.md`, `mindforge-lessons-for-vibe-coding.md`, `mindforge-archive-plan.md` |
-| Validation protocol exists | Yes — `docs/product/validation-protocol.md` (never executed) |
+| 领先 origin/main | 0 |
+| 落后 origin/main | 11（提交后将更新） |
+| 脏跟踪变更 | 无 |
+| 未跟踪文件 | `pictures/`、`setup.png`、`tmp/`、`uv.lock`、`docs/specs/*_v2.md`、`docs/superpowers/brainstorms/*`、`docs/superpowers/reviews/*` |
+| 战略文档存在 | 是 — `docs/specs/mindforge_strategic_repositioning.md`、brainstorm、review |
+| 复盘文档存在 | 是 — `docs/postmortem/mindforge-postmortem.md`、`mindforge-lessons-for-vibe-coding.md`、`mindforge-archive-plan.md` |
+| 验证协议存在 | 是 — `docs/product/validation-protocol.md`（从未执行） |
 
-### Directions No Longer Actively Pursued
+### 不再积极推进的方向
 
-- Independent Web knowledge-base product
-- Knowledge Library UI polish
-- Wiki / Topic Browser development
-- Relationship Panel / Graph-like UI
-- Knowledge Card v2 implementation
-- Distill Prompt v2 implementation
-- Obsidian export implementation
-- Agent Memory Infrastructure implementation
-- New feature development of any kind
+- 独立 Web 知识库产品
+- Knowledge Library UI 打磨
+- Wiki / Topic Browser 开发
+- 关系面板 / 图谱类 UI
+- Knowledge Card v2 实现
+- Distill Prompt v2 实现
+- Obsidian 导出实现
+- Agent Memory Infrastructure 实现
+- 任何形式的新功能开发
 
-## 3. Stop Investment List
+## 3. 停止投资清单
 
-The following areas will no longer receive investment. Code is **not deleted** — it remains in the repository for reference.
+以下领域将不再获得投入。代码**不会被删除** — 其保留在仓库中供参考。
 
-| Area | Reason |
+| 领域 | 原因 |
 |------|--------|
-| **Independent Web knowledge-base product** | No validated user scenario; covered by existing tools |
-| **Knowledge Library UI polish** | UI problems are surface-level; root cause is product direction |
-| **Wiki / Topic Browser** | Feature without validated user need |
-| **Relationship Panel / Graph-like UI** | Lab features with no value loop; same-tag is not knowledge graph |
-| **Knowledge Card v2 implementation** | Schema change depends on product form, which is no longer pursued |
-| **Distill Prompt v2 implementation** | Prompt optimization solves extraction quality, not product direction |
-| **Obsidian export implementation** | Depends on Obsidian-first direction, which is not validated |
-| **Agent Memory Infrastructure implementation** | Depends on agent memory direction, which is not validated |
-| **New feature development** | All new features require validated product direction first |
+| **独立 Web 知识库产品** | 未经验证的用户场景；已有工具可覆盖 |
+| **Knowledge Library UI 打磨** | UI 问题是表面问题；根本原因在产品方向 |
+| **Wiki / Topic Browser** | 没有经用户验证需求的功能 |
+| **关系面板 / 图谱类 UI** | 无价值闭环的实验功能；同标签不等于知识图谱 |
+| **Knowledge Card v2 实现** | Schema 变更依赖产品形态，而产品形态已不再推进 |
+| **Distill Prompt v2 实现** | Prompt 优化解决提取质量，不是产品方向 |
+| **Obsidian 导出实现** | 依赖 Obsidian 优先的方向，该方向未经验证 |
+| **Agent Memory Infrastructure 实现** | 依赖 agent memory 方向，该方向未经验证 |
+| **新功能开发** | 所有新功能需要先验证产品方向 |
 
-## 4. Preserved Assets List
+## 4. 保留资产清单
 
-The following assets are preserved and may be reused in future projects:
+以下资产被保留，可在未来项目中复用：
 
-| Asset | Location | Reusability |
+| 资产 | 位置 | 可复用性 |
 |-------|----------|-------------|
-| **Source pipeline** | `src/mindforge/ingestion_*.py`, `src/mindforge/import_cli.py` | High — file ingestion is reusable |
-| **FakeProvider** | `src/mindforge/llm/fake.py` | High — demo/testing pattern |
-| **approval-first design** | `src/mindforge/approval_*.py` | High — applies to any AI output workflow |
-| **ai_draft / human_approved boundary** | `src/mindforge/cards.py`, `src/mindforge/approver.py` | High — engineering contract |
-| **local-first constraint** | `src/mindforge/config.py`, `src/mindforge/secret_store.py` | High — privacy-first design |
-| **tests** | `tests/` | Medium — reference for testing patterns |
-| **docs** | `docs/` | High — documentation methodology |
-| **specs** | `docs/specs/` | High — SPEC writing patterns |
-| **postmortem** | `docs/postmortem/` | High — learning for future projects |
-| **validation protocol** | `docs/product/validation-protocol.md` | High — kill criteria methodology |
-| **engineering workflow** | CLAUDE.md, `.claude/` | High — SDD/TDD/review/audit workflow |
-| **transferable experience** | This document + postmortem | High — avoid repeating mistakes |
+| **源码管线** | `src/mindforge/ingestion_*.py`、`src/mindforge/import_cli.py` | 高 — 文件导入可复用 |
+| **FakeProvider** | `src/mindforge/llm/fake.py` | 高 — 演示/测试模式 |
+| **审批优先设计** | `src/mindforge/approval_*.py` | 高 — 适用于任何 AI 输出工作流 |
+| **ai_draft / human_approved 边界** | `src/mindforge/cards.py`、`src/mindforge/approver.py` | 高 — 工程契约 |
+| **本地优先约束** | `src/mindforge/config.py`、`src/mindforge/secret_store.py` | 高 — 隐私优先设计 |
+| **测试** | `tests/` | 中 — 测试模式参考 |
+| **文档** | `docs/` | 高 — 文档方法论 |
+| **规范文档** | `docs/specs/` | 高 — SPEC 写作模式 |
+| **复盘** | `docs/postmortem/` | 高 — 未来项目的学习参考 |
+| **验证协议** | `docs/product/validation-protocol.md` | 高 — 终止标准方法论 |
+| **工程工作流** | CLAUDE.md、`.claude/` | 高 — SDD/TDD/review/audit 工作流 |
+| **可迁移经验** | 本文档 + 复盘 | 高 — 避免重复错误 |
 
-## 5. README Status Update
+## 5. README 状态更新
 
-The following README files have been updated with a project status banner at the top:
+以下 README 文件已更新，顶部添加了项目状态横幅：
 
 - `README.md` — 中文
-- `README.zh-CN.md` — 中文
 
-### Chinese Banner
+### 中文横幅
 
 ```
 > **项目状态：Paused / Soft Archived**
 > MindForge 当前作为一次 vibe coding 学习项目与复盘样本保留。独立 Web 知识库产品方向不再继续积极推进；代码仍保留用于学习、复盘和未来可能的实验。详细复盘见 [docs/postmortem/](docs/postmortem/)。
 ```
 
-### English Banner
+### 英文横幅
 
 ```
 > **Project Status: Paused / Soft Archived**
 > MindForge is currently preserved as a vibe-coding learning project and postmortem artifact. The standalone Web knowledge-base product direction is no longer actively pursued. The code remains available for reference, learning, and possible future experiments. See [docs/postmortem/](docs/postmortem/) for details.
 ```
 
-These banners are placed after the title and before the original content. Original README content is preserved unchanged.
+这些横幅放在标题之后、原始内容之前。原始 README 内容保持原样不变。
 
-## 6. Tag Decision
+## 6. 标签决策
 
-**No tag is created in this commit.**
+**本次提交不创建标签。**
 
-Rationale:
-- Soft archive does not require a tag
-- Tags imply a release milestone, which this is not
-- If a tag is needed in the future, it can be added on demand:
-  - `git tag archive/v0.7-final` — for a final release marker
-  - `git tag paused/2026-06-05` — for a pause timestamp
+理由：
+- 软归档不需要标签
+- 标签意味着一个发布里程碑，而这不是
+- 如果将来需要标签，可以按需添加：
+  - `git tag archive/v0.7-final` — 作为最终发布标记
+  - `git tag paused/2026-06-05` — 作为暂停时间戳
 
-## 7. GitHub Archive Decision
+## 7. GitHub 归档决策
 
-**GitHub hard archive is NOT recommended at this time.**
+**目前不建议进行 GitHub 硬归档。**
 
-Rationale:
-- The code may still be useful as a learning asset
-- Future experiments may restart from this codebase
-- GitHub archive makes the repository read-only and signals "abandoned"
-- Soft archive (status banner + postmortem) is sufficient for current needs
+理由：
+- 代码可能仍有学习价值
+- 未来实验可能从此代码库重新启动
+- GitHub 归档会将仓库设为只读，并标记为"已废弃"
+- 软归档（状态横幅 + 复盘）已满足当前需求
 
-**If permanent stop is decided in the future**, GitHub archive can be considered:
+**如果将来决定永久停止**，可以考虑 GitHub 归档：
 - GitHub Settings → Archive this repository
-- This makes the repo read-only and adds an "Archived" badge
+- 这将使仓库变为只读，并添加"Archived"徽章
 
-## 8. If Restarted in the Future
+## 8. 如果将来重新启动
 
-Before writing any code to restart MindForge, the following conditions must be met:
+在编写任何重启 MindForge 的代码之前，必须满足以下条件：
 
-1. **Clear target user**: Who exactly will use this? Not "personal knowledge managers" — be specific.
+1. **明确的目标用户**：谁会精确地使用它？不是"个人知识管理者" — 要具体。
 
-2. **Clear real scenario**: What exact problem are they solving? Not "organizing knowledge" — be specific.
+2. **明确的实际场景**：他们解决的精确问题是什么？不是"组织知识" — 要具体。
 
-3. **3-5 real dogfood sessions**: Real usage by real users (or yourself for real tasks), not hypothetical scenarios.
+3. **3-5 次真实的 dogfood 会话**：真实用户（或你自己）的真实使用，不是假设的场景。
 
-4. **Knowledge extraction value validated**: Evidence that AI-distilled knowledge has more reuse value than good summaries.
+4. **知识提取价值已验证**：有证据表明 AI 提取的知识比好的摘要具有更多的复用价值。
 
-5. **CLI / Markdown proven insufficient**: Evidence that a simpler form (script, CLI, Obsidian plugin) cannot solve the problem, justifying Web investment.
+5. **CLI / Markdown 已被证明不足**：有证据表明更简单的形式（脚本、CLI、Obsidian 插件）无法解决问题，从而证明 Web 投入是合理的。
 
-6. **Restart SPEC written**: A new SPEC document that defines the restart direction, scope, and acceptance criteria — **before** any implementation.
+6. **重启 SPEC 已编写**：一份定义重启方向、范围和验收标准的新 SPEC 文档 — 在**任何**实现**之前**。
 
-The restart should follow the vibe coding startup checklist (see `docs/postmortem/mindforge-lessons-for-vibe-coding.md`): one-sentence scenario → manual validation → CLI/script validation → real dogfood → then decide Web/backend/architecture.
+重启应遵循 vibe coding 启动清单（见 `docs/postmortem/mindforge-lessons-for-vibe-coding.md`）：一句话场景 → 手动验证 → CLI/脚本验证 → 真实 dogfood → 然后决定 Web/后端/架构。

@@ -5,12 +5,12 @@ metadata:
   type: spec
 ---
 
-# Knowledge Card v2 Specification
+# Knowledge Card v2 规范说明
 
-Date: 2026-06-04
-Status: Draft — awaiting human review
+日期：2026-06-04
+状态：草稿 — 等待人工审阅
 
-## 1. Background & Problem
+## 1. 背景与问题
 
 MindForge 的 Knowledge Card v1 采用以下结构：
 
@@ -55,7 +55,7 @@ tags: [tag1, tag2]
 7. `tags` 没有透出到 API 响应（LibraryCardResponse 缺少 tags 字段）
 8. "一句话摘要"实际取的是 body 前 150 字符（经常是 `## Source Excerpt` 的开头），不是 AI Summary
 
-## 2. Why v1 Lacks Value
+## 2. v1 为何缺乏价值
 
 v1 卡片的设计假设是"忠实提炼原文"（faithfully extract）。这导致：
 
@@ -67,7 +67,7 @@ v1 卡片的设计假设是"忠实提炼原文"（faithfully extract）。这导
 
 **根本原因**：prompt 没有要求模型做判断、区分、提炼、连接。它只要求模型"总结"和"推断"。
 
-## 3. v2 Design Goals
+## 3. v2 设计目标
 
 1. **每张卡片回答一个核心问题**：这条知识为什么对我有价值？
 2. **字段以用户理解为中心**，不是以 pipeline 产出为中心
@@ -76,7 +76,7 @@ v1 卡片的设计假设是"忠实提炼原文"（faithfully extract）。这导
 5. **向后兼容**：v1 卡片可以在 v2 结构下正常展示
 6. **可分阶段实施**：先 schema，再 prompt，再 UI
 
-## 4. v2 What It Does NOT Do
+## 4. v2 不做什么
 
 1. **不删除 v1 的任何字段** — 只增加字段，v1 字段映射到 v2 对应位置
 2. **不改变 YAML frontmatter 格式** — 保持现有 frontmatter 结构，只增加字段
@@ -85,9 +85,9 @@ v1 卡片的设计假设是"忠实提炼原文"（faithfully extract）。这导
 5. **不改变 vault 目录结构** — 保持 `vault/20-Knowledge-Cards/{topic}/` 结构
 6. **不引入 confidence score 作为展示字段** — 质量评分进入技术证据区，不影响主要阅读
 
-## 5. New Schema Design
+## 5. 新 Schema 设计
 
-### 5.1 Frontmatter Fields
+### 5.1 Frontmatter 字段
 
 v2 卡片的 YAML frontmatter 增加以下字段：
 
@@ -127,7 +127,7 @@ stage_models:
 ---
 ```
 
-### 5.2 Body Sections
+### 5.2 正文章节
 
 v2 卡片的 body 按以下顺序组织：
 
@@ -163,7 +163,7 @@ v2 卡片的 body 按以下顺序组织：
 原文摘录（完整的 source material）
 ```
 
-## 6. Field Definitions & User Value
+## 6. 字段定义与用户价值
 
 | Field | Type | 来源 | 为什么对用户有价值 |
 |-------|------|------|-------------------|
@@ -193,9 +193,9 @@ v2 卡片的 body 按以下顺序组织：
 - **不增加 `counterarguments`**：这是学术模型的字段，个人知识管理不需要。`limitations_or_caveats` 已覆盖"这条知识可能不对"的情况。
 - **不增加 `related_work`**：需要 embedding/RAG 才能做到。当前用 `suggested_links` 替代。
 
-## 7. Field Sources
+## 7. 字段来源
 
-### 7.1 LLM Generated (ai_draft)
+### 7.1 LLM 生成（ai_draft）
 
 以下字段由 distill prompt v2 生成，进入 ai_draft 状态：
 
@@ -212,7 +212,7 @@ v2 卡片的 body 按以下顺序组织：
 - `related_questions`
 - `tags`
 
-### 7.2 System Derived
+### 7.2 系统派生
 
 以下字段由系统自动派生：
 
@@ -223,14 +223,14 @@ v2 卡片的 body 按以下顺序组织：
 - `prompt_versions`：由 pipeline 记录
 - `stage_models`：由 pipeline 记录
 
-### 7.3 Human Provided
+### 7.3 人工提供
 
 以下字段只能由人填写：
 
 - `human_note`：用户在审阅时填写的个人理解、补充、反驳
 - 对任何 LLM 生成字段的编辑：用户可以在审阅时修改任何字段
 
-### 7.4 Source Tracing
+### 7.4 来源追溯
 
 `source_trace` 包含：
 
@@ -241,7 +241,7 @@ source_trace:
   excerpt_sha1: "abc123"                # 原文摘录的 SHA1（用于去重和追溯）
 ```
 
-## 8. Approval Boundary
+## 8. 审批边界
 
 ### 8.1 ai_draft 如何进入
 
@@ -270,7 +270,7 @@ source_trace:
 - 只有用户在审阅页面手动填写 `human_note`
 - CLI approve 流程需要增加 `--note` 选项（可选）
 
-### 8.4 Approval State Transition
+### 8.4 审批状态转换
 
 ```
                     ┌──────────────┐
@@ -289,9 +289,9 @@ source_trace:
        └──────────────┘ └─────────┘ └────────┘
 ```
 
-## 9. v1 to v2 Compatibility Strategy
+## 9. v1 到 v2 的兼容策略
 
-### 9.1 Field Mapping
+### 9.1 字段映射
 
 v1 卡片字段自动映射到 v2 字段：
 
@@ -310,7 +310,7 @@ v1 卡片字段自动映射到 v2 字段：
 | — | `applicable_context` | v1 无对应字段，设为 null |
 | — | `limitations_or_caveats` | v1 无对应字段，设为 null |
 
-### 9.2 Body Section Mapping
+### 9.2 正文章节映射
 
 v1 body sections 重命名到 v2 sections：
 
@@ -327,7 +327,7 @@ v1 body sections 重命名到 v2 sections：
 | — | `## Applicable Context`（v1 无对应，为空则不展示） |
 | — | `## Limitations & Caveats`（v1 无对应，为空则不展示） |
 
-### 9.3 Migration Approach
+### 9.3 迁移方案
 
 **不做批量迁移**。采用 lazy migration 策略：
 
@@ -339,7 +339,7 @@ v1 body sections 重命名到 v2 sections：
 4. 新卡片直接使用 v2 结构
 5. 旧卡片在用户编辑/审阅时自动升级为 v2（可选，需要用户确认）
 
-## 10. Old Card Fallback Rules
+## 10. 旧卡片回退规则
 
 当 v2 前端组件读取 v1 卡片时：
 
@@ -354,13 +354,13 @@ v1 body sections 重命名到 v2 sections：
 
 **关键原则**：v1 卡片在 v2 前端下仍然可读，只是部分字段为空或 fallback。
 
-## 11. Value Scoring & Quality Standards
+## 11. 价值评分与质量标准
 
 ### 11.1 质量检查标准
 
 distill prompt v2 生成的卡片应该通过以下质量检查：
 
-| Check | 规则 | 失败处理 |
+| 检查项 | 规则 | 失败处理 |
 |-------|------|---------|
 | `one_sentence_takeaway` 非空 | 必须有值 | 返回错误，重新生成 |
 | `core_insight` 非空 | 必须有值 | 返回错误，重新生成 |
@@ -386,7 +386,7 @@ quality_level: excellent | good | fair | poor
 
 质量标识进入技术证据区，不在主要阅读路径展示。
 
-## 12. Acceptance Criteria
+## 12. 验收标准
 
 1. CardSummary dataclass 包含所有 v2 字段（可选，带默认值）
 2. LibraryCardResponse API 包含 tags 字段
@@ -399,9 +399,9 @@ quality_level: excellent | good | fair | poor
 9. FakeProvider 输出有意义的 demo 内容（不是 `[fake]` 占位）
 10. 所有新字段有对应的单元测试
 
-## 13. Test Recommendations
+## 13. 测试建议
 
-### 13.1 Unit Tests
+### 13.1 单元测试
 
 - `test_card_summary_v2_fields`：CardSummary 包含 v2 字段
 - `test_v1_to_v2_field_mapping`：v1 卡片正确映射到 v2
@@ -409,29 +409,29 @@ quality_level: excellent | good | fair | poor
 - `test_approval_boundary`：ai_draft 不能自动变为 human_approved
 - `test_human_note_not_generated_by_ai`：distill 不生成 human_note
 
-### 13.2 Integration Tests
+### 13.2 集成测试
 
 - `test_distill_prompt_v2_output`：prompt v2 输出符合 JSON schema
 - `test_library_card_response_includes_tags`：API 返回 tags
 - `test_library_card_response_includes_takeaway`：API 返回 one_sentence_takeaway
 
-### 13.3 FakeProvider Tests
+### 13.3 FakeProvider 测试
 
 - `test_fake_distill_output_meaningful`：FakeProvider 输出不是 `[fake]` 占位
 - `test_fake_distill_output_valid_schema`：FakeProvider 输出符合 v2 schema
 
-## 14. Risks & Rollback Strategy
+## 14. 风险与回滚策略
 
-### 14.1 Risks
+### 14.1 风险
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |------|--------|------------|
 | LLM 产出质量不够 | 卡片仍然没有价值 | prompt v2 增加 anti-hallucination 约束 + 质量检查 |
 | 旧卡片 fallback 有 bug | 旧卡片展示异常 | 充分的 fallback 单元测试 + 灰度发布 |
 | 前端重构引入回归 | 现有页面损坏 | 充分的 UI 测试 + 分阶段部署 |
 | FakeProvider 输出仍然垃圾 | demo 体验差 | 重新设计 FakeProvider，产出有意义的 demo 卡片 |
 
-### 14.2 Rollback Strategy
+### 14.2 回滚策略
 
 1. **CardSummary 兼容性**：新字段都是可选的，带默认值，回滚时旧代码不受影响
 2. **Frontmatter 兼容性**：不删除 v1 字段，只增加 v2 字段，回滚时旧代码仍然能读

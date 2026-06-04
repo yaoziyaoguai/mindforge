@@ -28,9 +28,9 @@ ObsidianVault/
 
 ## 三条物理隔离原则
 
-1. **`00-Inbox/**` 一律只读**：MindForge 永不写、不删、不重命名。
-2. **`20-Knowledge-Cards/**` 由 MindForge 创建**：人工只改 `status` / `Human Note`。
-3. **`30-Projects/**` 完全人工维护**：MindForge 只读，用作召回锚点。
+1. **`00-Inbox/` 一律只读**：MindForge 永不写、不删、不重命名。
+2. **`20-Knowledge-Cards/` 由 MindForge 创建**：人工只改 `status` / `Human Note`。
+3. **`30-Projects/` 完全人工维护**：MindForge 只读，用作召回锚点。
 
 ## source 接入方式
 

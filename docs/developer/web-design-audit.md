@@ -1,96 +1,96 @@
-# MindForge Web Design Audit Matrix
+# MindForge Web 设计审计矩阵
 
-This document baselines the current state of the Web UI against the `DESIGN.md` contract.
+本文档将 Web UI 当前状态与 `DESIGN.md` 契约进行基线比对。
 
-## Global Components
+## 全局组件
 
-### Navigation / Sidebar
-- **Current role in main path**: Global navigation.
-- **Current observed risk**: Grouping is abstract (`Processing`, `Using`); navigation order doesn't strictly follow the compiler pipeline.
-- **DESIGN.md rule affected**: Section 8 (Navigation Rules).
-- **Recommended action**: Reorder and rename groups to match: Sources -> Review -> Library -> Recall/Wiki -> Export.
-- **Priority**: P0
-- **Suggested slice**: Slice 1
-- **Acceptance criteria**: Sidebar items match the user journey.
+### 导航 / 侧边栏
+- **当前在主路径中的角色**: 全局导航。
+- **当前观察到的风险**: 分组方式较为抽象（`处理`、`使用`）；导航顺序未严格遵循编译管线。
+- **受影响的 DESIGN.md 规则**: 第 8 节（导航规则）。
+- **推荐操作**: 重新排序和重命名分组，使其匹配：Sources -> Review -> Library -> Recall/Wiki -> Export。
+- **优先级**: P0
+- **建议切片**: Slice 1
+- **验收标准**: 侧边栏项与用户旅程一致。
 
-### Provider Status Display (SafetyBar)
-- **Current role in main path**: Displaying security and provider state.
-- **Current observed risk**: Terminology like "Ready" vs "Demo" is text-based and potentially subtle.
-- **DESIGN.md rule affected**: Section 10 (Provider Boundary Rules).
-- **Recommended action**: Introduce high-contrast badges/icons for "Sandbox/Demo" vs "Live/Real Provider".
-- **Priority**: P0
-- **Suggested slice**: Slice 2
-- **Acceptance criteria**: Visual clarity on whether LLM calls are "real".
+### Provider 状态显示（安全栏）
+- **当前在主路径中的角色**: 显示安全和 provider 状态。
+- **当前观察到的风险**: "Ready"与"Demo"等术语基于文本，可能不够直观。
+- **受影响的 DESIGN.md 规则**: 第 10 节（Provider 边界规则）。
+- **推荐操作**: 引入高对比度徽章/图标，区分"沙箱/演示"与"真实 Provider"。
+- **优先级**: P0
+- **建议切片**: Slice 2
+- **验收标准**: 能清晰视觉区分 LLM 调用是否为"真实"。
 
-## Main Path Pages
+## 主路径页面
 
 ### Setup
-- **Current role in main path**: First-time configuration.
-- **Current observed risk**: Page is overly complex; mixes system check with provider setup. High visual density.
-- **DESIGN.md rule affected**: Section 11 (Anti-patterns), Section 3 (Visual Tone).
-- **Recommended action**: Simplify layout, use "Editorial" spacing to separate concern. Clarify LLM opt-in.
-- **Priority**: P1
-- **Suggested slice**: Slice 2
-- **Acceptance criteria**: Clean, step-by-step setup experience.
+- **当前在主路径中的角色**: 首次配置。
+- **当前观察到的风险**: 页面过于复杂；系统检查与 provider 设置混在一起。视觉密度较高。
+- **受影响的 DESIGN.md 规则**: 第 11 节（反模式），第 3 节（视觉基调）。
+- **推荐操作**: 简化布局，使用"编辑性"间距分离关注点。明确 LLM opt-in。
+- **优先级**: P1
+- **建议切片**: Slice 2
+- **验收标准**: 清晰、分步的设置体验。
 
 ### Sources / Import
-- **Current role in main path**: Input ingestion.
-- **Current observed risk**: Mixed types of sources without clear hierarchy.
-- **DESIGN.md rule affected**: Section 2 (Product Boundary).
-- **Recommended action**: Group sources by adapter type. Focus on "Import" action.
-- **Priority**: P2
-- **Suggested slice**: Slice 2
-- **Acceptance criteria**: Clear view of ingestion status.
+- **当前在主路径中的角色**: 输入导入。
+- **当前观察到的风险**: 多种来源类型混在一起，缺乏清晰层级。
+- **受影响的 DESIGN.md 规则**: 第 2 节（产品边界）。
+- **推荐操作**: 按 adapter 类型分组来源。聚焦"Import"操作。
+- **优先级**: P2
+- **建议切片**: Slice 2
+- **验收标准**: 清晰查看导入状态。
 
 ### Review
-- **Current role in main path**: Human-in-the-loop processing (ai_draft -> approval).
-- **Current observed risk**: List-heavy; the actual `Approve` decision is not the primary visual anchor.
-- **DESIGN.md rule affected**: Section 9 (Review / Approval Interaction Rules).
-- **Recommended action**: Create an "Approval Desk" layout. High visibility for `Approve`/`Reject`.
-- **Priority**: P0
-- **Suggested slice**: Slice 3
-- **Acceptance criteria**: Decision-making is the fastest path.
+- **当前在主路径中的角色**: 人机协作处理（ai_draft -> approval）。
+- **当前观察到的风险**: 列表过重；实际的"Approve"决策不是主要视觉锚点。
+- **受影响的 DESIGN.md 规则**: 第 9 节（审阅/审批交互规则）。
+- **推荐操作**: 创建"审批台"布局。`Approve`/`Reject` 操作应高可见性。
+- **优先级**: P0
+- **建议切片**: Slice 3
+- **验收标准**: 决策路径是最快的操作。
 
 ### Library
-- **Current role in main path**: Permanent memory storage.
-- **Current observed risk**: Card-heavy; feels more like a dashboard than a library.
-- **DESIGN.md rule affected**: Section 1 (Aesthetic), Section 4 (Typography).
-- **Recommended action**: Shift towards "Editorial" card design. Improve line-height and text focus.
-- **Priority**: P1
-- **Suggested slice**: Slice 4
-- **Acceptance criteria**: Reading a card feels like reading a well-formatted note.
+- **当前在主路径中的角色**: 永久记忆存储。
+- **当前观察到的风险**: 卡片过重；更像仪表盘而非图书馆。
+- **受影响的 DESIGN.md 规则**: 第 1 节（审美），第 4 节（排版）。
+- **推荐操作**: 转向"编辑性"卡片设计。改善行高和文本聚焦。
+- **优先级**: P1
+- **建议切片**: Slice 4
+- **验收标准**: 阅读卡片时感觉像在阅读一份排版良好的笔记。
 
 ### Recall / Wiki
-- **Current role in main path**: Knowledge retrieval and synthesis.
-- **Current observed risk**: Standard search/wiki layout.
-- **DESIGN.md rule affected**: Section 4 (Typography), Section 7 (Component Rules).
-- **Recommended action**: Enhance focus mode. Remove sidebar distractions during deep reading.
-- **Priority**: P2
-- **Suggested slice**: Slice 4
-- **Acceptance criteria**: Immersive knowledge exploration.
+- **当前在主路径中的角色**: 知识检索与综合。
+- **当前观察到的风险**: 标准搜索/wiki 布局。
+- **受影响的 DESIGN.md 规则**: 第 4 节（排版），第 7 节（组件规则）。
+- **推荐操作**: 增强专注模式。深度阅读时移除侧边栏干扰。
+- **优先级**: P2
+- **建议切片**: Slice 4
+- **验收标准**: 沉浸式知识探索体验。
 
 ### Export
-- **Current role in main path**: Staging content for human workspace (Obsidian).
-- **Current observed risk**: Potentially confusing boundaries on where data is going.
-- **DESIGN.md rule affected**: Section 10 (Export Boundary Rules).
-- **Recommended action**: Explicitly label as "Safe Staging Area". Review content before "Final Commit" to Obsidian.
-- **Priority**: P1
-- **Suggested slice**: Slice 2
-- **Acceptance criteria**: No ambiguity on local file system writes.
+- **当前在主路径中的角色**: 将内容暂存到人类工作区（Obsidian）。
+- **当前观察到的风险**: 数据去向的边界可能令人困惑。
+- **受影响的 DESIGN.md 规则**: 第 10 节（导出边界规则）。
+- **推荐操作**: 明确标注为"安全暂存区"。在"最终提交"到 Obsidian 前预览内容。
+- **优先级**: P1
+- **建议切片**: Slice 2
+- **验收标准**: 本地文件系统写入路径无歧义。
 
-## Lab / Internal Pages
+## Lab / 内部页面
 
 ### Graph / Sensemaking / Entity / Community
-- **Current role in main path**: Experimental features (Internal/Lab).
-- **Current observed risk**: Currently visible in the sidebar, competing with the main path.
-- **DESIGN.md rule affected**: Section 2 (Product Boundary).
-- **Recommended action**: Collapse under a "Lab" section. Use distinct visual treatment to signal "Experimental".
-- **Priority**: P0
-- **Suggested slice**: Slice 1
-- **Acceptance criteria**: Main path remains uncluttered.
+- **当前在主路径中的角色**: 实验性功能（内部/Lab）。
+- **当前观察到的风险**: 目前在侧边栏可见，与主路径产生竞争。
+- **受影响的 DESIGN.md 规则**: 第 2 节（产品边界）。
+- **推荐操作**: 折叠到"Lab"分组下。使用不同的视觉样式标识"实验性"。
+- **优先级**: P0
+- **建议切片**: Slice 1
+- **验收标准**: 主路径保持清晰无干扰。
 
-## Summary of Priorities
-- **P0**: Navigation (S1), Provider Clarity (S2), Review Desk (S3), Lab Hiding (S1).
-- **P1**: Setup Simplification (S2), Library Reading (S4), Export Boundaries (S2).
-- **P2**: Sources Grouping (S2), Recall/Wiki Polish (S4).
-- **P3**: Final Visual Pass (S5).
+## 优先级汇总
+- **P0**: 导航（S1）、Provider 清晰度（S2）、审批台（S3）、Lab 隐藏（S1）。
+- **P1**: Setup 简化（S2）、Library 阅读体验（S4）、导出边界（S2）。
+- **P2**: 来源分组（S2）、Recall/Wiki 优化（S4）。
+- **P3**: 最终视觉检查（S5）。

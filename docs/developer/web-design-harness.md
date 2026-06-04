@@ -1,74 +1,74 @@
-# MindForge Web Design Harness & Engineering Plan
+# MindForge Web 设计约束与工程计划
 
-## 1. Why MindForge Needs a Design Harness
-MindForge is a local-first, knowledge-intensive tool. As an AI-assisted project, it is susceptible to "UI drift" where different AI agents introduce inconsistent styles, unnecessary complexities, or violate the core "approval-first" philosophy. 
+## 1. 为什么 MindForge 需要一个设计约束
+MindForge 是一个本地优先、知识密集型工具。作为一个 AI 辅助项目，它容易受到"UI 漂移"的影响——不同的 AI agent 可能引入不一致的样式、不必要的复杂性，或违反核心的"审批优先"理念。
 
-The **Design Harness** provides a stable, machine-readable boundary that ensures:
-1. **Consistency**: All agents follow the same visual language.
-2. **Predictability**: UI changes are driven by a central contract (`DESIGN.md`).
-3. **Safety**: Critical boundaries (Fake vs. Real providers) are never blurred.
+**设计约束**提供了一个稳定的、机器可读的边界，确保：
+1. **一致性**：所有 agent 遵循相同的视觉语言。
+2. **可预测性**：UI 变更由中央契约（`DESIGN.md`）驱动。
+3. **安全性**：关键边界（Fake 与 Real provider）永远不会模糊。
 
-## 2. DESIGN.md and Harness Engineering
-In Harness Engineering, we don't just write code; we build the *harness* that guides and validates the code. 
-- `web/DESIGN.md` is the **Contract**.
-- This document (`web-design-harness.md`) is the **Execution Plan**.
-- `web-design-audit.md` is the **Baseline & Validation Matrix**.
+## 2. DESIGN.md 与约束工程
+在约束工程中，我们不只是编写代码，而是构建引导和验证代码的*约束*。
+- `web/DESIGN.md` 是**契约**。
+- 本文档（`web-design-harness.md`）是**执行计划**。
+- `web-design-audit.md` 是**基线与验证矩阵**。
 
-## 3. Why Documents First?
-We write documentation before changing any code to:
-- Establish a "Stability Barrier" before implementation.
-- Allow AI Agents to verify their own plans against these documents.
-- Prevent accidental scope creep or architectural violations.
+## 3. 为什么文档优先？
+我们在修改代码之前编写文档，是为了：
+- 在实现之前建立"稳定性屏障"。
+- 允许 AI Agent 根据这些文档验证自己的计划。
+- 防止意外的范围蔓延或架构违规。
 
-## 4. UI Refactoring Loop
-Every future UI slice MUST follow this loop:
-1. **Design Intent**: Reference `web/DESIGN.md` to state the goal.
-2. **Small Slice Plan**: Define a minimal, testable set of changes.
-3. **Implementation**: Coding Agent applies changes following the plan.
-4. **Frontend Gate**: Run linting and basic checks.
-5. **Browser Smoke**: Verify the page loads and is interactive.
-6. **Screenshot / Visual Evidence**: Capture proof of the change.
-7. **Design Review**: Verify against `web/DESIGN.md`.
-8. **Focused Fix**: Correct any deviations.
+## 4. UI 重构循环
+未来的每个 UI 切片都必须遵循此循环：
+1. **设计意图**：引用 `web/DESIGN.md` 说明目标。
+2. **小切片计划**：定义一组最小、可测试的变更。
+3. **实现**：编码 Agent 按计划应用变更。
+4. **前端关口**：运行 lint 和基本检查。
+5. **浏览器 Smoke 测试**：验证页面加载并可交互。
+6. **截图 / 视觉证据**：捕获变更的证明。
+7. **设计审查**：对照 `web/DESIGN.md` 验证。
+8. **定向修复**：修正任何偏差。
 
-## 5. UI Refactoring Queue (Slices)
+## 5. UI 重构队列（切片）
 
-### Slice 1: Navigation / IA Cleanup
-- **Goal**: Align the sidebar with the compiler pipeline.
-- **Entry**: `DESIGN.md` established.
-- **Exit**: Sidebar reordered: Sources -> Review -> Library -> Recall -> Export. Lab features collapsed.
-- **Acceptance Criteria**: 
-    - Navigation order matches pipeline.
-    - Lab features do not distract from main path.
+### 切片 1：导航 / IA 清理
+- **目标**：使侧边栏与编译管线对齐。
+- **入口**：`DESIGN.md` 已确立。
+- **出口**：侧边栏重新排序：Sources -> Review -> Library -> Recall -> Export。Lab 功能折叠。
+- **验收标准**：
+    - 导航顺序与管线匹配。
+    - Lab 功能不干扰主路径。
 
-### Slice 2: Provider / Source / Export Boundary Clarity
-- **Goal**: Clear visual distinction between different data states.
-- **Exit**: Explicit "Demo" vs "Live" badges. Clear separation of SourceAdapter and Export targets.
-- **Acceptance Criteria**:
-    - User can immediately tell if a provider is real or fake.
-    - Export destination is clearly marked as "Safe Staging".
+### 切片 2：Provider / Source / Export 边界清晰度
+- **目标**：不同数据状态之间有清晰的视觉区分。
+- **出口**：显式的"Demo"与"Live"徽章。SourceAdapter 和 Export 目标之间有清晰区分。
+- **验收标准**：
+    - 用户可以立即判断 provider 是真实还是 fake。
+    - 导出目标明确标记为"安全暂存区"。
 
-### Slice 3: Review Approval Desk
-- **Goal**: Focus the `Review` page on the `Approve` decision.
-- **Exit**: High-contrast, unambiguous `Approve` action. Distilled "ai_draft" view.
-- **Acceptance Criteria**:
-    - The `Approve` button is the primary visual anchor.
-    - AI-generated text is visually distinct.
+### 切片 3：审批台
+- **目标**：将`Review`页面聚焦于`Approve`决策。
+- **出口**：高对比度、无歧义的`Approve`操作。精简的"ai_draft"视图。
+- **验收标准**：
+    - `Approve`按钮是主要视觉锚点。
+    - AI 生成的文本在视觉上可区分。
 
-### Slice 4: Library / Wiki Reading Experience
-- **Goal**: Enhance the "Knowledge Desk" feeling.
-- **Exit**: Improved typography, line-height, and padding in reading areas.
-- **Acceptance Criteria**:
-    - Text blocks are readable and focused.
-    - No distracting dashboard elements.
+### 切片 4：Library / Wiki 阅读体验
+- **目标**：增强"知识台"的感觉。
+- **出口**：阅读区域的排版、行高和内边距改进。
+- **验收标准**：
+    - 文本块可读性强且聚焦。
+    - 无分散注意力的仪表盘元素。
 
-### Slice 5: Validation Readiness Visual Pass
-- **Goal**: Final polish for human users.
-- **Exit**: Global CSS cleanup, consistent spacing, final alignment with `DESIGN.md`.
+### 切片 5：验证就绪视觉检查
+- **目标**：为人类用户做最终打磨。
+- **出口**：全局 CSS 清理、一致的间距、最终与`DESIGN.md`对齐。
 
-## 6. When to Stop & Ask User
-Stop and ask the user if:
-- A change requires a new dependency.
-- A design rule in `DESIGN.md` is ambiguous or conflicting.
-- The UI change requires modifying backend API semantics.
-- A "Small Slice" exceeds 300 lines of change.
+## 6. 何时停止并询问用户
+在以下情况停止并询问用户：
+- 变更需要新的依赖。
+- `DESIGN.md` 中的设计规则模糊或存在冲突。
+- UI 变更需要修改后端 API 语义。
+- "小切片"超过 300 行变更。

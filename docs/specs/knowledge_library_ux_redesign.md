@@ -5,12 +5,12 @@ metadata:
   type: spec
 ---
 
-# Knowledge Library UX Redesign Specification
+# Knowledge Library UX 重新设计规范说明
 
-Date: 2026-06-04
-Status: Draft — awaiting human review
+日期：2026-06-04
+状态：草稿 — 等待人工审阅
 
-## 1. Current Library Page Problems
+## 1. 当前 Library 页面问题
 
 `LibraryPage.tsx` 当前问题：
 
@@ -22,7 +22,7 @@ Status: Draft — awaiting human review
 6. **像管理后台**：过滤、排序、批量操作——个人知识管理不需要这些企业级功能
 7. **空状态不友好**：没有卡片时只有空列表，没有引导
 
-## 2. Current Detail Page Problems
+## 2. 当前详情页面问题
 
 `CardWorkspace.tsx` 当前问题：
 
@@ -33,7 +33,7 @@ Status: Draft — awaiting human review
 5. **关系区包装过度**：14 种 edge 类型，大多数是技术关系（same_source, same_tag），不是知识关系
 6. **标签只在详情区**：标签应该在首屏就能看到（帮助判断这条知识属于什么领域）
 
-## 3. New Information Architecture Goals
+## 3. 新信息架构目标
 
 1. **首屏即价值**：用户打开卡片后，第一屏就能判断"这条知识对我有没有价值"
 2. **阅读路径清晰**：先知道"是什么"，再知道"怎么用"，再知道"还有什么"
@@ -42,7 +42,7 @@ Status: Draft — awaiting human review
 5. **渐进披露**：普通用户看核心信息，高级用户看技术证据
 6. **搜索友好**：Library 首页让用户快速找到想要的知识
 
-## 4. Library Home Page Organization
+## 4. Library 首页组织
 
 ### 4.1 简化过滤器
 
@@ -129,7 +129,7 @@ v2 空状态：
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 5. Card Detail First Screen
+## 5. 卡片详情首屏
 
 **v2 详情页第一屏（Layer 1 — 价值首屏）**：
 
@@ -162,7 +162,7 @@ v2 空状态：
 6. 核心洞察（默认展开，因为它是卡片的核心价值）
 7. 编辑/审阅按钮（如果是 ai_draft）
 
-## 6. Default Expanded Sections
+## 6. 默认展开的区域
 
 以下区域默认展开：
 
@@ -171,7 +171,7 @@ v2 空状态：
 | Core Insight | 卡片的核心价值所在，用户首先应该读这个 |
 | Reusable Principle | 用户需要知道"能直接应用什么" |
 
-## 7. Default Collapsed Sections
+## 7. 默认折叠的区域
 
 以下区域默认折叠（`<details>`）：
 
@@ -185,7 +185,7 @@ v2 空状态：
 | Human Note | 初始为空，用户自己填写 |
 | Source Excerpt | 原文较长，按需查阅 |
 
-## 8. Technical Fields in Advanced Info
+## 8. 高级信息中的技术字段
 
 以下技术字段进入"高级信息"区（页面底部 `<details>`）：
 
@@ -203,7 +203,7 @@ v2 空状态：
 
 **访问方式**：点击页面底部的 `<details>` 展开
 
-## 9. Tags Display
+## 9. 标签展示
 
 **当前问题**：tags 没有透出到 API，前端只展示在详情页的 body 区域
 
@@ -226,7 +226,7 @@ interface LibraryCardResponse {
 }
 ```
 
-## 10. Source Display
+## 10. 来源展示
 
 **当前**：source_excerpt, source_url, source_file_path, source_type, source_saved_at 平铺
 
@@ -244,7 +244,7 @@ Source: inbox/immutable-data.md
 Source: example.com/article-name
 ```
 
-## 11. AI Summary / Source Excerpt / Human Note Reordering
+## 11. AI 总结 / 原文摘录 / 人工备注重新排序
 
 **当前顺序**：AI Summary → Human Note → Key Points → Source Excerpt → AI Inference → Reusable Prompts → Project Hooks → Review Questions → Action Items
 
@@ -269,7 +269,7 @@ Source: example.com/article-name
 - 默认折叠的字段是按需查阅的
 - 技术字段在底部，不污染主要阅读路径
 
-## 12. Related Knowledge Area Renaming & Restructuring
+## 12. 相关知识区域重命名与重构
 
 ### 12.1 重命名
 
@@ -328,7 +328,7 @@ Source: example.com/article-name
 - edge 的 metadata
 - 社区检测算法结果
 
-## 13. How to Avoid Fake "Knowledge Graph"
+## 13. 如何避免虚假的"知识图谱"
 
 **当前问题**：14 种 edge 类型，大多数是同标签/同来源，包装成"图谱"
 
@@ -346,7 +346,7 @@ Source: example.com/article-name
 - 需要用户明确理解"图谱"的含义
 - 不能在当前数据基础上包装
 
-## 14. Reading Mode vs Editing Mode
+## 14. 阅读模式与编辑模式
 
 ### 14.1 阅读模式（默认）
 
@@ -372,7 +372,7 @@ Source: example.com/article-name
 - ai_draft 卡片默认显示审阅引导
 - human_approved 卡片可以进入编辑模式修改 human_note
 
-## 15. Empty State Design
+## 15. 空状态设计
 
 ### 15.1 Library 空状态
 
@@ -412,7 +412,7 @@ Source: example.com/article-name
 └─────────────────────────────────────────────────────┘
 ```
 
-## 16. Fake Demo Data Strategy
+## 16. Demo 数据策略
 
 ### 16.1 目标
 
@@ -434,7 +434,7 @@ Source: example.com/article-name
 
 每张卡片都包含完整的 v2 字段，展示知识的价值。
 
-## 17. Component Boundaries
+## 17. 组件边界
 
 ### 17.1 当前组件
 
@@ -468,7 +468,7 @@ Source: example.com/article-name
 - `MarkdownRenderer.tsx`：Markdown 渲染，已存在
 - `SourceLink.tsx`：来源链接，统一处理 URL 和 file_path
 
-## 18. API Field Requirements
+## 18. API 字段需求
 
 ### 18.1 LibraryCardResponse
 
@@ -533,16 +533,16 @@ interface CardDetailResponse extends LibraryCardResponse {
 - 移除社区检测结果展示
 - 返回 related_cards 的一句話摘要
 
-## 19. Test Recommendations
+## 19. 测试建议
 
-### 19.1 Unit Tests
+### 19.1 单元测试
 
 - `test_library_card_response_includes_tags`：API 返回 tags
 - `test_library_card_response_includes_takeaway`：API 返回 one_sentence_takeaway
 - `test_library_card_response_includes_knowledge_type`：API 返回 knowledge_type
 - `test_v1_card_fallback_in_v2_api`：v1 卡片正确 fallback
 
-### 19.2 Component Tests
+### 19.2 组件测试
 
 - `test_value_hero_renders_takeaway`：首屏展示一句话核心
 - `test_core_insight_expanded_by_default`：核心洞察默认展开
@@ -553,13 +553,13 @@ interface CardDetailResponse extends LibraryCardResponse {
 - `test_empty_state_library`：Library 空状态正确
 - `test_empty_state_related_knowledge`：相关知识空状态正确
 
-### 19.3 Integration Tests
+### 19.3 集成测试
 
 - `test_library_page_simplified_filters`：过滤器简化正确
 - `test_card_detail_five_layer_path`：详情页五层阅读路径正确
 - `test_review_page_five_operations`：审阅页支持 5 种操作
 
-## 20. Acceptance Criteria
+## 20. 验收标准
 
 1. Library 页面过滤器简化为搜索 + sort + tag filter
 2. Library 卡片列表展示 title + type + takeaway + tags + source
@@ -577,11 +577,11 @@ interface CardDetailResponse extends LibraryCardResponse {
 14. FakeProvider 输出有意义的 demo 内容
 15. v1 卡片在 v2 前端下正常展示（fallback 规则生效）
 
-## 21. Risks & Rollback Strategy
+## 21. 风险与回滚策略
 
-### 21.1 Risks
+### 21.1 风险
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |------|--------|------------|
 | 前端重构引入回归 | 现有页面损坏 | 分阶段部署 + 充分测试 |
 | API 变更破坏旧客户端 | 移动端或其他客户端报错 | 新字段可选，旧字段保留 |
@@ -589,7 +589,7 @@ interface CardDetailResponse extends LibraryCardResponse {
 | FakeProvider 输出仍然垃圾 | demo 体验差 | 精心编写 demo 模板 |
 | 五层布局在小屏幕溢出 | 移动端体验差 | 响应式设计测试 |
 
-### 21.2 Rollback Strategy
+### 21.2 回滚策略
 
 1. **前端 feature flag**：通过 feature flag 控制 v2 布局，回滚时切换回 v1
 2. **API 向后兼容**：新字段添加到响应中，旧客户端忽略未知字段

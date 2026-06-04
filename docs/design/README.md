@@ -1,4 +1,4 @@
-# Design Documents
+# 设计文档
 
 MindForge 设计文档索引。
 

@@ -1,4 +1,4 @@
-# ADR-001: Retrieval Backend — BM25 vs SQLite FTS5 vs DuckDB FTS
+# ADR-001: 检索后端 — BM25 vs SQLite FTS5 vs DuckDB FTS
 
 ## 日期
 2026-05-24

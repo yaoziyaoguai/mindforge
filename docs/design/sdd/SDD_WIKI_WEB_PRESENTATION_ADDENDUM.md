@@ -1,9 +1,9 @@
-# SDD: Wiki Web Presentation Addendum — Personal Knowledge Base UX
+# SDD: Wiki Web 展示补充文档 — 个人知识库 UX
 
-> **Status**: Draft — Accepted for v0.2 implementation
-> **Date**: 2026-05-15
-> **Depends on**: RFC_0002_WIKI_PRESENTATION_V2.md, SDD_WIKI_PRESENTATION_V2.md (historical design docs, no longer in repo)
-> **Related**: ~~V0_2_ROADMAP.md~~ (removed 2026-05-27)
+> **状态**: 草稿 — 已接受为 v0.2 实施
+> **日期**: 2026-05-15
+> **依赖**: RFC_0002_WIKI_PRESENTATION_V2.md、SDD_WIKI_PRESENTATION_V2.md（历史设计文档，不再在仓库中）
+> **相关**: ~~V0_2_ROADMAP.md~~（已于 2026-05-27 移除）
 
 ---
 
@@ -103,9 +103,9 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 
 ---
 
-## 5. Layout Specification
+## 5. 布局规范
 
-### 5.1 Desktop Layout（>= 1024px）
+### 5.1 桌面布局（>= 1024px）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -146,7 +146,7 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 - 阅读列居中在三栏中的主区域
 - Advanced fallback 在页面底部折叠区域，不混入主阅读流
 
-### 5.2 Tablet Layout（640px - 1023px）
+### 5.2 平板布局（640px - 1023px）
 
 ```
 ┌──────────────────────────────────────────┐
@@ -168,7 +168,7 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 - References panel 移到阅读列下方
 - 阅读列 keep max-width
 
-### 5.3 Mobile Layout（< 640px）
+### 5.3 移动布局（< 640px）
 
 ```
 ┌──────────────────────────┐
@@ -193,7 +193,7 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 
 ---
 
-## 6. Reading Experience
+## 6. 阅读体验
 
 ### 6.1 页面结构
 
@@ -206,7 +206,7 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 6. **Warnings**：如有 synthesis warnings，可折叠展示
 7. **Advanced**：Troubleshooting fallback，折叠区域
 
-### 6.2 Typography
+### 6.2 排版
 
 - 阅读列 **max-width: 720px**
 - Body text **line-height: 1.75**（中文阅读舒适）
@@ -229,7 +229,7 @@ MindForge Wiki 是用户知识库的 **结构化阅读界面**——不是 Markd
 
 ---
 
-## 7. Provenance / Trust Design
+## 7. 溯源 / 信任设计
 
 ### 7.1 核心原则
 
@@ -258,7 +258,7 @@ Provenance 不应被藏起来——它是 MindForge Wiki 与普通 LLM 输出关
 
 ---
 
-## 8. Product Wording Rules
+## 8. 产品文案规范
 
 ### 8.1 禁止词汇（用户界面主路径）
 
@@ -292,7 +292,7 @@ Provenance 不应被藏起来——它是 MindForge Wiki 与普通 LLM 输出关
 
 ---
 
-## 9. Renderer / Plugin Decision
+## 9. 渲染器 / 插件决策
 
 ### 9.1 当前选择
 
@@ -332,7 +332,7 @@ Frontend: marked → HTML → DOMPurify → safe HTML → dangerouslySetInnerHTM
 
 ---
 
-## 10. Rendering Safety
+## 10. 渲染安全
 
 ### 10.1 当前安全状态
 
@@ -347,7 +347,7 @@ Frontend: marked → HTML → DOMPurify → safe HTML → dangerouslySetInnerHTM
 | backend HTML rendering | ✅ | 后端只输出 canonical Markdown text |
 | graph view implementation | ✅ | NotImplementedError |
 
-### 10.2 CSP Header（推荐加固）
+### 10.2 CSP 头（推荐加固）
 
 `Content-Security-Policy: default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'`
 
@@ -363,7 +363,7 @@ Frontend: marked → HTML → DOMPurify → safe HTML → dangerouslySetInnerHTM
 
 ---
 
-## 11. Editable Wiki Boundary
+## 11. 可编辑 Wiki 边界
 
 ### 11.1 v0.2 决策：不实现
 
@@ -419,7 +419,7 @@ User can "Clear override" → back to pure synthesis
 
 ---
 
-## 12. Component Hierarchy
+## 12. 组件层级
 
 ### 12.1 推荐组件树
 
@@ -457,7 +457,7 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 
 ---
 
-## 13. Acceptance Criteria
+## 13. 验收标准
 
 ### 13.1 UX Acceptance
 
@@ -496,7 +496,7 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 
 ---
 
-## 14. Implementation Plan
+## 14. 实施计划
 
 大步实现，分 commit。每步在对应文档 section 指导下完成。
 
@@ -512,7 +512,7 @@ WikiPage（页面级状态管理 + fetch + rebuild）
 
 ---
 
-## 15. References
+## 15. 参考
 
 - RFC_0002_WIKI_PRESENTATION_V2.md (historical) — Wiki ViewModel + rendering boundary
 - SDD_WIKI_PRESENTATION_V2.md (historical) — Wiki structure + safety + tests

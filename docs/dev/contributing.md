@@ -83,7 +83,7 @@ HOME=/private/tmp/mindforge-test-home python -m pytest -q
 
 ### 产品契约测试
 
-部分测试 assert README.zh-CN.md 中的特定 token。修改文档或重构安全描述时需同步更新这些测试。
+部分测试 assert README.md 中的特定 token。修改文档或重构安全描述时需同步更新这些测试。
 
 ---
 

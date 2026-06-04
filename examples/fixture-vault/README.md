@@ -1,4 +1,4 @@
-# MindForge Fixture Vault
+# MindForge 示例 Vault
 
 > 这是一份**完全虚构、无敏感数据**的示例 vault，用于：
 > 1. 文档/截图；

@@ -4,7 +4,7 @@ date: 2026-05-25
 status: active
 ---
 
-# ADR-003: Retrieval Quality Baseline — BM25 v2.2
+# ADR-003: 检索质量基线 — BM25 v2.2
 
 ## Context
 

@@ -5,11 +5,11 @@ metadata:
   type: strategic-spec
 ---
 
-# MindForge Strategic Repositioning SDD
+# MindForge 战略重新定位 SDD
 
-Date: 2026-06-05
-Status: Draft — awaiting human review
-Type: Product Direction SPEC (not implementation SPEC)
+日期：2026-06-05
+状态：草稿 — 等待人工审阅
+类型：产品方向 SPEC（非实现 SPEC）
 
 ---
 

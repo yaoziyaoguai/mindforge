@@ -1,4 +1,4 @@
-# MindForge Web Design Direction
+# MindForge Web 设计方向
 
 **日期**: 2026-05-26
 **状态**: proposed
@@ -7,7 +7,7 @@
 
 ---
 
-## A. Executive Summary
+## A. 执行摘要
 
 ### MindForge Web 应该是什么样的
 
@@ -40,7 +40,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## B. Product Personality — 7 个设计形容词
+## B. 产品个性 — 7 个设计形容词
 
 ### 1. Calm（安静）
 
@@ -72,7 +72,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## C. Design Inspiration Survey
+## C. 设计灵感调研
 
 从 awesome-design-md 的 58 个 DESIGN.md 中，分析了以下与 MindForge 相关的设计家族：
 
@@ -180,7 +180,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## D. Recommended Direction: "Calm Editorial Knowledge Compiler"
+## D. 推荐方向：安静的编辑性知识编译器
 
 ### 色彩方向
 
@@ -313,7 +313,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## E. Rejected Directions
+## E. 已拒绝的方向
 
 以下方向明确拒绝，不进入后续设计阶段：
 
@@ -330,7 +330,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## F. Page-by-Page Design Targets
+## F. 逐页设计目标
 
 ### 1. First-Run / Onboarding
 
@@ -439,7 +439,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## G. Design System Tokens (Candidate)
+## G. 设计系统 Token（候选）
 
 以下 token 为候选定义，不在本轮实现。
 
@@ -512,7 +512,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## H. Component Inventory
+## H. 组件清单
 
 ### 核心组件（主路径）
 
@@ -540,7 +540,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## I. Implementation Roadmap
+## I. 实施路线图
 
 ### Stage 0 — Design Direction Lock（本轮）
 - 本设计方向文档
@@ -580,7 +580,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## J. Auto-run Implementation Guardrails
+## J. 自动运行实施护栏
 
 ### 显式约束
 
@@ -602,7 +602,7 @@ MindForge 的核心路径是 `Source → ai_draft → Review → explicit approv
 
 ---
 
-## Self-Review
+## 自我评审
 
 | Check | Verdict |
 |-------|---------|

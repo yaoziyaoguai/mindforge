@@ -1,137 +1,137 @@
-# MindForge Lessons for Vibe Coding
+# MindForge Vibe Coding 经验教训
 
-Date: 2026-06-05
-Status: Learning artifact — reference for future projects
+日期：2026-06-05
+状态：学习产物 — 未来项目参考
 
-This document captures lessons learned from building MindForge as a vibe coding project. It is methodology, not a diary entry. Future projects should read this before writing their first line of code.
+本文档记录了构建 MindForge 作为一个 vibe coding 项目的经验教训。这是方法论，不是日记。未来项目在编写第一行代码之前应先阅读本文。
 
-## 1. Core Lessons from This Project
+## 1. 本项目的核心教训
 
-### Lesson 1: Coding Agents Can Build Complex Systems Fast, But They Don't Judge Whether the Product Is Worth Building
+### 教训 1：编码 Agent 可以快速构建复杂系统，但它们无法判断产品是否值得构建
 
-MindForge has 100+ Python files, 13 Web pages, 30+ components, 20+ docs. The coding agent built all of it efficiently. But no agent asked: "does anyone actually need this?"
+MindForge 有 100+ Python 文件、13 个 Web 页面、30+ 组件、20+ 文档。编码 agent 高效地构建了所有这些。但没有一个 agent 问过："真的有人需要这个吗？"
 
-**Rule**: Before asking an agent to build a system, you must answer the product question yourself. The agent will faithfully implement whatever you tell it to build — including the wrong thing.
+**规则**：在要求 agent 构建系统之前，你必须自己回答产品问题。Agent 会忠实地实现你告诉它构建的任何东西 — 包括错误的东西。
 
-### Lesson 2: SDD / TDD / Review / Audit Improve Implementation Quality, But Cannot Replace Product Judgment
+### 教训 2：SDD / TDD / Review / Audit 提高了实现质量，但无法替代产品判断
 
-MindForge had excellent engineering discipline:
-- SPEC documents for every feature
-- Test-driven development
-- Code review from multiple agent personas
-- Multi-modal UX audit
+MindForge 有出色的工程纪律：
+- 每个功能的 SPEC 文档
+- 测试驱动开发
+- 来自多个 agent 角色的代码审查
+- 多模态 UX 审计
 
-All of this ensured the code was well-written, well-tested, and well-architected. But a well-tested product that nobody needs is still a product nobody needs.
+所有这些确保了代码写得好、测试得好、架构得好。但一个测试完善却没人需要的产品，仍然是一个没人需要的产品。
 
-**Rule**: Engineering quality and product value are independent dimensions. High engineering quality cannot compensate for zero product value.
+**规则**：工程质量和产品价值是独立的维度。高质量的工程无法弥补零产品价值。
 
-### Lesson 3: Validate the Scenario First, Then Design the Architecture
+### 教训 3：先验证场景，再设计架构
 
-We designed ADRs, target architecture maps, and layered system architectures before validating that anyone needed the core workflow. Architecture is expensive even when the direction is right. When the direction is wrong, it's a sunk cost amplifier.
+我们在验证是否有人需要核心工作流之前，就设计了 ADR、目标架构图和分层系统架构。即使方向正确，架构也是昂贵的。当方向错误时，它就是沉没成本放大器。
 
-**Rule**: Architecture design should only happen after you have evidence that the product scenario is worth pursuing.
+**规则**：架构设计只有在你有证据表明产品场景值得推进之后才能进行。
 
-### Lesson 4: Just Because Agents Can Build Web / API / Tests Doesn't Mean You Should Build Web / API / Tests
+### 教训 4：Agent 能构建 Web / API / 测试，并不意味着你应该构建 Web / API / 测试
 
-The availability of capable coding agents creates a temptation: "I can build this Web app quickly, so I should." But "can build" is not "should build."
+有能力的编码 agent 的存在制造了一种诱惑："我能很快地构建这个 Web 应用，所以我应该去构建。"但"能构建"不等于"应该构建"。
 
-**Rule**: The ease of implementation should not drive scope decisions. User need should.
+**规则**：实现的便利性不应驱动范围决策。用户需求才应该。
 
-### Lesson 5: Don't Build Full Product Form for Small Tool Projects from the Start
+### 教训 5：一开始不要为小工具项目构建完整的产品形态
 
-MindForge started as a "knowledge processing idea" but immediately became a "full Web product with 13 pages." A smaller form (CLI script, markdown pipeline, Obsidian plugin) would have been sufficient for validation.
+MindForge 从一个"知识处理想法"开始，但立即变成了一个"拥有 13 个页面的完整 Web 产品"。更小的形式（CLI 脚本、markdown 管线、Obsidian 插件）本来足以用于验证。
 
-**Rule**: Start with the smallest form that tests the core hypothesis. Scale up only after validation.
+**规则**：从测试核心假设的最小形式开始。只有在验证之后才进行扩展。
 
-### Lesson 6: Premature Architecture Design Amplifies Sunk Cost
+### 教训 6：过早的架构设计放大了沉没成本
 
-The more architecture you build before validating the product direction, the harder it becomes to stop or pivot. MindForge had target architecture maps, ADRs, design directions — all of which made stopping feel "wasteful" even when stopping was the right decision.
+在验证产品方向之前构建的架构越多，就越难停止或转向。MindForge 有目标架构图、ADR、设计方向 — 所有这些都让停止感觉像是"浪费"，即使停止是正确的决定。
 
-**Rule**: Architecture creates emotional commitment to the direction. Only create that commitment after validating the direction.
+**规则**：架构会制造对方向的情感承诺。只有在验证方向之后才制造这种承诺。
 
-### Lesson 7: Review and Red-Team Audit Should Come Early, Not After the System Is Complex
+### 教训 7：Review 和 Red-Team 审计应该尽早进行，而不是等到系统变得复杂之后
 
-The multi-modal audit (17-section report, display 4/10, extraction 3/10) came after the system was already complex. The audit findings were valuable, but the cost of implementing them was high because the system was already built.
+多模态审计（17 节报告，展示 4/10，提取 3/10）是在系统已经复杂之后进行的。审计发现很有价值，但实施成本很高，因为系统已经建成了。
 
-**Rule**: Audit should happen at the idea stage, not the implementation stage. "Does this product make sense?" is cheaper to answer than "does this code work correctly?"
+**规则**：审计应该在想法阶段进行，而不是在实现阶段。回答"这个产品有意义吗？"比回答"这段代码工作正确吗？"更便宜。
 
-### Lesson 8: Multi-Modal Audit Exposes Real User Experience Problems
+### 教训 8：多模态审计暴露了真实的用户体验问题
 
-The audit methodology (browser experience + code review + prompt analysis + content analysis) revealed problems that unit tests and code review never catch:
-- "One-sentence summary" was actually the body prefix (Source Excerpt)
-- Tags were not exposed to the API
-- Relationship section packaged same-tag as "knowledge graph"
-- AI summary was paraphrase, not insight
+审计方法论（浏览器体验 + 代码审查 + prompt 分析 + 内容分析）揭示了单元测试和代码审查从未发现的问题：
+- "一句话摘要"实际上是 body 前缀（Source Excerpt）
+- 标签没有暴露给 API
+- 关系部分将同标签包装为"知识图谱"
+- AI 总结是改写，不是洞察
 
-**Rule**: Audit the product as a user would experience it, not just as code to be reviewed.
+**规则**：从用户实际体验的角度审计产品，而不仅仅是把产品当作待审查的代码。
 
-### Lesson 9: Stopping a Project Is a Normal Engineering Decision, Not a Failure
+### 教训 9：停止一个项目是正常的工程决策，不是失败
 
-MindForge's soft archive is not a failure. It's a recognition that continued investment would be a sunk cost trap. The project produced valuable learning, engineering assets, and methodology. Stopping at the right time is good engineering judgment.
+MindForge 的软归档不是失败。这是认识到继续投入将是沉没成本陷阱。该项目产生了有价值的学习、工程资产和方法论。在正确的时间停止是良好的工程判断。
 
-**Rule**: Define kill criteria before starting. Execute them honestly when triggered.
+**规则**：开始之前就定义终止标准。在条件触发时诚实地执行它们。
 
-### Lesson 10: Agents Reduce Implementation Cost, But Also Accelerate Wrong Directions
+### 教训 10：Agent 降低了实现成本，但也加速了错误的方向
 
-Vibe coding makes building fast. But "building the wrong thing fast" is worse than "building the wrong thing slow" — because fast implementation creates more code to throw away and more emotional attachment to keep going.
+Vibe coding 让构建变得快速。但"快速构建错误的东西"比"慢速构建错误的东西"更糟糕 — 因为快速实现会产生更多需要丢弃的代码，以及更多继续前进的情感依恋。
 
-**Rule**: Slow down on product decisions. Speed up on implementation only after the direction is validated.
+**规则**：在产品决策上放慢速度。只有在方向验证之后才在实现上加速。
 
-## 2. Startup Checklist for Future Projects
+## 2. 未来项目的启动清单
 
-Before writing any code for a new project, answer these questions:
+在编写任何新项目代码之前，回答以下问题：
 
-| Question | Why It Matters |
+| 问题 | 为什么重要 |
 |----------|---------------|
-| **Who is the target user?** | "Everyone" is not a user. Be specific: "developers who manage project documentation" or "researchers who organize academic notes." |
-| **What is the specific scenario?** | "Knowledge management" is too broad. "Import a 5000-word research article and extract 3 actionable principles" is specific. |
-| **How do users solve this now?** | If they're happy with their current solution, they won't switch. |
-| **Why are existing tools not enough?** | If Claude + Obsidian already solves 80% of the problem, you need to explain the remaining 20% compellingly. |
-| **What is the minimum manual validation?** | Can you simulate the workflow with a script, a prompt, and a markdown file? If yes, do that first. |
-| **Can you validate without writing code?** | Try the workflow manually: paste text into Claude, ask it to distill, review the output, save to a file. Does it feel valuable? |
-| **Is CLI / script sufficient?** | If the core value is in the processing pipeline, a Web UI adds cost without adding value for validation. |
-| **Why must there be a Web frontend?** | Web adds installation cost (npm, build, serve), maintenance cost (pages, components, dependencies), and distribution cost. Justify each. |
-| **Why must there be a backend?** | If the processing can be done as a CLI script, a backend adds complexity without adding value. |
-| **Why must there be a database?** | If YAML files or markdown work, a database adds operational complexity. |
-| **What signal must appear before architecture is allowed?** | "3 users completed the core workflow manually and said they'd use it again" is a good signal. |
-| **What signal must appear before UI productization?** | "Users complete the CLI workflow consistently and ask for a visual interface" is a good signal. |
-| **Under what conditions should we stop?** | Define 3-5 kill criteria before starting. Execute them honestly. |
+| **目标用户是谁？** | "所有人"不是用户。要具体："管理项目文档的开发者"或"组织学术笔记的研究人员"。 |
+| **具体场景是什么？** | "知识管理"太宽泛。"导入一篇 5000 字的研究文章并提取 3 条可操作原则"是具体的。 |
+| **用户现在如何解决这个问题？** | 如果他们对当前解决方案满意，就不会切换。 |
+| **为什么现有工具不够？** | 如果 Claude + Obsidian 已经解决了 80% 的问题，你就需要有说服力地解释剩余的 20%。 |
+| **最低限度的手动验证是什么？** | 你能用脚本、prompt 和 markdown 文件模拟工作流吗？如果能，先做这个。 |
+| **能否不写代码就进行验证？** | 手动尝试工作流：粘贴文本到 Claude，要求提炼，审查输出，保存到文件。感觉有价值吗？ |
+| **CLI / 脚本是否足够？** | 如果核心价值在处理管线中，Web UI 在验证阶段增加了成本而没有增加价值。 |
+| **为什么必须有 Web 前端？** | Web 增加了安装成本（npm、build、serve）、维护成本（页面、组件、依赖项）和分发成本。逐一证明每个成本。 |
+| **为什么必须有后端？** | 如果处理可以通过 CLI 脚本完成，后端会增加复杂性而不增加价值。 |
+| **为什么必须有数据库？** | 如果 YAML 文件或 markdown 能工作，数据库会增加运维复杂性。 |
+| **必须出现什么信号才能允许架构设计？** | "3 个用户手动完成了核心工作流并表示会再次使用"是一个好的信号。 |
+| **必须出现什么信号才能进行 UI 产品化？** | "用户一致地完成 CLI 工作流并要求可视界面"是一个好的信号。 |
+| **在什么条件下应该停止？** | 开始前定义 3-5 个终止标准。诚实地执行它们。 |
 
-## 3. Project Startup Principles for Coding Agents
+## 3. 编码 Agent 的项目启动原则
 
-When using a coding agent (Claude Code, Cursor Agent, etc.) to start a new project, follow these principles:
+当使用编码 agent（Claude Code、Cursor Agent 等）启动新项目时，遵循以下原则：
 
-### Don't Default To
+### 不要默认做
 
-- **Don't default to building a Web frontend**. Web is the most expensive form factor. Start with CLI or script.
-- **Don't default to building a backend**. If the processing is local, a backend is unnecessary infrastructure.
-- **Don't default to a complete schema design**. Schema should evolve from usage, not be designed before validation.
-- **Don't default to a complex documentation system**. Docs are good, but don't let doc-writing substitute for product validation.
-- **Don't default to multi-page UI**. One page (or zero pages) is enough for validation.
+- **不要默认构建 Web 前端**。Web 是最昂贵的形式。从 CLI 或脚本开始。
+- **不要默认构建后端**。如果处理是本地的，后端是不必要的基础设施。
+- **不要默认设计完整的 schema**。Schema 应从使用中演化，而不是在验证之前设计。
+- **不要默认使用复杂的文档系统**。文档是好的，但不要让写文档替代产品验证。
+- **不要默认使用多页面 UI**。一个页面（或零个页面）足以用于验证。
 
-### Do First
+### 先做
 
-- **Build the smallest useful workflow**. If the core value is "import → distill → approve," build that as a script. Not a Web app.
-- **Do real dogfooding**. Use the tool yourself for a real task. If you don't enjoy using it, no one else will.
-- **Define kill criteria before starting**. "If X users can't complete the core workflow in Y minutes, stop."
-- **Do a product red team before implementation**. "Why would this product fail?" is a cheaper question than "does this code have bugs?"
+- **构建最小有用的工作流**。如果核心价值是"导入 → 提炼 → 审批"，先把它做成脚本。不是 Web 应用。
+- **进行真实的 dogfood 自用**。自己使用该工具完成真实任务。如果你自己都不喜欢用它，别人也不会。
+- **开始前定义终止标准**。"如果 X 个用户不能在 Y 分钟内完成核心工作流，就停止。"
+- **在实现之前做产品 red team**。"这个产品为什么会失败？"比"这段代码有 bug 吗？"更便宜。
 
-### Then
+### 然后
 
-- **After validation, write SDD**. Now that you know the direction is right, document the architecture.
-- **After SDD, write tests**. Now that you know what to build, test-drive the implementation.
-- **After tests, implement**. Now that you know what to build and how to verify it, let the agent build it.
+- **验证之后，写 SDD**。既然你知道方向是对的，就记录架构。
+- **SDD 之后，写测试**。既然你知道要构建什么，就用测试驱动实现。
+- **测试之后，实现**。既然你知道要构建什么以及如何验证它，就让 agent 去构建。
 
-### The Recommended First Phase
+### 推荐的第一阶段
 
-For any future vibe coding project:
+对于任何未来的 vibe coding 项目：
 
-1. **One-sentence user scenario**: "As a [specific user], I want to [specific action] so that [specific outcome]."
-2. **Manual workflow validation**: Simulate the entire workflow by hand. Does it feel valuable?
-3. **Minimum CLI / script validation**: Write a script that does the core processing. Does the output feel useful?
-4. **Real dogfood**: Use it for a real task, at least 3 times. Would you use it again?
-5. **Then decide Web / backend / architecture**: Only if the above steps validate value should you invest in product form.
+1. **一句话用户场景**："作为[特定用户]，我想要[特定操作]，以便[特定结果]。"
+2. **手动工作流验证**：手动模拟完整工作流。感觉有价值吗？
+3. **最小 CLI / 脚本验证**：编写一个完成核心处理的脚本。输出感觉有用吗？
+4. **真实 dogfood 自用**：用于完成真实任务，至少 3 次。你会再次使用吗？
+5. **然后决定 Web / 后端 / 架构**：只有上述步骤验证了价值，才值得投入产品形态。
 
 ---
 
-These lessons were earned through honest work and an honest stop. They are preserved here so that future projects can benefit without repeating the same mistakes.
+这些教训是通过诚实的工作和诚实的停止获得的。它们被保留在这里，以便未来的项目可以受益，而无需重复同样的错误。
