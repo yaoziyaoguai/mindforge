@@ -20,7 +20,7 @@ describe("Sidebar", () => {
 
     expect(screen.getByText("MindForge")).toBeInTheDocument();
     expect(screen.getByText("Demo Mode")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Configure Real Model/i })).toBeInTheDocument();
+    expect(screen.getByText(/Demo Mode Active/)).toBeInTheDocument();
     expect(screen.getByText("Local Workspace")).toBeInTheDocument();
     expect(screen.queryByText("Knowledge Graph")).not.toBeInTheDocument();
   });

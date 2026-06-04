@@ -62,7 +62,7 @@ mindforge status    # Workspace / vault / draft status
 
 ## Configure a Model
 
-MindForge needs an LLM model to generate knowledge cards and Wiki.
+MindForge needs an LLM model to generate knowledge cards.
 
 Make sure you have built the Web frontend first (see Installation above).
 
@@ -165,19 +165,18 @@ Knowledge Health checks review backlog, low-quality cards, missing provenance, d
 
 ---
 
-## Generate Wiki
+## Browse Knowledge Topics (Topic View)
 
-Wiki uses LLM-first synthesis over all `human_approved` cards.
+The Wiki page has migrated from LLM synthesis to a **runtime Topic View** (v0.5). Approved cards are aggregated by topic and displayed directly — no manual trigger required.
 
 ```bash
 mindforge wiki status
-mindforge wiki rebuild
 mindforge wiki show
 ```
 
-Or click **Generate Wiki** on the Web **Wiki** page.
+Or simply open the Web **Wiki** page to browse.
 
-Wiki only uses approved cards — it never bypasses approval. LLM synthesis must be triggered manually.
+Topic View only shows approved cards — no LLM calls, no synthesized text. Approved cards are the source of truth; Topic View is a derived runtime view. LLM-based Wiki synthesis (`llm_rebuild_wiki`) is deprecated in v0.5.
 
 Related cards and Local Graph Preview in Library / Wiki use deterministic source, tag, wiki section, and review batch relationships for local navigation. They are not a vector database or GraphRAG.
 

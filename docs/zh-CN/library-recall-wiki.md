@@ -39,35 +39,32 @@ Knowledge Health 是只读维护报告，用于检查 review backlog、低质量
 
 ---
 
-## Wiki
+## Wiki / Topic View
 
-基于所有 `human_approved` 卡片做 LLM-first synthesis，生成结构化 topic page。
+Wiki 页面已从 LLM synthesis 迁移为**运行时 Topic View**（v0.5）。按 topic 聚合 `human_approved` cards 直接展示，无需手动触发合成。
 
-### 生成
+### 浏览
 
 ```bash
-mindforge wiki status            # 查看 Wiki 状态
-mindforge wiki rebuild           # LLM synthesis 重建
-mindforge wiki show              # 查看 Wiki 内容
+mindforge wiki status            # 查看 Topic View 状态
+mindforge wiki show              # 查看 Topic View 内容
 ```
 
-也可以在 Web **Wiki** 页面点击 **Generate Wiki**。
+也可以直接打开 Web **Wiki** 页面浏览 Topic View。Generate Wiki 已在 v0.5 废弃。
 
 ### 工作原理
 
-- Wiki 只从 `human_approved` cards 生成
-- LLM-first synthesis：调用 LLM 对已审批卡片做综合归纳和重写
-- 不会绕过审批读取 raw source
-- 必须手动触发，不会自动运行
-- Approved cards 是 source of truth，Wiki 不是
+- Topic View 只展示 `human_approved` cards，按 topic 聚合
+- 纯运行时视图，直接从已审批卡片构建，不调用 LLM
+- 不生成合成文本，不绕过审批
+- LLM-based Wiki synthesis（`llm_rebuild_wiki`）已在 v0.5 废弃
 
 ### 配置
 
 ```yaml
 wiki:
-  mode: llm                 # LLM-first synthesis
-  model: main               # 使用的 model id
-  auto_rebuild_on_approve: false
+  enabled: true
+  auto_rebuild_on_approve: false  # 已废弃 — v0.5+ 不再使用
 ```
 
 ---
@@ -77,9 +74,9 @@ wiki:
 ```
 Approved Cards ──→ Library (浏览)
                ├──→ Recall (BM25 检索)
-               └──→ Wiki (LLM synthesis)
+               └──→ Wiki (Topic View，运行时视图)
 ```
 
-Library 和 Recall 是实时查询，Wiki 需要手动 rebuild 才会更新。当新审批的卡片数量超过 Wiki 已有卡片数时，Wiki 状态栏会显示过期提醒（"New approved knowledge is available"），提示用户重建 Wiki。
+Library、Recall 和 Topic View 均为实时查询，直接反映已审批卡片状态，无需手动触发更新。
 
 Related cards 和 Local Graph Preview 使用 source、tag、wiki section、review batch 等确定性关系展示局部导航；它们不使用 embedding、Vector DB、Graph DB，也不是 GraphRAG。

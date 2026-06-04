@@ -73,6 +73,10 @@
 - **Unknown / empty topic**: `404 Not Found` with `{"detail": "Topic 'X' not found or has no approved cards"}`
 - **No approved cards for topic**: `404 Not Found`（同上）
 
+### Known Limitations
+
+- **Path-based topic name encoding**: `GET /api/topics/{topic_name}` uses FastAPI path parameters. Topic names containing `/` (e.g., `"Programming/Python"`) cannot be encoded in the standard URL path without escaping. Future versions may switch to query parameters (e.g., `GET /api/topics?name=...`) or use URL-safe slug encoding to support `/` in topic names. Tracked as follow-up.
+
 ### Approval Boundary
 
 - 只有 `status: human_approved` 的卡片出现在视图中

@@ -14,7 +14,7 @@ Complete feature documentation for MindForge.
 | **ai_draft** | AI-generated draft card, preview only |
 | **human_approved** | Officially approved knowledge card after explicit confirmation |
 | **Run** | A source processing task with multiple steps |
-| **Wiki** | Structured topic pages via LLM synthesis over approved cards |
+| **Wiki** | Runtime Topic View — browse approved cards by topic, no LLM synthesis |
 
 ---
 
@@ -151,7 +151,7 @@ Each card progresses through a defined lifecycle visible on the **Home** page:
 ```
 Source → ai_draft → human_approved
                       ├── Library (browse/search)
-                      ├── Wiki (LLM synthesis)
+                      ├── Wiki (Topic View, runtime view)
                       └── Recall (BM25 retrieval)
 ```
 
@@ -276,50 +276,32 @@ Knowledge Health is a read-only maintenance report for review backlog, low-quali
 
 ---
 
-## Wiki
+## Topic View (formerly Wiki Page)
 
-### Generate
+### Browse
+
+The Wiki page has migrated from LLM synthesis to a **runtime Topic View** (v0.5). Open the Web **Wiki** page to browse approved cards by topic — no manual trigger needed.
 
 ```bash
-mindforge wiki status            # View Wiki status
-mindforge wiki rebuild           # LLM synthesis rebuild
-mindforge wiki show              # View Wiki content
+mindforge wiki status            # View Topic View status
+mindforge wiki show              # View Topic View content
 ```
-
-Or click **Generate Wiki** on the Web **Wiki** page.
 
 ### How It Works
 
-- Wiki only uses `human_approved` cards
-- LLM-first synthesis: summarizes and rewrites approved cards
-- Never reads raw sources (bypasses approval)
-- Must be manually triggered — never runs automatically
+- Topic View only shows `human_approved` cards, aggregated by topic
+- Pure runtime view, built directly from approved cards, no LLM calls
+- No synthesized text, never bypasses approval
+- `mindforge wiki rebuild` is deprecated
+- LLM-based Wiki synthesis (`llm_rebuild_wiki`) is deprecated in v0.5
 
 ### Configuration
 
 ```yaml
 wiki:
-  mode: llm                 # LLM-first synthesis
-  model: main               # Model id (must reference llm.models)
-  auto_rebuild_on_approve: false
+  enabled: true
+  auto_rebuild_on_approve: false  # Deprecated — no-op in v0.5+
 ```
-
-### Troubleshooting Fallback
-
-The Web Wiki **Advanced** section provides Safe fallback rebuild (deterministic template rebuild) for emergencies when no model is available. Not the recommended path.
-
-### Wiki Quality
-
-The Wiki page footer displays a Quality Bar with the current Wiki's quality metrics:
-
-| Metric | Description |
-|--------|-------------|
-| **Coverage** | Proportion of approved cards referenced by the Wiki |
-| **Faithfulness** | How faithfully the Wiki content reflects source cards |
-| **Staleness** | Approved cards not yet covered by Wiki (stale) |
-| **Knowledge Gaps** | Knowledge gaps detected between Wiki sections |
-
-The Quality Bar updates automatically on each Wiki rebuild. Data is stored as embedded JSON at the end of the Wiki file.
 
 ---
 
@@ -335,7 +317,7 @@ Start with `mindforge web --open`, visit `http://127.0.0.1:8765`:
 | **Review** | View AI drafts, approve or trash |
 | **Library** | Browse approved knowledge cards, related cards, local graph preview |
 | **Recall** | Local BM25 lexical search |
-| **Wiki** | LLM synthesis Wiki generation, Wiki quality bar |
+| **Wiki** | Runtime Topic View — browse approved cards by topic |
 | **Export** | Browser-local Markdown/ZIP download — safe, no Obsidian vault write |
 | **Health** | Knowledge health diagnostics, maintenance suggestions |
 | **Dogfood** | Internal development tool — usage reports, metrics dashboard |

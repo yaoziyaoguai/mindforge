@@ -16,7 +16,7 @@ MindForge 的核心概念：
 | **ai_draft** | AI 生成的草稿卡片，仅供预览 |
 | **human_approved** | 你显式审批后的正式知识卡片 |
 | **Run** | 一次 source 处理任务，包含多个 step |
-| **Wiki** | 基于已审批卡片 LLM synthesis 生成的结构化 topic page |
+| **Wiki** | 运行时 Topic View，按 topic 聚合已审批卡片展示，不调用 LLM 合成 |
 
 ---
 
@@ -154,7 +154,7 @@ llm:
 ```
 Source → ai_draft → human_approved
                       ├── Library (浏览/检索)
-                      ├── Wiki (LLM synthesis)
+                      ├── Wiki (Topic View，运行时视图)
                       └── Recall (BM25 检索)
 ```
 
@@ -285,50 +285,32 @@ Knowledge Health 是只读维护报告，会检查 review backlog、低质量卡
 
 ---
 
-## Wiki
+## Topic View（原 Wiki 页面）
 
-### 生成
+### 浏览
+
+Wiki 页面已从 LLM synthesis 迁移为**运行时 Topic View**（v0.5）。打开 Web **Wiki** 页面即可按 topic 浏览已审批卡片，无需手动触发合成。
 
 ```bash
-mindforge wiki status            # 查看 Wiki 状态
-mindforge wiki rebuild           # LLM synthesis 重建
-mindforge wiki show              # 查看 Wiki 内容
+mindforge wiki status            # 查看 Topic View 状态
+mindforge wiki show              # 查看 Topic View 内容
 ```
-
-Web **Wiki** 页面点击 **Generate Wiki**。
 
 ### 工作原理
 
-- Wiki 只从 `human_approved` cards 生成
-- LLM-first synthesis：调用 LLM 对已审批卡片做综合归纳和重写
-- 不会绕过审批读取 raw source
-- 必须手动触发，不会自动运行
+- Topic View 只展示 `human_approved` cards，按 topic 聚合
+- 纯运行时视图，直接从已审批卡片构建，不调用 LLM
+- 不生成合成文本，不绕过审批
+- `mindforge wiki rebuild` 已废弃
+- LLM-based Wiki synthesis（`llm_rebuild_wiki`）已在 v0.5 废弃
 
 ### 配置
 
 ```yaml
 wiki:
-  mode: llm                 # LLM-first synthesis
-  model: main               # 使用的 model id
-  auto_rebuild_on_approve: false  # 是否在 approve 时自动重建
+  enabled: true
+  auto_rebuild_on_approve: false  # 已废弃 — v0.5+ 不再使用
 ```
-
-### Troubleshooting 回退
-
-Web Wiki 页面的 **Advanced** 区域提供 Safe fallback rebuild（确定性模板重建），用于没有可用模型时的应急回退。这不是推荐的 Wiki 生成路径。
-
-### Wiki Quality
-
-Wiki 页面底部展示 Quality Bar，显示当前 Wiki 的质量指标：
-
-| 指标 | 说明 |
-|------|------|
-| **Coverage** | 已审批卡片中被 Wiki 引用的比例 |
-| **Faithfulness** | Wiki 内容忠实反映源卡片的程度 |
-| **Staleness** | 是否有已审批卡片未被 Wiki 覆盖（过期） |
-| **Knowledge Gaps** | 检测 Wiki 章节之间的知识断层 |
-
-Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存储在 Wiki 文件末尾。
 
 ---
 
@@ -344,7 +326,7 @@ Quality Bar 在每次 Wiki rebuild 时自动更新，数据以嵌入式 JSON 存
 | **Review** | 查看 AI 草稿、审批或移入 Trash |
 | **Library** | 浏览已审批知识卡片、Related Cards、Community Browser、Local Graph Preview |
 | **Recall** | 本地 BM25 词法检索 |
-| **Wiki** | LLM synthesis Wiki 生成、Wiki Quality Bar |
+| **Wiki** | 运行时 Topic View — 按 topic 浏览已审批卡片 |
 | **Export** | 浏览器本地下载 Markdown/ZIP — 安全导出，不写 Obsidian vault |
 | **Health** | 知识健康诊断、维护建议 |
 | **Dogfood** | 内部开发工具 — 使用报告、指标面板 |

@@ -4,7 +4,7 @@
 
 ## MindForge 是什么？
 
-一个本地优先、LLM 优先的个人 AI 知识加工工具。把本地文件变成可审批的知识卡片，通过 LLM synthesis 将已审批知识组织成结构化 Wiki。
+一个本地优先、LLM 辅助的个人 AI 知识加工工具。把本地文件变成可审批的知识卡片，通过运行时 Topic View 按 topic 浏览已审批知识。LLM-based Wiki synthesis 已在 v0.5 废弃。
 
 ---
 
@@ -50,7 +50,6 @@ MindForge 是 local-first、single-user 工具：
 取决于使用的模型和 source 数量。MindForge 只在以下场景调用模型：
 
 - 处理 source 生成 draft（import / watch add / Process now）
-- 重建 Wiki（wiki rebuild / Generate Wiki）
 
 不会自动调用模型。不会在后台偷偷调用。不会在 approve 时自动重建 Wiki（除非开启 `auto_rebuild_on_approve`）。
 
